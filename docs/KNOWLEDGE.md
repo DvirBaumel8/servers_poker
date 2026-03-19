@@ -411,6 +411,55 @@ Built-in functions reduce implementation complexity:
 
 ---
 
+## Testing Strategy
+
+### Three-Tier Test Structure
+
+**Unit Tests** (`tests/unit/`):
+- Pure game logic (hand evaluation, pot management, betting)
+- No external dependencies or mocks
+- 161+ tests covering all edge cases
+- Run: `npm run test:unit`
+
+**Integration Tests** (`tests/integration/`):
+- Multiple components together with mocked services
+- Mock HTTP servers for bot communication testing
+- Service layer testing without database
+- Run: `npm run test:integration`
+
+**E2E Tests** (`tests/e2e/`):
+- Full API testing with real PostgreSQL database
+- WebSocket connection testing
+- Complete user flows (register → create bot → join table)
+- Run: `npm run test:e2e` (requires PostgreSQL)
+
+### Test Utilities
+
+- `MockBotServer` — Configurable HTTP server for simulating bots
+- `createCallingBot/createFoldingBot/createAggressiveBot` — Pre-built bot behaviors
+- `createSlowBot` — For timeout testing
+- `createUnreliableBot` — For resilience testing
+
+### Running Tests
+
+```bash
+# Default: unit + integration tests
+npm test
+
+# All tests including E2E (requires PostgreSQL)
+npm run test:all
+
+# With coverage report
+npm run test:cov
+
+# E2E with Docker (spins up PostgreSQL automatically)
+npm run test:e2e:docker
+```
+
+See `docs/TESTING.md` for complete testing documentation.
+
+---
+
 ## Known Gaps / Future Work
 
 - **Scheduled tournament start** — `type:'scheduled'` exists but no timer fires at `scheduled_start_at`
