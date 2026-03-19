@@ -25,7 +25,6 @@
     "docs",
     "public",
     "**/*.spec.ts",
-    "bots",
-    "src/_deprecated"
+    "bots"
   ]
 }
