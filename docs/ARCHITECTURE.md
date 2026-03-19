@@ -203,6 +203,20 @@ The core poker engine. DB-free and tournament-agnostic.
 - Each hand: antes → blinds → pre-flop → flop → turn → river → showdown
 - 3-strike bot fault tolerance with configurable timeout
 - Chip conservation validation after every action
+- `rollbackHand()` — Restores all players to start-of-hand state
+- `advanceDealer()` — Dead button rule, skips eliminated players
+- `getBlindPositions()` — Returns dealer/SB/BB with heads-up handling
+
+#### PotManager
+Side pot calculation and distribution.
+- `calculatePots()` — Creates side pots from all-in contributions
+- `distributePot()` — Splits pot with odd chip to player closest to button
+
+#### BettingRound
+Single betting round management.
+- `canReraise(playerId)` — Checks if player can re-raise (false after short all-in)
+- `wasLastRaiseFull()` — Returns false if last raise was short all-in
+- `getValidActionsForPlayer(player)` — Legal actions considering short all-in rules
 
 #### ChipInvariantChecker
 Runtime integrity validation.

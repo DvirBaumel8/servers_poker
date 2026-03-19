@@ -353,6 +353,33 @@ Display: `"A♠"`, `"10♦"`, `"K♥"`. Hidden: `"??"`.
 ### Side pots
 `PotManager.calculatePots()` runs at end of each betting street. Each pot has `eligiblePlayerIds`. Showdown awards each pot independently.
 
+### Split Pot Odd Chip Distribution
+`PotManager.distributePot(potAmount, winners, playerOrder, dealerIndex)` handles split pots with proper odd chip distribution:
+- Odd chips go to players closest to the dealer button (dealer + 1 first)
+- Example: $101 split 2 ways = $51 + $50, not $50.50 each
+- Works for 2-way, 3-way, 4-way+ splits
+
+### Short All-In Does Not Reopen Betting
+When a player goes all-in for less than the minimum raise:
+- `BettingRound.wasLastRaiseFull()` returns `false`
+- `BettingRound.canReraise(playerId)` returns `false` for players who already acted
+- `BettingRound.getValidActionsForPlayer(player)` excludes "raise" option
+- Only call/fold allowed after short all-in
+
+### Hand Cancellation/Rollback
+`PokerGameService.rollbackHand()` restores game to start-of-hand state:
+- Player chips restored from snapshot taken at `startHand()`
+- Pot reset to zero, folded/allIn status cleared
+- Emits `game.handCancelled` event
+- Use case: server error, all players disconnect mid-hand
+
+### Dead Button Rule
+Button movement skips eliminated players:
+- `advanceDealer()` skips disconnected players with 0 chips
+- `getBlindPositions()` returns proper SB/BB positions relative to active players
+- Heads-up: dealer is also small blind (`dealerSmallBlind` property)
+- Ensures BB always advances (dead button rule, not moving button)
+
 ### All timestamps are ISO 8601
 Stored as `TIMESTAMP WITH TIME ZONE` in PostgreSQL. Converted to ISO strings for API responses.
 
