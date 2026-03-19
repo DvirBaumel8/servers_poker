@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --poker-green: #1a472a;
+  --poker-felt: #35654d;
+  --poker-gold: #d4af37;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.card {
+  @apply bg-white rounded-lg shadow-lg;
+  aspect-ratio: 2.5 / 3.5;
+}
+
+.chip {
+  @apply rounded-full shadow-md;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent);
+}
+
+.felt-texture {
+  background: 
+    radial-gradient(ellipse at center, var(--poker-felt) 0%, var(--poker-green) 100%);
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  }
+}

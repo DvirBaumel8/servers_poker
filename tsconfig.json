@@ -17,8 +17,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "*.config.ts",
-    "test.ts"
+    "*.config.ts"
   ],
   "exclude": [
     "node_modules",
@@ -26,6 +25,7 @@
     "docs",
     "public",
     "**/*.spec.ts",
-    "bots"
+    "bots",
+    "src/_deprecated"
   ]
 }

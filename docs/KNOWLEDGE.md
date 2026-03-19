@@ -3,27 +3,63 @@
 A running record of non-obvious design decisions, conventions, and gotchas.
 Update this whenever a decision is made, reversed, or a new gotcha is discovered.
 
-For data-specific decisions, see DATA.md.
-For tournament rules, see TOURNAMENT_RULES.md.
+For data-specific decisions, see DATA_DICTIONARY.md.
+For tournament rules, see GAME_RULES.md.
+For security details, see SECURITY.md.
 
 ---
 
 ## Architecture Decisions
 
-### Tournaments replace cash tables entirely
-The original cash table model (`tables.config.js`, `POST /games`) is gone. All competitive play happens in tournaments. The `PokerGame` engine is tournament-unaware — `TournamentDirector` wraps it.
+### NestJS Framework Migration (COMPLETE)
+Fully migrated from custom HTTP server to NestJS. The old server (`src/_deprecated/`) is no longer used.
+
+**Status**: Production-ready. All game logic runs through NestJS.
+
+**Key Components**:
+- `LiveGameManagerService` — In-memory game state, replaces `liveGames` object
+- `TournamentDirectorService` — Tournament orchestration with scheduled starts
+- `GamesGateway` — WebSocket for real-time updates, event-driven via EventEmitter2
+- `GamesController` — REST endpoints for tables, joining, game state
+
+**Migration Benefits**:
+- Single entry point (`src/main.ts`)
+- Dependency injection for clean service composition
+- Guards for JWT, API Key, and Role-based auth
+- Interceptors for logging, audit, timeout handling
+- Exception filters for standardized error responses
+- WebSocket Gateway with Socket.IO for real-time game updates
+
+### PostgreSQL Database Migration
+Migrated from SQLite to PostgreSQL for production-grade data handling:
+- `BIGINT` for all chip amounts (prevent overflow)
+- `SERIALIZABLE` transactions for chip movements
+- `JSONB` columns for flexible data storage (cards, hand details)
+- `CHECK` constraints for chip amount validation (`chips >= 0`)
+- Proper connection pooling via pg pool
+
+### TypeORM Entity Layer
+All database tables are TypeORM entities with:
+- UUID primary keys (36-char strings)
+- Proper foreign key relationships with CASCADE delete
+- Indexed columns for common queries
+- `created_at` and `updated_at` timestamps
 
 ### `PokerGame` is DB-free and tournament-agnostic
-No imports from `db.js` or `tournament.js` in `game.js`. This keeps it testable in isolation. The `GameRecorder` attaches via monkey-patching to persist data without the engine knowing.
+No imports from database or tournament modules in the game engine. This keeps it testable in isolation. The `GameRecorder` attaches via callbacks to persist data.
 
-### Zero npm dependencies in production
-Only Node 22 built-ins: `node:sqlite`, `node:crypto`, `node:http`, `node:net`. Eliminates supply chain risk. The custom WebSocket server in `src/ws.js` exists because of this constraint. Maintain it as long as feasible.
+### WebSocket Gateway replaces custom ws.js
+The NestJS WebSocket Gateway using Socket.IO replaces the custom RFC 6455 implementation. Benefits:
+- Room-based subscriptions per table
+- Authenticated connections via JWT
+- Type-safe event handling
+- Built-in reconnection handling
 
-### WebSocket server is hand-rolled
-`src/ws.js` implements RFC 6455 from scratch — upgrade handshake, frame parsing/building, ping/pong, per-table subscriptions. Supports text frames only (sufficient for JSON). Chosen to preserve zero-dependency status.
-
-### Tournaments are system-only resources
-No API endpoint creates tournaments at runtime. They're provisioned from `tournaments.config.js` at startup via `INSERT OR IGNORE`. Operators add tournaments by editing the config and restarting. Prevents pool fragmentation and abuse.
+### Chip Conservation Invariants
+Runtime assertions that run in production:
+- `ChipInvariantChecker` validates total chips after every action
+- `TransactionAuditLog` records all chip movements
+- Violations throw `ChipConservationError` and halt the game
 
 ---
 
@@ -38,29 +74,119 @@ No API endpoint creates tournaments at runtime. They're provisioned from `tourna
 Absent pre-flop (no community cards to evaluate). Present on flop, turn, river. Contains `{ name, cards }` — the hand name and 5 specific cards making it.
 
 ### Opponent hole cards never sent
-`players[]` never includes opponent cards. Only revealed at showdown via `onHandComplete`. Bots learn the outcome, not the process.
+`players[]` never includes opponent cards. Only revealed at showdown via `handResult` WebSocket event.
 
-### `you` block is a shortcut
-Bot's own data appears in both `you` and `players[]`. `you` saves bots from searching the array.
+### Action validation is strict
+Invalid actions result in automatic fold with a strike. Bots sending actions out of turn are rejected immediately.
 
-### `table.ante` included in every payload
-Bots need to account for ante in stack depth calculations. A bot with 500 chips facing 25 ante + 50 BB + 100 toCall has far less effective stack than the chips number suggests.
+### Response format
+```json
+{ "type": "fold" }
+{ "type": "check" }
+{ "type": "call" }
+{ "type": "raise", "amount": 300 }
+{ "type": "all_in" }
+```
+
+---
+
+## Bot Connectivity & Resilience
+
+### Timeout Mechanism
+Every bot call has a configurable timeout (`BOT_TIMEOUT_MS`, default 10s):
+- Game engine uses `Promise.race` to enforce timeout
+- On timeout: automatic fold + strike
+- 3 consecutive timeouts = disconnection
+
+### Retry Logic (BotCallerService)
+Transient failures are retried automatically:
+- `BOT_MAX_RETRIES=1` (default) — one retry attempt
+- Retryable errors: `ECONNRESET`, `ETIMEDOUT`, `socket hang up`, HTTP 502/503/504
+- Non-retryable errors: invalid JSON, response too large, circuit breaker open
+- Exponential backoff: `BOT_RETRY_DELAY_MS * attempt`
+
+### Circuit Breaker Pattern
+Prevents cascading failures when a bot is unhealthy:
+- Opens after `BOT_CIRCUIT_BREAKER_THRESHOLD` consecutive failures (default 5)
+- Half-opens after `BOT_CIRCUIT_BREAKER_RESET_MS` (default 30s) for retry
+- Successful call resets the breaker
+- Events emitted: `bot.circuitOpened`, `bot.callFailed`
+
+### Health Check
+Bots should expose `GET /health` returning HTTP 200:
+- Called before game registration validation
+- Pre-game health check runs on all bots before starting
+- Unhealthy bots can be excluded from game start
+
+### HTTP Keep-Alive (BotCallerService)
+Connection pooling for reduced overhead:
+- `http.Agent` and `https.Agent` with `keepAlive: true`
+- `maxSockets: 100`, `maxFreeSockets: 20`
+- Eliminates TCP handshake overhead for repeated calls to same bot
+- Agents shared across all bot calls
+
+### Periodic Health Checks (BotHealthSchedulerService)
+Background monitoring of all registered bots:
+- `BOT_HEALTH_CHECK_INTERVAL_MS=30000` for idle bots
+- `BOT_ACTIVE_GAME_CHECK_INTERVAL_MS=10000` for in-game bots
+- Events emitted: `bot.healthStateChanged`, `bot.healthCheckRoundCompleted`
+- Pre-game registration via `registerBot(botId, endpoint)`
+
+### Graceful Degradation (BotResilienceService)
+Fallback strategies when bots fail:
+- **conservative:** Check if possible, call small bets (<25% pot), else fold
+- **aggressive:** May raise when can check, call medium bets (<50% pot)
+- **random:** Random valid action (for testing)
+- **check_fold:** Always check or fold (safest)
+
+Configurable via `BOT_FALLBACK_STRATEGY` env var.
+
+### Bot Metrics Gateway
+Real-time WebSocket monitoring at `/metrics`:
+- `getSnapshot` — current health/latency of all bots
+- `getHealthHistory` — last health check round results
+- `triggerHealthCheck` — manual health check
+- Events: `snapshot`, `botStateChanged`, `circuitBreaker`, `activeGameAlert`
+
+### Latency Tracking
+Rolling window of last 100 response times per bot:
+- Average latency available via `getAverageLatency(botId)`
+- High latency bots (>3s average) flagged in validation reports
+- Helps identify bots at risk of timeout
+
+### Response Validation
+Bot responses are validated before processing:
+- Must be JSON object
+- Must have `type` field (`fold`, `check`, `call`, `raise`, `bet`, `all_in`)
+- `raise`/`bet` must include numeric positive `amount`
+- Amount must be within `minRaise` and `maxRaise` bounds
+- Invalid responses trigger automatic fold + strike
+
+### Bot Validation Suite (BotValidatorService)
+Comprehensive pre-registration validation with 13 scenarios:
+- **Connectivity:** Health check endpoint
+- **Basic:** Pre-flop, flop, river actions
+- **Edge cases:** Short stack, all-in facing, heads-up, multi-way
+- **Stress:** Response time, large numbers
+
+Validation produces a weighted score (0-100):
+- Connectivity: 30%
+- Basic scenarios: 40%
+- Edge cases: 20%
+- Stress tests: 10%
 
 ---
 
 ## Game Engine Decisions
 
 ### Antes posted before blinds
-All active players post ante first, then SB and BB. Matches standard tournament ante structure. Ensures the pot is built before anyone folds pre-flop.
-
-### Antes from level 1
-Antes apply from the very first blind level. Creates immediate pressure and makes every hand meaningful from the start. Most platforms defer antes to level 3–4 — we chose to front-load pressure for a more action-oriented game.
+All active players post ante first, then SB and BB. Matches standard tournament ante structure.
 
 ### 3-strike disconnection, not immediate
-A bot failure (timeout, error, bad JSON) gets a strike and a penalty fold. After 3 **consecutive** failures it's disconnected. Strikes reset on any successful response. Tolerates brief network blips.
+A bot failure (timeout, error, bad JSON) gets a strike and a penalty fold. After 3 **consecutive** failures it's disconnected. Strikes reset on any successful response.
 
 ### Penalty fold is recorded differently from intentional fold
-`actions.is_penalty = 1` when the server folded on the bot's behalf. A bot that always folds looks identical to one that's timing out without this flag. Critical for detecting unstable bots vs conservative strategy.
+`actions.is_penalty = true` when the server folded on the bot's behalf. Critical for detecting unstable bots vs conservative strategy.
 
 ### Auto-start deferred with `setImmediate`
 `addPlayer()` triggers `startGame()` via `setImmediate` not synchronously. Allows tests to call `game.stop()` in the same tick before the loop starts.
@@ -70,144 +196,200 @@ After each hand, the loop sleeps 1500ms. Gives the UI time to render the final s
 
 ---
 
-## Tournament Decisions
+## Edge Case Handling
 
-### Global hand count for blind advancement
-Blind levels advance every 10 hands counted across ALL active tables simultaneously. A 3-table tournament advances 3x faster than a 1-table one. Standard online MTT behavior — consistent pressure regardless of table count.
+### Cash Game: Last player standing
+When only 2 players remain and one leaves:
+- Game immediately stops
+- Remaining player's chips are preserved
+- Game status set to "finished"
+- WebSocket broadcasts final state
 
-### Table breaking threshold is 4 players
-When a table falls to ≤4 players AND another can absorb them without exceeding 9, it breaks. Prevents prolonged short-handed play which distorts strategy significantly.
+### Player leaves during hand
+When a player leaves mid-hand:
+- Automatic fold applied
+- Strike counter incremented
+- If 3 strikes: disconnected status set
+- If last 2 players and one disconnects: immediate hand completion
 
-### Final table = table_number 99
-Convention for easy querying. When `activeBots.size ≤ 9` and `tables.size > 1`, all tables break and table 99 is created. `WHERE table_number = 99` finds it.
+### Tournament: Single table with 2 players, one leaves
+- Remaining player declared winner
+- Tournament status set to "finished"
+- Payouts calculated and distributed
+- All entries updated with finish positions
 
-### Late entries receive full starting stack
-Even at level 4, late entrants get full `starting_chips`. They're severely disadvantaged (arriving at maybe 5BB effective) but that's intentional and matches real online tournament behavior.
+### Tournament: Multi-table, one table down to 1 player
+- Player moved to another table with available seats
+- Table broken (status set to "broken")
+- Seat history recorded
+- If no other tables have room: final table formation triggered
 
-### Payout rounding remainder goes to 1st place
-`Math.floor` for all payout amounts. Unallocated chips go to the winner. Standard practice — better than losing chips from the pool.
+### Out-of-turn action requests
+When a bot sends an action but it's not their turn:
+- Request rejected with error response
+- No strike applied (could be race condition)
+- Current player's turn continues normally
+- WebSocket state shows correct `currentPlayerId`
 
-### Seat history instead of overwriting
-`tournament_seats` is a live snapshot (upserted on moves). `tournament_seat_history` is the full movement log — every table a bot sat at, chips on arrival, reason for move, timestamps. This is important analytics data.
-
-### `_handLock` prevents race conditions
-Multiple tables complete hands near-simultaneously. `_handLock` prevents concurrent `_onHandComplete` calls from racing on bust detection and rebalancing. SQLite is single-writer, but in-memory state also needs consistency.
-
-### `onPlayerRemoved` = tournament bust
-When a bot hits 3 strikes, the director treats it as a chip bust — eliminated at current finish position. In a real tournament a disconnected player's stack would blind off. For bots we simplify — a disconnected bot can't play anyway.
+### Simultaneous disconnections
+When multiple bots disconnect at once:
+- Each processed sequentially via `_handLock`
+- Bust order determined by chip count at disconnection
+- Tournament continues with remaining players
 
 ---
 
-## Recorder Decisions
+## Tournament Decisions
 
-### Antes and blinds recorded as action rows
-Antes (type=`ante`) and blind posts (type=`blind`) are recorded in the `actions` table alongside voluntary actions. This completes the financial story of every hand — the forced bets are part of the chip accounting.
+### Global hand count for blind advancement
+Blind levels advance every 10 hands counted across ALL active tables simultaneously.
 
-### All hole cards stored at showdown
-Previously only winners' hole cards were stored. Now all players' cards are stored at showdown — including players who were called and lost. Enables "what did I get called by?" analysis and full hand replays.
+### Table breaking threshold is 4 players
+When a table falls to ≤4 players AND another can absorb them without exceeding 9, it breaks.
 
-### Best hand stored for all showdown players, not just winner
-The loser's best hand at showdown is computed but was previously thrown away. Now stored in `hand_players.best_hand` and `best_hand_cards` for all players. Enables "second-best hand" analysis.
+### Final table = table_number 99
+Convention for easy querying. When `activeBots.size ≤ 9` and `tables.size > 1`, all tables break and table 99 is created.
 
-### bot_stats updated incrementally per hand
-`bot_stats` is a materialized aggregate table updated by the recorder after every hand. Leaderboard queries read one row per bot rather than re-aggregating from millions of action rows. Raw counters (`_vpip_count`, `_vpip_hands`, etc.) are stored alongside the derived rates so incremental updates are exact.
+### Late entries receive full starting stack
+Even at level 4, late entrants get full `starting_chips`. They're severely disadvantaged but that's intentional.
 
-### response_ms recorded per action
-Every voluntary action captures the bot's response latency. Enables: average response time stats, detecting bots that strategically delay (stalling), performance analysis across different server locations.
+### `_handLock` prevents race conditions
+Multiple tables complete hands near-simultaneously. `_handLock` prevents concurrent `_onHandComplete` calls from racing on bust detection and rebalancing.
 
 ---
 
 ## Security Decisions
 
-### API keys stored as SHA-256 hashes
-`users.api_key` stores `SHA-256(rawKey)`. Raw key returned once at registration, never stored. A full DB dump is useless without the raw keys.
+### JWT Authentication
+- Access tokens with configurable expiration (default 24h)
+- Token validation on every authenticated request
+- User context injected into request via decorator
 
-### Rate limiting is in-memory sliding window
-Per-key timestamp array. Pruned on each check. Sufficient for single-process deployment. When scaling to multiple processes, replace the store with Redis while keeping the same interface.
+### API Key Authentication
+- Keys stored as SHA-256 hashes
+- Raw key returned once at registration, never stored
+- Used for bot-to-server communication
 
-### Atomic join uses `BEGIN EXCLUSIVE`
-The seat check + insert uses SQLite's strictest lock. Two concurrent requests for the same bot cannot both pass the "already seated" check.
+### Rate Limiting
+- Global rate limiting via @nestjs/throttler
+- Configurable limits per endpoint
+- Default: 100 requests per minute per IP
 
-### Body size limit is 64KB
-Enforced in `parseBody()` — bytes counted as they stream in. Exceeding it destroys the connection and returns 413.
+### Input Validation
+- Strict DTO validation with class-validator
+- Bot endpoints validated (no internal IPs)
+- Body size limit enforced
+- SQL injection prevention via TypeORM parameters
+
+### Audit Logging
+- All requests logged with user, IP, action
+- Sensitive fields redacted (passwords, API keys)
+- Chip movements tracked separately
+
+---
+
+## Simulation System
+
+### Deterministic mode
+Seeded RNG allows reproducible simulations for debugging.
+
+### Bot personalities
+- `caller` - Calls most bets (VPIP 60%)
+- `folder` - Folds frequently (VPIP 15%)
+- `maniac` - Raises aggressively (VPIP 90%)
+- `random` - Random valid actions
+- `smart` - Position-aware decisions
+- `crasher` - Tests error handling (high error rate)
+- `slow` - Tests timeout handling
+
+### Anomaly detection
+Simulation tracks and reports:
+- Chip conservation violations (CRITICAL)
+- Bot timeouts and errors
+- Invalid actions
+- Statistical anomalies in hand distribution
 
 ---
 
 ## Conventions
 
 ### Card format
-Strings: `"A♠"`, `"10♦"`, `"K♥"`. Rank first, then Unicode suit. Hidden: `"??"`. Internally: `{ rank, suit, value }` where value is 2–14 (Ace=14).
+Internal: `{ value, suit }` where value is 2–14 (Ace=14).
+Display: `"A♠"`, `"10♦"`, `"K♥"`. Hidden: `"??"`.
 
 ### Dealer rotation
-`dealerIndex` advances by 1 each hand (`% players.length`). Broke/disconnected players skipped during active index resolution but remain in the array.
+`dealerIndex` advances by 1 each hand (`% players.length`). Broke/disconnected players skipped.
 
 ### Side pots
-`PotManager.calculatePots()` runs at end of each betting street. Splits into multiple pots for all-in situations. Each pot has `eligiblePlayerIds`. Showdown awards each pot independently.
+`PotManager.calculatePots()` runs at end of each betting street. Each pot has `eligiblePlayerIds`. Showdown awards each pot independently.
 
-### Burn cards
-One card burned before flop, turn, and river — standard casino rules.
+### All timestamps are ISO 8601
+Stored as `TIMESTAMP WITH TIME ZONE` in PostgreSQL. Converted to ISO strings for API responses.
 
-### All timestamps are Unix epoch integers
-`unixepoch()` in SQLite. Easier arithmetic than ISO strings. Consistent across all tables.
+---
+
+## Developer Experience
+
+### Philosophy: 5 Minutes to First Bot
+The complexity of getting started directly impacts adoption. Goal: anyone can build and deploy a working bot in under 5 minutes.
+
+### Documentation for AI Assistants
+`docs/AI_CONTEXT.md` is specifically designed to be pasted into ChatGPT/Claude/etc. Contains complete request/response format, field explanations, working templates in both Node.js and Python, and common prompts.
+
+**Why:** In 2026, most developers use AI to write code. Optimizing for AI-assisted development is critical.
+
+### Zero-Config SDKs
+Both JavaScript and Python SDKs (`bots/sdk/`) require zero setup:
+- No npm install needed for Node.js
+- No pip install needed for Python
+- Single function to implement: `decide(state) -> action`
+- Built-in logging, error handling, health endpoint
+
+### Progressive Complexity
+Examples (`bots/examples/`) are ordered by complexity:
+
+**Beginner (4-15 lines):**
+1. `01-check-fold.js` — 4 lines, never risks chips
+2. `02-calling-station.js` — 4 lines, calls everything
+3. `03-tight-passive.js` — 15 lines, premium hands only
+
+**Intermediate (30-45 lines):**
+4. `04-tight-aggressive.js` — 40 lines, classic TAG
+5. `05-pot-odds-calculator.js` — 30 lines, math-based
+6. `06-position-aware.js` — 45 lines, position exploits
+
+**Advanced (100+ lines):**
+7. `07-data-driven.js` — SQLite persistence, opponent tracking, player classification (LAG/TAG/LP/TP)
+8. `08-monte-carlo.js` — Hand equity via 1000+ simulations, EV calculations
+9. `09-adaptive-exploiter.js` — Real-time pattern detection, exploit strategies
+10. `10-tournament-icm.js` — ICM calculations, bubble factor, push/fold ranges
+
+### Testing Playground
+`bots/playground/test-bot.js` lets developers test locally:
+- 11 pre-built scenarios (preflop, flop, river, edge cases)
+- Response validation
+- Timing measurement
+- Colored pass/fail output
+
+### Strategy Helpers in SDK
+Built-in functions reduce implementation complexity:
+- `Strategy.preFlopStrength(holeCards, position)` — 0 to 1
+- `Strategy.postFlopStrength(bestHand, opponentCount)` — 0 to 1
+- `Strategy.shouldValueBet(state)` — boolean
+- `Strategy.shouldCall(state, buffer)` — pot odds comparison
+- `Action.potSized(pot, action)` — standard bet sizing
 
 ---
 
 ## Known Gaps / Future Work
 
-- **Scheduled tournament start** — `type:'scheduled'` exists in config but no timer fires at `scheduled_start_at`
-- **No tournament reset** — finished tournaments can't be restarted without manual DB changes
-- **`exampleBot.js` deleted** — the old cash game bot template has been removed; `bots/` directory has the replacements
-- **No backup strategy implemented** — see DATA.md for recommended approach
-- **bot_stats recompute migration** — if `bot_stats` gets out of sync, there's no built-in script to rebuild it from `actions` + `hand_players`
-- **Single process only** — no clustering. Acceptable until real user load demands it.
+- **Scheduled tournament start** — `type:'scheduled'` exists but no timer fires at `scheduled_start_at`
+- **Tournament reset** — finished tournaments can't be restarted without manual DB changes
+- **Redis for session state** — currently in-memory, need Redis for horizontal scaling
+- **WebSocket authentication** — JWT validation on connection implemented, need refresh handling
+- **HMAC bot payload signing** — planned for additional security
+- **Key rotation** — API key rotation mechanism not yet implemented
+- **Hand-for-hand bubble play** — not implemented for tournament bubble
+- **Dead button rule** — need to choose and implement consistently
 
----
-
-## Bugs Found and Fixed During Simulation
-
-These were discovered by running `simulate.js` and `scenarios.js` against the live system. Each one represents a real failure that would have affected production.
-
-### `games.table_id` FK constraint crash
-`games` had `REFERENCES tables(id)` but tournament games belong to `tournament_tables`. Caused an immediate crash when the first game was created. Fixed by removing the FK — it's a logical reference only.
-
-### `potManager` not cleared after payout
-Both `_awardPot()` and `_showdown()` distributed chips to players but never zeroed `potManager.pots`. After the hand, `getTotalPot()` still returned the distributed chips, causing the chip conservation check to see double the expected total. Fixed by clearing `potManager.pots` immediately after payout.
-
-### `survivors` wrong shape in `_consolidateToFinalTable`
-When consolidating to the final table, `survivors` was built with `{ id, chips, name, endpoint }` but `_startTable` expects `{ botId, chips, name, endpoint }`. Caused a crash on every multi-table tournament when the final table formed. Fixed by using `botId` key.
-
-### `UNIQUE(tournament_id, bot_id)` constraint blocked rebuys
-The `tournament_entries` table had a UNIQUE constraint preventing multiple entries per bot per tournament. A bot that busted and tried to rebuy got a constraint violation. Fixed by removing the constraint and enforcing uniqueness at the application layer instead (check `finish_position IS NULL` before blocking registration).
-
-### `activePlayers` filter excluded all players on hand 1
-In `recorder.js` `_beforeHand()`, `activePlayers` was filtered on `p.folded === false`. But players start with `folded = true` after `addPlayer()` and only have `folded` reset when `playHand()` begins. So on hand 1, no players passed the filter — antes weren't recorded and `hand_players` rows weren't created for the first hand. Fixed by filtering on `chips > 0 && !disconnected` only (ignoring `folded` at hand start).
-
-### `setEntryPayout` only updated active entries
-`setEntryPayout` had `WHERE ... AND finish_position IS NULL`. But when `_finishTournament` assigns payouts, busted players already have `finish_position` set from when they busted. So only 1st place (the active winner) ever received a payout — all other positions had their payout set to 0. Fixed by updating the most recent entry by `entered_at DESC` regardless of `finish_position`.
-
-### `getTournamentResults` returned multiple rows per bot on rebuys
-After removing the UNIQUE constraint, a bot that rebuyed appeared twice in results — once for each entry row. Fixed by using `GROUP BY bot_id` with `MIN(finish_position)` and `SUM(payout)`.
-
-### `getHandHistory` only returned one table's hands
-The history endpoint fetched games for a single `table_id`. In multi-table tournaments, hands from other tables were invisible. Fixed by adding `getTournamentHandHistory` which queries by `tournament_id` across all games, and adding `GET /tournaments/:id/history` endpoint.
-
----
-
-## Bugs Found in Second Simulation Round (bugs2.js)
-
-### `turn_timeout_ms` too high causes crasher bot hangs
-`turn_timeout_ms: 10000` combined with `crasher` bot's `sleep(15000)` stalls every hand the crasher touches by 10 full seconds. In a real tournament this means one misbehaving bot can slow an entire table to a crawl. Test infrastructure uses `500ms` timeout. Production should consider a lower default (3–5s) for bot responsiveness.
-
-### `startGame` re-wrap ordering in recorder
-`addPlayer` guards second game loops with `if (!this.running)` — correct. But patching `game.startGame` before `recorder.attach()` gets overwritten. The invariant (no second loop) holds, but the patching approach is fragile. Note: never patch `startGame` before `recorder.attach()` is called.
-
-### Sequential test queue essential for async tests
-Without a sequential queue, async tournament tests run in parallel and share the in-memory DB — causing non-deterministic failures. All test files use `_queue` + `_drain()` pattern to serialize execution.
-
-### Confirmed working under stress
-- 50% crasher bot field completes with correct payouts
-- Disconnected bots eliminated, tournament continues to clean finish
-- `_handLock` proven to prevent concurrent `_onHandComplete` — max 1 concurrent call even with 18-bot 2-table tournament
-- Two simultaneous tournaments don't interfere with each other
-- Table break chip accounting stays clean across entire 18-bot run
-- Late entry on multi-table tournament correctly placed
+For comprehensive edge case documentation, see `EDGE_CASES.md`.
