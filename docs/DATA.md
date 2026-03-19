@@ -158,6 +158,43 @@ For complete schema with TypeORM entities, see `DATA_DICTIONARY.md`.
 | metadata | JSONB | |
 | created_at | TIMESTAMP | |
 
+### `game_state_snapshots`
+Persisted game state for recovery after server restart:
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| game_id | UUID | Reference to games table |
+| table_id | UUID | Reference to tables table |
+| tournament_id | UUID | Nullable, for tournament games |
+| status | VARCHAR | 'active', 'recovered', 'completed', 'orphaned' |
+| hand_number | INTEGER | Current hand number |
+| game_stage | VARCHAR | 'waiting', 'preflop', 'flop', 'turn', 'river', etc. |
+| dealer_index | INTEGER | Position of dealer button |
+| pot | BIGINT | Total pot size |
+| current_bet | BIGINT | Current bet to call |
+| small_blind | BIGINT | Small blind amount |
+| big_blind | BIGINT | Big blind amount |
+| ante | BIGINT | Ante amount (0 if none) |
+| starting_chips | BIGINT | Initial stack size |
+| turn_timeout_ms | INTEGER | Turn timeout in ms |
+| community_cards | JSONB | Array of {rank, suit} |
+| active_player_id | UUID | Player to act |
+| players | JSONB | Full player state array |
+| pot_state | JSONB | Main pot + side pots |
+| betting_round_state | JSONB | Current betting round info |
+| server_instance_id | VARCHAR | UUID of server that owns this game |
+| last_action_at | TIMESTAMP | When last action occurred |
+| action_log | JSONB | Last 100 log entries |
+| created_at / updated_at | TIMESTAMP | |
+
+**Indexes:**
+- `game_id` — lookup by game
+- `table_id` — lookup by table
+- `status` — find active/recoverable snapshots
+- `server_instance_id` — find orphaned snapshots
+
+**Cleanup:** Snapshots with status 'completed' or 'orphaned' older than 7 days are automatically deleted.
+
 ---
 
 ## Analytics Tables

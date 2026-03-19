@@ -63,14 +63,16 @@ servers_poker/
 │   │   ├── hand.entity.ts           — Individual hand
 │   │   ├── action.entity.ts         — Player action
 │   │   ├── audit-log.entity.ts      — Request audit trail
-│   │   └── chip-movement.entity.ts  — Chip transaction log
+│   │   ├── chip-movement.entity.ts  — Chip transaction log
+│   │   └── game-state-snapshot.entity.ts — Persisted game state for recovery
 │   ├── repositories/
 │   │   ├── user.repository.ts       — User data access
 │   │   ├── bot.repository.ts        — Bot data access
 │   │   ├── tournament.repository.ts — Tournament data access
 │   │   ├── game.repository.ts       — Game/hand data access
 │   │   ├── table.repository.ts      — Table management
-│   │   └── analytics.repository.ts  — Stats and leaderboards
+│   │   ├── analytics.repository.ts  — Stats and leaderboards
+│   │   └── game-state.repository.ts — Game state snapshots
 │   ├── modules/
 │   │   ├── auth/                    — JWT & API key auth
 │   │   ├── users/                   — User management
@@ -79,10 +81,16 @@ servers_poker/
 │   │   └── games/                   — Tables, game joining, WebSocket
 │   ├── services/
 │   │   ├── live-game-manager.service.ts — In-memory game state management
+│   │   ├── game-state-persistence.service.ts — Periodic state persistence to DB
+│   │   ├── game-recovery.service.ts — Auto-recovery on server restart
 │   │   ├── bot-caller.service.ts    — Resilient bot API calls
 │   │   ├── bot-resilience.service.ts — Fallback strategies
 │   │   ├── bot-health-scheduler.service.ts — Periodic health checks
 │   │   └── bot-metrics.gateway.ts   — Real-time bot monitoring
+│   ├── migrations/
+│   │   ├── 1710864000000-InitialSchema.ts — Initial database schema
+│   │   ├── 1710864001000-AddGameStateSnapshots.ts — Game state persistence
+│   │   └── run.ts                   — Migration runner script
 │   ├── common/
 │   │   ├── guards/                  — JWT, API key, roles guards
 │   │   ├── interceptors/            — Logging, audit, timeout
@@ -93,14 +101,10 @@ servers_poker/
 │   ├── game/
 │   │   ├── poker-game.service.ts    — Game engine (hardened)
 │   │   └── invariants.ts            — Chip conservation checks
-│   ├── simulation/
-│   │   ├── simulation-engine.ts     — Automated game testing
-│   │   ├── simulation-reporter.ts   — Results analysis
-│   │   └── runner.ts                — CLI entry point
-│   └── _deprecated/                 — Old custom HTTP server (DO NOT USE)
-│       ├── server.ts                — Legacy entry point
-│       ├── game.ts                  — Legacy game engine
-│       └── routes/                  — Legacy route handlers
+│   └── simulation/
+│       ├── simulation-engine.ts     — Automated game testing
+│       ├── simulation-reporter.ts   — Results analysis
+│       └── runner.ts                — CLI entry point
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx                  — Main router

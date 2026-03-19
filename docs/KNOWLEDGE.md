@@ -12,7 +12,7 @@ For security details, see SECURITY.md.
 ## Architecture Decisions
 
 ### NestJS Framework Migration (COMPLETE)
-Fully migrated from custom HTTP server to NestJS. The old server (`src/_deprecated/`) is no longer used.
+Fully migrated from custom HTTP server to NestJS. Old server code has been removed.
 
 **Status**: Production-ready. All game logic runs through NestJS.
 
@@ -60,6 +60,36 @@ Runtime assertions that run in production:
 - `ChipInvariantChecker` validates total chips after every action
 - `TransactionAuditLog` records all chip movements
 - Violations throw `ChipConservationError` and halt the game
+
+### Game State Persistence & Recovery
+Server restarts no longer lose active games:
+
+**Persistence (`GameStatePersistenceService`):**
+- Game state saved to `game_state_snapshots` table every 5 seconds
+- Configurable via `GAME_STATE_PERSIST_INTERVAL_MS`
+- Stores: players, chips, hole cards, community cards, pot, stage, action log
+- Each server instance gets unique ID for multi-server tracking
+
+**Recovery (`GameRecoveryService`):**
+- On startup, checks for recoverable games (< 30 min old by default)
+- Validates: bots still active, enough players, state not stale
+- Automatically recreates `GameInstance` from snapshot
+- Notifies bots of recovery via optional `/recovery` endpoint
+- Configuration: `GAME_AUTO_RECOVER=true`, `GAME_STATE_RECOVERY_WINDOW_MINUTES=30`
+
+**Snapshot Lifecycle:**
+- `active` → game in progress
+- `recovered` → game restored on new server instance
+- `completed` → game finished normally
+- `orphaned` → recovery failed, game abandoned
+- Old snapshots cleaned up after 7 days
+
+### Database Migrations
+TypeORM migrations manage schema changes:
+- `npm run migration:run` — Execute pending migrations
+- `npm run migration:generate` — Auto-generate from entity changes
+- `npm run migration:revert` — Rollback last migration
+- **Never use `synchronize: true` in production**
 
 ---
 
