@@ -6,13 +6,15 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "es2020",
+    "target": "es2022",
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
     "incremental": true,
     "allowJs": true,
-    "lib": ["es2020", "esnext.asynciterable"]
+    "skipLibCheck": true,
+    "noEmitOnError": false,
+    "lib": ["es2022", "esnext.asynciterable"]
   },
   "exclude": [
     "node_modules",
@@ -20,6 +22,9 @@
     "docs",
     "public",
     "**/*.spec.ts",
-    "bots"
+    "bots",
+    "src/scenarios.ts",
+    "src/simulate.ts",
+    "test.js"
   ]
 }

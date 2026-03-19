@@ -7,7 +7,7 @@
     "prestart": "npm run build",
     "start": "node dist/main.js",
     "dev": "nest start --watch",
-    "build": "nest build",
+    "build": "tsc --skipLibCheck",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"
   },
   "keywords": [
@@ -27,6 +27,7 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
     "@types/eslint-scope": "^8.4.0",
     "@types/estree": "^1.0.8",
     "@types/express": "^4.17.21",

@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  poker-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: poker-server
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - DB_PATH=/app/data/poker.db
+      - LOG_DIR=/app/logs
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - TRUST_PROXY=${TRUST_PROXY:-0}
+    volumes:
+      - poker-data:/app/data
+      - poker-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - poker-network
+
+  # Development service with hot reload
+  poker-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: deps
+    container_name: poker-dev
+    profiles:
+      - dev
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=development
+      - DB_PATH=/app/data/poker.db
+      - LOG_DIR=/app/logs
+      - LOG_LEVEL=debug
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - poker-data:/app/data
+      - poker-logs:/app/logs
+    command: ["node", "--experimental-sqlite", "--watch", "dist/server.js"]
+    networks:
+      - poker-network
+
+volumes:
+  poker-data:
+    driver: local
+  poker-logs:
+    driver: local
+
+networks:
+  poker-network:
+    driver: bridge
