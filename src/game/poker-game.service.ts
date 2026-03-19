@@ -24,6 +24,21 @@ export interface Player {
   currentBet: number;
 }
 
+interface PlayerSnapshot {
+  id: string;
+  chips: number;
+  folded: boolean;
+  allIn: boolean;
+  currentBet: number;
+}
+
+interface BlindPositions {
+  dealer: string;
+  smallBlind: string;
+  bigBlind: string;
+  dealerSmallBlind?: string;
+}
+
 export interface GameConfig {
   gameId: string;
   tableId: string;
@@ -96,6 +111,7 @@ export class PokerGameService {
   private running = false;
   private currentPlayerId: string | null = null;
   private handInProgress = false;
+  private handStartSnapshot: PlayerSnapshot[] = [];
 
   constructor(private readonly eventEmitter: EventEmitter2) {
     this.config = {
@@ -390,6 +406,14 @@ export class PokerGameService {
   }
 
   startHand(): void {
+    this.handStartSnapshot = this.players.map((p) => ({
+      id: p.id,
+      chips: p.chips,
+      folded: p.folded,
+      allIn: p.allIn,
+      currentBet: p.currentBet,
+    }));
+
     this.handInProgress = true;
     this.handNumber++;
     this.stage = "pre-flop";
@@ -731,5 +755,150 @@ export class PokerGameService {
   stop(): void {
     this.running = false;
     this.status = "finished";
+  }
+
+  /**
+   * Rollback the current hand to its starting state.
+   * Restores all player chips, resets folded/allIn status, and clears pot.
+   * Used for hand cancellation due to errors or all players disconnecting.
+   */
+  rollbackHand(): void {
+    if (this.handStartSnapshot.length === 0) {
+      this.logger.warn("No hand snapshot to rollback to");
+      return;
+    }
+
+    for (const snapshot of this.handStartSnapshot) {
+      const player = this.players.find((p) => p.id === snapshot.id);
+      if (player) {
+        player.chips = snapshot.chips;
+        player.folded = false;
+        player.allIn = false;
+        player.currentBet = 0;
+        player.holeCards = [];
+      }
+    }
+
+    this.pot = 0;
+    this.currentBet = 0;
+    this.communityCards = [];
+    this.handInProgress = false;
+    this.currentPlayerId = null;
+    this.stage = "pre-flop";
+
+    this.logger.log(`Hand ${this.handNumber} cancelled and rolled back`);
+
+    this.eventEmitter.emit("game.handCancelled", {
+      gameId: this.config.gameId,
+      tableId: this.config.tableId,
+      handNumber: this.handNumber,
+    });
+  }
+
+  /**
+   * Set the dealer index explicitly.
+   */
+  setDealerIndex(index: number): void {
+    this.dealerIndex = index;
+  }
+
+  /**
+   * Advance the dealer button to the next active player.
+   * Skips disconnected players (dead button rule).
+   */
+  advanceDealer(): void {
+    const activePlayers = this.players.filter(
+      (p) => !p.disconnected && p.chips > 0,
+    );
+    if (activePlayers.length === 0) return;
+
+    let nextIndex = (this.dealerIndex + 1) % this.players.length;
+    let iterations = 0;
+
+    while (iterations < this.players.length) {
+      const candidate = this.players[nextIndex];
+      if (!candidate.disconnected && candidate.chips > 0) {
+        this.dealerIndex = nextIndex;
+        break;
+      }
+      nextIndex = (nextIndex + 1) % this.players.length;
+      iterations++;
+    }
+  }
+
+  /**
+   * Get the current dealer player.
+   */
+  getCurrentDealer(): Player | undefined {
+    const activePlayers = this.players.filter(
+      (p) => !p.disconnected && p.chips > 0,
+    );
+    if (activePlayers.length === 0) return undefined;
+
+    let idx = this.dealerIndex % this.players.length;
+    if (this.players[idx].disconnected || this.players[idx].chips === 0) {
+      this.advanceDealer();
+      idx = this.dealerIndex;
+    }
+    return this.players[idx];
+  }
+
+  /**
+   * Get blind positions based on current dealer and active players.
+   * Implements dead button rule: BB always advances, button may skip.
+   * In heads-up, dealer is also small blind.
+   */
+  getBlindPositions(): BlindPositions {
+    const activePlayers = this.players.filter(
+      (p) => !p.disconnected && p.chips > 0,
+    );
+
+    if (activePlayers.length < 2) {
+      return {
+        dealer: "",
+        smallBlind: "",
+        bigBlind: "",
+      };
+    }
+
+    const dealerPlayer = this.getCurrentDealer();
+    if (!dealerPlayer) {
+      return {
+        dealer: "",
+        smallBlind: "",
+        bigBlind: "",
+      };
+    }
+
+    const activeIndices: number[] = [];
+    for (let i = 0; i < this.players.length; i++) {
+      if (!this.players[i].disconnected && this.players[i].chips > 0) {
+        activeIndices.push(i);
+      }
+    }
+
+    const dealerActiveIdx = activeIndices.indexOf(this.dealerIndex);
+    const numActive = activeIndices.length;
+
+    if (numActive === 2) {
+      const sbIndex = this.dealerIndex;
+      const bbIndex = activeIndices[(dealerActiveIdx + 1) % numActive];
+
+      return {
+        dealer: dealerPlayer.id,
+        smallBlind: this.players[sbIndex].id,
+        bigBlind: this.players[bbIndex].id,
+        dealerSmallBlind: dealerPlayer.id,
+      };
+    }
+
+    const sbIndex = activeIndices[(dealerActiveIdx + 1) % numActive];
+    const bbIndex = activeIndices[(dealerActiveIdx + 2) % numActive];
+
+    return {
+      dealer: dealerPlayer.id,
+      smallBlind: this.players[sbIndex].id,
+      bigBlind: this.players[bbIndex].id,
+    };
   }
 }

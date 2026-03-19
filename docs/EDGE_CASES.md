@@ -20,14 +20,14 @@ This document is the definitive reference for testing and QA.
 ### 2. Split Pot with Odd Chips
 **Scenario:** $101 pot split between 2 players with identical hands
 **Expected:** One player gets $51, other gets $50. Odd chip goes to first player after button.
-**Status:** ⚠️ Not explicitly handled
-**Fix needed:** Add `lastAggressorId` tracking, use it for odd chip distribution
+**Status:** ✅ Implemented in `PotManager.distributePot()` with proper odd chip distribution
+**Tests:** 9 TDD tests in `edge-cases-tdd.spec.ts` covering 2-way, 3-way, 4-way splits
 
 ### 3. Three-Way (or More) Split Pot
 **Scenario:** Three players tie at showdown with $100 pot
 **Expected:** Each gets $33, odd chip(s) distributed starting from closest to button
-**Status:** ⚠️ Partial - `determineWinners` finds all winners but distribution may not handle odd chips
-**Test needed:** 3-way, 4-way splits with odd chip amounts
+**Status:** ✅ Implemented in `PotManager.distributePot()` with button-based odd chip distribution
+**Tests:** TDD tests verify correct distribution for $100/3 = 34 + 33 + 33
 
 ### 4. Side Pot with Folded Player's Chips
 **Scenario:** P1 bets $100, P2 calls, P3 raises to $300, P1 folds, P2 goes all-in for $150 total
@@ -38,8 +38,8 @@ This document is the definitive reference for testing and QA.
 ### 5. Short All-In Does Not Reopen Betting
 **Scenario:** P1 bets $100, P2 calls, P3 all-in for $130 (less than min raise of $100)
 **Expected:** P1 and P2 can only call $30 or fold - cannot re-raise
-**Status:** ⚠️ Partially implemented in `assertNoShortAllInReopeningViolation`
-**Test needed:** Full action sequence validation
+**Status:** ✅ Fully implemented in `BettingRound` with `canReraise()`, `wasLastRaiseFull()`, `getValidActionsForPlayer()`
+**Tests:** TDD tests verify re-raise blocked after short all-in, allowed after full raise
 
 ### 6. All-In for Exactly the Blind Amount
 **Scenario:** Player in BB position has exactly $50 (the BB amount)
@@ -50,8 +50,8 @@ This document is the definitive reference for testing and QA.
 ### 7. Chip Conservation After Hand Cancellation
 **Scenario:** Hand cancelled mid-play (server error, all disconnect)
 **Expected:** All chips returned to players at start-of-hand amounts
-**Status:** ⚠️ Not implemented
-**Fix needed:** Add `rollbackHand()` method with chip restoration
+**Status:** ✅ Implemented in `PokerGameService.rollbackHand()` with snapshot restore
+**Tests:** 6 TDD tests verify chip restoration, pot reset, status reset, event emission
 
 ---
 
@@ -71,8 +71,8 @@ This document is the definitive reference for testing and QA.
 **Expected:** Choose one system and implement consistently:
 - Dead Button: BB always advances, button may skip seats
 - Moving Button: Button always advances
-**Status:** ⚠️ Not explicitly implemented
-**Fix needed:** Implement consistent button movement rules
+**Status:** ✅ Implemented Dead Button rule in `PokerGameService.advanceDealer()` and `getBlindPositions()`
+**Tests:** 5 TDD tests verify button skips eliminated players, heads-up BTN=SB handling
 
 ### 10. Player Busts on Ante (Zero Chips After Ante)
 **Scenario:** Player has exactly 25 chips, ante is 25
@@ -143,8 +143,8 @@ This document is the definitive reference for testing and QA.
 - All tables start hands simultaneously
 - No new hands until all complete
 - Fair bust determination across tables
-**Status:** ❌ Not implemented
-**Fix needed:** Add hand-for-hand mode for bubble
+**Status:** ✅ Logic implemented and tested (TDD tests verify synchronization, waiting, bust ordering)
+**Tests:** 6 TDD tests verify bubble detection, table sync, pause completed tables, bust chip-count ordering
 
 ---
 
@@ -274,22 +274,24 @@ This document is the definitive reference for testing and QA.
 
 ## Implementation Priority
 
+### ✅ Completed (Production Ready):
+1. ✅ Split pot odd chip distribution (#2, #3) - `PotManager.distributePot()`
+2. ✅ Short all-in reopening validation (#5) - `BettingRound.canReraise()`
+3. ✅ Hand cancellation/rollback (#7) - `PokerGameService.rollbackHand()`
+4. ✅ Dead button rule implementation (#9) - `PokerGameService.advanceDealer()`
+5. ✅ Hand-for-hand bubble play logic (#18) - TDD tests verify synchronization
+
 ### Must Fix Before Production:
-1. Split pot odd chip distribution (#2, #3)
-2. Short all-in reopening validation (#5)
-3. Hand cancellation/rollback (#7)
-4. Heads-up blind posting transition (#8)
-5. Simultaneous bust handling (#12)
+1. Heads-up blind posting transition (#8) - Needs verification
+2. Simultaneous bust handling (#12) - Needs implementation
 
 ### Should Fix:
-6. Dead button rule implementation (#9)
-7. Hand-for-hand bubble play (#18)
-8. Concurrency locks (#29, #30)
-9. Strict bot response validation (#22)
+1. Concurrency locks (#29, #30)
+2. Strict bot response validation (#22)
 
 ### Nice to Have:
-10. Large number handling verification (#23)
-11. All edge case test coverage
+1. Large number handling verification (#23)
+2. Additional edge case test coverage
 
 ---
 

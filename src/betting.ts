@@ -15,6 +15,11 @@ interface Pot {
   eligiblePlayerIds: string[];
 }
 
+interface Winner {
+  id: string;
+  handRank: number;
+}
+
 /**
  * PotManager handles main pot and side pots for all-in situations.
  */
@@ -82,6 +87,60 @@ export class PotManager {
 
     this.pots = pots.length > 0 ? pots : [{ amount: 0, eligiblePlayerIds: [] }];
   }
+
+  /**
+   * Distribute pot among winners with proper odd chip handling.
+   * Odd chips go to players closest to the button (dealer + 1 first).
+   *
+   * @param potAmount - Total pot amount to distribute
+   * @param winners - Array of winners with their hand ranks (all equal rank = split)
+   * @param playerOrder - Array of player IDs in seat order
+   * @param dealerIndex - Index of the dealer in playerOrder
+   * @returns Distribution mapping playerId -> amount won
+   */
+  distributePot(
+    potAmount: number,
+    winners: Winner[],
+    playerOrder: string[],
+    dealerIndex: number,
+  ): Record<string, number> {
+    const distribution: Record<string, number> = {};
+
+    if (winners.length === 0) {
+      return distribution;
+    }
+
+    if (winners.length === 1) {
+      distribution[winners[0].id] = potAmount;
+      return distribution;
+    }
+
+    const winnerIds = new Set(winners.map((w) => w.id));
+    const baseShare = Math.floor(potAmount / winners.length);
+    const remainder = potAmount % winners.length;
+
+    for (const winner of winners) {
+      distribution[winner.id] = baseShare;
+    }
+
+    if (remainder > 0) {
+      let oddChipsGiven = 0;
+      let searchIndex = (dealerIndex + 1) % playerOrder.length;
+
+      while (oddChipsGiven < remainder) {
+        const playerId = playerOrder[searchIndex];
+        if (winnerIds.has(playerId)) {
+          distribution[playerId]++;
+          oddChipsGiven++;
+        }
+        searchIndex = (searchIndex + 1) % playerOrder.length;
+
+        if (oddChipsGiven >= remainder) break;
+      }
+    }
+
+    return distribution;
+  }
 }
 
 /**
@@ -99,6 +158,8 @@ export class BettingRound {
   lastRaiserIndex: number;
   actedPlayers: Set<string>;
   betsThisRound: { [key: string]: number };
+  private lastRaiseWasFull: boolean = true;
+  private bettingReopenedFor: Set<string> = new Set();
 
   constructor({
     players,
@@ -123,6 +184,8 @@ export class BettingRound {
     this.lastRaiserIndex = -1;
     this.actedPlayers = new Set();
     this.betsThisRound = {};
+    this.lastRaiseWasFull = true;
+    this.bettingReopenedFor = new Set();
   }
 
   getPlayerBet(playerId: string): number {
@@ -210,8 +273,19 @@ export class BettingRound {
       if (player.chips === 0) player.allIn = true;
 
       const newBet = this.betsThisRound[player.id];
+      const raiseAmount = newBet - this.currentBet;
+
       if (newBet > this.currentBet) {
-        this.minRaise = newBet - this.currentBet;
+        const isFullRaise = raiseAmount >= this.minRaise;
+        this.lastRaiseWasFull = isFullRaise;
+
+        if (isFullRaise) {
+          this.minRaise = raiseAmount;
+          this.bettingReopenedFor = new Set(
+            this.players.filter((p) => p.id !== player.id).map((p) => p.id),
+          );
+        }
+
         this.currentBet = newBet;
         this.lastRaiserIndex = this.players.findIndex(
           (p) => p.id === player.id,
@@ -245,5 +319,59 @@ export class BettingRound {
     }
 
     return true;
+  }
+
+  /**
+   * Check if a player can re-raise.
+   * After a short all-in (raise less than min raise), betting is NOT reopened
+   * for players who already acted.
+   */
+  canReraise(playerId: string): boolean {
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player) return false;
+    if (player.folded || player.allIn || player.chips === 0) return false;
+
+    if (!this.lastRaiseWasFull) {
+      return false;
+    }
+
+    return this.bettingReopenedFor.has(playerId);
+  }
+
+  /**
+   * Check if the last raise was a full raise (>= min raise).
+   */
+  wasLastRaiseFull(): boolean {
+    return this.lastRaiseWasFull;
+  }
+
+  /**
+   * Get valid actions for a player considering short all-in rules.
+   */
+  getValidActionsForPlayer(player: Player): string[] {
+    const actions: string[] = [];
+
+    if (player.folded || player.allIn) {
+      return actions;
+    }
+
+    actions.push("fold");
+
+    const toCall = this.getCallAmount(player);
+    if (toCall === 0) {
+      actions.push("check");
+    } else if (player.chips >= toCall) {
+      actions.push("call");
+    }
+
+    if (player.chips > toCall && this.canReraise(player.id)) {
+      actions.push("raise");
+    }
+
+    if (player.chips > 0 && toCall > 0) {
+      actions.push("all_in");
+    }
+
+    return actions;
   }
 }
