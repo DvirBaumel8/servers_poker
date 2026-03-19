@@ -2,7 +2,6 @@ import { IncomingMessage, ServerResponse } from "http";
 import db from "../db";
 import { requireAuth, AuthError } from "../auth";
 import { getIp, applyLimit, limiters } from "../rateLimit";
-import { ParsedUrlQuery } from "querystring";
 
 export function handle(
   req: IncomingMessage,

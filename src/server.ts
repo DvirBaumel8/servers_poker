@@ -93,7 +93,7 @@ function checkScheduledTournaments() {
             });
           }
         },
-        onFinished: (tournamentId, results) => {
+        onFinished: (tournamentId) => {
           console.log(`[Tournament ${tournamentId}] Finished.`);
         },
       });

@@ -1,5 +1,3 @@
-import { RANK_VALUES } from "./deck";
-
 export const HAND_RANKS = {
   ROYAL_FLUSH: 9,
   STRAIGHT_FLUSH: 8,

@@ -8,18 +8,22 @@
  * DELETE /bots/:id          — deactivate bot                [auth + owner]
  */
 
-import * as http from 'http';
-import { URL } from 'url';
-import * as db from '../db';
-import { requireAuth, requireBotOwnership } from '../auth';
-import { applyLimit, limiters } from '../rateLimit';
-import { validateBot } from '../botValidator';
+import * as http from "http";
+import { URL } from "url";
+import * as db from "../db";
+import { requireAuth, requireBotOwnership } from "../auth";
+import { applyLimit, limiters } from "../rateLimit";
+import { validateBot } from "../botValidator";
 
 // Using 'any' for now, but for a full migration, these should be properly typed.
 type Bot = any;
 type User = any;
 
-type SendJsonFunction = (res: http.ServerResponse, status: number, data: any) => void;
+type SendJsonFunction = (
+  res: http.ServerResponse,
+  status: number,
+  data: any,
+) => void;
 type ParseBodyFunction = (req: http.IncomingMessage) => Promise<any>;
 
 export function handle(
@@ -27,12 +31,12 @@ export function handle(
   res: http.ServerResponse,
   parsedUrl: URL,
   parseBody: ParseBodyFunction,
-  sendJSON: SendJsonFunction
+  sendJSON: SendJsonFunction,
 ): Promise<any> | null {
   const path = parsedUrl.pathname;
 
   // ── POST /bots ────────────────────────────────────────────
-  if (req.method === 'POST' && path === '/bots') {
+  if (req.method === "POST" && path === "/bots") {
     let user: User;
     try {
       user = requireAuth(req);
@@ -42,26 +46,34 @@ export function handle(
     }
 
     // SEC-002: 20 bots per user per day
-    if (applyLimit(limiters.createBot, req, res, user.id)) return Promise.resolve();
+    if (applyLimit(limiters.createBot, req, res, user.id))
+      return Promise.resolve();
 
-    return parseBody(req).then(body => {
+    return parseBody(req).then((body) => {
       const { name, endpoint, description } = body;
 
       if (!name || name.trim().length < 2) {
-        return sendJSON(res, 400, { error: 'name must be at least 2 characters' });
+        return sendJSON(res, 400, {
+          error: "name must be at least 2 characters",
+        });
       }
       if (!endpoint) {
-        return sendJSON(res, 400, { error: 'endpoint is required (e.g. http://myserver.com/action)' });
+        return sendJSON(res, 400, {
+          error: "endpoint is required (e.g. http://myserver.com/action)",
+        });
       }
       try {
         new URL(endpoint);
       } catch (_) {
-        return sendJSON(res, 400, { error: 'endpoint must be a valid URL' });
+        return sendJSON(res, 400, { error: "endpoint must be a valid URL" });
       }
 
       // Check name uniqueness
       const existing = db.getBotByName(name.trim());
-      if (existing) return sendJSON(res, 409, { error: `Bot name "${name}" is already taken` });
+      if (existing)
+        return sendJSON(res, 409, {
+          error: `Bot name "${name}" is already taken`,
+        });
 
       const bot = db.createBot({
         user_id: user.id,
@@ -74,27 +86,30 @@ export function handle(
       setImmediate(async () => {
         try {
           const report = await validateBot(bot.endpoint);
-          const score = Math.round(report.passed / report.total * 100);
+          const score = Math.round((report.passed / report.total) * 100);
           db.getDb()
             .prepare(
-              'UPDATE bots SET last_validation = ?, last_validation_score = ?, updated_at = unixepoch() WHERE id = ?'
+              "UPDATE bots SET last_validation = ?, last_validation_score = ?, updated_at = unixepoch() WHERE id = ?",
             )
             .run(JSON.stringify(report), score, bot.id);
-          console.log(`[validate] ${bot.name}: ${score}% (${report.passed}/${report.total} passed)`);
+          console.log(
+            `[validate] ${bot.name}: ${score}% (${report.passed}/${report.total} passed)`,
+          );
         } catch (e: any) {
           console.error(`[validate] Failed for ${bot.name}:`, e.message);
         }
       });
 
       return sendJSON(res, 201, {
-        message: 'Bot registered. Validation running in background — check GET /bots/:id/validate for results.',
+        message:
+          "Bot registered. Validation running in background — check GET /bots/:id/validate for results.",
         bot: sanitizeBot(bot),
       });
     });
   }
 
   // ── GET /bots ─────────────────────────────────────────────
-  if (req.method === 'GET' && path === '/bots') {
+  if (req.method === "GET" && path === "/bots") {
     const bots = db
       .getDb()
       .prepare(
@@ -105,7 +120,7 @@ export function handle(
       JOIN users u ON u.id = b.user_id
       WHERE b.active = 1
       ORDER BY b.created_at DESC
-    `
+    `,
       )
       .all();
 
@@ -115,10 +130,10 @@ export function handle(
 
   // ── GET /bots/:id ─────────────────────────────────────────
   const singleMatch = path.match(/^\/bots\/([^/]+)$/);
-  if (req.method === 'GET' && singleMatch) {
+  if (req.method === "GET" && singleMatch) {
     const bot = db.getBotById(singleMatch[1]);
     if (!bot || !bot.active) {
-      sendJSON(res, 404, { error: 'Bot not found' });
+      sendJSON(res, 404, { error: "Bot not found" });
       return Promise.resolve();
     }
 
@@ -135,7 +150,7 @@ export function handle(
         ROUND(100.0 * SUM(gp.hands_won) / NULLIF(SUM(gp.hands_played), 0), 1) AS win_rate_pct
       FROM game_players gp
       WHERE gp.bot_id = ?
-    `
+    `,
       )
       .get(bot.id);
 
@@ -155,7 +170,7 @@ export function handle(
 
   // ── PATCH /bots/:id ───────────────────────────────────────
   const patchMatch = path.match(/^\/bots\/([^/]+)$/);
-  if (req.method === 'PATCH' && patchMatch) {
+  if (req.method === "PATCH" && patchMatch) {
     let user: User;
     try {
       user = requireAuth(req);
@@ -172,46 +187,58 @@ export function handle(
       return Promise.resolve();
     }
 
-    return parseBody(req).then(body => {
+    return parseBody(req).then((body) => {
       const updates: { [key: string]: string | null } = {};
       if (body.endpoint !== undefined) {
         try {
           new URL(body.endpoint);
         } catch (_) {
-          return sendJSON(res, 400, { error: 'endpoint must be a valid URL' });
+          return sendJSON(res, 400, { error: "endpoint must be a valid URL" });
         }
         updates.endpoint = body.endpoint.trim();
       }
-      if (body.description !== undefined) updates.description = body.description?.trim() || null;
+      if (body.description !== undefined)
+        updates.description = body.description?.trim() || null;
       if (body.name !== undefined) {
-        if (body.name.trim().length < 2) return sendJSON(res, 400, { error: 'name must be at least 2 characters' });
+        if (body.name.trim().length < 2)
+          return sendJSON(res, 400, {
+            error: "name must be at least 2 characters",
+          });
         const taken = db.getBotByName(body.name.trim());
-        if (taken && taken.id !== bot.id) return sendJSON(res, 409, { error: `Bot name "${body.name}" is already taken` });
+        if (taken && taken.id !== bot.id)
+          return sendJSON(res, 409, {
+            error: `Bot name "${body.name}" is already taken`,
+          });
         updates.name = body.name.trim();
       }
 
       if (Object.keys(updates).length === 0) {
-        return sendJSON(res, 400, { error: 'Nothing to update. Provide: name, endpoint, or description' });
+        return sendJSON(res, 400, {
+          error: "Nothing to update. Provide: name, endpoint, or description",
+        });
       }
 
       const setClauses = Object.keys(updates)
-        .map(k => `${k} = ?`)
-        .join(', ');
+        .map((k) => `${k} = ?`)
+        .join(", ");
       db.getDb()
         .prepare(
           `
         UPDATE bots SET ${setClauses}, updated_at = unixepoch() WHERE id = ?
-      `
+      `,
         )
         .run(...Object.values(updates), bot.id);
-      
-      return sendJSON(res, 200, { message: 'Bot updated.', bot: sanitizeBot(db.getBotById(bot.id)) });
+
+      return sendJSON(res, 200, {
+        message: "Bot updated.",
+        bot: sanitizeBot(db.getBotById(bot.id)),
+      });
     });
   }
 
   // ── POST /bots/:id/validate ──────────────────────────────
   const valMatch = path.match(/^\/bots\/([^/]+)\/validate$/);
-  if (req.method === 'POST' && valMatch) {
+  if (req.method === "POST" && valMatch) {
     let user: User;
     try {
       user = requireAuth(req);
@@ -226,25 +253,30 @@ export function handle(
       sendJSON(res, e.status, { error: e.message });
       return Promise.resolve();
     }
-    if (applyLimit(limiters.register, req, res, 'validate:' + user.id)) return Promise.resolve();
+    if (applyLimit(limiters.register, req, res, "validate:" + user.id))
+      return Promise.resolve();
     return validateBot(bot.endpoint)
-      .then(result => {
+      .then((result) => {
         const score = Math.round((result.passed / result.total) * 100);
         db.getDb()
-          .prepare('UPDATE bots SET last_validation = ?, last_validation_score = ?, updated_at = unixepoch() WHERE id = ?')
+          .prepare(
+            "UPDATE bots SET last_validation = ?, last_validation_score = ?, updated_at = unixepoch() WHERE id = ?",
+          )
           .run(JSON.stringify(result), score, bot.id);
         return sendJSON(res, 200, {
-          message: result.success ? 'All scenarios passed!' : `${result.failed}/${result.total} scenarios failed.`,
+          message: result.success
+            ? "All scenarios passed!"
+            : `${result.failed}/${result.total} scenarios failed.`,
           score,
           ...result,
         });
       })
-      .catch(e => sendJSON(res, 500, { error: e.message }));
+      .catch((e) => sendJSON(res, 500, { error: e.message }));
   }
 
   // ── DELETE /bots/:id ──────────────────────────────────────
   const deleteMatch = path.match(/^\/bots\/([^/]+)$/);
-  if (req.method === 'DELETE' && deleteMatch) {
+  if (req.method === "DELETE" && deleteMatch) {
     let user: User;
     try {
       user = requireAuth(req);
@@ -262,9 +294,15 @@ export function handle(
     }
 
     // Soft delete — preserve all historical data
-    db.getDb().prepare('UPDATE bots SET active = 0, updated_at = unixepoch() WHERE id = ?').run(bot.id);
+    db.getDb()
+      .prepare(
+        "UPDATE bots SET active = 0, updated_at = unixepoch() WHERE id = ?",
+      )
+      .run(bot.id);
 
-    sendJSON(res, 200, { message: `Bot "${bot.name}" deactivated. All historical data preserved.` });
+    sendJSON(res, 200, {
+      message: `Bot "${bot.name}" deactivated. All historical data preserved.`,
+    });
     return Promise.resolve();
   }
 

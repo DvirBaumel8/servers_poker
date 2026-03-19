@@ -540,9 +540,6 @@ export function atomicJoinTable(
   max_players: number,
 ): { ok: boolean; error?: string } {
   const db = getDb();
-  const result = { ok: false, error: null };
-
-  const txn = db.prepare("BEGIN EXCLUSIVE").run;
 
   try {
     db.exec("BEGIN EXCLUSIVE");
