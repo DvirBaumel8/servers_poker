@@ -23,3 +23,7 @@ export { HandPlayer } from "./hand-player.entity";
 export { Action, ActionType, ActionStage } from "./action.entity";
 export { AuditLog, AuditAction } from "./audit-log.entity";
 export { ChipMovement, MovementType } from "./chip-movement.entity";
+export {
+  GameStateSnapshot,
+  SnapshotStatus,
+} from "./game-state-snapshot.entity";

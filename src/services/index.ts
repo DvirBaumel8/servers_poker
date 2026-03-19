@@ -5,3 +5,5 @@ export * from "./bot-health-scheduler.service";
 export * from "./bot-resilience.service";
 export * from "./bot-metrics.gateway";
 export * from "./live-game-manager.service";
+export * from "./game-state-persistence.service";
+export * from "./game-recovery.service";

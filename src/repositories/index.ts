@@ -8,3 +8,4 @@ export {
   LeaderboardEntry,
   BotProfile,
 } from "./analytics.repository";
+export { GameStateRepository } from "./game-state.repository";

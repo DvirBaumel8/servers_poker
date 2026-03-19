@@ -736,6 +736,20 @@ export class LiveGameManagerService implements OnModuleDestroy {
         this.gameStates.set(event.tableId, event.state);
       },
     );
+
+    this.eventEmitter.on(
+      "game.recovery.start",
+      (event: {
+        gameId: string;
+        tableId: string;
+        tournamentId?: string;
+        snapshot: any;
+      }) => {
+        this.recoverFromSnapshot(event.snapshot).catch((e) =>
+          this.logger.error(`Failed to recover game: ${e.message}`),
+        );
+      },
+    );
   }
 
   onModuleDestroy(): void {
@@ -747,6 +761,82 @@ export class LiveGameManagerService implements OnModuleDestroy {
     }
     this.liveGames.clear();
     this.gameStates.clear();
+  }
+
+  async recoverFromSnapshot(snapshot: any): Promise<GameInstance | null> {
+    try {
+      if (this.liveGames.has(snapshot.table_id)) {
+        this.logger.warn(
+          `Game already exists for table ${snapshot.table_id}, skipping recovery`,
+        );
+        return null;
+      }
+
+      const game = new GameInstance(
+        this.logger,
+        this.eventEmitter,
+        this.botCaller,
+        this.botResilience,
+        {
+          tableId: snapshot.table_id,
+          gameId: snapshot.game_id,
+          tournamentId: snapshot.tournament_id,
+          smallBlind: Number(snapshot.small_blind),
+          bigBlind: Number(snapshot.big_blind),
+          ante: Number(snapshot.ante),
+          startingChips: Number(snapshot.starting_chips),
+          turnTimeoutMs: snapshot.turn_timeout_ms,
+        },
+      );
+
+      for (const player of snapshot.players) {
+        game.players.push({
+          id: player.id,
+          name: player.name,
+          endpoint: player.endpoint,
+          chips: player.chips,
+          holeCards: player.holeCards || [],
+          folded: player.folded,
+          allIn: player.allIn,
+          strikes: player.strikes,
+          disconnected: player.disconnected,
+        });
+      }
+
+      game.handNumber = snapshot.hand_number;
+      game.stage = snapshot.game_stage;
+      game.dealerIndex = snapshot.dealer_index;
+      game.communityCards = snapshot.community_cards || [];
+
+      const liveGame: LiveGame = {
+        game,
+        tableId: snapshot.table_id,
+        gameDbId: snapshot.game_id,
+        botIdMap: {},
+        tournamentId: snapshot.tournament_id,
+        startedAt: new Date(),
+      };
+
+      for (const player of snapshot.players) {
+        liveGame.botIdMap[player.name] = player.id;
+      }
+
+      this.liveGames.set(snapshot.table_id, liveGame);
+      this.logger.log(
+        `Recovered game for table ${snapshot.table_id} (hand #${snapshot.hand_number})`,
+      );
+
+      this.eventEmitter.emit("game.recovered", {
+        tableId: snapshot.table_id,
+        gameId: snapshot.game_id,
+        handNumber: snapshot.hand_number,
+      });
+
+      return game;
+    } catch (error) {
+      this.logger.error(`Failed to recover from snapshot: ${error}`);
+      return null;
+    }
   }
 
   createGame(config: {
