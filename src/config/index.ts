@@ -1,2 +1,2 @@
-export { getDatabaseConfig, getTypeOrmConfig } from "./database.config";
+export { getDatabaseConfig } from "./database.config";
 export { appConfig, AppConfig } from "./app.config";

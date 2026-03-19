@@ -114,19 +114,60 @@ Expected response:
 
 ## Database Setup
 
-### Initial Migration
+### Database Migrations
 
-On first deployment, run migrations:
+The application uses TypeORM migrations for schema management. **Never use `synchronize: true` in production.**
+
+#### First-Time Setup
 
 ```bash
+# Start PostgreSQL (if using Docker)
+docker-compose up -d postgres
+
+# Run migrations to create all tables
 npm run migration:run
 ```
 
-Or manually via psql:
+#### Using Docker Compose
 
-```sql
--- Tables are created automatically via TypeORM synchronize in development
--- For production, use proper migrations
+```bash
+# Run migrations in container
+docker-compose --profile migrate up migrate
+```
+
+#### Migration Commands
+
+```bash
+# Run pending migrations
+npm run migration:run
+
+# Show migration status
+npm run migration:show
+
+# Revert last migration
+npm run migration:revert
+
+# Generate new migration (after entity changes)
+npm run migration:generate src/migrations/YourMigrationName
+
+# Drop all tables (DANGEROUS - dev only)
+npm run db:drop
+```
+
+#### Creating New Migrations
+
+When you modify entities, generate a new migration:
+
+```bash
+# 1. Make changes to entity files in src/entities/
+# 2. Generate migration
+npm run migration:generate src/migrations/AddNewColumn
+
+# 3. Review the generated migration in src/migrations/
+# 4. Run the migration
+npm run migration:run
+
+# 5. Commit both entity and migration files
 ```
 
 ### Backup Strategy

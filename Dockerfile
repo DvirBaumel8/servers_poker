@@ -48,22 +48,22 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Config files are now TypeScript and compiled to dist/
-
-# Copy public assets
-COPY public ./public
+# Copy public assets if they exist
+COPY --chown=poker:nodejs public ./public 2>/dev/null || true
 
 # Copy bot templates (for reference/documentation)
-COPY bots ./bots
+COPY --chown=poker:nodejs bots ./bots 2>/dev/null || true
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data /app/logs && \
-    chown -R poker:nodejs /app/data /app/logs
+# Copy docs for API reference
+COPY --chown=poker:nodejs docs ./docs 2>/dev/null || true
+
+# Create logs directory
+RUN mkdir -p /app/logs && \
+    chown -R poker:nodejs /app/logs
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV DB_PATH=/app/data/poker.db
-ENV LOG_DIR=/app/logs
+ENV PORT=3000
 
 # Switch to non-root user
 USER poker
@@ -72,8 +72,8 @@ USER poker
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD node --experimental-sqlite -e "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000/games/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
-# Run the server with experimental sqlite support
-CMD ["node", "--experimental-sqlite", "dist/server.js", "3000"]
+# Run the NestJS server
+CMD ["node", "dist/main.js"]
