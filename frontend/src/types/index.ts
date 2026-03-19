@@ -47,10 +47,18 @@ export interface Tournament {
   status: "registering" | "running" | "final_table" | "finished" | "cancelled";
   buyIn: number;
   startingChips: number;
+  smallBlind: number;
+  bigBlind: number;
+  blindIncreaseMinutes?: number;
   minPlayers: number;
   maxPlayers: number;
   playersPerTable: number;
   entriesCount: number;
+  registeredPlayers: number;
+  lateRegEndsLevel: number;
+  currentLevel?: number;
+  rebuysAllowed: boolean;
+  entries?: TournamentEntry[];
   scheduledStartAt?: string;
   startedAt?: string;
   finishedAt?: string;

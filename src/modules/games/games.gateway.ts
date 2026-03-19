@@ -36,13 +36,23 @@ interface GameState {
   currentPlayerId: string | null;
   dealerPosition: number;
   players: Array<{
+    id: string;
     botId: string;
+    name: string;
     position: number;
     chips: number;
     bet: number;
     folded: boolean;
     allIn: boolean;
+    disconnected: boolean;
+    strikes: number;
+    holeCards: Array<{ rank: string; suit: string }>;
   }>;
+  blinds: {
+    small: number;
+    big: number;
+    ante: number;
+  };
 }
 
 interface PrivatePlayerState {
@@ -184,7 +194,7 @@ export class GamesGateway
   }
 
   @SubscribeMessage("subscribe")
-  handleSubscribe(
+  async handleSubscribe(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tableId: string },
   ) {
@@ -197,6 +207,28 @@ export class GamesGateway
 
     client.join(`table:${tableId}`);
     this.logger.debug(`Client ${client.id} subscribed to table ${tableId}`);
+
+    // Send initial game state to the client
+    const snapshot = this.liveGameManager.getGameState(tableId);
+    if (snapshot) {
+      client.emit("gameState", this.snapshotToGameState(snapshot));
+    } else {
+      // No active game, send a waiting state
+      client.emit("gameState", {
+        id: tableId,
+        tableId,
+        status: "waiting",
+        handNumber: 0,
+        stage: "waiting",
+        pot: 0,
+        communityCards: [],
+        currentBet: 0,
+        currentPlayerId: null,
+        dealerPosition: 0,
+        players: [],
+        blinds: { small: 0, big: 0, ante: 0 },
+      });
+    }
 
     return { success: true, tableId };
   }
@@ -357,6 +389,55 @@ export class GamesGateway
 
   getTableSubscriberCount(tableId: string): number {
     return this.tableSubscriptions.get(tableId)?.size || 0;
+  }
+
+  private snapshotToGameState(snapshot: GameStateSnapshot): GameState {
+    return {
+      id: snapshot.gameId || snapshot.tableId,
+      tableId: snapshot.tableId,
+      status: snapshot.status,
+      handNumber: snapshot.handNumber,
+      stage: snapshot.stage,
+      pot: snapshot.pot,
+      communityCards: snapshot.communityCards.map((card) => {
+        if (typeof card === "string" && card.length >= 2) {
+          const chars = [...card];
+          const suit = chars.pop() || "?";
+          const rank = chars.join("");
+          return { rank, suit };
+        }
+        return { rank: "?", suit: "?" };
+      }),
+      currentBet: snapshot.currentBet,
+      currentPlayerId: snapshot.activePlayerId,
+      dealerPosition: 0,
+      players: snapshot.players.map((p, index) => ({
+        id: p.id,
+        botId: p.id,
+        name: p.name || "Unknown",
+        position: typeof p.position === "number" ? p.position : index,
+        chips: p.chips || 0,
+        bet: p.bet || 0,
+        folded: p.folded || false,
+        allIn: p.allIn || false,
+        disconnected: p.disconnected || false,
+        strikes: p.strikes || 0,
+        holeCards: (p.holeCards || []).map((card: string) => {
+          if (typeof card === "string" && card.length >= 2) {
+            const chars = [...card];
+            const suit = chars.pop() || "?";
+            const rank = chars.join("");
+            return { rank, suit };
+          }
+          return { rank: "?", suit: "?" };
+        }),
+      })),
+      blinds: {
+        small: snapshot.smallBlind || 0,
+        big: snapshot.bigBlind || 0,
+        ante: snapshot.ante || 0,
+      },
+    };
   }
 
   private extractToken(client: Socket): string | null {

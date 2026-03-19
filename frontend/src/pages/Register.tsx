@@ -1,40 +1,47 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useAuthStore } from "../stores/authStore";
+import { authApi } from "../api/auth";
 
 export function Register() {
   const navigate = useNavigate();
-  const { register, isLoading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLocalError(null);
+    setError(null);
 
     if (password !== confirmPassword) {
-      setLocalError("Passwords do not match");
+      setError("Passwords do not match");
       return;
     }
 
-    if (password.length < 6) {
-      setLocalError("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
       return;
     }
 
+    setIsLoading(true);
     try {
-      await register(email, username, password);
-      navigate("/");
-    } catch {
-      // Error is handled in store
+      const response = await authApi.register({ email, username, password });
+      if (response.requiresVerification) {
+        navigate("/verify-email", { state: { email } });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const displayError = localError || error;
+  const clearError = () => setError(null);
+
+  const displayError = error;
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center">
@@ -53,10 +60,7 @@ export function Register() {
             {displayError && (
               <div
                 className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg cursor-pointer"
-                onClick={() => {
-                  setLocalError(null);
-                  clearError();
-                }}
+                onClick={() => clearError()}
               >
                 {displayError}
               </div>
@@ -111,7 +115,7 @@ export function Register() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={8}
                 className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent"
                 placeholder="••••••••"
               />

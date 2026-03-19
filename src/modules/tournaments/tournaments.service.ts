@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from "@nestjs/common";
 import { TournamentRepository } from "../../repositories/tournament.repository";
@@ -82,7 +83,11 @@ export class TournamentsService {
     return results;
   }
 
-  async register(tournamentId: string, botId: string): Promise<void> {
+  async register(
+    tournamentId: string,
+    botId: string,
+    userId: string,
+  ): Promise<void> {
     const tournament = await this.tournamentRepository.findById(tournamentId);
     if (!tournament) {
       throw new NotFoundException(`Tournament ${tournamentId} not found`);
@@ -99,6 +104,10 @@ export class TournamentsService {
       throw new NotFoundException(`Bot ${botId} not found`);
     }
 
+    if (bot.user_id !== userId) {
+      throw new ForbiddenException("You do not own this bot");
+    }
+
     if (!bot.active) {
       throw new BadRequestException("Bot is not active");
     }
@@ -111,6 +120,18 @@ export class TournamentsService {
     const existing = entries.find((e) => e.bot_id === botId);
     if (existing) {
       throw new BadRequestException("Bot is already registered");
+    }
+
+    // Check if another bot owned by the same user is already registered
+    const entryBotIds = entries.map((e) => e.bot_id);
+    if (entryBotIds.length > 0) {
+      const entryBots = await this.botRepository.findByIds(entryBotIds);
+      const sameOwnerBot = entryBots.find((b) => b.user_id === userId);
+      if (sameOwnerBot) {
+        throw new BadRequestException(
+          `You already have a bot (${sameOwnerBot.name}) registered in this tournament. Only one bot per player allowed.`,
+        );
+      }
     }
 
     await this.tournamentRepository.createEntry({

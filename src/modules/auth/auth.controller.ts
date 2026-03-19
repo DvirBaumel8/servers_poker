@@ -14,6 +14,10 @@ import {
   AuthResponseDto,
   UserDto,
   RegenerateApiKeyResponseDto,
+  VerifyEmailDto,
+  ResendVerificationDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
 } from "./dto/login.dto";
 import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -26,8 +30,46 @@ export class AuthController {
 
   @Public()
   @Post("register")
-  async register(@Body() dto: RegisterDto): Promise<AuthResponseDto> {
+  async register(@Body() dto: RegisterDto): Promise<{
+    message: string;
+    email: string;
+    requiresVerification: boolean;
+  }> {
     return this.authService.register(dto);
+  }
+
+  @Public()
+  @Post("verify-email")
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body() dto: VerifyEmailDto): Promise<AuthResponseDto> {
+    return this.authService.verifyEmail(dto);
+  }
+
+  @Public()
+  @Post("resend-verification")
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(
+    @Body() dto: ResendVerificationDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resendVerificationCode(dto);
+  }
+
+  @Public()
+  @Post("forgot-password")
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Public()
+  @Post("reset-password")
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resetPassword(dto);
   }
 
   @Public()

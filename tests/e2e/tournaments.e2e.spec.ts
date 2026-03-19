@@ -309,7 +309,8 @@ describe("Tournaments E2E Tests", () => {
         })
         .expect(201);
 
-      expect(response.body).toHaveProperty("entry_id");
+      expect(response.body).toHaveProperty("success");
+      expect(response.body.success).toBe(true);
     });
 
     it("should reject duplicate registration", async () => {
@@ -344,7 +345,7 @@ describe("Tournaments E2E Tests", () => {
         .expect(409);
     });
 
-    it("should allow multiple bots to register", async () => {
+    it("should reject second bot from same owner registering for tournament", async () => {
       const tournamentResponse = await request(app.getHttpServer())
         .post("/api/v1/tournaments")
         .set("Authorization", `Bearer ${accessToken}`)
@@ -367,19 +368,71 @@ describe("Tournaments E2E Tests", () => {
         })
         .expect(201);
 
-      await request(app.getHttpServer())
+      const reg2Response = await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentId}/register`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot2Id,
         })
-        .expect(201);
+        .expect(400);
+
+      expect(reg2Response.body.message).toContain(
+        "You already have a bot",
+      );
+      expect(reg2Response.body.message).toContain(
+        "Only one bot per player allowed",
+      );
+    });
+
+    it("should allow bots from different owners to register", async () => {
+      // Create second user with their own bot
+      const user2Response = await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({
+          email: "tournamentowner2@example.com",
+          name: "TournamentOwner2",
+          password: "SecurePassword123!",
+        });
+
+      const user2Token = user2Response.body.accessToken;
+
+      const user2BotResponse = await request(app.getHttpServer())
+        .post("/api/v1/bots")
+        .set("Authorization", `Bearer ${user2Token}`)
+        .send({
+          name: "User2TournamentBot",
+          endpoint: "http://localhost:19003",
+        });
+
+      const user2BotId = user2BotResponse.body.id;
+
+      const tournamentResponse = await request(app.getHttpServer())
+        .post("/api/v1/tournaments")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          name: "MultiOwnerTournament",
+          type: "scheduled",
+          buy_in: 100,
+          starting_chips: 1000,
+          min_players: 2,
+          max_players: 50,
+        });
+
+      const tournamentId = tournamentResponse.body.id;
 
       await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentId}/register`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          bot_id: bot3Id,
+          bot_id: bot1Id,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/tournaments/${tournamentId}/register`)
+        .set("Authorization", `Bearer ${user2Token}`)
+        .send({
+          bot_id: user2BotId,
         })
         .expect(201);
     });

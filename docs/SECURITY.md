@@ -177,9 +177,11 @@ When a bot sends an action but it's not their turn:
 - JWT validation on connect implemented
 - TODO: Add refresh token handling for long-lived connections
 
-**[SEC-005] Bot endpoint receives no secret** — PLANNED
+**[SEC-005] Bot endpoint receives no secret** — FIXED
 - Risk: Anyone can send fake game state to bot
-- Fix: HMAC-SHA256 signing of payloads
+- Solution: `HmacSigningService` implements HMAC-SHA256 payload signing
+- Headers: `X-Poker-Signature`, `X-Poker-Timestamp`, `X-Poker-Nonce`
+- Enable via `ENABLE_BOT_HMAC_SIGNING=true` env var
 
 **[SEC-006] No request body size limit** — FIXED
 - Solution: Enforced via NestJS body parser config
@@ -195,8 +197,18 @@ When a bot sends an action but it's not their turn:
 **[SEC-009] API key entropy** — FIXED
 - Solution: `crypto.randomBytes(32).toString('hex')`
 
-**[SEC-010] No key rotation** — PLANNED
-- Solution: Add `POST /auth/regenerate-api-key` endpoint
+**[SEC-010] No key rotation** — FIXED
+- Solution: `ApiKeyRotationService` with grace period for old keys
+- Endpoint: `POST /users/:id/rotate-api-key`
+- Features:
+  - Old key valid during grace period (default 24h)
+  - Admin can revoke all keys: `POST /users/:id/revoke-api-keys`
+  - Status check: `GET /users/:id/api-key-status`
+
+**[SEC-011] Webhook signing** — FIXED
+- Solution: `WebhookSigningService` for outgoing webhooks
+- Format: Stripe-style `v1=<signature>` in `X-Poker-Webhook-Signature` header
+- Includes timestamp validation to prevent replay attacks
 
 ---
 
@@ -206,12 +218,13 @@ When a bot sends an action but it's not their turn:
 - [x] SEC-002: Rate limiting — NestJS Throttler
 - [ ] SEC-003: TLS via reverse proxy
 - [x] SEC-004: WebSocket JWT auth (partial)
-- [ ] SEC-005: HMAC signing of bot payloads
+- [x] SEC-005: HMAC signing of bot payloads — `HmacSigningService`
 - [x] SEC-006: Request body size limits
 - [x] SEC-007: SSRF protection on bot endpoints
 - [x] SEC-008: Atomic join — PostgreSQL transactions
 - [x] SEC-009: Cryptographic API key generation
-- [ ] SEC-010: Key rotation endpoint
+- [x] SEC-010: Key rotation endpoint — `ApiKeyRotationService`
+- [x] SEC-011: Webhook request signing — `WebhookSigningService`
 
 ---
 

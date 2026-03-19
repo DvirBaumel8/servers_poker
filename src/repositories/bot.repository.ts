@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, EntityManager } from "typeorm";
+import { Repository, EntityManager, In } from "typeorm";
 import { Bot } from "../entities/bot.entity";
 import { BaseRepository } from "./base.repository";
 
@@ -45,5 +45,13 @@ export class BotRepository extends BaseRepository<Bot> {
 
   async activate(id: string, manager?: EntityManager): Promise<Bot | null> {
     return this.update(id, { active: true }, manager);
+  }
+
+  async findByIds(ids: string[], manager?: EntityManager): Promise<Bot[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    const repo = manager ? manager.getRepository(Bot) : this.repository;
+    return repo.find({ where: { id: In(ids) } });
   }
 }

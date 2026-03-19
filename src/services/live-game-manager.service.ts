@@ -104,7 +104,7 @@ export class GameInstance {
   log: Array<{ message: string; timestamp: number }> = [];
 
   private expectedTotalChips?: number;
-  private sleepMs: number = 1500;
+  private sleepMs: number = 4000;
 
   constructor(
     private readonly logger: Logger,

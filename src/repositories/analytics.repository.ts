@@ -24,6 +24,13 @@ export interface BotProfile {
   aggression: number;
 }
 
+/**
+ * AnalyticsRepository is a specialized read-focused repository that aggregates
+ * data across multiple entities for analytics and reporting purposes.
+ * Unlike standard repositories, it doesn't extend BaseRepository because it
+ * doesn't perform CRUD on a single entity - instead it runs complex queries
+ * joining BotStats, BotEvents, TournamentEntries, and Bots.
+ */
 @Injectable()
 export class AnalyticsRepository {
   constructor(

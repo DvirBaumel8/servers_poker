@@ -9,6 +9,10 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const needsVerification =
+    error?.toLowerCase().includes("verify") ||
+    error?.toLowerCase().includes("verification");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -17,6 +21,11 @@ export function Login() {
     } catch {
       // Error is handled in store
     }
+  };
+
+  const handleVerifyEmail = () => {
+    clearError();
+    navigate("/verify-email", { state: { email } });
   };
 
   return (
@@ -35,10 +44,19 @@ export function Login() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div
-                className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg"
+                className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg cursor-pointer"
                 onClick={clearError}
               >
-                {error}
+                <p>{error}</p>
+                {needsVerification && (
+                  <button
+                    type="button"
+                    onClick={handleVerifyEmail}
+                    className="mt-2 text-poker-gold hover:text-yellow-400 font-medium text-sm underline"
+                  >
+                    Go to verification page
+                  </button>
+                )}
               </div>
             )}
 
@@ -61,12 +79,20 @@ export function Login() {
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Password
-              </label>
+              <div className="flex justify-between items-center mb-2">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-300"
+                >
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-poker-gold hover:text-yellow-400"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 id="password"
                 type="password"

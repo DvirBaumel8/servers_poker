@@ -19,6 +19,7 @@ import { BotsModule } from "./modules/bots/bots.module";
 import { GamesModule } from "./modules/games/games.module";
 import { TournamentsModule } from "./modules/tournaments/tournaments.module";
 import { ServicesModule } from "./services/services.module";
+import { SecurityModule } from "./common/security";
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { ServicesModule } from "./services/services.module";
       inject: [ConfigService],
     }),
     EventEmitterModule.forRoot(),
+    SecurityModule,
     ServicesModule,
     AuthModule,
     UsersModule,

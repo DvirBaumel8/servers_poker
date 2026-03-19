@@ -5,15 +5,18 @@ import {
   GameStateSnapshot,
   SnapshotStatus,
 } from "../entities/game-state-snapshot.entity";
+import { BaseRepository } from "./base.repository";
 
 @Injectable()
-export class GameStateRepository {
+export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
   private readonly logger = new Logger(GameStateRepository.name);
 
   constructor(
     @InjectRepository(GameStateSnapshot)
-    private readonly repository: Repository<GameStateSnapshot>,
-  ) {}
+    protected readonly repository: Repository<GameStateSnapshot>,
+  ) {
+    super();
+  }
 
   async saveSnapshot(
     snapshot: Partial<GameStateSnapshot>,

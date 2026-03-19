@@ -3,6 +3,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { BotCallerService } from "../../src/services/bot-caller.service";
+import { HmacSigningService } from "../../src/common/security/hmac-signing.service";
 import {
   MockBotServer,
   createCallingBot,
@@ -22,7 +23,7 @@ describe("BotCaller Integration Tests", () => {
         ConfigModule.forRoot({ isGlobal: true }),
         EventEmitterModule.forRoot(),
       ],
-      providers: [BotCallerService],
+      providers: [BotCallerService, HmacSigningService],
     }).compile();
 
     botCallerService = moduleFixture.get<BotCallerService>(BotCallerService);

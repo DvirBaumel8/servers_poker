@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import * as http from "http";
 import * as https from "https";
+import { HmacSigningService } from "../common/security";
 
 export interface BotCallResult {
   success: boolean;
@@ -53,25 +54,35 @@ export class BotCallerService implements OnModuleInit {
   private httpAgent: http.Agent;
   private httpsAgent: https.Agent;
 
+  private readonly enableHmacSigning: boolean;
+
   constructor(
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly hmacSigningService: HmacSigningService,
   ) {
-    this.timeoutMs = this.configService.get<number>("BOT_TIMEOUT_MS", 10000);
-    this.maxRetries = this.configService.get<number>("BOT_MAX_RETRIES", 1);
-    this.retryDelayMs = this.configService.get<number>(
-      "BOT_RETRY_DELAY_MS",
+    const parseNum = (val: string | number | undefined, defaultVal: number): number => {
+      if (val === undefined) return defaultVal;
+      const parsed = typeof val === "string" ? parseInt(val, 10) : val;
+      return isNaN(parsed) ? defaultVal : parsed;
+    };
+
+    this.timeoutMs = parseNum(this.configService.get("BOT_TIMEOUT_MS"), 10000);
+    this.maxRetries = parseNum(this.configService.get("BOT_MAX_RETRIES"), 1);
+    this.retryDelayMs = parseNum(
+      this.configService.get("BOT_RETRY_DELAY_MS"),
       500,
     );
-    this.circuitBreakerThreshold = this.configService.get<number>(
-      "BOT_CIRCUIT_BREAKER_THRESHOLD",
+    this.circuitBreakerThreshold = parseNum(
+      this.configService.get("BOT_CIRCUIT_BREAKER_THRESHOLD"),
       5,
     );
-    this.circuitBreakerResetMs = this.configService.get<number>(
-      "BOT_CIRCUIT_BREAKER_RESET_MS",
+    this.circuitBreakerResetMs = parseNum(
+      this.configService.get("BOT_CIRCUIT_BREAKER_RESET_MS"),
       30000,
     );
     this.maxResponseBytes = 65536;
+    this.enableHmacSigning = this.configService.get<boolean>("ENABLE_BOT_HMAC_SIGNING", false);
 
     this.httpAgent = new http.Agent({
       keepAlive: true,
@@ -104,6 +115,7 @@ export class BotCallerService implements OnModuleInit {
     botId: string,
     endpoint: string,
     payload: any,
+    secretKey?: string,
   ): Promise<BotCallResult> {
     const startTime = Date.now();
 
@@ -125,7 +137,7 @@ export class BotCallerService implements OnModuleInit {
       const attemptStart = Date.now();
 
       try {
-        const response = await this.makeRequest(endpoint, payload);
+        const response = await this.makeRequest(endpoint, payload, secretKey);
         const latencyMs = Date.now() - attemptStart;
 
         this.recordSuccess(botId, latencyMs);
@@ -241,7 +253,11 @@ export class BotCallerService implements OnModuleInit {
     this.logger.log(`Circuit breaker reset for bot ${botId}`);
   }
 
-  private async makeRequest(endpoint: string, payload: any): Promise<any> {
+  private async makeRequest(
+    endpoint: string,
+    payload: any,
+    secretKey?: string,
+  ): Promise<any> {
     return new Promise((resolve, reject) => {
       const url = new URL(endpoint);
       const isHttps = url.protocol === "https:";
@@ -251,25 +267,40 @@ export class BotCallerService implements OnModuleInit {
       const body = JSON.stringify(payload);
       let responseData = "";
       let responseSize = 0;
+      let req: http.ClientRequest | null = null;
+
+      // Build headers with optional HMAC signing
+      const headers: Record<string, string | number> = {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+        "User-Agent": "PokerEngine/1.0",
+        Connection: "keep-alive",
+      };
+
+      // Add HMAC signature headers if enabled and secret key provided
+      if (this.enableHmacSigning && secretKey) {
+        const signedHeaders = this.hmacSigningService.generateSignedHeaders(
+          payload,
+          secretKey,
+        );
+        Object.assign(headers, signedHeaders);
+      }
 
       const timeoutId = setTimeout(() => {
-        req.destroy();
+        if (req) {
+          req.destroy();
+        }
         reject(new Error(`Timeout after ${this.timeoutMs}ms`));
       }, this.timeoutMs);
 
-      const req = requestModule.request(
+      req = requestModule.request(
         {
           hostname: url.hostname,
           port: url.port || (isHttps ? 443 : 80),
           path: url.pathname + url.search,
           method: "POST",
           agent,
-          headers: {
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(body),
-            "User-Agent": "PokerEngine/1.0",
-            Connection: "keep-alive",
-          },
+          headers,
         },
         (res) => {
           if (res.statusCode && res.statusCode >= 400) {

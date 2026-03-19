@@ -66,13 +66,14 @@ servers_poker/
 │   │   ├── chip-movement.entity.ts  — Chip transaction log
 │   │   └── game-state-snapshot.entity.ts — Persisted game state for recovery
 │   ├── repositories/
-│   │   ├── user.repository.ts       — User data access
-│   │   ├── bot.repository.ts        — Bot data access
-│   │   ├── tournament.repository.ts — Tournament data access
-│   │   ├── game.repository.ts       — Game/hand data access
-│   │   ├── table.repository.ts      — Table management
-│   │   ├── analytics.repository.ts  — Stats and leaderboards
-│   │   └── game-state.repository.ts — Game state snapshots
+│   │   ├── base.repository.ts       — Abstract base with CRUD operations
+│   │   ├── user.repository.ts       — User data access (extends BaseRepository)
+│   │   ├── bot.repository.ts        — Bot data access (extends BaseRepository)
+│   │   ├── tournament.repository.ts — Tournament data access (extends BaseRepository)
+│   │   ├── game.repository.ts       — Game/hand data access (extends BaseRepository)
+│   │   ├── table.repository.ts      — Table management (extends BaseRepository)
+│   │   ├── game-state.repository.ts — Game state snapshots (extends BaseRepository)
+│   │   └── analytics.repository.ts  — Multi-entity analytics queries (standalone)
 │   ├── modules/
 │   │   ├── auth/                    — JWT & API key auth
 │   │   ├── users/                   — User management
@@ -97,7 +98,11 @@ servers_poker/
 │   │   ├── filters/                 — Exception handling
 │   │   ├── decorators/              — Custom decorators
 │   │   ├── pipes/                   — Validation pipes
-│   │   └── validators/              — Custom validators
+│   │   ├── validators/              — Custom validators
+│   │   └── security/                — Security services
+│   │       ├── hmac-signing.service.ts — HMAC-SHA256 payload signing
+│   │       ├── api-key-rotation.service.ts — Key rotation with grace period
+│   │       └── webhook-signing.service.ts — Outgoing webhook signing
 │   ├── game/
 │   │   ├── poker-game.service.ts    — Game engine (hardened)
 │   │   └── invariants.ts            — Chip conservation checks
@@ -173,6 +178,35 @@ servers_poker/
 
 ## Core Components
 
+### Repository Pattern
+
+All data access follows a consistent repository pattern:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     BaseRepository<T>                        │
+│  - findById(id, manager?)                                   │
+│  - findAll(manager?)                                        │
+│  - create(data, manager?)                                   │
+│  - update(id, data, manager?)                               │
+│  - delete(id, manager?)                                     │
+│  - transaction(dataSource, operation)                       │
+└─────────────────────────────────────────────────────────────┘
+                              ▲
+    ┌─────────────────────────┼─────────────────────────┐
+    │                         │                         │
+UserRepository          BotRepository          GameRepository
+    │                         │                         │
+    └─── findByEmail()        └─── findByUserId()       └─── getHandHistory()
+         findByApiKeyHash()        findActiveByUserId()      addGamePlayer()
+```
+
+**Key Principles:**
+- Services inject custom repositories, never `@InjectRepository` directly
+- All repositories extend `BaseRepository` for CRUD operations
+- Exception: `AnalyticsRepository` is standalone (multi-entity queries)
+- Optional `EntityManager` parameter enables transaction support
+
 ### NestJS Modules
 
 #### AuthModule
@@ -180,6 +214,8 @@ Handles user authentication and API key management.
 - JWT token generation and validation
 - API key hashing and verification
 - Password hashing with bcrypt
+- Email verification (2-step signup)
+- Password reset flow
 - Guards for route protection
 
 #### UsersModule
@@ -288,6 +324,28 @@ Real-time WebSocket monitoring at `/metrics`.
 - Health check round history
 - Manual health check trigger
 - Live events: state changes, circuit breakers, failures
+
+### Security Services (`src/common/security/`)
+
+#### HmacSigningService
+HMAC-SHA256 signing for bot payloads.
+- **Sign:** Creates signature with timestamp and nonce
+- **Verify:** Validates signature, checks timestamp freshness, prevents replay
+- **Headers:** `X-Poker-Signature`, `X-Poker-Timestamp`, `X-Poker-Nonce`
+- **Enable:** Set `ENABLE_BOT_HMAC_SIGNING=true`
+
+#### ApiKeyRotationService
+API key lifecycle management.
+- **Rotate:** Generates new key, old key valid during grace period (default 24h)
+- **Validate:** Checks current and legacy keys
+- **Revoke:** Immediately invalidates all keys for a user
+- **Endpoints:** `POST /users/:id/rotate-api-key`, `GET /users/:id/api-key-status`
+
+#### WebhookSigningService
+Outgoing webhook authentication.
+- **Format:** Stripe-style `v1=<signature>` in `X-Poker-Webhook-Signature`
+- **Protection:** Timestamp validation prevents replay attacks
+- **Headers:** Includes webhook ID and timestamp for verification
 
 ### Simulation Engine (`src/simulation/`)
 
@@ -601,13 +659,17 @@ jobs:
 |---------|--------|
 | JWT authentication | ✅ |
 | API key hashing (SHA-256) | ✅ |
+| API key rotation with grace period | ✅ |
 | Rate limiting (Throttler) | ✅ |
 | Input validation (class-validator) | ✅ |
 | RBAC (roles guard) | ✅ |
 | Audit logging | ✅ |
 | Chip movement tracking | ✅ |
-| Bot endpoint validation | ✅ |
+| Bot endpoint validation (SSRF protection) | ✅ |
+| HMAC bot payload signing | ✅ |
+| Webhook request signing | ✅ |
+| Password hashing (bcrypt) | ✅ |
+| Email verification (2-step) | ✅ |
 | TLS | ⚠️ Operator (nginx/Caddy) |
-| HMAC bot payload signing | 🔲 Planned |
 
 Full details: `SECURITY.md`

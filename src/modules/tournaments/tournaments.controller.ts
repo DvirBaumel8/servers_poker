@@ -68,9 +68,9 @@ export class TournamentsController {
   async register(
     @Param("id") id: string,
     @Body() dto: RegisterBotDto,
-    @CurrentUser() _user: User,
+    @CurrentUser() user: User,
   ) {
-    await this.tournamentsService.register(id, dto.bot_id);
+    await this.tournamentsService.register(id, dto.bot_id, user.id);
     return { success: true };
   }
 

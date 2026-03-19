@@ -25,7 +25,17 @@ export const useTournamentStore = create<TournamentStore>((set) => ({
   fetchTournaments: async (status) => {
     set({ loading: true, error: null });
     try {
-      const tournaments = await tournamentsApi.getAll(status);
+      let tournaments: Tournament[];
+
+      if (status === "active") {
+        const all = await tournamentsApi.getAll();
+        tournaments = all.filter(
+          (t) => t.status !== "finished" && t.status !== "cancelled"
+        );
+      } else {
+        tournaments = await tournamentsApi.getAll(status);
+      }
+
       set({ tournaments, loading: false });
     } catch (error) {
       set({ error: String(error), loading: false });

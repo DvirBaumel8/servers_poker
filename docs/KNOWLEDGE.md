@@ -45,6 +45,16 @@ All database tables are TypeORM entities with:
 - Indexed columns for common queries
 - `created_at` and `updated_at` timestamps
 
+### Repository Pattern
+Consistent data access layer:
+- `BaseRepository<T>` — abstract base with standard CRUD operations
+- All entity repositories extend `BaseRepository` (User, Bot, Game, Table, Tournament, GameState)
+- Exception: `AnalyticsRepository` is standalone (multi-entity aggregation queries)
+- Services inject custom repositories, never `@InjectRepository` directly
+- Optional `EntityManager` parameter enables transaction support
+
+**Key Rule:** No service should use `@InjectRepository(Entity)`. Always use the corresponding repository class.
+
 ### `PokerGame` is DB-free and tournament-agnostic
 No imports from database or tournament modules in the game engine. This keeps it testable in isolation. The `GameRecorder` attaches via callbacks to persist data.
 
@@ -242,8 +252,34 @@ A bot failure (timeout, error, bad JSON) gets a strike and a penalty fold. After
 ### Auto-start deferred with `setImmediate`
 `addPlayer()` triggers `startGame()` via `setImmediate` not synchronously. Allows tests to call `game.stop()` in the same tick before the loop starts.
 
-### 1500ms sleep between hands
-After each hand, the loop sleeps 1500ms. Gives the UI time to render the final state and prevents hands blurring in the log.
+### 4000ms sleep between hands
+After each hand, the loop sleeps 4000ms. Gives the UI time to render the final state and prevents hands blurring in the log. Configurable via `sleepMs` in `GameInstance`.
+
+---
+
+## Security Services
+
+### HMAC Bot Payload Signing (HmacSigningService)
+Optional protection against fake game state injection:
+- **Enable:** `ENABLE_BOT_HMAC_SIGNING=true`
+- **Headers:** `X-Poker-Signature`, `X-Poker-Timestamp`, `X-Poker-Nonce`
+- **Replay protection:** Signature includes timestamp, rejected if >5min old
+- **Nonce tracking:** Prevents exact replay attacks
+
+Bot servers should verify the signature using their shared secret.
+
+### API Key Rotation (ApiKeyRotationService)
+Secure key management with zero-downtime rotation:
+- **Rotate:** `POST /users/:id/rotate-api-key` generates new key
+- **Grace period:** Old key valid for 24h (configurable via `API_KEY_GRACE_PERIOD_MS`)
+- **Status:** `GET /users/:id/api-key-status` shows legacy key expiration
+- **Revoke:** `POST /users/:id/revoke-api-keys` (admin) immediately invalidates all keys
+
+### Webhook Signing (WebhookSigningService)
+Outgoing webhook authentication (for future event notifications):
+- **Format:** Stripe-style `v1=<signature>` in `X-Poker-Webhook-Signature`
+- **Includes:** Webhook ID and timestamp for client verification
+- **Protection:** Timestamp validation prevents replay attacks
 
 ---
 

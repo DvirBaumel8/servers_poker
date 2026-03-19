@@ -8,7 +8,11 @@ import { Bots } from "./pages/Bots";
 import { Leaderboard } from "./pages/Leaderboard";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
+import { VerifyEmail } from "./pages/VerifyEmail";
+import { ForgotPassword } from "./pages/ForgotPassword";
+import { ResetPassword } from "./pages/ResetPassword";
 import { Tables } from "./pages/Tables";
+import { Profile } from "./pages/Profile";
 
 function App() {
   return (
@@ -17,12 +21,16 @@ function App() {
         <Route index element={<Home />} />
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
+        <Route path="verify-email" element={<VerifyEmail />} />
+        <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="reset-password" element={<ResetPassword />} />
         <Route path="tables" element={<Tables />} />
         <Route path="tournaments" element={<Tournaments />} />
         <Route path="tournaments/:id" element={<TournamentDetail />} />
         <Route path="game/:tableId" element={<GameView />} />
         <Route path="bots" element={<Bots />} />
         <Route path="leaderboard" element={<Leaderboard />} />
+        <Route path="profile" element={<Profile />} />
       </Route>
     </Routes>
   );

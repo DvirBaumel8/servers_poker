@@ -51,9 +51,17 @@ export function Layout() {
               <div className="border-l border-gray-700 pl-6 flex items-center gap-4">
                 {user ? (
                   <>
-                    <span className="text-gray-400 text-sm">
+                    <Link
+                      to="/profile"
+                      className={clsx(
+                        "text-sm font-medium transition-colors",
+                        location.pathname === "/profile"
+                          ? "text-poker-gold"
+                          : "text-gray-400 hover:text-white"
+                      )}
+                    >
                       {user.username}
-                    </span>
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
@@ -94,7 +102,7 @@ export function Layout() {
 
       <footer className="border-t border-gray-800 py-6 mt-auto">
         <div className="container mx-auto px-4 text-center text-gray-500 text-sm">
-          Poker Tournament Platform - Zero Bug Approach
+          Poker Tournament Platform - Bot vs Bot Arena
         </div>
       </footer>
     </div>

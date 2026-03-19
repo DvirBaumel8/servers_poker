@@ -1,6 +1,19 @@
 import { api } from "./client";
 import type { GameState } from "../types";
 
+interface TableApiResponse {
+  id: string;
+  name: string;
+  status: "waiting" | "running" | "finished";
+  config: {
+    small_blind: number;
+    big_blind: number;
+    starting_chips: number;
+    max_players: number;
+  };
+  players: Array<{ id: string; name: string }>;
+}
+
 export interface Table {
   id: string;
   name: string;
@@ -10,6 +23,19 @@ export interface Table {
   currentPlayers: number;
   status: "waiting" | "running" | "finished";
   createdAt: string;
+}
+
+function transformTable(raw: TableApiResponse): Table {
+  return {
+    id: raw.id,
+    name: raw.name,
+    smallBlind: raw.config?.small_blind || 0,
+    bigBlind: raw.config?.big_blind || 0,
+    maxPlayers: raw.config?.max_players || 9,
+    currentPlayers: raw.players?.length || 0,
+    status: raw.status,
+    createdAt: "",
+  };
 }
 
 export interface HandHistory {
@@ -22,7 +48,10 @@ export interface HandHistory {
 }
 
 export const gamesApi = {
-  getTables: () => api.get<Table[]>("/games"),
+  getTables: async (): Promise<Table[]> => {
+    const raw = await api.get<TableApiResponse[]>("/games");
+    return raw.map(transformTable);
+  },
 
   getTable: (id: string) => api.get<Table>(`/games/tables/${id}`),
 
@@ -61,20 +90,32 @@ export const gamesApi = {
 
   getHand: (handId: string) => api.get<HandHistory>(`/games/hands/${handId}`),
 
-  getLeaderboard: (params?: { limit?: number; offset?: number }) => {
+  getLeaderboard: async (params?: { limit?: number; offset?: number; period?: string }) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set("limit", params.limit.toString());
     if (params?.offset) query.set("offset", params.offset.toString());
-    return api.get<
+    if (params?.period) query.set("period", params.period);
+    
+    const raw = await api.get<
       Array<{
-        botId: string;
-        botName: string;
-        totalNet: number;
-        totalTournaments: number;
-        tournamentWins: number;
-        totalHands: number;
+        name: string;
+        bot_id: string;
+        games_played: string;
+        total_hands: string;
+        total_wins: string;
+        total_winnings: string;
+        win_rate_pct: string;
       }>
     >(`/games/leaderboard${query.toString() ? `?${query}` : ""}`);
+    
+    return raw.map((entry) => ({
+      botId: entry.bot_id,
+      botName: entry.name,
+      totalNet: parseInt(entry.total_winnings, 10) || 0,
+      totalTournaments: parseInt(entry.games_played, 10) || 0,
+      tournamentWins: parseInt(entry.total_wins, 10) || 0,
+      totalHands: parseInt(entry.total_hands, 10) || 0,
+    }));
   },
 
   health: () => api.get<{ status: string; activeGames: number }>("/games/health"),

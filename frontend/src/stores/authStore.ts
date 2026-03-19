@@ -9,7 +9,7 @@ interface AuthState {
   error: string | null;
 
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, username: string, password: string) => Promise<void>;
+  setAuth: (user: User, token: string) => void;
   logout: () => void;
   fetchUser: () => Promise<void>;
   clearError: () => void;
@@ -41,22 +41,8 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      register: async (email: string, username: string, password: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          const response = await authApi.register({ email, username, password });
-          set({
-            user: response.user,
-            token: response.access_token,
-            isLoading: false,
-          });
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : "Registration failed",
-            isLoading: false,
-          });
-          throw error;
-        }
+      setAuth: (user: User, token: string) => {
+        set({ user, token, isLoading: false, error: null });
       },
 
       logout: () => {

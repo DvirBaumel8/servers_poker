@@ -1,12 +1,45 @@
 import { api } from "./client";
 import type { Bot, LeaderboardEntry } from "../types";
 
+interface BotApiResponse {
+  id: string;
+  name: string;
+  endpoint: string;
+  description?: string;
+  active: boolean;
+  user_id: string;
+  created_at: string;
+  last_validation_score?: number;
+}
+
+function transformBot(raw: BotApiResponse): Bot {
+  return {
+    id: raw.id,
+    name: raw.name,
+    endpoint: raw.endpoint,
+    description: raw.description,
+    active: raw.active,
+    userId: raw.user_id,
+    createdAt: raw.created_at,
+    lastValidationScore: raw.last_validation_score,
+  };
+}
+
 export const botsApi = {
-  getAll: () => api.get<Bot[]>("/bots"),
+  getAll: async (): Promise<Bot[]> => {
+    const raw = await api.get<BotApiResponse[]>("/bots");
+    return raw.map(transformBot);
+  },
 
-  getById: (id: string) => api.get<Bot>(`/bots/${id}`),
+  getById: async (id: string): Promise<Bot> => {
+    const raw = await api.get<BotApiResponse>(`/bots/${id}`);
+    return transformBot(raw);
+  },
 
-  getMy: (token: string) => api.get<Bot[]>("/bots/my", token),
+  getMy: async (token: string): Promise<Bot[]> => {
+    const raw = await api.get<BotApiResponse[]>("/bots/my", token);
+    return raw.map(transformBot);
+  },
 
   create: (
     data: { name: string; endpoint: string; description?: string },

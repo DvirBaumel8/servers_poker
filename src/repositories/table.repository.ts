@@ -3,6 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, EntityManager } from "typeorm";
 import { Table, TableStatus } from "../entities/table.entity";
 import { TableSeat } from "../entities/table-seat.entity";
+import { Bot } from "../entities/bot.entity";
 import { BaseRepository } from "./base.repository";
 
 @Injectable()
@@ -39,6 +40,7 @@ export class TableRepository extends BaseRepository<Table> {
     manager: EntityManager,
   ): Promise<{ ok: boolean; error?: string }> {
     const seatRepo = manager.getRepository(TableSeat);
+    const botRepo = manager.getRepository(Bot);
 
     const seatedCount = await seatRepo.count({
       where: { table_id: tableId, disconnected: false },
@@ -54,6 +56,28 @@ export class TableRepository extends BaseRepository<Table> {
 
     if (existing && !existing.disconnected) {
       return { ok: false, error: "This bot is already seated at this table" };
+    }
+
+    // Check if another bot owned by the same user is already seated
+    const joiningBot = await botRepo.findOne({ where: { id: botId } });
+    if (!joiningBot) {
+      return { ok: false, error: "Bot not found" };
+    }
+
+    const seatedBots = await seatRepo.find({
+      where: { table_id: tableId, disconnected: false },
+      relations: ["bot"],
+    });
+
+    const sameOwnerBot = seatedBots.find(
+      (seat) => seat.bot && seat.bot.user_id === joiningBot.user_id,
+    );
+
+    if (sameOwnerBot) {
+      return {
+        ok: false,
+        error: `You already have a bot (${sameOwnerBot.bot.name}) seated at this table. Only one bot per player allowed.`,
+      };
     }
 
     if (existing) {

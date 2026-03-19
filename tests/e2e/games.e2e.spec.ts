@@ -269,12 +269,71 @@ describe("Games E2E Tests", () => {
       expect(response.body.starting_chips).toBe(1000);
     });
 
-    it("should allow multiple bots to join table", async () => {
+    it("should reject second bot from same owner joining table", async () => {
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           name: "MultiJoinTable",
+          small_blind: 10,
+          big_blind: 20,
+          starting_chips: 1000,
+          max_players: 6,
+        });
+
+      const tableId = tableResponse.body.id;
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/games/tables/${tableId}/join`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          bot_id: bot1Id,
+        })
+        .expect(201);
+
+      const join2Response = await request(app.getHttpServer())
+        .post(`/api/v1/games/tables/${tableId}/join`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          bot_id: bot2Id,
+        })
+        .expect(409);
+
+      expect(join2Response.body.message).toContain(
+        "You already have a bot",
+      );
+      expect(join2Response.body.message).toContain(
+        "Only one bot per player allowed",
+      );
+    });
+
+    it("should allow bots from different owners to join same table", async () => {
+      // Create second user with their own bot
+      const user2Response = await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({
+          email: "secondowner@example.com",
+          name: "SecondOwner",
+          password: "SecurePassword123!",
+        });
+
+      const user2Token = user2Response.body.accessToken;
+
+      const user2BotResponse = await request(app.getHttpServer())
+        .post("/api/v1/bots")
+        .set("Authorization", `Bearer ${user2Token}`)
+        .send({
+          name: "User2Bot",
+          endpoint: "http://localhost:19003",
+        });
+
+      const user2BotId = user2BotResponse.body.id;
+
+      const tableResponse = await request(app.getHttpServer())
+        .post("/api/v1/games/tables")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          name: "MultiOwnerTable",
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -293,9 +352,9 @@ describe("Games E2E Tests", () => {
 
       const join2 = await request(app.getHttpServer())
         .post(`/api/v1/games/tables/${tableId}/join`)
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set("Authorization", `Bearer ${user2Token}`)
         .send({
-          bot_id: bot2Id,
+          bot_id: user2BotId,
         })
         .expect(201);
 

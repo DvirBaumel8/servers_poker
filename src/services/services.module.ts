@@ -14,6 +14,7 @@ import { GameStateSnapshot } from "../entities/game-state-snapshot.entity";
 import { GameStateRepository } from "../repositories/game-state.repository";
 import { BotRepository } from "../repositories/bot.repository";
 import { Bot } from "../entities/bot.entity";
+import { SecurityModule } from "../common/security/security.module";
 
 @Global()
 @Module({
@@ -21,6 +22,7 @@ import { Bot } from "../entities/bot.entity";
     ConfigModule,
     EventEmitterModule,
     TypeOrmModule.forFeature([GameStateSnapshot, Bot]),
+    SecurityModule,
   ],
   providers: [
     BotCallerService,
