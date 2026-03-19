@@ -1,5 +1,5 @@
 /**
- * tournaments.config.js
+ * tournaments.config.ts
  * =====================
  * System-defined tournament configurations.
  * Operator adds/removes tournaments here and restarts the server.
@@ -8,7 +8,37 @@
  * Late registration closes at the end of late_reg_ends_level.
  */
 
-const HANDS_PER_LEVEL = 10;
+export interface BlindLevel {
+  level: number;
+  small_blind: number;
+  big_blind: number;
+  ante: number;
+}
+
+export interface TournamentConfig {
+  id: string;
+  name: string;
+  type: "rolling" | "scheduled";
+  buy_in: number;
+  starting_chips: number;
+  min_players: number;
+  max_players: number;
+  players_per_table: number;
+  turn_timeout_ms: number;
+  late_reg_ends_level: number;
+  rebuys_allowed: boolean;
+  scheduled_start_at?: number;
+}
+
+export interface Payout {
+  position: number;
+  percentage: number;
+  amount: number;
+}
+
+export type PayoutStructure = number[];
+
+export const HANDS_PER_LEVEL = 10;
 
 /**
  * Standard blind progression.
@@ -16,22 +46,22 @@ const HANDS_PER_LEVEL = 10;
  * Antes kick in at level 3 (~25% of big blind).
  * Each level roughly 1.5–2x the previous to maintain pressure.
  */
-const BLIND_LEVELS = [
-  { level: 1,  small_blind:    25, big_blind:    50, ante:   10 },
-  { level: 2,  small_blind:    50, big_blind:   100, ante:   15 },
-  { level: 3,  small_blind:    75, big_blind:   150, ante:   25 },
-  { level: 4,  small_blind:   100, big_blind:   200, ante:   25 },
-  { level: 5,  small_blind:   150, big_blind:   300, ante:   50 },
-  { level: 6,  small_blind:   200, big_blind:   400, ante:   50 },
-  { level: 7,  small_blind:   300, big_blind:   600, ante:   75 },
-  { level: 8,  small_blind:   400, big_blind:   800, ante:  100 },
-  { level: 9,  small_blind:   600, big_blind:  1200, ante:  150 },
-  { level: 10, small_blind:   800, big_blind:  1600, ante:  200 },
-  { level: 11, small_blind:  1000, big_blind:  2000, ante:  300 },
-  { level: 12, small_blind:  1500, big_blind:  3000, ante:  400 },
-  { level: 13, small_blind:  2000, big_blind:  4000, ante:  500 },
-  { level: 14, small_blind:  3000, big_blind:  6000, ante:  750 },
-  { level: 15, small_blind:  5000, big_blind: 10000, ante: 1000 },
+export const BLIND_LEVELS: BlindLevel[] = [
+  { level: 1, small_blind: 25, big_blind: 50, ante: 10 },
+  { level: 2, small_blind: 50, big_blind: 100, ante: 15 },
+  { level: 3, small_blind: 75, big_blind: 150, ante: 25 },
+  { level: 4, small_blind: 100, big_blind: 200, ante: 25 },
+  { level: 5, small_blind: 150, big_blind: 300, ante: 50 },
+  { level: 6, small_blind: 200, big_blind: 400, ante: 50 },
+  { level: 7, small_blind: 300, big_blind: 600, ante: 75 },
+  { level: 8, small_blind: 400, big_blind: 800, ante: 100 },
+  { level: 9, small_blind: 600, big_blind: 1200, ante: 150 },
+  { level: 10, small_blind: 800, big_blind: 1600, ante: 200 },
+  { level: 11, small_blind: 1000, big_blind: 2000, ante: 300 },
+  { level: 12, small_blind: 1500, big_blind: 3000, ante: 400 },
+  { level: 13, small_blind: 2000, big_blind: 4000, ante: 500 },
+  { level: 14, small_blind: 3000, big_blind: 6000, ante: 750 },
+  { level: 15, small_blind: 5000, big_blind: 10000, ante: 1000 },
 ];
 
 /**
@@ -42,18 +72,18 @@ const BLIND_LEVELS = [
  * General rule: ~15% of field gets paid.
  * Winner gets 25-50% depending on field size.
  */
-const PAYOUT_STRUCTURES = {
+const PAYOUT_STRUCTURES: Record<number, PayoutStructure> = {
   // 2-5 entrants: winner takes all
-  2:  [100],
-  3:  [100],
-  4:  [100],
-  5:  [100],
+  2: [100],
+  3: [100],
+  4: [100],
+  5: [100],
 
   // 6-9: top 2 paid
-  6:  [65, 35],
-  7:  [65, 35],
-  8:  [65, 35],
-  9:  [65, 35],
+  6: [65, 35],
+  7: [65, 35],
+  8: [65, 35],
+  9: [65, 35],
 
   // 10-18: top 3 paid
   10: [50, 30, 20],
@@ -79,7 +109,7 @@ const PAYOUT_STRUCTURES = {
   90: [28, 18, 14, 11, 9, 7, 6, 4, 3],
 
   // 91-180: top 18 paid
-  91:  [25, 15, 11, 9, 7, 6, 5, 4, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1],
+  91: [25, 15, 11, 9, 7, 6, 5, 4, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1],
   180: [25, 15, 11, 9, 7, 6, 5, 4, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1],
 };
 
@@ -87,8 +117,10 @@ const PAYOUT_STRUCTURES = {
  * Resolve the correct payout structure for a given number of entrants.
  * Finds the largest bracket key that doesn't exceed entrantCount.
  */
-function getPayoutStructure(entrantCount) {
-  const keys = Object.keys(PAYOUT_STRUCTURES).map(Number).sort((a, b) => a - b);
+export function getPayoutStructure(entrantCount: number): PayoutStructure {
+  const keys = Object.keys(PAYOUT_STRUCTURES)
+    .map(Number)
+    .sort((a, b) => a - b);
   let chosen = keys[0];
   for (const k of keys) {
     if (entrantCount >= k) chosen = k;
@@ -102,15 +134,18 @@ function getPayoutStructure(entrantCount) {
  * Returns array of { position, percentage, amount } sorted by position.
  * Handles rounding — remainder goes to 1st place.
  */
-function calculatePayouts(prizePool, entrantCount) {
+export function calculatePayouts(
+  prizePool: number,
+  entrantCount: number,
+): Payout[] {
   const structure = getPayoutStructure(entrantCount);
   let remaining = prizePool;
   const payouts = structure.map((pct, i) => {
-    const amount = Math.floor(prizePool * pct / 100);
+    const amount = Math.floor((prizePool * pct) / 100);
     remaining -= amount;
     return { position: i + 1, percentage: pct, amount };
   });
-  payouts[0].amount += remaining; // remainder to winner
+  payouts[0].amount += remaining;
   return payouts;
 }
 
@@ -118,18 +153,18 @@ function calculatePayouts(prizePool, entrantCount) {
  * Get the blind level config for a given level number.
  * Returns the last level if beyond the defined structure.
  */
-function getBlindLevel(level) {
+export function getBlindLevel(level: number): BlindLevel {
   const idx = Math.min(level - 1, BLIND_LEVELS.length - 1);
   return BLIND_LEVELS[idx];
 }
 
 // ── Tournament definitions ────────────────────────────────────
 
-const TOURNAMENT_CONFIGS = [
+export const TOURNAMENT_CONFIGS: TournamentConfig[] = [
   {
-    id: 'tourn_micro',
-    name: 'Micro Bot Cup',
-    type: 'rolling',           // starts when min_players reached
+    id: "tourn_micro",
+    name: "Micro Bot Cup",
+    type: "rolling",
     buy_in: 100,
     starting_chips: 5000,
     min_players: 2,
@@ -140,9 +175,9 @@ const TOURNAMENT_CONFIGS = [
     rebuys_allowed: true,
   },
   {
-    id: 'tourn_standard',
-    name: 'Standard Championship',
-    type: 'rolling',
+    id: "tourn_standard",
+    name: "Standard Championship",
+    type: "rolling",
     buy_in: 500,
     starting_chips: 5000,
     min_players: 9,
@@ -153,25 +188,16 @@ const TOURNAMENT_CONFIGS = [
     rebuys_allowed: true,
   },
   {
-    id: 'tourn_highroller',
-    name: 'High Roller Invitational',
-    type: 'rolling',
+    id: "tourn_highroller",
+    name: "High Roller Invitational",
+    type: "rolling",
     buy_in: 2000,
     starting_chips: 5000,
     min_players: 6,
     max_players: 45,
     players_per_table: 9,
     turn_timeout_ms: 8000,
-    late_reg_ends_level: 3,    // shorter late reg for premium event
-    rebuys_allowed: false,     // freezeout
+    late_reg_ends_level: 3,
+    rebuys_allowed: false,
   },
 ];
-
-module.exports = {
-  TOURNAMENT_CONFIGS,
-  BLIND_LEVELS,
-  HANDS_PER_LEVEL,
-  getBlindLevel,
-  getPayoutStructure,
-  calculatePayouts,
-};

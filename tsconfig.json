@@ -11,20 +11,21 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "incremental": true,
-    "allowJs": true,
     "skipLibCheck": true,
     "noEmitOnError": false,
     "lib": ["es2022", "esnext.asynciterable"]
   },
+  "include": [
+    "src/**/*.ts",
+    "*.config.ts",
+    "test.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",
     "docs",
     "public",
     "**/*.spec.ts",
-    "bots",
-    "src/scenarios.ts",
-    "src/simulate.ts",
-    "test.js"
+    "bots"
   ]
 }

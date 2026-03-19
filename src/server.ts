@@ -27,11 +27,11 @@
 
 import * as http from "http";
 import { URL } from "url";
-import { createWsServer } from "./ws.js";
+import { createWsServer } from "./ws";
 import { validateBot } from "./botValidator";
 import { getIp, applyLimit, limiters } from "./rateLimit";
 import * as tournamentRoutes from "./routes/tournaments";
-import { TOURNAMENT_CONFIGS } from "../tournaments.config.js";
+import { TOURNAMENT_CONFIGS } from "../tournaments.config";
 import { PokerGame } from "./game";
 import { GameRecorder } from "./recorder";
 import { requireAuth } from "./auth";

@@ -48,9 +48,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Copy runtime config files
-COPY tournaments.config.js ./
-COPY tables.config.js ./
+# Config files are now TypeScript and compiled to dist/
 
 # Copy public assets
 COPY public ./public

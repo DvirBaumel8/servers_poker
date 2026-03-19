@@ -31,6 +31,15 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, "..", "poker.db");
 
 let _db: DatabaseSync | null = null;
 
+// Exported interfaces for type safety
+export interface TournamentTable {
+  id: string;
+  tournament_id: string;
+  table_number: number;
+  game_id?: string;
+  status?: string;
+}
+
 export function getDb(): DatabaseSync {
   if (_db) return _db;
   _db = new DatabaseSync(DB_PATH);

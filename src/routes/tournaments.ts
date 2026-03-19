@@ -12,7 +12,7 @@ import { URL } from "url";
 import * as db from "../db";
 import { requireAuth } from "../auth";
 import { applyLimit, limiters } from "../rateLimit";
-import { calculatePayouts } from "../../tournaments.config.js";
+import { calculatePayouts } from "../../tournaments.config";
 import { TournamentDirector } from "../tournament";
 
 // Using 'any' for now, but for a full migration, these should be properly typed.
