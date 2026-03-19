@@ -3,51 +3,55 @@
 { pkgs, ... }: {
   # Which nixpkgs channel to use.
   channel = "stable-24.11"; # or "unstable"
-  # Use https://search.nixos.org/packages to find packages
+
+  # We've removed jdk, postgresql, and other packages that can be managed
+  # by npm in the project's devDependencies for a cleaner, more focused environment.
+  # I've also removed the @nestjs/cli package, as it's not needed for running the application.
   packages = [
-    # pkgs.go
-    # pkgs.python311
-    # pkgs.python311Packages.pip
-    # pkgs.nodejs_22
-    # pkgs.nodePackages.nodemon
+    pkgs.nodejs_22
   ];
+
   # Sets environment variables in the workspace
   env = {};
+
   idx = {
-    # Search for the extensions you want on https://open-vsx.org/ and use "publisher.id"
+    # We've removed the extensions for Java and PostgreSQL to reduce overhead.
     extensions = [
-      # "vscodevim.vim"
       "google.gemini-cli-vscode-ide-companion"
+      "dbaeumer.vscode-eslint" # For TypeScript and JavaScript linting
     ];
+
     # Enable previews
     previews = {
-      enable = true;
+      enable = false;
       previews = {
-        # web = {
-        #   # Example: run "npm run dev" with PORT set to IDX's defined port for previews,
-        #   # and show it in IDX's web preview panel
-        #   command = ["npm" "run" "dev"];
-        #   manager = "web";
-        #   env = {
-        #     # Environment variables to set for your server
-        #     PORT = "$PORT";
-        #   };
-        # };
+        web = {
+          # The command to run for the web preview.
+          # We've changed this from 'npm run dev' to 'npm start'. 
+          # 'npm start' runs the pre-built application without a heavy file watcher,
+          # significantly reducing background CPU and memory usage.
+          command = ["npm" "start"];
+          manager = "web";
+        };
       };
     };
+    
     # Workspace lifecycle hooks
     workspace = {
       # Runs when a workspace is first created
       onCreate = {
-        # Example: install JS dependencies from NPM
-        # npm-install = "npm install";
-        # Open editors for the following files by default, if they exist:
-        default.openFiles = [ ".idx/dev.nix" "README.md" ];
+        # Install JS dependencies from NPM
+        npm-install = "npm install";
+        # Build the project once on creation so the preview can start
+        npm-build = "npm run build";
+        # Open these files when the workspace is created
+        default.openFiles = [ "src/main.ts" "src/app.controller.ts" ];
       };
+      
       # Runs when the workspace is (re)started
       onStart = {
-        # Example: start a background task to watch and re-build backend code
-        # watch-backend = "npm run watch-backend";
+        # This ensures the application is built and ready to run when you start the workspace.
+        npm-build = "npm run build";
       };
     };
   };

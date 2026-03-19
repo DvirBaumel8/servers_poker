@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POKER ENGINE — Tournament Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0c0a;--bg1:#0f120f;--bg2:#141814;--bg3:#1c221c;
+  --border:#1f2b1f;--border2:#2a3a2a;
+  --green:#3ddc6e;--green-dim:#1a6632;--green-faint:#0d2a18;
+  --amber:#e8a020;--amber-dim:#7a5010;--amber-faint:#1a0f00;
+  --red:#e84040;--red-dim:#5a1010;
+  --blue:#4ab0ff;--blue-dim:#1a3a6a;
+  --purple:#c060ff;--purple-dim:#4a1a7a;
+  --text:#c8dcc8;--text-dim:#5a7a5a;--text-faint:#222a22;
+  --mono:'JetBrains Mono',monospace;--display:'Bebas Neue',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;line-height:1.5;overflow:hidden}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px);pointer-events:none;z-index:9999}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--border2)}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--bg1);border-bottom:1px solid var(--border);height:42px;flex-shrink:0}
+.logo{font-family:var(--display);font-size:20px;letter-spacing:3px;color:var(--green)}
+.logo-sub{font-size:9px;color:var(--text-dim);letter-spacing:2px;margin-left:-8px}
+.srv-row{display:flex;align-items:center;gap:6px}
+.srv-input{background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:3px 7px;width:185px;outline:none}
+.srv-input:focus{border-color:var(--green-dim)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex-shrink:0;transition:all .3s}
+.dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot.ws{background:var(--blue);box-shadow:0 0 6px var(--blue)}
+.dot.err{background:var(--red)}
+.ubadge{font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:8px;margin-left:auto}
+.ubadge strong{color:var(--green)}
+
+/* ── BUTTONS ── */
+.btn{font-family:var(--mono);font-size:11px;padding:4px 11px;border:1px solid var(--green-dim);background:transparent;color:var(--green);cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--green);color:var(--bg)}
+.btn.am{border-color:var(--amber-dim);color:var(--amber)}.btn.am:hover{background:var(--amber);color:var(--bg)}
+.btn.rd{border-color:var(--red-dim);color:var(--red)}.btn.rd:hover{background:var(--red);color:#fff}
+.btn.bl{border-color:var(--blue-dim);color:var(--blue)}.btn.bl:hover{background:var(--blue);color:var(--bg)}
+.btn.sm{padding:2px 7px;font-size:10px}.btn:disabled{opacity:.3;cursor:default;pointer-events:none}
+
+/* ── LAYOUT ── */
+.layout{display:grid;grid-template-columns:270px 1fr 290px;height:calc(100vh - 42px - 20px);overflow:hidden}
+.panel{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel:last-child{border-right:none}
+
+/* ── TABS ── */
+.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{padding:7px 11px;font-size:10px;letter-spacing:1px;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}.tab:hover{color:var(--text)}
+.tc{display:none;flex:1;overflow-y:auto;padding:10px}.tc.active{display:block}
+
+/* ── FORMS ── */
+.sec{margin-bottom:11px;border:1px solid var(--border);background:var(--bg1)}
+.sec-t{padding:5px 9px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:10px;letter-spacing:2px;color:var(--text-dim)}
+.sec-b{padding:9px}
+.fld{margin-bottom:7px}.fld label{display:block;font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-bottom:2px}
+.fld input,.fld select{width:100%;background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:4px 7px;outline:none}
+.fld input:focus,.fld select:focus{border-color:var(--green-dim)}.fld select option{background:var(--bg2)}
+.msg{font-size:10px;padding:4px 6px;margin-top:5px;border-left:2px solid var(--green-dim);color:var(--text-dim);background:var(--green-faint);word-break:break-all;display:none}
+.msg.err{border-color:var(--red-dim);background:var(--red-dim);color:var(--text)}.msg.ok{border-color:var(--green);color:var(--green)}
+.empty{color:var(--text-faint);font-size:11px;padding:14px;text-align:center;letter-spacing:1px}
+.badge{font-size:9px;padding:1px 5px;border:1px solid;letter-spacing:1px;display:inline-block}
+.badge.g{color:var(--green);border-color:var(--green-dim)}
+.badge.a{color:var(--amber);border-color:var(--amber-dim)}
+.badge.r{color:var(--red);border-color:var(--red-dim)}
+.badge.b{color:var(--blue);border-color:var(--blue-dim)}
+.badge.p{color:var(--purple);border-color:var(--purple-dim)}
+.akbox{font-size:10px;padding:5px 7px;background:var(--bg2);border:1px solid var(--green-dim);color:var(--green);word-break:break-all;cursor:pointer;margin-top:3px}
+.akbox:hover{background:var(--green-faint)}
+
+/* ── BOT ITEMS ── */
+.bot-item{padding:7px;border:1px solid var(--border);margin-bottom:5px;background:var(--bg2)}
+.bot-name{color:var(--green);font-weight:700}
+.bot-ep{color:var(--text-dim);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bot-acts{display:flex;gap:4px;margin-top:5px}
+
+/* ── TOURNAMENT CARDS ── */
+.tourn-card{border:1px solid var(--border);margin-bottom:8px;background:var(--bg1);cursor:pointer;transition:border-color .15s}
+.tourn-card:hover{border-color:var(--green-dim)}
+.tourn-card.sel{border-color:var(--green)}
+.tourn-card.running{border-color:var(--amber-dim)}
+.tourn-card.finished{border-color:var(--text-faint)}
+.tc-hdr{padding:6px 9px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.tc-name{color:var(--amber);font-weight:700;font-size:12px}
+.tc-body{padding:7px 9px;font-size:10px;color:var(--text-dim)}
+.tc-row{display:flex;justify-content:space-between;margin-bottom:2px}
+.tc-row span{color:var(--text)}
+.tc-prize{color:var(--green);font-size:13px;font-weight:700}
+.tc-actions{padding:7px 9px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center}
+
+/* ── LIVE PANEL ── */
+.live-hdr{padding:7px 12px;background:var(--bg1);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.live-name{font-family:var(--display);font-size:17px;letter-spacing:3px;color:var(--green)}
+.live-info{font-size:10px;color:var(--text-dim);letter-spacing:1px}
+.live-sel{background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none;margin-left:auto}
+
+/* ── BLIND LEVEL BAR ── */
+.level-bar{padding:6px 12px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-shrink:0;font-size:10px}
+.level-num{color:var(--amber);font-weight:700;font-family:var(--display);font-size:16px;letter-spacing:2px}
+.level-blinds{color:var(--text)}
+.level-progress{flex:1;height:4px;background:var(--border2);border-radius:2px;overflow:hidden}
+.level-fill{height:100%;background:var(--amber);border-radius:2px;transition:width .5s}
+.level-hands{color:var(--text-dim);white-space:nowrap}
+.players-left{color:var(--green);font-weight:700}
+.tables-count{color:var(--text-dim)}
+
+/* ── TABLES GRID ── */
+.tables-grid{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
+
+.game-table{border:1px solid var(--border);background:var(--bg1)}
+.game-table.final{border-color:var(--amber)}
+.gt-hdr{padding:5px 9px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:10px}
+.gt-title{color:var(--amber);font-weight:700;letter-spacing:1px}
+.game-table.final .gt-title{color:var(--green)}
+.gt-pot{color:var(--text-dim)}
+.gt-stage{color:var(--text-dim);letter-spacing:1px}
+.gt-body{padding:7px 9px}
+
+/* Compact player rows in each table */
+.player-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--text-faint);font-size:10px}
+.player-row:last-child{border-bottom:none}
+.player-row.active{background:rgba(61,220,110,0.05)}
+.player-row.folded{opacity:.35}
+.pr-pos{width:44px;color:var(--text-dim);font-size:9px;letter-spacing:.5px}
+.pr-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player-row.active .pr-name{color:var(--green)}
+.pr-chips{color:var(--amber);text-align:right;white-space:nowrap}
+.pr-bet{width:50px;color:var(--text-dim);text-align:right;font-size:9px}
+.pr-cards{display:flex;gap:2px}
+.mini-card{width:18px;height:25px;background:#f5f0e8;border:1px solid #ccc;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#111;line-height:1}
+.mini-card.red{color:#c0392b}
+.mini-card.back{background:repeating-linear-gradient(135deg,#1a3a6b,#1a3a6b 3px,#0f2244 3px,#0f2244 6px);border-color:#2a4a7b}
+.pr-tag{font-size:8px;padding:0 3px;border:1px solid;letter-spacing:.5px}
+.pr-tag.allin{color:var(--red);border-color:var(--red-dim)}
+.pr-tag.dealer{color:#fff;background:#333;border-color:#555}
+.pr-strikes{display:flex;gap:1px}
+.strike-dot{width:5px;height:5px;border-radius:50%;background:var(--red)}
+
+/* Community + pot strip */
+.gt-comm{display:flex;align-items:center;gap:6px;padding:6px 9px;border-top:1px solid var(--border);background:var(--bg2)}
+.comm-cards{display:flex;gap:3px}
+.comm-card{width:22px;height:32px;background:#f5f0e8;border:1px solid #ccc;border-radius:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#111;line-height:1;animation:cIn .2s}
+@keyframes cIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
+.comm-card.red{color:#c0392b}
+.comm-card.back{background:repeating-linear-gradient(135deg,#1a3a6b,#1a3a6b 3px,#0f2244 3px,#0f2244 6px);border-color:#2a4a7b}
+.comm-ph{width:22px;height:32px;border:1px dashed var(--border2);border-radius:2px}
+.gt-pot-amt{margin-left:auto;color:var(--amber);font-size:11px;font-weight:700}
+
+/* ── RESULTS PANEL ── */
+.results-top{padding:7px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-shrink:0}
+.results-sel{flex:1;background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none}
+.rlist{flex:1;overflow-y:auto;padding:7px}
+.r-entry{display:flex;align-items:center;gap:7px;padding:5px 7px;border:1px solid var(--border);margin-bottom:4px;background:var(--bg1);font-size:11px}
+.r-entry.winner{border-color:var(--amber);background:var(--amber-faint)}
+.r-pos{width:24px;font-family:var(--display);font-size:16px;color:var(--text-dim);text-align:center}
+.r-entry.winner .r-pos{color:var(--amber)}
+.r-name{flex:1;font-weight:700}
+.r-entry.winner .r-name{color:var(--amber)}
+.r-level{font-size:9px;color:var(--text-dim)}
+.r-payout{color:var(--green);font-weight:700;text-align:right}
+.r-payout.zero{color:var(--text-faint)}
+
+/* ── STATUS BAR ── */
+.sb{height:20px;background:var(--bg1);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:14px;font-size:9px;color:var(--text-dim);letter-spacing:1px;flex-shrink:0}
+.sb span{color:var(--green)}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="logo">POKER ENGINE</div>
+    <div class="logo-sub">TOURNAMENT MODE</div>
+  </div>
+  <div class="srv-row">
+    <input class="srv-input" id="srvUrl" value="http://localhost:3000">
+    <div class="dot" id="connDot"></div>
+    <div class="dot" id="wsDot" title="WebSocket"></div>
+    <button class="btn sm" onclick="connectSrv()">CONNECT</button>
+  </div>
+  <div id="wsLabel" style="font-size:9px;color:var(--blue);letter-spacing:1px;display:none">◉ LIVE</div>
+  <div class="ubadge" id="ubadge" style="display:none">
+    <span>logged in as <strong id="uname"></strong></span>
+    <button class="btn sm rd" onclick="logout()">LOGOUT</button>
+  </div>
+</div>
+
+<div style="display:flex;flex-direction:column;height:calc(100vh - 42px)">
+<div class="layout">
+
+  <!-- LEFT: Account / Bots / Tournaments -->
+  <div class="panel">
+    <div class="tabs">
+      <div class="tab active" onclick="swTab('account',this)">ACCOUNT</div>
+      <div class="tab" onclick="swTab('bots',this)">BOTS</div>
+      <div class="tab" onclick="swTab('tourneys',this)">TOURNAMENTS</div>
+    </div>
+
+    <!-- ACCOUNT -->
+    <div class="tc active" id="tc-account">
+      <div class="sec" id="s-reg">
+        <div class="sec-t">REGISTER</div>
+        <div class="sec-b">
+          <div class="fld"><label>USERNAME</label><input id="r-user" placeholder="yourname"></div>
+          <div class="fld"><label>EMAIL (optional)</label><input id="r-email" type="email"></div>
+          <button class="btn" style="width:100%" onclick="doRegister()">CREATE ACCOUNT</button>
+          <div id="r-msg" class="msg"></div>
+        </div>
+      </div>
+      <div class="sec" id="s-login">
+        <div class="sec-t">LOGIN WITH API KEY</div>
+        <div class="sec-b">
+          <div class="fld"><label>API KEY</label><input id="l-key" type="password" placeholder="paste your api_key"></div>
+          <button class="btn" style="width:100%" onclick="doLogin()">LOGIN</button>
+          <div id="l-msg" class="msg"></div>
+        </div>
+      </div>
+      <div class="sec" id="s-profile" style="display:none">
+        <div class="sec-t">YOUR API KEY</div>
+        <div class="sec-b">
+          <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">Click to copy — keep secret</div>
+          <div class="akbox" id="akbox" onclick="copyKey()">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTS -->
+    <div class="tc" id="tc-bots">
+      <div class="sec">
+        <div class="sec-t">REGISTER BOT</div>
+        <div class="sec-b">
+          <div class="fld"><label>NAME</label><input id="b-name" placeholder="MyBot"></div>
+          <div class="fld"><label>ENDPOINT</label><input id="b-ep" placeholder="http://host/action"></div>
+          <div class="fld"><label>DESCRIPTION</label><input id="b-desc"></div>
+          <button class="btn" style="width:100%" onclick="doRegBot()">REGISTER</button>
+          <div id="b-msg" class="msg"></div>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="sec-t">YOUR BOTS</div>
+        <div class="sec-b" id="botList"><div class="empty">login to see your bots</div></div>
+      </div>
+    </div>
+
+    <!-- TOURNAMENTS -->
+    <div class="tc" id="tc-tourneys">
+      <div id="tourneyList"><div class="empty">connect to server</div></div>
+    </div>
+  </div>
+
+  <!-- CENTER: Live Tournament View -->
+  <div class="panel" style="border-right:1px solid var(--border)">
+    <div class="live-hdr">
+      <div class="live-name" id="lName">—</div>
+      <div class="live-info" id="lInfo"></div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:7px">
+        <select class="live-sel" id="wSel"><option value="">— watch tournament —</option></select>
+        <button class="btn sm" onclick="startWatch()">WATCH</button>
+        <button class="btn sm rd" id="stopBtn" style="display:none" onclick="stopWatch()">STOP</button>
+      </div>
+    </div>
+
+    <!-- Blind level bar -->
+    <div class="level-bar" id="levelBar" style="display:none">
+      <div>
+        <div style="font-size:9px;color:var(--text-dim);letter-spacing:1px">LEVEL</div>
+        <div class="level-num" id="lLevel">1</div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text-dim);letter-spacing:1px">BLINDS / ANTE</div>
+        <div class="level-blinds" id="lBlinds">25 / 50</div>
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-dim);margin-bottom:3px">
+          <span>HANDS</span>
+          <span id="lHandsText">0 / 10</span>
+        </div>
+        <div class="level-progress"><div class="level-fill" id="lFill" style="width:0%"></div></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:9px;color:var(--text-dim);letter-spacing:1px">REMAINING</div>
+        <div class="players-left" id="lPlayers">—</div>
+      </div>
+    </div>
+
+    <div class="tables-grid" id="tablesGrid">
+      <div class="empty" style="margin-top:60px">SELECT A TOURNAMENT TO WATCH</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Results / Payouts -->
+  <div class="panel" style="flex-direction:column">
+    <div class="tabs" style="flex-shrink:0">
+      <div class="tab active" style="cursor:default;color:var(--green);border-bottom:2px solid var(--green)">RESULTS</div>
+    </div>
+    <div class="results-top">
+      <select class="results-sel" id="rSel"><option value="">— select tournament —</option></select>
+      <button class="btn sm" onclick="loadResults()">LOAD</button>
+    </div>
+    <div class="rlist" id="rlist"><div class="empty">select a tournament to view results</div></div>
+  </div>
+
+</div>
+<div class="sb">
+  SERVER: <span id="sb-srv">—</span> &nbsp;|&nbsp;
+  TRANSPORT: <span id="sb-t">—</span> &nbsp;|&nbsp;
+  WATCHING: <span id="sb-w">—</span> &nbsp;|&nbsp;
+  PRIZE POOL: <span id="sb-prize">—</span>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let API = 'http://localhost:3000';
+let WS_URL = 'ws://localhost:3000/ws';
+let apiKey = localStorage.getItem('pk') || '';
+let user = null, bots = [], tournaments = [];
+let ws = null, watchingId = null, pollInterval = null;
+let selTourn = null;
+
+// ═══════════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════════
+async function api(m, p, b) {
+  const o = { method: m, headers: { 'Content-Type': 'application/json' } };
+  if (apiKey) o.headers['Authorization'] = 'Bearer ' + apiKey;
+  if (b) o.body = JSON.stringify(b);
+  try {
+    const r = await fetch(API + p, o);
+    const d = await r.json();
+    return { ok: r.ok, status: r.status, data: d };
+  } catch (e) { return { ok: false, data: { error: e.message } }; }
+}
+
+function msg(id, txt, type) {
+  const e = document.getElementById(id);
+  if (!e) return;
+  e.textContent = txt;
+  e.className = 'msg' + (type ? ' ' + type : '');
+  e.style.display = txt ? '' : 'none';
+}
+
+// ═══════════════════════════════════════════════
+// CONNECTION
+// ═══════════════════════════════════════════════
+async function connectSrv() {
+  API = document.getElementById('srvUrl').value.replace(/\/$/, '');
+  WS_URL = API.replace(/^http/, 'ws') + '/ws';
+  const { ok } = await api('GET', '/health');
+  if (!ok) { setDot('connDot','err'); document.getElementById('sb-srv').textContent='unreachable'; return; }
+  setDot('connDot','ok');
+  document.getElementById('sb-srv').textContent = API;
+  await loadTournaments();
+  if (apiKey) await loadProfile();
+}
+
+function setDot(id, s) { document.getElementById(id).className = 'dot ' + s; }
+
+// ═══════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════
+async function doRegister() {
+  const u = document.getElementById('r-user').value.trim();
+  const e = document.getElementById('r-email').value.trim();
+  if (!u) { msg('r-msg','Username required','err'); return; }
+  const { ok, data } = await api('POST','/users/register',{username:u,email:e||undefined});
+  if (!ok) { msg('r-msg',data.error,'err'); return; }
+  apiKey = data.user.api_key;
+  localStorage.setItem('pk', apiKey);
+  msg('r-msg','Account created!','ok');
+  await loadProfile();
+}
+
+async function doLogin() {
+  apiKey = document.getElementById('l-key').value.trim();
+  if (!apiKey) { msg('l-msg','Paste your api_key','err'); return; }
+  localStorage.setItem('pk', apiKey);
+  const { ok, data } = await api('GET','/users/me');
+  if (!ok) { apiKey=''; msg('l-msg','Invalid API key','err'); return; }
+  user=data; bots=data.bots||[];
+  msg('l-msg','','');
+  showIn();
+}
+
+async function loadProfile() {
+  if (!apiKey) return;
+  const { ok, data } = await api('GET','/users/me');
+  if (!ok) return;
+  user=data; bots=data.bots||[];
+  showIn();
+}
+
+function showIn() {
+  document.getElementById('ubadge').style.display='flex';
+  document.getElementById('uname').textContent=user.username;
+  document.getElementById('s-reg').style.display='none';
+  document.getElementById('s-login').style.display='none';
+  document.getElementById('s-profile').style.display='';
+  document.getElementById('akbox').textContent=apiKey;
+  renderBots();
+  renderTournaments(); // refresh with user context
+}
+
+function logout() {
+  apiKey=''; user=null; bots=[];
+  localStorage.removeItem('pk');
+  document.getElementById('ubadge').style.display='none';
+  document.getElementById('s-reg').style.display='';
+  document.getElementById('s-login').style.display='';
+  document.getElementById('s-profile').style.display='none';
+  document.getElementById('botList').innerHTML='<div class="empty">login to see your bots</div>';
+}
+
+function copyKey() {
+  navigator.clipboard.writeText(apiKey);
+  const e=document.getElementById('akbox'); const t=e.textContent;
+  e.textContent='COPIED!'; setTimeout(()=>e.textContent=t,1500);
+}
+
+// ═══════════════════════════════════════════════
+// BOTS
+// ═══════════════════════════════════════════════
+async function doRegBot() {
+  if (!apiKey) { msg('b-msg','Login first','err'); return; }
+  const name=document.getElementById('b-name').value.trim();
+  const endpoint=document.getElementById('b-ep').value.trim();
+  const description=document.getElementById('b-desc').value.trim();
+  if (!name||!endpoint) { msg('b-msg','Name and endpoint required','err'); return; }
+  const {ok,data}=await api('POST','/bots',{name,endpoint,description:description||undefined});
+  if (!ok) { msg('b-msg',data.error,'err'); return; }
+  msg('b-msg','Bot "'+name+'" registered!','ok');
+  await loadProfile();
+}
+
+async function updEp(id,cur) {
+  const ep=prompt('New endpoint URL:',cur);
+  if (!ep||ep===cur) return;
+  const {ok,data}=await api('PATCH','/bots/'+id,{endpoint:ep});
+  if (!ok) { alert(data.error); return; }
+  await loadProfile();
+}
+
+function renderBots() {
+  const el=document.getElementById('botList');
+  if (!bots.length) { el.innerHTML='<div class="empty">no bots yet</div>'; return; }
+  el.innerHTML=bots.map(b=>`
+    <div class="bot-item">
+      <div class="bot-name">${b.name}${!b.active?'&nbsp;<span class="badge r">OFF</span>':''}</div>
+      <div class="bot-ep" title="${b.endpoint}">${b.endpoint}</div>
+      <div class="bot-acts">
+        <button class="btn sm" onclick="updEp('${b.id}','${b.endpoint}')">UPDATE URL</button>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════
+// TOURNAMENTS
+// ═══════════════════════════════════════════════
+async function loadTournaments() {
+  const {ok,data}=await api('GET','/tournaments');
+  if (!ok) return;
+  tournaments=data;
+  renderTournaments();
+  fillTournSelects();
+}
+
+function statusBadge(s) {
+  const map={registering:'a',running:'g',final_table:'p',finished:'r',cancelled:'r',scheduled:'b'};
+  const labels={registering:'REGISTERING',running:'RUNNING',final_table:'FINAL TABLE',finished:'FINISHED',cancelled:'CANCELLED',scheduled:'SCHEDULED'};
+  return `<span class="badge ${map[s]||'a'}">${labels[s]||s.toUpperCase()}</span>`;
+}
+
+function renderTournaments() {
+  const el=document.getElementById('tourneyList');
+  if (!tournaments.length) { el.innerHTML='<div class="empty">no tournaments</div>'; return; }
+
+  el.innerHTML=tournaments.map(t=>{
+    const isRunning=t.status==='running'||t.status==='final_table';
+    const liveInfo=t.live ? `<span style="color:var(--green)">▶ ${t.live.players_remaining} left, ${t.live.tables} table${t.live.tables!==1?'s':''}, lvl ${t.live.level}</span>` : '';
+    return `
+    <div class="tourn-card ${t.status} ${selTourn===t.id?'sel':''}" onclick="pickTourn('${t.id}')">
+      <div class="tc-hdr">
+        <div class="tc-name">${t.name}</div>
+        ${statusBadge(t.status)}
+      </div>
+      <div class="tc-body">
+        <div class="tc-row"><span>Buy-in</span><span>${t.buy_in.toLocaleString()} chips</span></div>
+        <div class="tc-row"><span>Players</span><span>${t.entrants} / ${t.max_players}</span></div>
+        <div class="tc-row"><span>Pays</span><span>top ${t.places_paid}</span></div>
+        <div class="tc-row"><span>Rebuys</span><span>${t.rebuys_allowed?'YES':'NO (Freezeout)'}</span></div>
+        ${t.type==='scheduled'&&t.scheduled_start_at?`<div class="tc-row"><span>Starts</span><span>${new Date(t.scheduled_start_at*1000).toLocaleString()}</span></div>`:''}
+        ${liveInfo ? `<div style="margin-top:4px">${liveInfo}</div>` : ''}
+        <div style="margin-top:4px"><span class="tc-prize">🏆 ${t.prize_pool.toLocaleString()}</span> <span style="font-size:10px;color:var(--text-dim)">prize pool</span></div>
+      </div>
+      ${t.status==='registering'||isRunning ? `
+      <div class="tc-actions">
+        <select style="flex:1;background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:10px;padding:3px 6px;outline:none" id="bot-sel-${t.id}">
+          <option value="">— your bot —</option>
+          ${(bots||[]).filter(b=>b.active).map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}
+        </select>
+        <button class="btn sm am" onclick="doRegister_T('${t.id}')">ENTER</button>
+        <button class="btn sm bl" onclick="watchTourn('${t.id}')">WATCH</button>
+      </div>` : `
+      <div class="tc-actions">
+        <button class="btn sm bl" onclick="watchTourn('${t.id}')">VIEW</button>
+        <button class="btn sm" onclick="loadResultsFor('${t.id}')">RESULTS</button>
+      </div>`}
+    </div>`;
+  }).join('');
+}
+
+function pickTourn(id) {
+  selTourn = id;
+  renderTournaments();
+}
+
+function fillTournSelects() {
+  const opts=tournaments.map(t=>`<option value="${t.id}">${t.name} (${t.status})</option>`).join('');
+  const base='<option value="">— select —</option>';
+  document.getElementById('wSel').innerHTML=base+opts;
+  document.getElementById('rSel').innerHTML=base+opts;
+}
+
+async function doRegister_T(tournId) {
+  if (!apiKey) { alert('Login first — then register a bot under the BOTS tab.'); return; }
+  const bot_id=document.getElementById('bot-sel-'+tournId)?.value;
+  if (!bot_id) {
+    if (!bots || !bots.filter(b=>b.active).length) {
+      alert('You need to register a bot first.\nGo to the BOTS tab and add your bot endpoint.');
+    } else {
+      alert('Select one of your bots from the dropdown.');
+    }
+    return;
+  }
+  const {ok,data}=await api('POST','/tournaments/'+tournId+'/register',{bot_id});
+  if (!ok) { alert(data.error); return; }
+  alert(data.message);
+  await loadTournaments();
+  watchTourn(tournId);
+}
+
+// ═══════════════════════════════════════════════
+// WATCH
+// ═══════════════════════════════════════════════
+function watchTourn(id) {
+  document.getElementById('wSel').value=id;
+  startWatch();
+}
+
+function startWatch() {
+  const id=document.getElementById('wSel').value;
+  if (!id) return;
+  stopWatch();
+  watchingId=id;
+  document.getElementById('sb-w').textContent=id.replace('tourn_','');
+  document.getElementById('stopBtn').style.display='';
+  connectWs(id);
+  // Immediate HTTP fetch
+  api('GET','/tournaments/'+id).then(({ok,data})=>{ if(ok) renderLive(data); });
+}
+
+function stopWatch() {
+  if (ws) { ws.close(); ws=null; }
+  if (pollInterval) { clearInterval(pollInterval); pollInterval=null; }
+  watchingId=null;
+  document.getElementById('sb-w').textContent='—';
+  document.getElementById('sb-prize').textContent='—';
+  document.getElementById('stopBtn').style.display='none';
+  document.getElementById('levelBar').style.display='none';
+  setDot('wsDot','');
+  document.getElementById('wsLabel').style.display='none';
+  document.getElementById('sb-t').textContent='—';
+  document.getElementById('tablesGrid').innerHTML='<div class="empty" style="margin-top:60px">SELECT A TOURNAMENT TO WATCH</div>';
+  document.getElementById('lName').textContent='—';
+  document.getElementById('lInfo').textContent='';
+}
+
+function connectWs(tournId) {
+  try {
+    ws=new WebSocket(WS_URL+'?table='+tournId);
+  } catch(e) { fallbackPoll(tournId); return; }
+
+  ws.onopen=()=>{
+    setDot('wsDot','ws');
+    document.getElementById('wsLabel').style.display='';
+    document.getElementById('sb-t').textContent='WEBSOCKET';
+    if (pollInterval) { clearInterval(pollInterval); pollInterval=null; }
+  };
+
+  ws.onmessage=e=>{
+    try {
+      const m=JSON.parse(e.data);
+      if (m.type==='tournament_state' && m.tournamentId===watchingId) renderLive(m.state);
+      if (m.type==='state' && m.tableId===watchingId) {
+        // fallback: plain game state for non-tournament watching
+      }
+    } catch(_) {}
+  };
+
+  ws.onclose=()=>{
+    setDot('wsDot','err');
+    document.getElementById('wsLabel').style.display='none';
+    document.getElementById('sb-t').textContent='POLLING';
+    ws=null;
+    if (watchingId) fallbackPoll(watchingId);
+  };
+}
+
+function fallbackPoll(id) {
+  document.getElementById('sb-t').textContent='POLLING';
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval=setInterval(async()=>{
+    if (!watchingId) return;
+    const {ok,data}=await api('GET','/tournaments/'+id);
+    if (ok) renderLive(data);
+  }, 1000);
+}
+
+// ═══════════════════════════════════════════════
+// RENDER LIVE TOURNAMENT
+// ═══════════════════════════════════════════════
+function renderLive(data) {
+  if (!data) return;
+
+  // Header
+  document.getElementById('lName').textContent = (data.name||'—').toUpperCase();
+  const live=data.live;
+  if (live) {
+    document.getElementById('lInfo').textContent = `${live.players_remaining} PLAYERS · ${live.tables} TABLE${live.tables!==1?'S':''}`;
+    document.getElementById('sb-prize').textContent = (data.prize_pool||0).toLocaleString();
+    document.getElementById('levelBar').style.display='flex';
+    document.getElementById('lLevel').textContent = live.level||1;
+    const blinds=live.blinds||{};
+    document.getElementById('lBlinds').textContent =
+      `${blinds.small||'?'} / ${blinds.big||'?'}${blinds.ante?' + '+blinds.ante+' ante':''}`;
+    const hands=live.handsThisLevel||0;
+    const perLevel=live.handsPerLevel||10;
+    document.getElementById('lHandsText').textContent=hands+' / '+perLevel;
+    document.getElementById('lFill').style.width=Math.min(100,Math.round(hands/perLevel*100))+'%';
+    document.getElementById('lPlayers').textContent=live.players_remaining||'—';
+  } else {
+    document.getElementById('levelBar').style.display='none';
+    document.getElementById('sb-prize').textContent=(data.prize_pool||0).toLocaleString();
+  }
+
+  // Tables
+  const tables=(live&&live.tables)||[];
+  if (!tables.length) {
+    const status=data.status||'';
+    document.getElementById('tablesGrid').innerHTML=
+      status==='registering' ?
+        `<div class="empty" style="margin-top:60px">REGISTERING — ${data.entrants?.length||0} / ${data.min_players||2} players to start</div>` :
+      status==='finished' ?
+        '<div class="empty" style="margin-top:60px">TOURNAMENT FINISHED</div>' :
+        '<div class="empty" style="margin-top:60px">WAITING FOR DATA...</div>';
+    return;
+  }
+
+  document.getElementById('tablesGrid').innerHTML = tables.map(t=>renderTableHTML(t)).join('');
+}
+
+function renderTableHTML(t) {
+  const gs=t.gameState||{};
+  const players=gs.players||[];
+  const comm=gs.communityCards||[];
+  const isFinal=t.isFinalTable;
+  const stage=(gs.stage||'').toUpperCase().replace('-',' ');
+  const pot=gs.pot||0;
+
+  const commHTML=[0,1,2,3,4].map(i=>
+    comm[i] ? commCardHTML(comm[i]) : '<div class="comm-ph"></div>'
+  ).join('');
+
+  const playersHTML=players.map(p=>{
+    const isActive=p.id===gs.activePlayerId;
+    const cards=(p.holeCards||[]).map(c=>miniCardHTML(c)).join('');
+    const strikes=p.strikes>0?`<div class="pr-strikes">${Array(p.strikes).fill('<div class="strike-dot"></div>').join('')}</div>`:'';
+    const tags=[
+      p.isDealer?'<span class="pr-tag dealer">D</span>':'',
+      p.allIn?'<span class="pr-tag allin">AI</span>':'',
+    ].filter(Boolean).join('');
+    return `<div class="player-row${isActive?' active':''}${p.folded?' folded':''}${p.disconnected?' folded':''}">
+      <div class="pr-pos">${p.position||''}</div>
+      <div class="pr-name">${p.name}${tags}</div>
+      <div class="pr-bet">${p.bet>0?p.bet:''}</div>
+      <div class="pr-cards">${cards}</div>
+      ${strikes}
+      <div class="pr-chips">🪙${p.chips.toLocaleString()}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="game-table${isFinal?' final':''}">
+    <div class="gt-hdr">
+      <div class="gt-title">${isFinal?'★ FINAL TABLE':'TABLE '+t.tableNumber}</div>
+      <div class="gt-stage">${stage}</div>
+    </div>
+    <div class="gt-body">${playersHTML||'<div class="empty">no players</div>'}</div>
+    <div class="gt-comm">
+      <div class="comm-cards">${commHTML}</div>
+      ${pot>0?`<div class="gt-pot-amt">🪙 ${pot.toLocaleString()}</div>`:''}
+    </div>
+  </div>`;
+}
+
+function commCardHTML(s) {
+  if (!s||s==='??') return '<div class="comm-card back"></div>';
+  const suit=s.slice(-1),rank=s.slice(0,-1);
+  const red=suit==='♥'||suit==='♦';
+  return `<div class="comm-card${red?' red':''}">${rank}<span style="font-size:6px">${suit}</span></div>`;
+}
+
+function miniCardHTML(s) {
+  if (!s||s==='??') return '<div class="mini-card back"></div>';
+  const suit=s.slice(-1),rank=s.slice(0,-1);
+  const red=suit==='♥'||suit==='♦';
+  return `<div class="mini-card${red?' red':''}">${rank}<span style="font-size:5px">${suit}</span></div>`;
+}
+
+// ═══════════════════════════════════════════════
+// RESULTS
+// ═══════════════════════════════════════════════
+async function loadResults() {
+  const id=document.getElementById('rSel').value;
+  if (!id) return;
+  loadResultsFor(id);
+}
+
+async function loadResultsFor(id) {
+  document.getElementById('rSel').value=id;
+  const {ok,data}=await api('GET','/tournaments/'+id+'/results');
+  if (!ok) { document.getElementById('rlist').innerHTML=`<div class="empty">${data.error}</div>`; return; }
+  renderResults(data);
+}
+
+function renderResults(data) {
+  const el=document.getElementById('rlist');
+  const results=data.results||[];
+  if (!results.length) { el.innerHTML='<div class="empty">no results yet</div>'; return; }
+
+  const prizePool=data.prize_pool||0;
+  el.innerHTML=`
+    <div style="padding:5px 0 10px;font-size:10px;color:var(--text-dim)">
+      <span style="color:var(--amber)">${data.name}</span> &nbsp;·&nbsp;
+      ${results.length} entrants &nbsp;·&nbsp;
+      <span style="color:var(--green)">🏆 ${prizePool.toLocaleString()}</span>
+    </div>
+  `+results.map(r=>`
+    <div class="r-entry${r.finish_position===1?' winner':''}">
+      <div class="r-pos">${r.finish_position||'?'}</div>
+      <div style="flex:1">
+        <div class="r-name">${r.bot_name}</div>
+        <div class="r-level" style="font-size:9px;color:var(--text-dim)">${r.owner}${r.busted_at_level?' · busted lvl '+r.busted_at_level:''}${r.total_entries>1?' · '+r.total_entries+' entries':''}</div>
+      </div>
+      <div class="r-payout${r.payout>0?'':' zero'}">${r.payout>0?'🏆 '+r.payout.toLocaleString():'—'}</div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════
+function swTab(name, el) {
+  document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.tc').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tc-'+name).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+(async()=>{
+  await connectSrv();
+  if (apiKey) { document.getElementById('l-key').value=apiKey; await loadProfile(); }
+  setInterval(loadTournaments, 5000);
+})();
+</script>
+</body>
+</html>

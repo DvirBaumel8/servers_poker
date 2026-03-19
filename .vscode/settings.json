@@ -1,0 +1,22 @@
+
+{
+  // UI Performance Optimizations
+  "editor.smoothScrolling": false,
+  "editor.cursorBlinking": "solid",
+  "editor.minimap.enabled": false,
+  "breadcrumbs.enabled": false,
+  "editor.renderLineHighlight": "none",
+
+  // Process Optimizations
+  "search.followSymlinks": false,
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/*/**": true,
+    "**/dist/**": true
+  },
+
+  // Optional: For maximum performance, you can disable Git integration
+  // if you primarily use the terminal for version control.
+  // "git.enabled": false
+}
