@@ -1,8 +1,10 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import clsx from "clsx";
+import { useAuthStore } from "../../stores/authStore";
 
 const NAV_ITEMS = [
   { path: "/", label: "Home" },
+  { path: "/tables", label: "Tables" },
   { path: "/tournaments", label: "Tournaments" },
   { path: "/bots", label: "Bots" },
   { path: "/leaderboard", label: "Leaderboard" },
@@ -10,6 +12,13 @@ const NAV_ITEMS = [
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-poker-black">
@@ -38,6 +47,42 @@ export function Layout() {
                   {item.label}
                 </Link>
               ))}
+
+              <div className="border-l border-gray-700 pl-6 flex items-center gap-4">
+                {user ? (
+                  <>
+                    <span className="text-gray-400 text-sm">
+                      {user.username}
+                    </span>
+                    <button
+                      onClick={handleLogout}
+                      className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      className={clsx(
+                        "text-sm font-medium transition-colors",
+                        location.pathname === "/login"
+                          ? "text-poker-gold"
+                          : "text-gray-400 hover:text-white"
+                      )}
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      to="/register"
+                      className="text-sm font-medium px-4 py-2 bg-poker-gold text-gray-900 rounded-lg hover:bg-yellow-400 transition-colors"
+                    >
+                      Sign Up
+                    </Link>
+                  </>
+                )}
+              </div>
             </nav>
           </div>
         </div>

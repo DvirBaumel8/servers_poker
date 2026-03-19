@@ -105,14 +105,37 @@ servers_poker/
 │       ├── simulation-engine.ts     — Automated game testing
 │       ├── simulation-reporter.ts   — Results analysis
 │       └── runner.ts                — CLI entry point
-├── frontend/
+├── frontend/                          — React SPA (Vite + TypeScript)
 │   ├── src/
-│   │   ├── App.tsx                  — Main router
+│   │   ├── App.tsx                  — Main router with auth
+│   │   ├── main.tsx                 — React entry point
 │   │   ├── components/              — React components
+│   │   │   ├── game/                — Table, PlayerSeat, Card
+│   │   │   ├── common/              — ChipStack, Timer
+│   │   │   ├── tournament/          — TournamentCard, LeaderboardTable
+│   │   │   └── layout/              — Layout with nav + auth
 │   │   ├── pages/                   — Route pages
+│   │   │   ├── Home.tsx             — Landing page
+│   │   │   ├── Tables.tsx           — Cash game tables list
+│   │   │   ├── GameView.tsx         — Live game view with WebSocket
+│   │   │   ├── Tournaments.tsx      — Tournament list
+│   │   │   ├── TournamentDetail.tsx — Single tournament
+│   │   │   ├── Bots.tsx             — Bot management
+│   │   │   ├── Leaderboard.tsx      — Rankings
+│   │   │   ├── Login.tsx            — Authentication
+│   │   │   └── Register.tsx         — Registration
 │   │   ├── hooks/                   — Custom hooks
+│   │   │   └── useWebSocket.ts      — Socket.IO connection to /game
 │   │   ├── stores/                  — Zustand stores
+│   │   │   ├── authStore.ts         — JWT + user state (persisted)
+│   │   │   ├── gameStore.ts         — Current game state
+│   │   │   └── tournamentStore.ts   — Tournament state
 │   │   ├── api/                     — API clients
+│   │   │   ├── client.ts            — Base fetch wrapper
+│   │   │   ├── auth.ts              — Login/register/me
+│   │   │   ├── games.ts             — Tables/state/history
+│   │   │   ├── bots.ts              — Bot CRUD
+│   │   │   └── tournaments.ts       — Tournament CRUD
 │   │   └── types/                   — TypeScript types
 │   └── public/                      — Static assets
 ├── tests/

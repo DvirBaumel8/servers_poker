@@ -55,6 +55,27 @@ The NestJS WebSocket Gateway using Socket.IO replaces the custom RFC 6455 implem
 - Type-safe event handling
 - Built-in reconnection handling
 
+### Frontend Integration
+React SPA in `/frontend` connects to NestJS backend:
+
+**API Connection:**
+- Vite dev server proxies `/api/*` to `localhost:3000`
+- Base path: `/api/v1` (set in backend via `app.setGlobalPrefix`)
+- Auth via JWT Bearer tokens stored in localStorage (Zustand persist)
+
+**WebSocket Connection:**
+- Connects to `/game` namespace via Socket.IO
+- Events: `gameState`, `handStarted`, `handResult`, `gameFinished`, `playerLeft`, `playerAction`
+- Frontend hook: `useWebSocket(tableId, { token })` handles connection lifecycle
+
+**Development:**
+- `npm run dev:all` — Runs both backend (3000) and frontend (3001) concurrently
+- `npm run build:all` — Builds both for production
+
+**Production:**
+- Frontend served as static files (nginx or backend serving `/frontend/dist`)
+- Or deployed separately (Vercel, Netlify) with API URL in env var
+
 ### Chip Conservation Invariants
 Runtime assertions that run in production:
 - `ChipInvariantChecker` validates total chips after every action

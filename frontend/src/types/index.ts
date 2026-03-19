@@ -8,25 +8,30 @@ export interface Player {
   name: string;
   chips: number;
   bet: number;
+  currentBet?: number;
   folded: boolean;
   allIn: boolean;
   disconnected: boolean;
-  position?: string;
+  position?: number;
+  strikes?: number;
   holeCards?: Card[];
 }
 
 export interface GameState {
   id: string;
+  gameId?: string;
   tableId: string;
   tournamentId?: string;
-  status: "waiting" | "running" | "finished";
+  status: "waiting" | "running" | "paused" | "finished" | "error";
   handNumber: number;
-  stage: "preflop" | "flop" | "turn" | "river" | "showdown";
+  stage: "pre-flop" | "flop" | "turn" | "river" | "showdown";
   pot: number;
   communityCards: Card[];
   currentBet: number;
   currentPlayerId: string | null;
   dealerPosition: number;
+  dealerIndex?: number;
+  handInProgress?: boolean;
   players: Player[];
   blinds: {
     small: number;

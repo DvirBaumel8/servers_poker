@@ -44,7 +44,7 @@ export function Table({ gameState, className }: TableProps) {
         <div className="flex gap-2 mb-4">
           {communityCards.length === 0 ? (
             <div className="text-white/30 text-sm">
-              {stage === "preflop" ? "Waiting for flop..." : ""}
+              {stage === "pre-flop" ? "Waiting for flop..." : ""}
             </div>
           ) : (
             communityCards.map((card, i) => (
