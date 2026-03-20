@@ -71,7 +71,6 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/testing": "^11.1.17",
     "@types/bcrypt": "^6.0.0",
-    "@types/eslint-scope": "^9.1.0",
     "@types/estree": "^1.0.8",
     "@types/express": "^5.0.6",
     "@types/json-schema": "^7.0.15",
