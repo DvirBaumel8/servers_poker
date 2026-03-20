@@ -70,7 +70,11 @@ export function Timer({
         <span
           className={clsx(
             "font-bold text-lg",
-            isCritical ? "text-red-500" : isLow ? "text-yellow-500" : "text-white"
+            isCritical
+              ? "text-red-500"
+              : isLow
+                ? "text-yellow-500"
+                : "text-white",
           )}
         >
           {timeLeft}

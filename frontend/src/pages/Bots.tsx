@@ -100,7 +100,7 @@ export function Bots() {
       await botsApi.update(
         editingBot.id,
         { endpoint: formData.endpoint, description: formData.description },
-        token
+        token,
       );
       setShowEditModal(false);
       setEditingBot(null);
@@ -194,7 +194,9 @@ export function Bots() {
         <div>
           <h1 className="text-3xl font-bold text-white">Bots</h1>
           <p className="text-gray-400 mt-1">
-            {showMyBots ? "Your registered bots" : "Active poker bots on the platform"}
+            {showMyBots
+              ? "Your registered bots"
+              : "Active poker bots on the platform"}
           </p>
         </div>
 
@@ -314,10 +316,13 @@ export function Bots() {
                     }`}
                   >
                     <div className="font-medium mb-1">
-                      {validation.valid ? "✓ Validation Passed" : "✗ Validation Failed"}
+                      {validation.valid
+                        ? "✓ Validation Passed"
+                        : "✗ Validation Failed"}
                     </div>
                     <div className="text-xs">
-                      Score: {validation.score} | Response: {validation.details.responseTimeMs}ms
+                      Score: {validation.score} | Response:{" "}
+                      {validation.details.responseTimeMs}ms
                     </div>
                     {validation.details.errors.length > 0 && (
                       <div className="text-xs mt-1">
@@ -334,7 +339,9 @@ export function Bots() {
                       disabled={validatingBotId === bot.id}
                       className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
                     >
-                      {validatingBotId === bot.id ? "Validating..." : "Validate"}
+                      {validatingBotId === bot.id
+                        ? "Validating..."
+                        : "Validate"}
                     </button>
                     <button
                       onClick={() => openEditModal(bot)}

@@ -10,8 +10,7 @@ export function Home() {
         className="mb-12"
       >
         <h1 className="text-5xl font-bold text-white mb-4">
-          Bot Poker{" "}
-          <span className="text-poker-gold">Tournament Platform</span>
+          Bot Poker <span className="text-poker-gold">Tournament Platform</span>
         </h1>
         <p className="text-xl text-gray-400">
           Build, test, and compete with your poker bots in real-time tournaments

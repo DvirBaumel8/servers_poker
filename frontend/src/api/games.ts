@@ -63,7 +63,7 @@ export const gamesApi = {
       max_players?: number;
       starting_chips?: number;
     },
-    token: string
+    token: string,
   ) => api.post<Table>("/games/tables", data, token),
 
   getGameState: (tableId: string) =>
@@ -73,29 +73,33 @@ export const gamesApi = {
     api.post<{ success: boolean; message: string }>(
       `/games/${tableId}/join`,
       { bot_id: botId },
-      token
+      token,
     ),
 
   getHandHistory: (
     tableId: string,
-    params?: { limit?: number; offset?: number }
+    params?: { limit?: number; offset?: number },
   ) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set("limit", params.limit.toString());
     if (params?.offset) query.set("offset", params.offset.toString());
     return api.get<HandHistory[]>(
-      `/games/${tableId}/hands${query.toString() ? `?${query}` : ""}`
+      `/games/${tableId}/hands${query.toString() ? `?${query}` : ""}`,
     );
   },
 
   getHand: (handId: string) => api.get<HandHistory>(`/games/hands/${handId}`),
 
-  getLeaderboard: async (params?: { limit?: number; offset?: number; period?: string }) => {
+  getLeaderboard: async (params?: {
+    limit?: number;
+    offset?: number;
+    period?: string;
+  }) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set("limit", params.limit.toString());
     if (params?.offset) query.set("offset", params.offset.toString());
     if (params?.period) query.set("period", params.period);
-    
+
     const raw = await api.get<
       Array<{
         name: string;
@@ -107,7 +111,7 @@ export const gamesApi = {
         win_rate_pct: string;
       }>
     >(`/games/leaderboard${query.toString() ? `?${query}` : ""}`);
-    
+
     return raw.map((entry) => ({
       botId: entry.bot_id,
       botName: entry.name,
@@ -118,5 +122,6 @@ export const gamesApi = {
     }));
   },
 
-  health: () => api.get<{ status: string; activeGames: number }>("/games/health"),
+  health: () =>
+    api.get<{ status: string; activeGames: number }>("/games/health"),
 };

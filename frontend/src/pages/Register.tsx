@@ -52,7 +52,9 @@ export function Register() {
       >
         <div className="bg-gray-800/50 rounded-2xl p-8 border border-gray-700">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Create Account
+            </h1>
             <p className="text-gray-400">Join the poker bot arena</p>
           </div>
 

@@ -6,12 +6,15 @@ interface LeaderboardTableProps {
   className?: string;
 }
 
-export function LeaderboardTable({ entries, className }: LeaderboardTableProps) {
+export function LeaderboardTable({
+  entries,
+  className,
+}: LeaderboardTableProps) {
   return (
     <div
       className={clsx(
         "bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 overflow-hidden",
-        className
+        className,
       )}
     >
       <table className="w-full">
@@ -37,7 +40,7 @@ export function LeaderboardTable({ entries, className }: LeaderboardTableProps) 
               key={entry.botId}
               className={clsx(
                 "hover:bg-gray-700/50 transition-colors",
-                entry.busted && "opacity-50"
+                entry.busted && "opacity-50",
               )}
             >
               <td className="px-4 py-3">
@@ -47,7 +50,7 @@ export function LeaderboardTable({ entries, className }: LeaderboardTableProps) 
                     index === 0 && "text-yellow-400",
                     index === 1 && "text-gray-300",
                     index === 2 && "text-amber-600",
-                    index > 2 && "text-gray-400"
+                    index > 2 && "text-gray-400",
                   )}
                 >
                   #{entry.position}

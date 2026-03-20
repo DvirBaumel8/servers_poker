@@ -18,12 +18,17 @@ export function Leaderboard() {
       setLoading(true);
       setError(null);
       console.log("Loading leaderboard with period:", timeRange);
-      const data = await gamesApi.getLeaderboard({ limit: 50, period: timeRange });
+      const data = await gamesApi.getLeaderboard({
+        limit: 50,
+        period: timeRange,
+      });
       console.log("Leaderboard data received:", data);
       setEntries(data);
     } catch (err) {
       console.error("Failed to load leaderboard:", err);
-      setError(err instanceof Error ? err.message : "Failed to load leaderboard");
+      setError(
+        err instanceof Error ? err.message : "Failed to load leaderboard",
+      );
       setEntries([]);
     } finally {
       setLoading(false);
@@ -58,7 +63,9 @@ export function Leaderboard() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-white">Leaderboard</h1>
-          <p className="text-gray-400 mt-1">Top performing bots on the platform</p>
+          <p className="text-gray-400 mt-1">
+            Top performing bots on the platform
+          </p>
         </div>
 
         <div className="flex gap-2">
@@ -72,7 +79,11 @@ export function Leaderboard() {
                   : "bg-gray-800 text-gray-400 hover:bg-gray-700"
               }`}
             >
-              {range === "all" ? "All Time" : range === "month" ? "This Month" : "This Week"}
+              {range === "all"
+                ? "All Time"
+                : range === "month"
+                  ? "This Month"
+                  : "This Week"}
             </button>
           ))}
         </div>
@@ -100,83 +111,81 @@ export function Leaderboard() {
           </p>
         </div>
       ) : (
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden"
-      >
-        <table className="w-full">
-          <thead>
-            <tr className="bg-gray-800/80">
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                Rank
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                Bot
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                Net Profit
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                Games
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                Wins
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                Hands
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-700">
-            {entries.map((entry, index) => (
-              <tr
-                key={entry.botId}
-                className="hover:bg-gray-700/50"
-              >
-                <td className="px-6 py-4">
-                  <span
-                    className={`text-2xl font-bold ${
-                      index === 0
-                        ? "text-yellow-400"
-                        : index === 1
-                          ? "text-gray-300"
-                          : index === 2
-                            ? "text-amber-600"
-                            : "text-gray-500"
-                    }`}
-                  >
-                    #{index + 1}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-white font-bold">{entry.botName}</span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span
-                    className={`font-bold ${
-                      entry.totalNet >= 0 ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    {entry.totalNet >= 0 ? "+" : ""}
-                    {entry.totalNet.toLocaleString()}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right text-white">
-                  {entry.totalTournaments}
-                </td>
-                <td className="px-6 py-4 text-right text-poker-gold font-bold">
-                  {entry.tournamentWins}
-                </td>
-                <td className="px-6 py-4 text-right text-gray-400">
-                  {entry.totalHands.toLocaleString()}
-                </td>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden"
+        >
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-800/80">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                  Rank
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                  Bot
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                  Net Profit
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                  Games
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                  Wins
+                </th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                  Hands
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </motion.div>
+            </thead>
+            <tbody className="divide-y divide-gray-700">
+              {entries.map((entry, index) => (
+                <tr key={entry.botId} className="hover:bg-gray-700/50">
+                  <td className="px-6 py-4">
+                    <span
+                      className={`text-2xl font-bold ${
+                        index === 0
+                          ? "text-yellow-400"
+                          : index === 1
+                            ? "text-gray-300"
+                            : index === 2
+                              ? "text-amber-600"
+                              : "text-gray-500"
+                      }`}
+                    >
+                      #{index + 1}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-white font-bold">
+                      {entry.botName}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <span
+                      className={`font-bold ${
+                        entry.totalNet >= 0 ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {entry.totalNet >= 0 ? "+" : ""}
+                      {entry.totalNet.toLocaleString()}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right text-white">
+                    {entry.totalTournaments}
+                  </td>
+                  <td className="px-6 py-4 text-right text-poker-gold font-bold">
+                    {entry.tournamentWins}
+                  </td>
+                  <td className="px-6 py-4 text-right text-gray-400">
+                    {entry.totalHands.toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </motion.div>
       )}
     </div>
   );

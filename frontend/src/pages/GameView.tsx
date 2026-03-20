@@ -13,7 +13,9 @@ export function GameView() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const { actions, addAction, clearActions } = useActionFeed();
-  const [activeHandResult, setActiveHandResult] = useState<HandResult | null>(null);
+  const [activeHandResult, setActiveHandResult] = useState<HandResult | null>(
+    null,
+  );
   const [playerActions, setPlayerActions] = useState<
     Record<string, { type: string; amount?: number; timestamp: number }>
   >({});
@@ -24,7 +26,7 @@ export function GameView() {
     (action: { botId: string; action: string; amount: number }) => {
       const playerName = action.botId.slice(0, 8);
       addAction(playerName, action.action, action.amount);
-      
+
       // Track last action for each player
       setPlayerActions((prev) => ({
         ...prev,
@@ -35,7 +37,7 @@ export function GameView() {
         },
       }));
     },
-    [addAction]
+    [addAction],
   );
 
   const handleHandStarted = useCallback(() => {
@@ -45,10 +47,11 @@ export function GameView() {
     setTurnStartTime(Date.now()); // Reset turn timer
   }, [clearActions]);
 
-  const { connected, error, gameState, gameFinished, lastHandResult } = useWebSocket(tableId, {
-    onPlayerAction: handlePlayerAction,
-    onHandStarted: handleHandStarted,
-  });
+  const { connected, error, gameState, gameFinished, lastHandResult } =
+    useWebSocket(tableId, {
+      onPlayerAction: handlePlayerAction,
+      onHandStarted: handleHandStarted,
+    });
 
   // Show hand result when it comes in
   useEffect(() => {
@@ -63,7 +66,10 @@ export function GameView() {
 
   // Track when the active player changes to reset the turn timer
   useEffect(() => {
-    if (gameState?.currentPlayerId && gameState.currentPlayerId !== lastActivePlayerId.current) {
+    if (
+      gameState?.currentPlayerId &&
+      gameState.currentPlayerId !== lastActivePlayerId.current
+    ) {
       lastActivePlayerId.current = gameState.currentPlayerId;
       setTurnStartTime(Date.now());
     }
@@ -71,21 +77,29 @@ export function GameView() {
 
   const playerNames = useMemo(() => {
     if (!gameState) return {};
-    return gameState.players.reduce((acc, p) => {
-      acc[p.id] = p.name;
-      return acc;
-    }, {} as Record<string, string>);
+    return gameState.players.reduce(
+      (acc, p) => {
+        acc[p.id] = p.name;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
   }, [gameState]);
 
   if (error) {
     return (
       <div
         className="flex items-center justify-center min-h-screen"
-        style={{ background: "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)" }}
+        style={{
+          background:
+            "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)",
+        }}
       >
         <div className="text-center">
           <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-white mb-2">Connection Error</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            Connection Error
+          </h2>
           <p className="text-gray-400">{error}</p>
           <button
             onClick={() => navigate("/tables")}
@@ -102,7 +116,10 @@ export function GameView() {
     return (
       <div
         className="flex items-center justify-center min-h-screen"
-        style={{ background: "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)" }}
+        style={{
+          background:
+            "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)",
+        }}
       >
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500/30 border-t-green-500 mx-auto mb-4" />
@@ -116,7 +133,8 @@ export function GameView() {
     <div
       className="min-h-screen"
       style={{
-        background: "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)",
+        background:
+          "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)",
       }}
     >
       {/* Action feed */}
@@ -128,8 +146,18 @@ export function GameView() {
           onClick={() => navigate("/tables")}
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
           </svg>
           <span className="text-sm">Back to Tables</span>
         </button>
@@ -152,8 +180,8 @@ export function GameView() {
         className="flex items-center justify-center px-4 pt-2 pb-24"
         style={{ minHeight: "calc(100vh - 60px)" }}
       >
-        <Table 
-          gameState={gameState} 
+        <Table
+          gameState={gameState}
           playerActions={playerActions}
           turnStartTime={turnStartTime}
           turnTimeoutMs={DEFAULT_TURN_TIMEOUT_MS}
@@ -172,7 +200,11 @@ export function GameView() {
               value={`${formatAmount(gameState.blinds?.small || 0)}/${formatAmount(gameState.blinds?.big || 0)}`}
             />
             <Divider />
-            <InfoItem label="Pot" value={formatAmount(gameState.pot)} highlight />
+            <InfoItem
+              label="Pot"
+              value={formatAmount(gameState.pot)}
+              highlight
+            />
             <Divider />
             <InfoItem label="Hand" value={`#${gameState.handNumber}`} />
             <Divider />
@@ -188,29 +220,80 @@ export function GameView() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-    waiting: { bg: "bg-yellow-500/10", text: "text-yellow-400", dot: "bg-yellow-400", label: "Waiting" },
-    playing: { bg: "bg-green-500/10", text: "text-green-400", dot: "bg-green-400", label: "Live" },
-    running: { bg: "bg-green-500/10", text: "text-green-400", dot: "bg-green-400", label: "Live" },
-    finished: { bg: "bg-gray-500/10", text: "text-gray-400", dot: "bg-gray-400", label: "Finished" },
-    paused: { bg: "bg-blue-500/10", text: "text-blue-400", dot: "bg-blue-400", label: "Paused" },
+  const config: Record<
+    string,
+    { bg: string; text: string; dot: string; label: string }
+  > = {
+    waiting: {
+      bg: "bg-yellow-500/10",
+      text: "text-yellow-400",
+      dot: "bg-yellow-400",
+      label: "Waiting",
+    },
+    playing: {
+      bg: "bg-green-500/10",
+      text: "text-green-400",
+      dot: "bg-green-400",
+      label: "Live",
+    },
+    running: {
+      bg: "bg-green-500/10",
+      text: "text-green-400",
+      dot: "bg-green-400",
+      label: "Live",
+    },
+    finished: {
+      bg: "bg-gray-500/10",
+      text: "text-gray-400",
+      dot: "bg-gray-400",
+      label: "Finished",
+    },
+    paused: {
+      bg: "bg-blue-500/10",
+      text: "text-blue-400",
+      dot: "bg-blue-400",
+      label: "Paused",
+    },
   };
 
   const { bg, text, dot, label } = config[status] || config.waiting;
 
   return (
-    <span className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium", bg, text)}>
+    <span
+      className={clsx(
+        "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium",
+        bg,
+        text,
+      )}
+    >
       <span className={clsx("w-2 h-2 rounded-full animate-pulse", dot)} />
       {label}
     </span>
   );
 }
 
-function InfoItem({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+function InfoItem({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
   return (
     <div className="text-center">
-      <div className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">{label}</div>
-      <div className={clsx("font-bold text-lg", highlight ? "text-yellow-400" : "text-white")}>{value}</div>
+      <div className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">
+        {label}
+      </div>
+      <div
+        className={clsx(
+          "font-bold text-lg",
+          highlight ? "text-yellow-400" : "text-white",
+        )}
+      >
+        {value}
+      </div>
     </div>
   );
 }

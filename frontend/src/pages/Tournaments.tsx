@@ -26,7 +26,8 @@ interface CreateTournamentForm {
 
 export function Tournaments() {
   const { user, token } = useAuthStore();
-  const { tournaments, loading, error, fetchTournaments } = useTournamentStore();
+  const { tournaments, loading, error, fetchTournaments } =
+    useTournamentStore();
   const [statusFilter, setStatusFilter] = useState("active");
   const [myBots, setMyBots] = useState<Bot[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -47,7 +48,8 @@ export function Tournaments() {
 
   // Register modal
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [registeringTournament, setRegisteringTournament] = useState<Tournament | null>(null);
+  const [registeringTournament, setRegisteringTournament] =
+    useState<Tournament | null>(null);
   const [selectedBotId, setSelectedBotId] = useState<string>("");
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
@@ -89,7 +91,7 @@ export function Tournaments() {
           maxPlayers: createForm.maxPlayers,
           blindIncreaseMinutes: createForm.blindIncreaseMinutes,
         },
-        token
+        token,
       );
       setShowCreateModal(false);
       setCreateForm({
@@ -103,7 +105,9 @@ export function Tournaments() {
       });
       fetchTournaments(statusFilter || undefined);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create tournament");
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create tournament",
+      );
     } finally {
       setCreateLoading(false);
     }
@@ -117,13 +121,19 @@ export function Tournaments() {
     setRegisterError(null);
 
     try {
-      await tournamentsApi.register(registeringTournament.id, selectedBotId, token);
+      await tournamentsApi.register(
+        registeringTournament.id,
+        selectedBotId,
+        token,
+      );
       setShowRegisterModal(false);
       setRegisteringTournament(null);
       setSelectedBotId("");
       fetchTournaments(statusFilter || undefined);
     } catch (err) {
-      setRegisterError(err instanceof Error ? err.message : "Failed to register");
+      setRegisterError(
+        err instanceof Error ? err.message : "Failed to register",
+      );
     } finally {
       setRegisterLoading(false);
     }
@@ -131,13 +141,16 @@ export function Tournaments() {
 
   const handleUnregister = async (tournamentId: string, botId: string) => {
     if (!token) return;
-    if (!confirm("Are you sure you want to unregister from this tournament?")) return;
+    if (!confirm("Are you sure you want to unregister from this tournament?"))
+      return;
 
     try {
       await tournamentsApi.unregister(tournamentId, botId, token);
       fetchTournaments(statusFilter || undefined);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to unregister");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to unregister",
+      );
     }
   };
 
@@ -147,7 +160,9 @@ export function Tournaments() {
       await tournamentsApi.start(tournamentId, token);
       fetchTournaments(statusFilter || undefined);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to start tournament");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to start tournament",
+      );
     }
   };
 
@@ -159,7 +174,9 @@ export function Tournaments() {
       await tournamentsApi.cancel(tournamentId, token);
       fetchTournaments(statusFilter || undefined);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to cancel tournament");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to cancel tournament",
+      );
     }
   };
 
@@ -256,14 +273,20 @@ export function Tournaments() {
             >
               <TournamentCard
                 tournament={tournament}
-                onRegister={user && tournament.status === "registering" ? () => openRegisterModal(tournament) : undefined}
+                onRegister={
+                  user && tournament.status === "registering"
+                    ? () => openRegisterModal(tournament)
+                    : undefined
+                }
                 onUnregister={
                   user && tournament.status === "registering"
                     ? (botId: string) => handleUnregister(tournament.id, botId)
                     : undefined
                 }
                 onStart={
-                  user && tournament.status === "registering" && tournament.registeredPlayers >= 2
+                  user &&
+                  tournament.status === "registering" &&
+                  tournament.registeredPlayers >= 2
                     ? () => handleStartTournament(tournament.id)
                     : undefined
                 }
@@ -296,7 +319,9 @@ export function Tournaments() {
               className="bg-gray-800 rounded-xl p-6 w-full max-w-lg border border-gray-700 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-2xl font-bold text-white mb-6">Create Tournament</h2>
+              <h2 className="text-2xl font-bold text-white mb-6">
+                Create Tournament
+              </h2>
 
               <form onSubmit={handleCreate} className="space-y-4">
                 {createError && (
@@ -312,7 +337,9 @@ export function Tournaments() {
                   <input
                     type="text"
                     value={createForm.name}
-                    onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, name: e.target.value })
+                    }
                     required
                     className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold"
                     placeholder="Sunday Million"
@@ -327,7 +354,12 @@ export function Tournaments() {
                     <input
                       type="number"
                       value={createForm.buyIn}
-                      onChange={(e) => setCreateForm({ ...createForm, buyIn: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          buyIn: parseInt(e.target.value) || 0,
+                        })
+                      }
                       required
                       min={0}
                       className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
@@ -340,7 +372,12 @@ export function Tournaments() {
                     <input
                       type="number"
                       value={createForm.startingChips}
-                      onChange={(e) => setCreateForm({ ...createForm, startingChips: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          startingChips: parseInt(e.target.value) || 0,
+                        })
+                      }
                       required
                       min={100}
                       className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
@@ -356,7 +393,12 @@ export function Tournaments() {
                     <input
                       type="number"
                       value={createForm.smallBlind}
-                      onChange={(e) => setCreateForm({ ...createForm, smallBlind: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          smallBlind: parseInt(e.target.value) || 0,
+                        })
+                      }
                       required
                       min={1}
                       className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
@@ -369,7 +411,12 @@ export function Tournaments() {
                     <input
                       type="number"
                       value={createForm.bigBlind}
-                      onChange={(e) => setCreateForm({ ...createForm, bigBlind: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          bigBlind: parseInt(e.target.value) || 0,
+                        })
+                      }
                       required
                       min={1}
                       className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
@@ -385,7 +432,12 @@ export function Tournaments() {
                     <input
                       type="number"
                       value={createForm.maxPlayers}
-                      onChange={(e) => setCreateForm({ ...createForm, maxPlayers: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          maxPlayers: parseInt(e.target.value) || 0,
+                        })
+                      }
                       required
                       min={2}
                       max={1000}
@@ -399,7 +451,12 @@ export function Tournaments() {
                     <input
                       type="number"
                       value={createForm.blindIncreaseMinutes}
-                      onChange={(e) => setCreateForm({ ...createForm, blindIncreaseMinutes: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          blindIncreaseMinutes: parseInt(e.target.value) || 0,
+                        })
+                      }
                       required
                       min={1}
                       className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
@@ -446,7 +503,9 @@ export function Tournaments() {
               className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-2xl font-bold text-white mb-2">Register for Tournament</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                Register for Tournament
+              </h2>
               <p className="text-gray-400 mb-6">{registeringTournament.name}</p>
 
               <form onSubmit={handleRegister} className="space-y-4">
@@ -485,16 +544,21 @@ export function Tournaments() {
                     <div className="bg-gray-900/50 rounded-lg p-4 text-sm space-y-2">
                       <div className="flex justify-between">
                         <span className="text-gray-400">Buy-in</span>
-                        <span className="text-white">{registeringTournament.buyIn}</span>
+                        <span className="text-white">
+                          {registeringTournament.buyIn}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Starting Chips</span>
-                        <span className="text-white">{registeringTournament.startingChips}</span>
+                        <span className="text-white">
+                          {registeringTournament.startingChips}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Players</span>
                         <span className="text-white">
-                          {registeringTournament.registeredPlayers} / {registeringTournament.maxPlayers}
+                          {registeringTournament.registeredPlayers} /{" "}
+                          {registeringTournament.maxPlayers}
                         </span>
                       </div>
                     </div>

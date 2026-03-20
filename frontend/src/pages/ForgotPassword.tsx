@@ -22,7 +22,9 @@ export function ForgotPassword() {
         navigate("/reset-password", { state: { email } });
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send reset code");
+      setError(
+        err instanceof Error ? err.message : "Failed to send reset code",
+      );
     } finally {
       setLoading(false);
     }
@@ -58,7 +60,8 @@ export function ForgotPassword() {
           {success ? (
             <div className="text-center">
               <div className="bg-green-500/10 border border-green-500 text-green-400 px-4 py-3 rounded-lg mb-6">
-                If an account exists with this email, a reset code has been sent.
+                If an account exists with this email, a reset code has been
+                sent.
               </div>
               <p className="text-gray-400">Redirecting to reset page...</p>
             </div>

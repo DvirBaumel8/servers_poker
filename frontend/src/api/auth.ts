@@ -63,7 +63,10 @@ export const authApi = {
     email: string;
     code: string;
   }): Promise<AuthResponse> => {
-    const response = await api.post<AuthApiResponse>("/auth/verify-email", data);
+    const response = await api.post<AuthApiResponse>(
+      "/auth/verify-email",
+      data,
+    );
     return {
       user: transformUser(response.user),
       access_token: response.accessToken || response.access_token,
@@ -72,7 +75,9 @@ export const authApi = {
   },
 
   resendVerification: async (email: string): Promise<{ message: string }> => {
-    return api.post<{ message: string }>("/auth/resend-verification", { email });
+    return api.post<{ message: string }>("/auth/resend-verification", {
+      email,
+    });
   },
 
   forgotPassword: async (email: string): Promise<{ message: string }> => {

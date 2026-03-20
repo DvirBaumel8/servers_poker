@@ -53,7 +53,7 @@ interface WebSocketState {
 
 export function useWebSocket(
   tableId: string | undefined,
-  options: UseWebSocketOptions = {}
+  options: UseWebSocketOptions = {},
 ) {
   const { autoConnect = true, token } = options;
 

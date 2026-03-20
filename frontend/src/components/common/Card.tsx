@@ -49,7 +49,7 @@ export function Card({
           "bg-gradient-to-br from-blue-800 to-blue-950",
           "border border-blue-600",
           sizeClass,
-          className
+          className,
         )}
       >
         <div className="text-blue-400 opacity-30 text-4xl">♠</div>
@@ -70,7 +70,7 @@ export function Card({
         "border border-gray-200",
         "flex flex-col items-center justify-center",
         sizeClass,
-        className
+        className,
       )}
     >
       <span className={clsx("font-bold", suitColor)}>{card.rank}</span>

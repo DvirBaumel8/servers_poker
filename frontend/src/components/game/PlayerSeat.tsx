@@ -19,9 +19,7 @@ interface PlayerSeatProps {
   turnStartTime?: number;
 }
 
-const AVATAR_IMAGES = [
-  "🦁", "🐯", "🦊", "🐺", "🦅", "🦈", "🐉", "🦄", "🐘",
-];
+const AVATAR_IMAGES = ["🦁", "🐯", "🦊", "🐺", "🦅", "🦈", "🐉", "🦄", "🐘"];
 
 const AVATAR_BG_COLORS = [
   "from-orange-500 to-orange-700",
@@ -51,9 +49,10 @@ export function PlayerSeat({
   const isDisconnected = player.disconnected;
   const avatarEmoji = AVATAR_IMAGES[seatIndex % AVATAR_IMAGES.length];
   const avatarBg = AVATAR_BG_COLORS[seatIndex % AVATAR_BG_COLORS.length];
-  
+
   const actionToShow = lastAction || player.lastAction;
-  const isRecentAction = actionToShow && (Date.now() - actionToShow.timestamp < 5000);
+  const isRecentAction =
+    actionToShow && Date.now() - actionToShow.timestamp < 5000;
 
   // Timer state for active player
   const [timeRemaining, setTimeRemaining] = useState(turnTimeoutMs);
@@ -85,7 +84,7 @@ export function PlayerSeat({
         "relative flex flex-col items-center",
         isFolded && "opacity-50",
         isDisconnected && "opacity-30 grayscale",
-        className
+        className,
       )}
     >
       {/* Active player glow */}
@@ -93,7 +92,8 @@ export function PlayerSeat({
         <motion.div
           className="absolute -inset-3 rounded-full"
           style={{
-            background: "radial-gradient(circle, rgba(255,200,0,0.4) 0%, transparent 70%)",
+            background:
+              "radial-gradient(circle, rgba(255,200,0,0.4) 0%, transparent 70%)",
           }}
           animate={{ opacity: [0.5, 0.8, 0.5] }}
           transition={{ duration: 1.5, repeat: Infinity }}
@@ -104,7 +104,9 @@ export function PlayerSeat({
       <div className="relative">
         {/* Level badge */}
         <div className="absolute -top-1 -left-1 z-10 w-6 h-6 rounded-full bg-gradient-to-b from-gray-700 to-gray-900 border-2 border-gray-500 flex items-center justify-center shadow-lg">
-          <span className="text-white text-[10px] font-bold">{(seatIndex + 1) * 10}</span>
+          <span className="text-white text-[10px] font-bold">
+            {(seatIndex + 1) * 10}
+          </span>
         </div>
 
         {/* Timer ring for active player */}
@@ -126,7 +128,13 @@ export function PlayerSeat({
                 cy="32"
                 r="29"
                 fill="none"
-                stroke={progress > 30 ? "#22c55e" : progress > 10 ? "#eab308" : "#ef4444"}
+                stroke={
+                  progress > 30
+                    ? "#22c55e"
+                    : progress > 10
+                      ? "#eab308"
+                      : "#ef4444"
+                }
                 strokeWidth="4"
                 strokeLinecap="round"
                 strokeDasharray={`${(progress / 100) * 182} 182`}
@@ -142,7 +150,9 @@ export function PlayerSeat({
             "w-14 h-14 rounded-full flex items-center justify-center text-2xl",
             "bg-gradient-to-b shadow-lg border-2",
             avatarBg,
-            isActive ? "border-yellow-400 ring-2 ring-yellow-400/50" : "border-white/30"
+            isActive
+              ? "border-yellow-400 ring-2 ring-yellow-400/50"
+              : "border-white/30",
           )}
         >
           {avatarEmoji}
@@ -185,9 +195,7 @@ export function PlayerSeat({
       {/* Cards */}
       <div className="flex gap-0.5 mt-1 -mb-1">
         {showCards && player.holeCards && player.holeCards.length > 0 ? (
-          player.holeCards.map((card, i) => (
-            <MiniCard key={i} card={card} />
-          ))
+          player.holeCards.map((card, i) => <MiniCard key={i} card={card} />)
         ) : (
           <>
             <MiniCardBack />
@@ -201,13 +209,13 @@ export function PlayerSeat({
         className={clsx(
           "mt-1 px-3 py-1.5 rounded-lg text-center min-w-[90px]",
           "bg-gradient-to-b from-gray-800 to-gray-900",
-          "border border-gray-600/50 shadow-xl"
+          "border border-gray-600/50 shadow-xl",
         )}
       >
         <div
           className={clsx(
             "font-semibold text-xs truncate max-w-[85px]",
-            isFolded ? "text-gray-500" : "text-white"
+            isFolded ? "text-gray-500" : "text-white",
           )}
         >
           {player.name || "Player"}
@@ -250,7 +258,10 @@ export function PlayerSeat({
           exit={{ scale: 0, opacity: 0 }}
           className="mt-1 z-30"
         >
-          <ActionBadge action={actionToShow.type} amount={actionToShow.amount} />
+          <ActionBadge
+            action={actionToShow.type}
+            amount={actionToShow.amount}
+          />
         </motion.div>
       )}
     </motion.div>
@@ -260,7 +271,7 @@ export function PlayerSeat({
 function ActionBadge({ action, amount }: { action: string; amount?: number }) {
   const config = getActionConfig(action);
   const showAmount = typeof amount === "number" && amount > 0;
-  
+
   return (
     <motion.div
       initial={{ scale: 0.8 }}
@@ -271,7 +282,7 @@ function ActionBadge({ action, amount }: { action: string; amount?: number }) {
         "shadow-lg border whitespace-nowrap",
         config.bg,
         config.text,
-        config.border
+        config.border,
       )}
     >
       <span className="mr-1">{config.icon}</span>
@@ -281,70 +292,75 @@ function ActionBadge({ action, amount }: { action: string; amount?: number }) {
   );
 }
 
-function getActionConfig(action: string): { 
-  icon: string; 
-  bg: string; 
-  text: string; 
+function getActionConfig(action: string): {
+  icon: string;
+  bg: string;
+  text: string;
   border: string;
 } {
   const actionLower = action.toLowerCase();
-  const configs: Record<string, { icon: string; bg: string; text: string; border: string }> = {
-    fold: { 
-      icon: "✗", 
-      bg: "bg-red-900/90", 
-      text: "text-red-300", 
-      border: "border-red-700" 
+  const configs: Record<
+    string,
+    { icon: string; bg: string; text: string; border: string }
+  > = {
+    fold: {
+      icon: "✗",
+      bg: "bg-red-900/90",
+      text: "text-red-300",
+      border: "border-red-700",
     },
-    check: { 
-      icon: "✓", 
-      bg: "bg-blue-900/90", 
-      text: "text-blue-300", 
-      border: "border-blue-700" 
+    check: {
+      icon: "✓",
+      bg: "bg-blue-900/90",
+      text: "text-blue-300",
+      border: "border-blue-700",
     },
-    call: { 
-      icon: "📞", 
-      bg: "bg-green-900/90", 
-      text: "text-green-300", 
-      border: "border-green-700" 
+    call: {
+      icon: "📞",
+      bg: "bg-green-900/90",
+      text: "text-green-300",
+      border: "border-green-700",
     },
-    bet: { 
-      icon: "💰", 
-      bg: "bg-yellow-900/90", 
-      text: "text-yellow-300", 
-      border: "border-yellow-700" 
+    bet: {
+      icon: "💰",
+      bg: "bg-yellow-900/90",
+      text: "text-yellow-300",
+      border: "border-yellow-700",
     },
-    raise: { 
-      icon: "⬆", 
-      bg: "bg-orange-900/90", 
-      text: "text-orange-300", 
-      border: "border-orange-700" 
+    raise: {
+      icon: "⬆",
+      bg: "bg-orange-900/90",
+      text: "text-orange-300",
+      border: "border-orange-700",
     },
-    all_in: { 
-      icon: "🔥", 
-      bg: "bg-red-800/90", 
-      text: "text-red-200", 
-      border: "border-red-600" 
+    all_in: {
+      icon: "🔥",
+      bg: "bg-red-800/90",
+      text: "text-red-200",
+      border: "border-red-600",
     },
-    allin: { 
-      icon: "🔥", 
-      bg: "bg-red-800/90", 
-      text: "text-red-200", 
-      border: "border-red-600" 
+    allin: {
+      icon: "🔥",
+      bg: "bg-red-800/90",
+      text: "text-red-200",
+      border: "border-red-600",
     },
   };
 
-  return configs[actionLower] || { 
-    icon: "•", 
-    bg: "bg-gray-800/90", 
-    text: "text-gray-300", 
-    border: "border-gray-600" 
-  };
+  return (
+    configs[actionLower] || {
+      icon: "•",
+      bg: "bg-gray-800/90",
+      text: "text-gray-300",
+      border: "border-gray-600",
+    }
+  );
 }
 
 function MiniCard({ card }: { card: { rank: string; suit: string } | string }) {
   let rank: string;
   let suit: string;
-  
+
   if (typeof card === "string") {
     const chars = [...card];
     suit = chars.pop() || "?";
@@ -353,24 +369,27 @@ function MiniCard({ card }: { card: { rank: string; suit: string } | string }) {
     rank = card.rank || "?";
     suit = card.suit || "?";
   }
-  
-  const isRed = suit === "hearts" || suit === "diamonds" || 
-                suit === "♥" || suit === "♦";
-  
+
+  const isRed =
+    suit === "hearts" || suit === "diamonds" || suit === "♥" || suit === "♦";
+
   const suitSymbol = getSuitSymbol(suit);
-  
+
   return (
     <div
       className={clsx(
         "w-7 h-10 rounded-sm bg-white shadow-md",
         "flex flex-col items-center justify-center",
-        "border border-gray-300 text-[9px] font-bold"
+        "border border-gray-300 text-[9px] font-bold",
       )}
     >
-      <span className={isRed ? "text-red-500" : "text-gray-900"}>
-        {rank}
-      </span>
-      <span className={clsx("text-[10px]", isRed ? "text-red-500" : "text-gray-900")}>
+      <span className={isRed ? "text-red-500" : "text-gray-900"}>{rank}</span>
+      <span
+        className={clsx(
+          "text-[10px]",
+          isRed ? "text-red-500" : "text-gray-900",
+        )}
+      >
         {suitSymbol}
       </span>
     </div>
@@ -384,7 +403,7 @@ function MiniCardBack() {
         "w-7 h-10 rounded-sm shadow-md",
         "bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800",
         "border border-blue-400",
-        "flex items-center justify-center"
+        "flex items-center justify-center",
       )}
     >
       <div className="w-4 h-6 rounded-sm border border-blue-400/50 bg-blue-500/30" />

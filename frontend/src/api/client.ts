@@ -6,7 +6,7 @@ interface RequestOptions extends RequestInit {
 
 async function request<T>(
   endpoint: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
 ): Promise<T> {
   const { token, ...fetchOptions } = options;
 

@@ -48,7 +48,10 @@ export function VerifyEmail() {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const pastedData = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6);
     if (pastedData.length === 6) {
       const newCode = pastedData.split("");
       setCode(newCode);
@@ -158,9 +161,7 @@ export function VerifyEmail() {
           )}
 
           <div className="text-center">
-            <p className="text-gray-400 mb-4">
-              Didn't receive the code?
-            </p>
+            <p className="text-gray-400 mb-4">Didn't receive the code?</p>
             <button
               onClick={handleResend}
               disabled={resending || loading}
