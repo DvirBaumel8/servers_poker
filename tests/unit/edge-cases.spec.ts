@@ -11,7 +11,7 @@ describe("Edge Cases", () => {
     game = new PokerGameService(eventEmitter);
   });
 
-  describe.concurrent("Cash Game: Last Player Standing", () => {
+  describe("Cash Game: Last Player Standing", () => {
     beforeEach(() => {
       game.initialize({
         gameId: "game-1",
@@ -51,7 +51,7 @@ describe("Edge Cases", () => {
     });
   });
 
-  describe.concurrent("Player Leaves During Hand", () => {
+  describe("Player Leaves During Hand", () => {
     beforeEach(() => {
       game.initialize({
         gameId: "game-1",
@@ -112,7 +112,7 @@ describe("Edge Cases", () => {
     });
   });
 
-  describe.concurrent("Tournament: Single Table, 2 Players, One Leaves", () => {
+  describe("Tournament: Single Table, 2 Players, One Leaves", () => {
     beforeEach(() => {
       game.initialize({
         gameId: "game-1",
@@ -153,7 +153,7 @@ describe("Edge Cases", () => {
     });
   });
 
-  describe.concurrent("Out-of-Turn Actions", () => {
+  describe("Out-of-Turn Actions", () => {
     beforeEach(() => {
       game.initialize({
         gameId: "game-1",
@@ -257,7 +257,7 @@ describe("Edge Cases", () => {
     });
   });
 
-  describe.concurrent("All Players Leave", () => {
+  describe("All Players Leave", () => {
     it("should finish game when all players leave", () => {
       game.initialize({
         gameId: "game-1",
@@ -276,7 +276,7 @@ describe("Edge Cases", () => {
     });
   });
 
-  describe.concurrent("Strike System", () => {
+  describe("Strike System", () => {
     beforeEach(() => {
       game.initialize({
         gameId: "game-1",
@@ -310,7 +310,7 @@ describe("Edge Cases", () => {
     });
   });
 
-  describe.concurrent("getActivePlayers and getPlayersWithChips", () => {
+  describe("getActivePlayers and getPlayersWithChips", () => {
     beforeEach(() => {
       game.initialize({
         gameId: "game-1",

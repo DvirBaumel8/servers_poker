@@ -15,7 +15,7 @@ describe("PotManager", () => {
     potManager = new PotManager();
   });
 
-  describe.concurrent("addBet", () => {
+  describe("addBet", () => {
     it("should track bets correctly", () => {
       potManager.addBet("player1", 100);
       potManager.addBet("player2", 100);
@@ -35,7 +35,7 @@ describe("PotManager", () => {
     });
   });
 
-  describe.concurrent("calculatePots", () => {
+  describe("calculatePots", () => {
     it("should create single pot when all bets equal", () => {
       const players: TestPlayer[] = [
         { id: "p1", chips: 900, folded: false, allIn: false },
@@ -113,7 +113,7 @@ describe("PotManager", () => {
     });
   });
 
-  describe.concurrent("getTotalPot", () => {
+  describe("getTotalPot", () => {
     it("should return sum of all pots", () => {
       potManager.pots = [
         { amount: 300, eligiblePlayerIds: ["p1", "p2", "p3"] },
@@ -149,7 +149,7 @@ describe("BettingRound", () => {
     });
   });
 
-  describe.concurrent("getCallAmount", () => {
+  describe("getCallAmount", () => {
     it("should return 0 when no bet to call", () => {
       expect(bettingRound.getCallAmount(players[0])).toBe(0);
     });
@@ -169,7 +169,7 @@ describe("BettingRound", () => {
     });
   });
 
-  describe.concurrent("canCheck", () => {
+  describe("canCheck", () => {
     it("should allow check when player bet equals current bet", () => {
       expect(bettingRound.canCheck(players[0])).toBe(true);
     });
@@ -180,8 +180,8 @@ describe("BettingRound", () => {
     });
   });
 
-  describe.concurrent("applyAction", () => {
-    describe.concurrent("fold", () => {
+  describe("applyAction", () => {
+    describe("fold", () => {
       it("should mark player as folded", () => {
         const result = bettingRound.applyAction(players[0], { type: "fold" });
         
@@ -191,7 +191,7 @@ describe("BettingRound", () => {
       });
     });
 
-    describe.concurrent("check", () => {
+    describe("check", () => {
       it("should allow check when no bet to call", () => {
         const result = bettingRound.applyAction(players[0], { type: "check" });
         
@@ -208,7 +208,7 @@ describe("BettingRound", () => {
       });
     });
 
-    describe.concurrent("call", () => {
+    describe("call", () => {
       it("should deduct correct amount for call", () => {
         bettingRound.currentBet = 100;
         const chipsBefore = players[0].chips;
@@ -233,7 +233,7 @@ describe("BettingRound", () => {
       });
     });
 
-    describe.concurrent("raise", () => {
+    describe("raise", () => {
       it("should apply valid raise", () => {
         bettingRound.currentBet = 20;
         bettingRound.betsThisRound["p1"] = 0;
@@ -279,7 +279,7 @@ describe("BettingRound", () => {
     });
   });
 
-  describe.concurrent("isBettingComplete", () => {
+  describe("isBettingComplete", () => {
     it("should return true when only one player left", () => {
       players[0].folded = true;
       players[1].folded = true;
