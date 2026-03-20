@@ -19,15 +19,25 @@ export class LoginDto {
 }
 
 export class RegisterDto {
-  @IsEmail()
+  @IsEmail({}, { message: "Please provide a valid email address" })
   email: string;
 
   @IsString()
-  @MinLength(2)
+  @MinLength(2, { message: "Name must be at least 2 characters" })
+  @MaxLength(100, { message: "Name cannot exceed 100 characters" })
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9 _.-]*$/, {
+    message:
+      "Name must start with a letter or number and contain only letters, numbers, spaces, dots, underscores, and hyphens",
+  })
   name: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(8, { message: "Password must be at least 8 characters" })
+  @MaxLength(72, { message: "Password cannot exceed 72 characters" })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
+    message:
+      "Password must contain at least one uppercase letter, one lowercase letter, and one number",
+  })
   password: string;
 }
 
@@ -146,6 +156,9 @@ export class RegisterDeveloperDto {
   @IsOptional()
   @IsString()
   @MaxLength(500, { message: "Bot description cannot exceed 500 characters" })
+  @Matches(/^[^<>]*$/, {
+    message: "Bot description must not contain HTML tags",
+  })
   botDescription?: string;
 }
 
