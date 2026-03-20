@@ -10,6 +10,7 @@ import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { GameExceptionFilter } from "./common/filters/game-exception.filter";
 import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor";
+import { AuditLog } from "./entities/audit-log.entity";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 
@@ -44,6 +45,7 @@ import { SecurityModule } from "./common/security";
       inject: [ConfigService],
     }),
     EventEmitterModule.forRoot(),
+    TypeOrmModule.forFeature([AuditLog]),
     SecurityModule,
     ServicesModule,
     AuthModule,

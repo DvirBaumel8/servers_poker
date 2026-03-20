@@ -5,154 +5,134 @@ import {
   CallHandler,
   Logger,
 } from "@nestjs/common";
-import { Observable } from "rxjs";
-import { tap } from "rxjs/operators";
-import { Request } from "express";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Observable, tap, catchError, throwError } from "rxjs";
+import { AuditLog, AuditAction } from "../../entities/audit-log.entity";
 
-interface AuditLogEntry {
-  timestamp: string;
-  userId: string | null;
-  action: string;
-  resource: string;
-  resourceId: string | null;
-  ip: string;
-  userAgent: string;
-  method: string;
-  statusCode: number;
-  durationMs: number;
-  requestBody?: Record<string, any>;
+const AUDITED_ROUTES = new Set([
+  "POST /api/v1/auth/register",
+  "POST /api/v1/auth/register-developer",
+  "POST /api/v1/auth/login",
+  "POST /api/v1/bots",
+  "PUT /api/v1/bots",
+  "DELETE /api/v1/bots",
+  "POST /api/v1/games/tables",
+  "POST /api/v1/games",
+  "POST /api/v1/tournaments",
+]);
+
+function shouldAudit(method: string, path: string): boolean {
+  const key = `${method} ${path}`;
+  for (const route of AUDITED_ROUTES) {
+    if (key.startsWith(route)) return true;
+  }
+  return false;
+}
+
+function mapAction(method: string, path: string): AuditAction {
+  if (path.includes("/login")) return "login";
+  if (method === "POST") return "create";
+  if (method === "PUT" || method === "PATCH") return "update";
+  if (method === "DELETE") return "delete";
+  return "read";
+}
+
+function extractResource(path: string): string {
+  const parts = path.replace("/api/v1/", "").split("/");
+  return parts[0] || "unknown";
 }
 
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
-  private readonly logger = new Logger("AuditLog");
+  private readonly logger = new Logger(AuditLogInterceptor.name);
 
-  private readonly sensitiveFields = [
-    "password",
-    "api_key",
-    "apiKey",
-    "token",
-    "secret",
-    "authorization",
-  ];
+  constructor(
+    @InjectRepository(AuditLog)
+    private readonly auditLogRepository: Repository<AuditLog>,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest<Request>();
-    const { method, url, ip, body } = request;
-    const userAgent = request.get("user-agent") || "";
-    const userId = (request as any).user?.id || null;
-    const startTime = Date.now();
+    const req = context.switchToHttp().getRequest();
+    const method = req.method;
+    const path = req.path || req.url;
 
-    const sanitizedBody = this.sanitizeBody(body);
-    const [resource, resourceId] = this.extractResource(url);
+    if (!shouldAudit(method, path)) {
+      return next.handle();
+    }
+
+    const startTime = Date.now();
+    const userId = req.user?.id || null;
 
     return next.handle().pipe(
-      tap({
-        next: () => {
-          const response = context.switchToHttp().getResponse();
-          const durationMs = Date.now() - startTime;
-
-          const entry: AuditLogEntry = {
-            timestamp: new Date().toISOString(),
-            userId,
-            action: this.getAction(method),
-            resource,
-            resourceId,
-            ip: ip || "unknown",
-            userAgent,
-            method,
-            statusCode: response.statusCode,
-            durationMs,
-            requestBody: sanitizedBody,
-          };
-
-          this.logEntry(entry);
-        },
-        error: (error) => {
-          const durationMs = Date.now() - startTime;
-
-          const entry: AuditLogEntry = {
-            timestamp: new Date().toISOString(),
-            userId,
-            action: this.getAction(method),
-            resource,
-            resourceId,
-            ip: ip || "unknown",
-            userAgent,
-            method,
-            statusCode: error.status || 500,
-            durationMs,
-            requestBody: sanitizedBody,
-          };
-
-          this.logEntry(entry, error.message);
-        },
+      tap((responseBody) => {
+        const duration = Date.now() - startTime;
+        this.saveLog({
+          userId,
+          method,
+          path,
+          statusCode: 200,
+          duration,
+          req,
+          responseBody,
+        }).catch(() => {});
+      }),
+      catchError((error) => {
+        const duration = Date.now() - startTime;
+        this.saveLog({
+          userId,
+          method,
+          path,
+          statusCode: error.status || 500,
+          duration,
+          req,
+          error: error.message,
+        }).catch(() => {});
+        return throwError(() => error);
       }),
     );
   }
 
-  private sanitizeBody(body: any): Record<string, any> | undefined {
-    if (!body || typeof body !== "object") {
-      return undefined;
-    }
+  private async saveLog(data: {
+    userId: string | null;
+    method: string;
+    path: string;
+    statusCode: number;
+    duration: number;
+    req: any;
+    responseBody?: any;
+    error?: string;
+  }): Promise<void> {
+    try {
+      const sanitizedBody = data.req.body ? { ...data.req.body } : null;
+      if (sanitizedBody?.password) sanitizedBody.password = "[REDACTED]";
+      if (sanitizedBody?.newPassword) sanitizedBody.newPassword = "[REDACTED]";
 
-    const sanitized: Record<string, any> = {};
+      const log = this.auditLogRepository.create({
+        user_id: data.userId,
+        action: mapAction(data.method, data.path),
+        resource: extractResource(data.path),
+        resource_id: this.extractResourceId(data.path),
+        ip_address:
+          data.req.ip || data.req.headers?.["x-forwarded-for"] || null,
+        user_agent: data.req.headers?.["user-agent"]?.slice(0, 500) || null,
+        http_method: data.method,
+        status_code: data.statusCode,
+        duration_ms: data.duration,
+        request_body: sanitizedBody,
+        error_message: data.error || null,
+      });
 
-    for (const [key, value] of Object.entries(body)) {
-      if (this.sensitiveFields.some((f) => key.toLowerCase().includes(f))) {
-        sanitized[key] = "[REDACTED]";
-      } else if (typeof value === "object" && value !== null) {
-        sanitized[key] = this.sanitizeBody(value);
-      } else {
-        sanitized[key] = value;
-      }
-    }
-
-    return sanitized;
-  }
-
-  private extractResource(url: string): [string, string | null] {
-    const parts = url
-      .replace(/^\/api\/v\d+\//, "")
-      .split("/")
-      .filter(Boolean);
-
-    if (parts.length === 0) {
-      return ["root", null];
-    }
-
-    const resource = parts[0];
-    const resourceId = parts.length > 1 ? parts[1] : null;
-
-    return [resource, resourceId];
-  }
-
-  private getAction(method: string): string {
-    switch (method.toUpperCase()) {
-      case "GET":
-        return "read";
-      case "POST":
-        return "create";
-      case "PUT":
-      case "PATCH":
-        return "update";
-      case "DELETE":
-        return "delete";
-      default:
-        return "unknown";
+      await this.auditLogRepository.save(log);
+    } catch (err) {
+      this.logger.debug(`Audit log save failed: ${err}`);
     }
   }
 
-  private logEntry(entry: AuditLogEntry, error?: string): void {
-    const logLine = JSON.stringify({
-      ...entry,
-      ...(error && { error }),
-    });
-
-    if (error) {
-      this.logger.warn(logLine);
-    } else {
-      this.logger.log(logLine);
-    }
+  private extractResourceId(path: string): string | null {
+    const uuidRegex =
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    const match = path.match(uuidRegex);
+    return match ? match[0] : null;
   }
 }
