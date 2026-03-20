@@ -140,7 +140,7 @@ describe("WebhookSigningService", () => {
     });
   });
 
-  describe("generateWebhookSecret", () => {
+  describe.concurrent("generateWebhookSecret", () => {
     it("should generate a secret with proper prefix", () => {
       const secret = service.generateWebhookSecret();
 

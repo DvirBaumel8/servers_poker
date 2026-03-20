@@ -20,8 +20,15 @@ export default defineConfig({
     },
     testTimeout: 60000,
     hookTimeout: 60000,
-    isolate: false,
-    fileParallelism: false,
+    pool: "threads",
+    poolOptions: {
+      threads: {
+        singleThread: false,
+        minThreads: 1,
+        maxThreads: 4,
+      },
+    },
+    fileParallelism: true,
     sequence: {
       shuffle: false,
     },

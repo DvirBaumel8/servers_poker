@@ -9,7 +9,7 @@ describe("ProvablyFairService", () => {
     service = new ProvablyFairService();
   });
 
-  describe("generateServerSeed", () => {
+  describe.concurrent("generateServerSeed", () => {
     it("should generate a 64-character hex string (32 bytes)", () => {
       const seed = service.generateServerSeed();
       expect(seed).toHaveLength(64);
@@ -24,7 +24,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("generateClientSeed", () => {
+  describe.concurrent("generateClientSeed", () => {
     it("should generate a 32-character hex string (16 bytes)", () => {
       const seed = service.generateClientSeed();
       expect(seed).toHaveLength(32);
@@ -32,7 +32,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("hashServerSeed", () => {
+  describe.concurrent("hashServerSeed", () => {
     it("should produce consistent SHA256 hashes", () => {
       const serverSeed = "test_server_seed";
       const hash1 = service.hashServerSeed(serverSeed);
@@ -54,7 +54,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("combineSeedsHmac", () => {
+  describe.concurrent("combineSeedsHmac", () => {
     it("should produce consistent HMAC hashes", () => {
       const serverSeed = "server_seed";
       const clientSeed = "client_seed";
@@ -86,7 +86,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("generateDeckOrder", () => {
+  describe.concurrent("generateDeckOrder", () => {
     it("should generate a valid deck order with 52 cards", () => {
       const combinedHash = service.combineSeedsHmac("server", "client", 1);
       const deckOrder = service.generateDeckOrder(combinedHash);
@@ -121,7 +121,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("createHandSeeds", () => {
+  describe.concurrent("createHandSeeds", () => {
     it("should create complete seed data", () => {
       const seedData = service.createHandSeeds(1);
 
@@ -157,7 +157,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("getCommitment", () => {
+  describe.concurrent("getCommitment", () => {
     it("should return only public commitment data", () => {
       const seedData = service.createHandSeeds(1);
       const commitment = service.getCommitment(seedData);
@@ -170,7 +170,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("verifyHand", () => {
+  describe.concurrent("verifyHand", () => {
     it("should verify a valid hand successfully", () => {
       const seedData = service.createHandSeeds(1);
       const result = service.verifyHand(
@@ -245,7 +245,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("shuffleDeckWithSeeds", () => {
+  describe.concurrent("shuffleDeckWithSeeds", () => {
     it("should shuffle deck according to deck order", () => {
       const deck = Array.from({ length: 52 }, (_, i) => ({
         value: i,
@@ -272,7 +272,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("getVerificationData", () => {
+  describe.concurrent("getVerificationData", () => {
     it("should return complete verification data", () => {
       const seedData = service.createHandSeeds(5);
       const verification = service.getVerificationData(seedData);
@@ -287,7 +287,7 @@ describe("ProvablyFairService", () => {
     });
   });
 
-  describe("end-to-end verification flow", () => {
+  describe.concurrent("end-to-end verification flow", () => {
     it("should complete full commit-reveal-verify cycle", () => {
       const seedData = service.createHandSeeds(42, "player_client_seed");
       const commitment = service.getCommitment(seedData);

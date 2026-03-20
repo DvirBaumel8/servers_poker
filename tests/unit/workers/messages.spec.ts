@@ -10,7 +10,7 @@ import {
 } from "../../../src/workers/messages";
 
 describe("Worker Messages", () => {
-  describe("isWorkerCommand", () => {
+  describe.concurrent("isWorkerCommand", () => {
     it("should return true for ADD_PLAYER command", () => {
       const command: WorkerCommand = {
         type: "ADD_PLAYER",
@@ -54,7 +54,7 @@ describe("Worker Messages", () => {
     });
   });
 
-  describe("isWorkerEvent", () => {
+  describe.concurrent("isWorkerEvent", () => {
     it("should return true for READY event", () => {
       const event: WorkerEvent = { type: "READY", tableId: "table-1" };
       expect(isWorkerEvent(event)).toBe(true);
@@ -164,7 +164,7 @@ describe("Worker Messages", () => {
     });
   });
 
-  describe("Type definitions", () => {
+  describe.concurrent("Type definitions", () => {
     it("should allow creating valid GameConfig", () => {
       const config: GameConfig = {
         tableId: "table-1",

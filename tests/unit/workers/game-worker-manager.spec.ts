@@ -43,7 +43,7 @@ describe("GameWorkerManagerService", () => {
     eventEmitter = module.get<EventEmitter2>(EventEmitter2);
   });
 
-  describe("initialization", () => {
+  describe.concurrent("initialization", () => {
     it("should be defined", () => {
       expect(service).toBeDefined();
     });
@@ -61,7 +61,7 @@ describe("GameWorkerManagerService", () => {
     });
   });
 
-  describe("when disabled", () => {
+  describe.concurrent("when disabled", () => {
     it("should throw error when trying to create game", () => {
       expect(() =>
         service.createGame({
@@ -85,7 +85,7 @@ describe("GameWorkerManagerService", () => {
     });
   });
 
-  describe("when enabled", () => {
+  describe.concurrent("when enabled", () => {
     let enabledService: GameWorkerManagerService;
 
     beforeEach(async () => {
@@ -133,7 +133,7 @@ describe("GameWorkerManagerService", () => {
     });
   });
 
-  describe("lifecycle", () => {
+  describe.concurrent("lifecycle", () => {
     it("should initialize on module init", () => {
       service.onModuleInit();
       // Should not throw
