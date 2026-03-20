@@ -35,7 +35,9 @@ describe("WebhookSigningService", () => {
       expect(signed.payload.timestamp).toBeGreaterThan(0);
       expect(signed.payload.webhookId).toBeDefined();
       expect(signed.signature).toBeDefined();
-      expect(signed.headers["X-Poker-Webhook-Signature"]).toBe(signed.signature);
+      expect(signed.headers["X-Poker-Webhook-Signature"]).toBe(
+        signed.signature,
+      );
     });
 
     it("should generate unique webhook IDs", () => {

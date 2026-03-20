@@ -86,7 +86,9 @@ describe("Tournament Flow E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 100000 }]),
+        ThrottlerModule.forRoot([
+          { name: "default", ttl: 60000, limit: 100000 },
+        ]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -98,7 +100,13 @@ describe("Tournament Flow E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     dataSource = moduleFixture.get(DataSource);
@@ -106,13 +114,19 @@ describe("Tournament Flow E2E Tests", () => {
 
   afterAll(async () => {
     for (const bot of botServers) {
-      try { await bot.close(); } catch {}
+      try {
+        await bot.close();
+      } catch {}
     }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
   });
 
-  async function registerPlayer(): Promise<{ accessToken: string; bot: { id: string }; botServer: BotServer }> {
+  async function registerPlayer(): Promise<{
+    accessToken: string;
+    bot: { id: string };
+    botServer: BotServer;
+  }> {
     const id = uid();
     const port = getNextPort();
     const botServer = await createBotServer(port);
@@ -388,7 +402,7 @@ describe("Tournament Flow E2E Tests", () => {
       expect(statusResponse.body.status).toBeDefined();
       // New tournament should be in waiting or registration status
       expect(["waiting", "registering", "pending", "open"]).toContain(
-        statusResponse.body.status?.toLowerCase() || "waiting"
+        statusResponse.body.status?.toLowerCase() || "waiting",
       );
     });
   });
@@ -432,7 +446,9 @@ describe("Tournament Flow E2E Tests", () => {
         .send({ bot_id: player3.bot.id });
 
       // At least one should succeed
-      const successCount = [reg1, reg2, reg3].filter(r => [200, 201].includes(r.status)).length;
+      const successCount = [reg1, reg2, reg3].filter((r) =>
+        [200, 201].includes(r.status),
+      ).length;
       expect(successCount).toBeGreaterThan(0);
     });
   });

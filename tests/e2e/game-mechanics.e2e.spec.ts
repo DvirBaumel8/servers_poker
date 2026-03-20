@@ -47,11 +47,17 @@ interface BotServer {
 
 function createStrategyBot(
   port: number,
-  strategy: "caller" | "folder" | "raiser" | "all-in" | "checker" | "min-raiser"
+  strategy:
+    | "caller"
+    | "folder"
+    | "raiser"
+    | "all-in"
+    | "checker"
+    | "min-raiser",
 ): Promise<BotServer> {
   return new Promise((resolve, reject) => {
     const decisions: Array<{ action: string; amount?: number }> = [];
-    
+
     const server = http.createServer((req, res) => {
       if (req.method === "GET") {
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -74,18 +80,28 @@ function createStrategyBot(
               response = { type: "fold" };
               break;
             case "raiser":
-              const raiseAmount = (payload.current_bet || 0) + (payload.big_blind || 20) * 2;
-              response = { type: "raise", amount: Math.min(raiseAmount, payload.your_chips || 1000) };
+              const raiseAmount =
+                (payload.current_bet || 0) + (payload.big_blind || 20) * 2;
+              response = {
+                type: "raise",
+                amount: Math.min(raiseAmount, payload.your_chips || 1000),
+              };
               break;
             case "all-in":
               response = { type: "raise", amount: payload.your_chips || 1000 };
               break;
             case "checker":
-              response = payload.to_call > 0 ? { type: "call" } : { type: "check" };
+              response =
+                payload.to_call > 0 ? { type: "call" } : { type: "check" };
               break;
             case "min-raiser":
-              const minRaise = (payload.current_bet || 0) + (payload.min_raise || payload.big_blind || 20);
-              response = { type: "raise", amount: Math.min(minRaise, payload.your_chips || 1000) };
+              const minRaise =
+                (payload.current_bet || 0) +
+                (payload.min_raise || payload.big_blind || 20);
+              response = {
+                type: "raise",
+                amount: Math.min(minRaise, payload.your_chips || 1000),
+              };
               break;
             default:
               response = { type: "call" };
@@ -140,7 +156,9 @@ describe("Game Mechanics E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 100000 }]),
+        ThrottlerModule.forRoot([
+          { name: "default", ttl: 60000, limit: 100000 },
+        ]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -151,7 +169,13 @@ describe("Game Mechanics E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     dataSource = moduleFixture.get(DataSource);
@@ -168,7 +192,13 @@ describe("Game Mechanics E2E Tests", () => {
   });
 
   async function registerPlayer(
-    strategy: "caller" | "folder" | "raiser" | "all-in" | "checker" | "min-raiser"
+    strategy:
+      | "caller"
+      | "folder"
+      | "raiser"
+      | "all-in"
+      | "checker"
+      | "min-raiser",
   ): Promise<TestUser & { botServer: BotServer }> {
     const id = uid();
     const port = getNextPort();
@@ -189,12 +219,15 @@ describe("Game Mechanics E2E Tests", () => {
     return { ...response.body, botServer };
   }
 
-  async function createTable(token: string, options: {
-    smallBlind?: number;
-    bigBlind?: number;
-    startingChips?: number;
-    maxPlayers?: number;
-  } = {}): Promise<string> {
+  async function createTable(
+    token: string,
+    options: {
+      smallBlind?: number;
+      bigBlind?: number;
+      startingChips?: number;
+      maxPlayers?: number;
+    } = {},
+  ): Promise<string> {
     const id = uid();
     const response = await request(app.getHttpServer())
       .post("/api/v1/games/tables")
@@ -212,7 +245,11 @@ describe("Game Mechanics E2E Tests", () => {
     return response.body.id;
   }
 
-  async function joinTable(token: string, tableId: string, botId: string): Promise<void> {
+  async function joinTable(
+    token: string,
+    tableId: string,
+    botId: string,
+  ): Promise<void> {
     await request(app.getHttpServer())
       .post(`/api/v1/games/${tableId}/join`)
       .set("Authorization", `Bearer ${token}`)
@@ -220,17 +257,24 @@ describe("Game Mechanics E2E Tests", () => {
       .expect(201);
   }
 
-  async function waitForGameEnd(tableId: string, token: string, timeoutMs: number = 30000): Promise<any> {
+  async function waitForGameEnd(
+    tableId: string,
+    token: string,
+    timeoutMs: number = 30000,
+  ): Promise<any> {
     const startTime = Date.now();
     while (Date.now() - startTime < timeoutMs) {
       const response = await request(app.getHttpServer())
         .get(`/api/v1/games/${tableId}/state`)
         .set("Authorization", `Bearer ${token}`);
-      
-      if (response.body?.status === "finished" || response.body?.status === "waiting") {
+
+      if (
+        response.body?.status === "finished" ||
+        response.body?.status === "waiting"
+      ) {
         return response.body;
       }
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
     }
     throw new Error("Game did not finish in time");
   }
@@ -245,13 +289,17 @@ describe("Game Mechanics E2E Tests", () => {
       await joinTable(folder.accessToken, tableId, folder.bot.id);
 
       const finalState = await waitForGameEnd(tableId, caller.accessToken);
-      
+
       expect(finalState.status).toBe("finished");
-      
+
       // Caller should have more chips (won from folder folding)
-      const callerPlayer = finalState.players?.find((p: any) => p.id === caller.bot.id);
-      const folderPlayer = finalState.players?.find((p: any) => p.id === folder.bot.id);
-      
+      const callerPlayer = finalState.players?.find(
+        (p: any) => p.id === caller.bot.id,
+      );
+      const folderPlayer = finalState.players?.find(
+        (p: any) => p.id === folder.bot.id,
+      );
+
       if (callerPlayer && folderPlayer) {
         expect(callerPlayer.chips).toBeGreaterThan(folderPlayer.chips);
       }
@@ -266,11 +314,15 @@ describe("Game Mechanics E2E Tests", () => {
       await joinTable(caller2.accessToken, tableId, caller2.bot.id);
 
       const finalState = await waitForGameEnd(tableId, caller1.accessToken);
-      
+
       expect(finalState.status).toBe("finished");
-      
+
       // Total chips should be conserved (2000 total)
-      const totalChips = finalState.players?.reduce((sum: number, p: any) => sum + (p.chips || 0), 0) || 0;
+      const totalChips =
+        finalState.players?.reduce(
+          (sum: number, p: any) => sum + (p.chips || 0),
+          0,
+        ) || 0;
       expect(totalChips).toBe(2000);
     }, 60000);
   });
@@ -280,14 +332,16 @@ describe("Game Mechanics E2E Tests", () => {
       const allIn = await registerPlayer("all-in");
       const caller = await registerPlayer("caller");
 
-      const tableId = await createTable(allIn.accessToken, { startingChips: 500 });
+      const tableId = await createTable(allIn.accessToken, {
+        startingChips: 500,
+      });
       await joinTable(allIn.accessToken, tableId, allIn.bot.id);
       await joinTable(caller.accessToken, tableId, caller.bot.id);
 
       const finalState = await waitForGameEnd(tableId, allIn.accessToken);
-      
+
       expect(finalState.status).toBe("finished");
-      
+
       // One player should have all chips, other should have 0
       const chips = finalState.players?.map((p: any) => p.chips) || [];
       expect(chips.sort((a: number, b: number) => a - b)).toEqual([0, 1000]);
@@ -297,16 +351,22 @@ describe("Game Mechanics E2E Tests", () => {
       const allIn1 = await registerPlayer("all-in");
       const allIn2 = await registerPlayer("all-in");
 
-      const tableId = await createTable(allIn1.accessToken, { startingChips: 500 });
+      const tableId = await createTable(allIn1.accessToken, {
+        startingChips: 500,
+      });
       await joinTable(allIn1.accessToken, tableId, allIn1.bot.id);
       await joinTable(allIn2.accessToken, tableId, allIn2.bot.id);
 
       const finalState = await waitForGameEnd(tableId, allIn1.accessToken);
-      
+
       expect(finalState.status).toBe("finished");
-      
+
       // Total chips conserved
-      const totalChips = finalState.players?.reduce((sum: number, p: any) => sum + (p.chips || 0), 0) || 0;
+      const totalChips =
+        finalState.players?.reduce(
+          (sum: number, p: any) => sum + (p.chips || 0),
+          0,
+        ) || 0;
       expect(totalChips).toBe(1000);
     }, 60000);
   });
@@ -316,12 +376,15 @@ describe("Game Mechanics E2E Tests", () => {
       const player1 = await registerPlayer("checker");
       const player2 = await registerPlayer("checker");
 
-      const tableId = await createTable(player1.accessToken, { smallBlind: 25, bigBlind: 50 });
+      const tableId = await createTable(player1.accessToken, {
+        smallBlind: 25,
+        bigBlind: 50,
+      });
       await joinTable(player1.accessToken, tableId, player1.bot.id);
       await joinTable(player2.accessToken, tableId, player2.bot.id);
 
       // Wait a bit for game to start
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 2000));
 
       const state = await request(app.getHttpServer())
         .get(`/api/v1/games/${tableId}/state`)
@@ -345,8 +408,12 @@ describe("Game Mechanics E2E Tests", () => {
       await joinTable(caller.accessToken, tableId, caller.bot.id);
 
       const finalState = await waitForGameEnd(tableId, raiser.accessToken);
-      
-      const totalChips = finalState.players?.reduce((sum: number, p: any) => sum + (p.chips || 0), 0) || 0;
+
+      const totalChips =
+        finalState.players?.reduce(
+          (sum: number, p: any) => sum + (p.chips || 0),
+          0,
+        ) || 0;
       expect(totalChips).toBe(startingChips * 2);
     }, 60000);
 
@@ -360,8 +427,12 @@ describe("Game Mechanics E2E Tests", () => {
       await joinTable(raiser2.accessToken, tableId, raiser2.bot.id);
 
       const finalState = await waitForGameEnd(tableId, raiser1.accessToken);
-      
-      const totalChips = finalState.players?.reduce((sum: number, p: any) => sum + (p.chips || 0), 0) || 0;
+
+      const totalChips =
+        finalState.players?.reduce(
+          (sum: number, p: any) => sum + (p.chips || 0),
+          0,
+        ) || 0;
       expect(totalChips).toBe(startingChips * 2);
     }, 60000);
   });
@@ -371,16 +442,21 @@ describe("Game Mechanics E2E Tests", () => {
       const caller = await registerPlayer("caller");
       const folder = await registerPlayer("folder");
 
-      const tableId = await createTable(caller.accessToken, { smallBlind: 10, bigBlind: 20 });
+      const tableId = await createTable(caller.accessToken, {
+        smallBlind: 10,
+        bigBlind: 20,
+      });
       await joinTable(caller.accessToken, tableId, caller.bot.id);
       await joinTable(folder.accessToken, tableId, folder.bot.id);
 
       const finalState = await waitForGameEnd(tableId, caller.accessToken);
-      
+
       expect(finalState.status).toBe("finished");
-      
+
       // Caller should have won chips from folder's blinds/calls before folding
-      const callerPlayer = finalState.players?.find((p: any) => p.id === caller.bot.id);
+      const callerPlayer = finalState.players?.find(
+        (p: any) => p.id === caller.bot.id,
+      );
       expect(callerPlayer?.chips).toBeGreaterThan(1000);
     }, 60000);
   });
@@ -395,16 +471,19 @@ describe("Game Mechanics E2E Tests", () => {
       await joinTable(checker2.accessToken, tableId, checker2.bot.id);
 
       // Let the game play out
-      await new Promise(r => setTimeout(r, 5000));
+      await new Promise((r) => setTimeout(r, 5000));
 
       // Check that decisions were made
       expect(checker1.botServer.decisions.length).toBeGreaterThan(0);
       expect(checker2.botServer.decisions.length).toBeGreaterThan(0);
 
       // Should have check and call actions
-      const allActions = [...checker1.botServer.decisions, ...checker2.botServer.decisions];
-      const actionTypes = allActions.map(d => d.action);
-      expect(actionTypes.some(a => a === "check" || a === "call")).toBe(true);
+      const allActions = [
+        ...checker1.botServer.decisions,
+        ...checker2.botServer.decisions,
+      ];
+      const actionTypes = allActions.map((d) => d.action);
+      expect(actionTypes.some((a) => a === "check" || a === "call")).toBe(true);
     }, 30000);
   });
 });

@@ -39,10 +39,10 @@ jobs:
         working-directory: frontend
 
       - name: Lint backend
-        run: npx eslint "{src,apps,libs,test}/**/*.ts"
+        run: npx eslint "src/**/*.ts" "tests/**/*.ts"
 
       - name: Lint frontend
-        run: npx eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+        run: npx eslint src --max-warnings 0
         working-directory: frontend
 
   # ─── Type-check ─────────────────────────────────────────────────────

@@ -3,9 +3,9 @@
  * =======================
  * Tests for all UI pages and navigation flows.
  * These tests use HTTP requests to verify frontend API contracts.
- * 
+ *
  * For full browser-based testing, see the browser automation scripts.
- * 
+ *
  * NOTE: Tests are designed for parallel execution - each test creates
  * its own isolated data using unique identifiers.
  */
@@ -100,7 +100,9 @@ describe("UI Navigation & API Contract E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 100000 }]),
+        ThrottlerModule.forRoot([
+          { name: "default", ttl: 60000, limit: 100000 },
+        ]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -113,7 +115,13 @@ describe("UI Navigation & API Contract E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     dataSource = moduleFixture.get(DataSource);
@@ -143,7 +151,10 @@ describe("UI Navigation & API Contract E2E Tests", () => {
     return { ...response.body, botServer };
   }
 
-  async function createAdditionalBot(accessToken: string, namePrefix: string = "Extra") {
+  async function createAdditionalBot(
+    accessToken: string,
+    namePrefix: string = "Extra",
+  ) {
     const botPort = getUniquePort();
     const botServer = await createMockBotServer(botPort);
     botServers.push(botServer);
@@ -160,8 +171,9 @@ describe("UI Navigation & API Contract E2E Tests", () => {
 
   describe("Home Page APIs", () => {
     it("should return leaderboard data for home page", async () => {
-      const response = await request(app.getHttpServer())
-        .get("/api/v1/games/leaderboard");
+      const response = await request(app.getHttpServer()).get(
+        "/api/v1/games/leaderboard",
+      );
 
       expect([200, 500]).toContain(response.status);
       if (response.status === 200) {
@@ -170,9 +182,10 @@ describe("UI Navigation & API Contract E2E Tests", () => {
     });
 
     it("should return active tournaments for home page", async () => {
-      const response = await request(app.getHttpServer())
-        .get("/api/v1/tournaments/active");
-      
+      const response = await request(app.getHttpServer()).get(
+        "/api/v1/tournaments/active",
+      );
+
       // May be 200 or 404 depending on route existence
       expect([200, 404]).toContain(response.status);
 
@@ -295,13 +308,13 @@ describe("UI Navigation & API Contract E2E Tests", () => {
     it("should create bot with all required fields", async () => {
       const user = await registerDeveloper(createTestUser("create"));
       const newBotName = `NewTestBot${uid()}`;
-      
+
       const botPort = getUniquePort();
       const newBotServer = await createMockBotServer(botPort);
       botServers.push(newBotServer);
 
       // Small delay to ensure bot server is ready
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const response = await request(app.getHttpServer())
         .post("/api/v1/bots")
@@ -336,7 +349,7 @@ describe("UI Navigation & API Contract E2E Tests", () => {
 
     it("should delete bot", async () => {
       const user = await registerDeveloper(createTestUser("delete"));
-      
+
       const extraBot = await createAdditionalBot(user.accessToken, "ToDelete");
 
       await request(app.getHttpServer())
@@ -347,7 +360,7 @@ describe("UI Navigation & API Contract E2E Tests", () => {
       const verifyResponse = await request(app.getHttpServer())
         .get(`/api/v1/bots/${extraBot.id}`)
         .set("Authorization", `Bearer ${user.accessToken}`);
-      
+
       expect([200, 404]).toContain(verifyResponse.status);
     });
   });
@@ -399,7 +412,7 @@ describe("UI Navigation & API Contract E2E Tests", () => {
           max_players: 100,
           min_players: 2,
         });
-      
+
       if (createResponse.status !== 201) {
         expect([201, 403]).toContain(createResponse.status);
         return;
@@ -446,8 +459,9 @@ describe("UI Navigation & API Contract E2E Tests", () => {
 
   describe("Leaderboard Page APIs", () => {
     it("should return leaderboard with proper structure", async () => {
-      const response = await request(app.getHttpServer())
-        .get("/api/v1/games/leaderboard");
+      const response = await request(app.getHttpServer()).get(
+        "/api/v1/games/leaderboard",
+      );
 
       expect([200, 500]).toContain(response.status);
       if (response.status === 200) {
@@ -516,7 +530,7 @@ describe("UI Navigation & API Contract E2E Tests", () => {
         .send({ bot_id: user2.bot.id })
         .expect(201);
 
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
 
       const stateResponse = await request(app.getHttpServer())
         .get(`/api/v1/games/${tableId}/state`)
@@ -554,7 +568,7 @@ describe("UI Navigation & API Contract E2E Tests", () => {
         .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${user1.accessToken}`)
         .send({ bot_id: user1.bot.id });
-      
+
       if (join1.status !== 201) {
         return;
       }
@@ -563,12 +577,12 @@ describe("UI Navigation & API Contract E2E Tests", () => {
         .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${user2.accessToken}`)
         .send({ bot_id: user2.bot.id });
-      
+
       if (join2.status !== 201) {
         return;
       }
 
-      await new Promise(r => setTimeout(r, 8000));
+      await new Promise((r) => setTimeout(r, 8000));
 
       const handsResponse = await request(app.getHttpServer())
         .get(`/api/v1/games/${tableId}/hands`)

@@ -305,9 +305,7 @@ describe("Games E2E Tests", () => {
         })
         .expect(409);
 
-      expect(join2Response.body.message).toContain(
-        "You already have a bot",
-      );
+      expect(join2Response.body.message).toContain("You already have a bot");
       expect(join2Response.body.message).toContain(
         "Only one bot per player allowed",
       );

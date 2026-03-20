@@ -67,7 +67,11 @@ export async function loginUser(
 export async function createTestBot(
   app: INestApplication,
   accessToken: string,
-  overrides: Partial<{ name: string; endpoint: string; description: string }> = {},
+  overrides: Partial<{
+    name: string;
+    endpoint: string;
+    description: string;
+  }> = {},
 ): Promise<TestBot> {
   const uniqueId = uuidv4().slice(0, 8);
 

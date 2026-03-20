@@ -55,34 +55,34 @@ export class MockBotServer {
           body += chunk;
         });
 
-          req.on("end", () => {
-            try {
-              const payload = body ? JSON.parse(body) : {};
-              this.lastRequest = payload;
+        req.on("end", () => {
+          try {
+            const payload = body ? JSON.parse(body) : {};
+            this.lastRequest = payload;
 
-              if (req.url === "/health") {
-                res.statusCode = 200;
-                res.setHeader("Content-Type", "application/json");
-                res.end(JSON.stringify({ status: "ok" }));
-                return;
-              }
-
-              if (req.url === "/recovery") {
-                res.statusCode = 200;
-                res.setHeader("Content-Type", "application/json");
-                res.end(JSON.stringify({ acknowledged: true }));
-                return;
-              }
-
-              const action = this.strategy(payload);
+            if (req.url === "/health") {
               res.statusCode = 200;
               res.setHeader("Content-Type", "application/json");
-              res.end(JSON.stringify(action));
-            } catch (error) {
-              res.statusCode = 500;
-              res.end("Internal error");
+              res.end(JSON.stringify({ status: "ok" }));
+              return;
             }
-          });
+
+            if (req.url === "/recovery") {
+              res.statusCode = 200;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ acknowledged: true }));
+              return;
+            }
+
+            const action = this.strategy(payload);
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify(action));
+          } catch (error) {
+            res.statusCode = 500;
+            res.end("Internal error");
+          }
+        });
       });
 
       this.server.listen(this.port, () => {

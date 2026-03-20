@@ -75,12 +75,8 @@ describe("Deck", () => {
     it("should contain all original cards", () => {
       const deck = createDeck();
       const shuffled = shuffle(deck);
-      const originalStrings = deck
-        .map((c) => cardToString(c))
-        .sort();
-      const shuffledStrings = shuffled
-        .map((c) => cardToString(c))
-        .sort();
+      const originalStrings = deck.map((c) => cardToString(c)).sort();
+      const shuffledStrings = shuffled.map((c) => cardToString(c)).sort();
       expect(shuffledStrings).toEqual(originalStrings);
     });
 

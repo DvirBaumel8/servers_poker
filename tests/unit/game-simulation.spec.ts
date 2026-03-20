@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { PokerGameService, GameConfig } from "../../src/game/poker-game.service";
+import {
+  PokerGameService,
+  GameConfig,
+} from "../../src/game/poker-game.service";
 import { PotManager } from "../../src/betting";
 import { createDeck, shuffle, cardToString } from "../../src/deck";
 import { bestHand, determineWinners } from "../../src/handEvaluator";
@@ -69,10 +72,7 @@ describe("Game Simulation - Complete Hand Flows", () => {
 
     it("should track chip conservation through a complete hand", () => {
       const stateBefore = game.getState();
-      const totalBefore = stateBefore.players.reduce(
-        (s, p) => s + p.chips,
-        0,
-      );
+      const totalBefore = stateBefore.players.reduce((s, p) => s + p.chips, 0);
       expect(totalBefore).toBe(2000);
 
       game.startHand();
@@ -123,9 +123,7 @@ describe("Game Simulation - Complete Hand Flows", () => {
       game.processAction("p3", "fold");
 
       const state = game.getState();
-      const active = state.players.filter(
-        (p) => !p.folded && !p.disconnected,
-      );
+      const active = state.players.filter((p) => !p.folded && !p.disconnected);
       expect(active).toHaveLength(1);
       expect(active[0].id).toBe("p1");
     });

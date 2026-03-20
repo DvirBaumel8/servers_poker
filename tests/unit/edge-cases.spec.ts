@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { PokerGameService, GameConfig } from "../../src/game/poker-game.service";
+import {
+  PokerGameService,
+  GameConfig,
+} from "../../src/game/poker-game.service";
 
 describe("Edge Cases", () => {
   let game: PokerGameService;
@@ -26,8 +29,18 @@ describe("Edge Cases", () => {
       const finishedHandler = vi.fn();
       eventEmitter.on("game.finished", finishedHandler);
 
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       const result = game.handlePlayerLeave("p2");
 
@@ -39,13 +52,23 @@ describe("Edge Cases", () => {
     });
 
     it("should preserve remaining player chips when opponent leaves", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.handlePlayerLeave("p2");
 
       const state = game.getState();
-      const player1 = state.players.find(p => p.id === "p1");
+      const player1 = state.players.find((p) => p.id === "p1");
       expect(player1?.chips).toBe(1000);
       expect(player1?.disconnected).toBe(false);
     });
@@ -62,9 +85,24 @@ describe("Edge Cases", () => {
     });
 
     it("should fold player when they leave mid-hand", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
-      game.addPlayer({ id: "p3", name: "Player3", chips: 1000, endpoint: "http://bot3" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
+      game.addPlayer({
+        id: "p3",
+        name: "Player3",
+        chips: 1000,
+        endpoint: "http://bot3",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -76,14 +114,29 @@ describe("Edge Cases", () => {
 
       expect(penaltyHandler).toHaveBeenCalled();
       const state = game.getState();
-      const player1 = state.players.find(p => p.id === "p1");
+      const player1 = state.players.find((p) => p.id === "p1");
       expect(player1?.folded).toBe(true);
     });
 
     it("should advance to next player when current player leaves", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
-      game.addPlayer({ id: "p3", name: "Player3", chips: 1000, endpoint: "http://bot3" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
+      game.addPlayer({
+        id: "p3",
+        name: "Player3",
+        chips: 1000,
+        endpoint: "http://bot3",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -95,15 +148,27 @@ describe("Edge Cases", () => {
     });
 
     it("should award pot to remaining player when only 2 and one leaves", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
-      
+
       game.processAction("p1", "raise", 100);
 
-      const p2ChipsBefore = game.getState().players.find(p => p.id === "p2")?.chips;
+      const p2ChipsBefore = game
+        .getState()
+        .players.find((p) => p.id === "p2")?.chips;
       const pot = game.getState().pot;
 
       game.handlePlayerLeave("p1");
@@ -128,8 +193,18 @@ describe("Edge Cases", () => {
       const finishedHandler = vi.fn();
       eventEmitter.on("game.finished", finishedHandler);
 
-      game.addPlayer({ id: "p1", name: "Player1", chips: 2000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 2000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 2000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 2000,
+        endpoint: "http://bot2",
+      });
 
       const result = game.handlePlayerLeave("p2");
 
@@ -139,13 +214,23 @@ describe("Edge Cases", () => {
         expect.objectContaining({
           tournamentId: "tourn-1",
           winnerId: "p1",
-        })
+        }),
       );
     });
 
     it("should finish tournament status", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 2000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 2000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 2000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 2000,
+        endpoint: "http://bot2",
+      });
 
       game.handlePlayerLeave("p2");
 
@@ -164,8 +249,18 @@ describe("Edge Cases", () => {
     });
 
     it("should reject action when not player's turn", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -177,8 +272,18 @@ describe("Edge Cases", () => {
     });
 
     it("should not apply strike for out-of-turn action", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -186,13 +291,23 @@ describe("Edge Cases", () => {
       game.processAction("p2", "raise", 100);
 
       const state = game.getState();
-      const player2 = state.players.find(p => p.id === "p2");
+      const player2 = state.players.find((p) => p.id === "p2");
       expect(player2?.strikes).toBe(0);
     });
 
     it("should not change game state on out-of-turn action", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -205,8 +320,18 @@ describe("Edge Cases", () => {
     });
 
     it("should validate turn in validateAction", async () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -218,8 +343,18 @@ describe("Edge Cases", () => {
     });
 
     it("should indicate current player in state", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -229,8 +364,18 @@ describe("Edge Cases", () => {
     });
 
     it("should indicate turn in private state", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -243,8 +388,18 @@ describe("Edge Cases", () => {
     });
 
     it("should only show valid actions to current player", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -266,8 +421,18 @@ describe("Edge Cases", () => {
         bigBlind: 20,
       });
 
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.handlePlayerLeave("p1");
       game.handlePlayerLeave("p2");
@@ -288,9 +453,24 @@ describe("Edge Cases", () => {
     });
 
     it("should disconnect player after max strikes", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
-      game.addPlayer({ id: "p3", name: "Player3", chips: 1000, endpoint: "http://bot3" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
+      game.addPlayer({
+        id: "p3",
+        name: "Player3",
+        chips: 1000,
+        endpoint: "http://bot3",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -305,7 +485,7 @@ describe("Edge Cases", () => {
       game.handlePlayerLeave("p1");
 
       const state = game.getState();
-      const player1 = state.players.find(p => p.id === "p1");
+      const player1 = state.players.find((p) => p.id === "p1");
       expect(player1?.disconnected).toBe(true);
     });
   });
@@ -321,9 +501,24 @@ describe("Edge Cases", () => {
     });
 
     it("should return only active players", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
-      game.addPlayer({ id: "p3", name: "Player3", chips: 1000, endpoint: "http://bot3" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
+      game.addPlayer({
+        id: "p3",
+        name: "Player3",
+        chips: 1000,
+        endpoint: "http://bot3",
+      });
 
       game.startHand();
       game.setCurrentPlayer("p1");
@@ -331,12 +526,22 @@ describe("Edge Cases", () => {
 
       const activePlayers = game.getActivePlayers();
       expect(activePlayers.length).toBe(2);
-      expect(activePlayers.find(p => p.id === "p1")).toBeUndefined();
+      expect(activePlayers.find((p) => p.id === "p1")).toBeUndefined();
     });
 
     it("should return players with chips", () => {
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       game.handlePlayerLeave("p2");
 

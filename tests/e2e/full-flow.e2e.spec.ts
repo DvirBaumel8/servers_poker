@@ -476,14 +476,9 @@ describe("Full Flow E2E Tests", () => {
           expect(decision.payload).toHaveProperty("table");
           expect(decision.payload).toHaveProperty("players");
 
-          expect([
-            "check",
-            "call",
-            "fold",
-            "bet",
-            "raise",
-            "all_in",
-          ]).toContain(decision.response.type);
+          expect(["check", "call", "fold", "bet", "raise", "all_in"]).toContain(
+            decision.response.type,
+          );
         }
       } finally {
         await bot1Server.close();

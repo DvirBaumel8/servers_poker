@@ -13,16 +13,16 @@ describe("Critical Edge Cases", () => {
 
       const baseShare = Math.floor(pot / winners.length);
       const remainder = pot % winners.length;
-      
+
       const distribution: Record<string, number> = {};
-      
+
       let remainderIndex = (dealerPosition + 1) % playerOrder.length;
       let remainderGiven = 0;
-      
+
       for (const winnerId of winners) {
         distribution[winnerId] = baseShare;
       }
-      
+
       while (remainderGiven < remainder) {
         const playerId = playerOrder[remainderIndex];
         if (winners.includes(playerId)) {
@@ -65,16 +65,18 @@ describe("Critical Edge Cases", () => {
       expect(distribution["p1"]).toBe(34);
       expect(distribution["p2"]).toBe(34);
       expect(distribution["p3"]).toBe(33);
-      expect(distribution["p1"] + distribution["p2"] + distribution["p3"]).toBe(pot);
+      expect(distribution["p1"] + distribution["p2"] + distribution["p3"]).toBe(
+        pot,
+      );
     });
 
     it("should handle $1 pot split between 3 players (2 get nothing)", () => {
       const pot = 1;
       const winners = ["p1", "p2", "p3"];
-      
+
       const baseShare = Math.floor(pot / winners.length);
       const remainder = pot % winners.length;
-      
+
       expect(baseShare).toBe(0);
       expect(remainder).toBe(1);
     });
@@ -102,11 +104,14 @@ describe("Critical Edge Cases", () => {
 
       round.applyAction(players[1], { type: "call" });
       round.betsThisRound["p2"] = 100;
-      
-      const result = round.applyAction(players[2], { type: "raise", amount: 30 });
+
+      const result = round.applyAction(players[2], {
+        type: "raise",
+        amount: 30,
+      });
       expect(result.valid).toBe(true);
       expect(players[2].allIn).toBe(true);
-      
+
       expect(round.currentBet).toBe(130);
     });
 
@@ -180,14 +185,29 @@ describe("Critical Edge Cases", () => {
         bigBlind: 100,
       });
 
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
-      game.addPlayer({ id: "p3", name: "Player3", chips: 1000, endpoint: "http://bot3" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
+      game.addPlayer({
+        id: "p3",
+        name: "Player3",
+        chips: 1000,
+        endpoint: "http://bot3",
+      });
 
       game.handlePlayerLeave("p3");
 
       const state = game.getState();
-      const activePlayers = state.players.filter(p => !p.disconnected);
+      const activePlayers = state.players.filter((p) => !p.disconnected);
       expect(activePlayers.length).toBe(2);
     });
 
@@ -199,8 +219,18 @@ describe("Critical Edge Cases", () => {
         bigBlind: 100,
       });
 
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 1000, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 1000,
+        endpoint: "http://bot2",
+      });
 
       const state = game.getState();
       expect(state.players.length).toBe(2);
@@ -275,8 +305,8 @@ describe("Critical Edge Cases", () => {
       players[1].chips = 0;
       players[1].busted = true;
 
-      const remaining = players.filter(p => !p.busted).length;
-      const bustedCount = players.filter(p => p.busted).length;
+      const remaining = players.filter((p) => !p.busted).length;
+      const bustedCount = players.filter((p) => p.busted).length;
 
       players[0].finishPosition = remaining + bustedCount;
       players[1].finishPosition = remaining + bustedCount;
@@ -302,7 +332,9 @@ describe("Critical Edge Cases", () => {
         dealerIndex: 0,
       });
 
-      const canAct = players.filter(p => !p.folded && !p.allIn && p.chips > 0);
+      const canAct = players.filter(
+        (p) => !p.folded && !p.allIn && p.chips > 0,
+      );
       expect(canAct.length).toBe(0);
       expect(round.isBettingComplete()).toBe(true);
     });
@@ -321,16 +353,26 @@ describe("Critical Edge Cases", () => {
         smallBlind: 10,
         bigBlind: 20,
       });
-      game.addPlayer({ id: "p1", name: "Player1", chips: 1000, endpoint: "http://bot1" });
-      game.addPlayer({ id: "p2", name: "Player2", chips: 500, endpoint: "http://bot2" });
+      game.addPlayer({
+        id: "p1",
+        name: "Player1",
+        chips: 1000,
+        endpoint: "http://bot1",
+      });
+      game.addPlayer({
+        id: "p2",
+        name: "Player2",
+        chips: 500,
+        endpoint: "http://bot2",
+      });
       game.startHand();
       game.setCurrentPlayer("p1");
     });
 
     it("should treat raise > stack as all-in", () => {
       const result = game.processAction("p1", "raise", 2000);
-      
-      const p1 = game.getState().players.find(p => p.id === "p1");
+
+      const p1 = game.getState().players.find((p) => p.id === "p1");
       expect(p1?.allIn).toBe(true);
       expect(p1?.chips).toBe(0);
     });

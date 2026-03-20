@@ -101,10 +101,12 @@ describe("PotManager - Side Pot Calculations", () => {
       potManager.calculatePots(players);
 
       expect(potManager.getTotalPot()).toBe(350);
-      
-      const eligibleCounts = potManager.pots.map((p) => p.eligiblePlayerIds.length);
+
+      const eligibleCounts = potManager.pots.map(
+        (p) => p.eligiblePlayerIds.length,
+      );
       expect(eligibleCounts.every((c) => c === 1)).toBe(true);
-      
+
       for (const pot of potManager.pots) {
         expect(pot.eligiblePlayerIds).toContain("winner");
       }
@@ -125,9 +127,24 @@ describe("PotManager - Side Pot Calculations", () => {
       };
 
       const players: TestPlayer[] = [
-        { id: "p1", chips: startingChips.p1 - bets.p1, folded: false, allIn: false },
-        { id: "p2", chips: startingChips.p2 - bets.p2, folded: false, allIn: false },
-        { id: "p3", chips: startingChips.p3 - bets.p3, folded: false, allIn: false },
+        {
+          id: "p1",
+          chips: startingChips.p1 - bets.p1,
+          folded: false,
+          allIn: false,
+        },
+        {
+          id: "p2",
+          chips: startingChips.p2 - bets.p2,
+          folded: false,
+          allIn: false,
+        },
+        {
+          id: "p3",
+          chips: startingChips.p3 - bets.p3,
+          folded: false,
+          allIn: false,
+        },
       ];
 
       potManager.addBet("p1", bets.p1);
@@ -135,7 +152,10 @@ describe("PotManager - Side Pot Calculations", () => {
       potManager.addBet("p3", bets.p3);
       potManager.calculatePots(players);
 
-      const totalStarting = Object.values(startingChips).reduce((a, b) => a + b, 0);
+      const totalStarting = Object.values(startingChips).reduce(
+        (a, b) => a + b,
+        0,
+      );
       const totalRemaining = players.reduce((s, p) => s + p.chips, 0);
       const totalInPot = potManager.getTotalPot();
 
@@ -163,7 +183,10 @@ describe("PotManager - Side Pot Calculations", () => {
       potManager.addBet("p4", 500);
       potManager.calculatePots(players);
 
-      const totalStarting = Object.values(startingChips).reduce((a, b) => a + b, 0);
+      const totalStarting = Object.values(startingChips).reduce(
+        (a, b) => a + b,
+        0,
+      );
       const totalRemaining = players.reduce((s, p) => s + p.chips, 0);
       const totalInPot = potManager.getTotalPot();
 

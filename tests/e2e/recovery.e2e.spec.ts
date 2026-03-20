@@ -56,7 +56,7 @@ function createControllableBotServer(port: number): Promise<BotServer> {
     const createServer = () => {
       return http.createServer((req, res) => {
         requestCount++;
-        
+
         if (!isOnline) {
           res.destroy();
           return;
@@ -78,18 +78,27 @@ function createControllableBotServer(port: number): Promise<BotServer> {
       resolve({
         server,
         port,
-        get isOnline() { return isOnline; },
-        get requestCount() { return requestCount; },
+        get isOnline() {
+          return isOnline;
+        },
+        get requestCount() {
+          return requestCount;
+        },
         close: () => new Promise<void>((res) => server.close(() => res())),
-        restart: () => new Promise<void>((res, rej) => {
-          server.close(() => {
-            server = createServer();
-            server.on("error", rej);
-            server.listen(port, () => res());
-          });
-        }),
-        setOffline: () => { isOnline = false; },
-        setOnline: () => { isOnline = true; },
+        restart: () =>
+          new Promise<void>((res, rej) => {
+            server.close(() => {
+              server = createServer();
+              server.on("error", rej);
+              server.listen(port, () => res());
+            });
+          }),
+        setOffline: () => {
+          isOnline = false;
+        },
+        setOnline: () => {
+          isOnline = true;
+        },
       });
     });
   });
@@ -115,7 +124,9 @@ describe("Recovery E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 100000 }]),
+        ThrottlerModule.forRoot([
+          { name: "default", ttl: 60000, limit: 100000 },
+        ]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -126,7 +137,13 @@ describe("Recovery E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     dataSource = moduleFixture.get(DataSource);
@@ -134,13 +151,19 @@ describe("Recovery E2E Tests", () => {
 
   afterAll(async () => {
     for (const bot of botServers) {
-      try { await bot.close(); } catch {}
+      try {
+        await bot.close();
+      } catch {}
     }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
   });
 
-  async function registerPlayer(): Promise<{ accessToken: string; bot: { id: string }; botServer: BotServer }> {
+  async function registerPlayer(): Promise<{
+    accessToken: string;
+    bot: { id: string };
+    botServer: BotServer;
+  }> {
     const id = uid();
     const port = getNextPort();
     const botServer = await createControllableBotServer(port);
@@ -163,7 +186,7 @@ describe("Recovery E2E Tests", () => {
   describe("Session Recovery", () => {
     it("should maintain valid token across multiple requests", async () => {
       const player = await registerPlayer();
-      
+
       // First request
       const res1 = await request(app.getHttpServer())
         .get("/api/v1/auth/me")
@@ -171,7 +194,7 @@ describe("Recovery E2E Tests", () => {
         .expect(200);
 
       // Wait a bit
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
 
       // Second request with same token
       const res2 = await request(app.getHttpServer())
@@ -183,7 +206,8 @@ describe("Recovery E2E Tests", () => {
     });
 
     it("should reject expired/invalid tokens gracefully", async () => {
-      const invalidToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+      const invalidToken =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
 
       const response = await request(app.getHttpServer())
         .get("/api/v1/auth/me")
@@ -262,7 +286,7 @@ describe("Recovery E2E Tests", () => {
         .expect(201);
 
       // Wait for game to start
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 2000));
 
       // Get state
       const state1 = await request(app.getHttpServer())
@@ -272,7 +296,7 @@ describe("Recovery E2E Tests", () => {
       expect([200, 404]).toContain(state1.status);
 
       // Wait a bit and get state again
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
 
       const state2 = await request(app.getHttpServer())
         .get(`/api/v1/games/${tableId}/state`)
@@ -311,7 +335,7 @@ describe("Recovery E2E Tests", () => {
         .expect(201);
 
       // Let game play multiple hands
-      await new Promise(r => setTimeout(r, 8000));
+      await new Promise((r) => setTimeout(r, 8000));
 
       // Get final state
       const finalState = await request(app.getHttpServer())
@@ -322,7 +346,7 @@ describe("Recovery E2E Tests", () => {
         // Total chips should still be 2000
         const totalChips = finalState.body.players.reduce(
           (sum: number, p: any) => sum + (p.chips || 0),
-          0
+          0,
         );
         expect(totalChips).toBe(2000);
       }
@@ -334,16 +358,18 @@ describe("Recovery E2E Tests", () => {
       const player = await registerPlayer();
 
       // Make many rapid requests
-      const requests = Array(5).fill(null).map(() =>
-        request(app.getHttpServer())
-          .get("/api/v1/games/tables")
-          .set("Authorization", `Bearer ${player.accessToken}`)
-      );
+      const requests = Array(5)
+        .fill(null)
+        .map(() =>
+          request(app.getHttpServer())
+            .get("/api/v1/games/tables")
+            .set("Authorization", `Bearer ${player.accessToken}`),
+        );
 
       const results = await Promise.all(requests);
-      
+
       // All should succeed without database errors
-      results.forEach(r => expect(r.status).toBe(200));
+      results.forEach((r) => expect(r.status).toBe(200));
     });
 
     it("should handle malformed requests gracefully", async () => {
@@ -374,10 +400,7 @@ describe("Recovery E2E Tests", () => {
 
   describe("Concurrent Access Recovery", () => {
     it("should handle concurrent joins to same table", async () => {
-      const players = await Promise.all([
-        registerPlayer(),
-        registerPlayer(),
-      ]);
+      const players = await Promise.all([registerPlayer(), registerPlayer()]);
 
       const tableRes = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
@@ -405,7 +428,7 @@ describe("Recovery E2E Tests", () => {
       ]);
 
       // Both should succeed
-      const successCount = joins.filter(j => j.status === 201).length;
+      const successCount = joins.filter((j) => j.status === 201).length;
       expect(successCount).toBe(2);
     });
   });

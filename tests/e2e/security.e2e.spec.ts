@@ -2,7 +2,7 @@
  * Security E2E Tests
  * ==================
  * Tests designed to verify security measures and prevent exploitation.
- * 
+ *
  * Categories:
  * 1. Authentication bypass attempts
  * 2. Authorization violations (accessing other users' resources)
@@ -113,7 +113,13 @@ describe("Security E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     dataSource = moduleFixture.get(DataSource);
@@ -124,11 +130,17 @@ describe("Security E2E Tests", () => {
     await app.close();
   });
 
-  async function registerUserWithBot(): Promise<{ user: ReturnType<typeof createTestUser>; bot: ReturnType<typeof createTestBot>; accessToken: string; botId: string; botServer: BotServer }> {
+  async function registerUserWithBot(): Promise<{
+    user: ReturnType<typeof createTestUser>;
+    bot: ReturnType<typeof createTestBot>;
+    accessToken: string;
+    botId: string;
+    botServer: BotServer;
+  }> {
     const user = createTestUser();
     const bot = createTestBot(user.name);
     const botServer = await createMockBotServer();
-    
+
     const response = await request(app.getHttpServer())
       .post("/api/v1/auth/register-developer")
       .send({
@@ -139,7 +151,7 @@ describe("Security E2E Tests", () => {
         botEndpoint: `http://localhost:${botServer.port}`,
       })
       .expect(201);
-    
+
     return {
       user,
       bot,
@@ -149,29 +161,33 @@ describe("Security E2E Tests", () => {
     };
   }
 
-  async function registerUser(): Promise<{ user: ReturnType<typeof createTestUser>; accessToken: string }> {
+  async function registerUser(): Promise<{
+    user: ReturnType<typeof createTestUser>;
+    accessToken: string;
+  }> {
     const user = createTestUser();
-    
+
     await request(app.getHttpServer())
       .post("/api/v1/auth/register")
       .send({ email: user.email, name: user.name, password: user.password })
       .expect(201);
-    
-    await dataSource.query('UPDATE "users" SET email_verified = true WHERE email = $1', [user.email]);
-    
+
+    await dataSource.query(
+      'UPDATE "users" SET email_verified = true WHERE email = $1',
+      [user.email],
+    );
+
     const loginResponse = await request(app.getHttpServer())
       .post("/api/v1/auth/login")
       .send({ email: user.email, password: user.password })
       .expect(200);
-    
+
     return { user, accessToken: loginResponse.body.accessToken };
   }
 
   describe.concurrent("Authentication Bypass Attempts", () => {
     it("should reject requests without authorization header", async () => {
-      await request(app.getHttpServer())
-        .get("/api/v1/bots/my")
-        .expect(401);
+      await request(app.getHttpServer()).get("/api/v1/bots/my").expect(401);
     });
 
     it("should reject requests with empty bearer token", async () => {
@@ -190,16 +206,18 @@ describe("Security E2E Tests", () => {
 
     it("should reject requests with tampered JWT payload", async () => {
       const { accessToken } = await registerUser();
-      
+
       const parts = accessToken.split(".");
-      const tamperedPayload = Buffer.from(JSON.stringify({
-        sub: "00000000-0000-0000-0000-000000000000",
-        email: `tampered-${uid()}@test.com`,
-        iat: Date.now(),
-      })).toString("base64url");
-      
+      const tamperedPayload = Buffer.from(
+        JSON.stringify({
+          sub: "00000000-0000-0000-0000-000000000000",
+          email: `tampered-${uid()}@test.com`,
+          iat: Date.now(),
+        }),
+      ).toString("base64url");
+
       const tamperedToken = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
-      
+
       await request(app.getHttpServer())
         .get("/api/v1/auth/me")
         .set("Authorization", `Bearer ${tamperedToken}`)
@@ -207,8 +225,9 @@ describe("Security E2E Tests", () => {
     });
 
     it("should reject expired tokens", async () => {
-      const expiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZW1haWwiOiJ0ZXN0QHRlc3QuY29tIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE1MTYyMzkwMjJ9.invalid";
-      
+      const expiredToken =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZW1haWwiOiJ0ZXN0QHRlc3QuY29tIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE1MTYyMzkwMjJ9.invalid";
+
       await request(app.getHttpServer())
         .get("/api/v1/auth/me")
         .set("Authorization", `Bearer ${expiredToken}`)
@@ -311,7 +330,7 @@ describe("Security E2E Tests", () => {
         });
 
       expect(response.status).toBe(400);
-      
+
       const users = await dataSource.query("SELECT COUNT(*) FROM users");
       expect(users).toBeDefined();
     });
@@ -529,7 +548,7 @@ describe("Security E2E Tests", () => {
     it("should enforce maximum password length", async () => {
       const id = uid();
       const longPassword = "A".repeat(200) + "1!";
-      
+
       const response = await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
@@ -544,7 +563,7 @@ describe("Security E2E Tests", () => {
     it("should enforce maximum email length", async () => {
       const id = uid();
       const longEmail = "a".repeat(300) + `${id}@test.com`;
-      
+
       const response = await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
@@ -559,7 +578,7 @@ describe("Security E2E Tests", () => {
     it("should enforce maximum name length", async () => {
       const id = uid();
       const longName = "A".repeat(500);
-      
+
       const response = await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({

@@ -85,7 +85,9 @@ describe("Provably Fair E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 100000 }]),
+        ThrottlerModule.forRoot([
+          { name: "default", ttl: 60000, limit: 100000 },
+        ]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -96,7 +98,13 @@ describe("Provably Fair E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     dataSource = moduleFixture.get(DataSource);
@@ -104,13 +112,19 @@ describe("Provably Fair E2E Tests", () => {
 
   afterAll(async () => {
     for (const bot of botServers) {
-      try { await bot.close(); } catch {}
+      try {
+        await bot.close();
+      } catch {}
     }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
   });
 
-  async function registerPlayer(): Promise<{ accessToken: string; bot: { id: string }; botServer: BotServer }> {
+  async function registerPlayer(): Promise<{
+    accessToken: string;
+    bot: { id: string };
+    botServer: BotServer;
+  }> {
     const id = uid();
     const port = getNextPort();
     const botServer = await createBotServer(port);
@@ -132,8 +146,9 @@ describe("Provably Fair E2E Tests", () => {
 
   describe("Provably Fair Info", () => {
     it("should return provably fair documentation", async () => {
-      const response = await request(app.getHttpServer())
-        .get("/api/v1/games/provably-fair/info");
+      const response = await request(app.getHttpServer()).get(
+        "/api/v1/games/provably-fair/info",
+      );
 
       expect([200, 404]).toContain(response.status);
       if (response.status === 200) {
@@ -142,15 +157,16 @@ describe("Provably Fair E2E Tests", () => {
     });
 
     it("should explain the verification process", async () => {
-      const response = await request(app.getHttpServer())
-        .get("/api/v1/games/provably-fair/info");
+      const response = await request(app.getHttpServer()).get(
+        "/api/v1/games/provably-fair/info",
+      );
 
       if (response.status === 200 && response.body.description) {
         // Should mention key concepts
         const desc = response.body.description.toLowerCase();
-        const hasRelevantInfo = 
-          desc.includes("seed") || 
-          desc.includes("hash") || 
+        const hasRelevantInfo =
+          desc.includes("seed") ||
+          desc.includes("hash") ||
           desc.includes("verify") ||
           desc.includes("random") ||
           desc.includes("fair");
@@ -191,7 +207,7 @@ describe("Provably Fair E2E Tests", () => {
         .expect(201);
 
       // Wait for game to start
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 3000));
 
       // Get game state - should include provably fair commitment
       const state = await request(app.getHttpServer())
@@ -235,7 +251,7 @@ describe("Provably Fair E2E Tests", () => {
         .expect(201);
 
       // Wait for a hand to complete
-      await new Promise(r => setTimeout(r, 8000));
+      await new Promise((r) => setTimeout(r, 8000));
 
       // Try to get hand history with verification data
       const handsRes = await request(app.getHttpServer())
@@ -246,8 +262,9 @@ describe("Provably Fair E2E Tests", () => {
     }, 30000);
 
     it("should return verification endpoint for specific hand", async () => {
-      const response = await request(app.getHttpServer())
-        .get("/api/v1/games/provably-fair/verify/test-hand-id");
+      const response = await request(app.getHttpServer()).get(
+        "/api/v1/games/provably-fair/verify/test-hand-id",
+      );
 
       // Endpoint should exist even if hand doesn't
       expect([200, 400, 404]).toContain(response.status);
@@ -259,7 +276,7 @@ describe("Provably Fair E2E Tests", () => {
       // Test that SHA-256 produces expected output
       const testSeed = "test-server-seed";
       const hash = crypto.createHash("sha256").update(testSeed).digest("hex");
-      
+
       expect(hash).toHaveLength(64); // SHA-256 produces 64 hex chars
       expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
     });
@@ -312,7 +329,7 @@ describe("Provably Fair E2E Tests", () => {
         .expect(201);
 
       // Wait for game to complete
-      await new Promise(r => setTimeout(r, 10000));
+      await new Promise((r) => setTimeout(r, 10000));
 
       // Check that we can retrieve audit data
       const auditRes = await request(app.getHttpServer())
@@ -325,8 +342,9 @@ describe("Provably Fair E2E Tests", () => {
 
   describe("Client-Side Verification", () => {
     it("should provide all data needed for client verification", async () => {
-      const infoRes = await request(app.getHttpServer())
-        .get("/api/v1/games/provably-fair/info");
+      const infoRes = await request(app.getHttpServer()).get(
+        "/api/v1/games/provably-fair/info",
+      );
 
       if (infoRes.status === 200) {
         // Should provide verification instructions or tools
@@ -341,12 +359,18 @@ describe("Provably Fair E2E Tests", () => {
       // The server commits to a hash before players act
       // After the hand, the seed is revealed
       // Players can verify: hash(revealed_seed) === commitment
-      
+
       const testSeed = "server-seed-" + Date.now();
-      const commitment = crypto.createHash("sha256").update(testSeed).digest("hex");
-      
+      const commitment = crypto
+        .createHash("sha256")
+        .update(testSeed)
+        .digest("hex");
+
       // Verify commitment matches seed
-      const verificationHash = crypto.createHash("sha256").update(testSeed).digest("hex");
+      const verificationHash = crypto
+        .createHash("sha256")
+        .update(testSeed)
+        .digest("hex");
       expect(commitment).toBe(verificationHash);
     });
 
@@ -362,7 +386,7 @@ describe("Provably Fair E2E Tests", () => {
         .digest("hex");
 
       expect(combinedSeed).toHaveLength(64);
-      
+
       // Different player seeds should produce different combined seeds
       const differentCombined = crypto
         .createHash("sha256")
@@ -377,10 +401,58 @@ describe("Provably Fair E2E Tests", () => {
 // Helper function to simulate deterministic deck generation
 function generateDeterministicDeck(seed: string): string[] {
   const cards = [
-    "2h", "3h", "4h", "5h", "6h", "7h", "8h", "9h", "Th", "Jh", "Qh", "Kh", "Ah",
-    "2d", "3d", "4d", "5d", "6d", "7d", "8d", "9d", "Td", "Jd", "Qd", "Kd", "Ad",
-    "2c", "3c", "4c", "5c", "6c", "7c", "8c", "9c", "Tc", "Jc", "Qc", "Kc", "Ac",
-    "2s", "3s", "4s", "5s", "6s", "7s", "8s", "9s", "Ts", "Js", "Qs", "Ks", "As",
+    "2h",
+    "3h",
+    "4h",
+    "5h",
+    "6h",
+    "7h",
+    "8h",
+    "9h",
+    "Th",
+    "Jh",
+    "Qh",
+    "Kh",
+    "Ah",
+    "2d",
+    "3d",
+    "4d",
+    "5d",
+    "6d",
+    "7d",
+    "8d",
+    "9d",
+    "Td",
+    "Jd",
+    "Qd",
+    "Kd",
+    "Ad",
+    "2c",
+    "3c",
+    "4c",
+    "5c",
+    "6c",
+    "7c",
+    "8c",
+    "9c",
+    "Tc",
+    "Jc",
+    "Qc",
+    "Kc",
+    "Ac",
+    "2s",
+    "3s",
+    "4s",
+    "5s",
+    "6s",
+    "7s",
+    "8s",
+    "9s",
+    "Ts",
+    "Js",
+    "Qs",
+    "Ks",
+    "As",
   ];
 
   // Create seeded random using hash

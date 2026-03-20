@@ -271,10 +271,7 @@ describe("BotCaller Integration Tests", () => {
       const botName = `failing-bot-${port}`;
 
       for (let i = 0; i < 3; i++) {
-        await botCallerService.healthCheck(
-          botName,
-          `http://localhost:${port}`,
-        );
+        await botCallerService.healthCheck(botName, `http://localhost:${port}`);
       }
 
       const status = botCallerService.getHealthStatus(botName);
@@ -295,8 +292,14 @@ describe("BotCaller Integration Tests", () => {
       try {
         await mockBot.start();
 
-        await botCallerService.healthCheck(`all-bot-${port1}`, mockBot.getEndpoint());
-        await botCallerService.healthCheck(`all-bot-${port2}`, mockBot.getEndpoint());
+        await botCallerService.healthCheck(
+          `all-bot-${port1}`,
+          mockBot.getEndpoint(),
+        );
+        await botCallerService.healthCheck(
+          `all-bot-${port2}`,
+          mockBot.getEndpoint(),
+        );
 
         const allStatuses = botCallerService.getAllHealthStatuses();
         expect(Array.isArray(allStatuses)).toBe(true);

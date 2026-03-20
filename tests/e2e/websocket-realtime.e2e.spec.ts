@@ -75,7 +75,7 @@ describe("WebSocket Real-time E2E Tests", () => {
 
   beforeAll(async () => {
     appPort = 3100 + Math.floor(Math.random() * 100);
-    
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, load: [appConfig] }),
@@ -90,7 +90,9 @@ describe("WebSocket Real-time E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 100000 }]),
+        ThrottlerModule.forRoot([
+          { name: "default", ttl: 60000, limit: 100000 },
+        ]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -101,7 +103,13 @@ describe("WebSocket Real-time E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     await app.listen(appPort);
@@ -110,16 +118,24 @@ describe("WebSocket Real-time E2E Tests", () => {
 
   afterAll(async () => {
     for (const socket of sockets) {
-      try { socket.disconnect(); } catch {}
+      try {
+        socket.disconnect();
+      } catch {}
     }
     for (const bot of botServers) {
-      try { await bot.close(); } catch {}
+      try {
+        await bot.close();
+      } catch {}
     }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
   });
 
-  async function registerPlayer(): Promise<{ accessToken: string; bot: { id: string }; botServer: BotServer }> {
+  async function registerPlayer(): Promise<{
+    accessToken: string;
+    bot: { id: string };
+    botServer: BotServer;
+  }> {
     const id = uid();
     const port = getNextPort();
     const botServer = await createBotServer(port);
@@ -155,7 +171,10 @@ describe("WebSocket Real-time E2E Tests", () => {
       const socket = createSocket(player.accessToken);
 
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("Connection timeout")), 5000);
+        const timeout = setTimeout(
+          () => reject(new Error("Connection timeout")),
+          5000,
+        );
         socket.on("connect", () => {
           clearTimeout(timeout);
           resolve();
@@ -196,7 +215,10 @@ describe("WebSocket Real-time E2E Tests", () => {
       const socket = createSocket(player.accessToken);
 
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("Connection timeout")), 5000);
+        const timeout = setTimeout(
+          () => reject(new Error("Connection timeout")),
+          5000,
+        );
         socket.on("connect", () => {
           clearTimeout(timeout);
           resolve();
@@ -221,7 +243,7 @@ describe("WebSocket Real-time E2E Tests", () => {
       socket.emit("subscribeToTable", { tableId: tableRes.body.id });
 
       // Wait for acknowledgment or state update
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
 
       socket.disconnect();
     });
@@ -229,12 +251,15 @@ describe("WebSocket Real-time E2E Tests", () => {
     it("should receive game state updates after joining", async () => {
       const player1 = await registerPlayer();
       const player2 = await registerPlayer();
-      
+
       const socket = createSocket(player1.accessToken);
       const receivedEvents: any[] = [];
 
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("Connection timeout")), 5000);
+        const timeout = setTimeout(
+          () => reject(new Error("Connection timeout")),
+          5000,
+        );
         socket.on("connect", () => {
           clearTimeout(timeout);
           resolve();
@@ -242,9 +267,15 @@ describe("WebSocket Real-time E2E Tests", () => {
       });
 
       // Listen for game events
-      socket.on("gameState", (data) => receivedEvents.push({ type: "gameState", data }));
-      socket.on("playerAction", (data) => receivedEvents.push({ type: "playerAction", data }));
-      socket.on("handStarted", (data) => receivedEvents.push({ type: "handStarted", data }));
+      socket.on("gameState", (data) =>
+        receivedEvents.push({ type: "gameState", data }),
+      );
+      socket.on("playerAction", (data) =>
+        receivedEvents.push({ type: "playerAction", data }),
+      );
+      socket.on("handStarted", (data) =>
+        receivedEvents.push({ type: "handStarted", data }),
+      );
 
       // Create table and subscribe
       const tableRes = await request(app.getHttpServer())
@@ -276,7 +307,7 @@ describe("WebSocket Real-time E2E Tests", () => {
         .expect(201);
 
       // Wait for game events
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 3000));
 
       // Should have received some events
       // Note: exact events depend on game progression
@@ -288,10 +319,10 @@ describe("WebSocket Real-time E2E Tests", () => {
     it("should broadcast events to multiple subscribed clients", async () => {
       const player1 = await registerPlayer();
       const player2 = await registerPlayer();
-      
+
       const socket1 = createSocket(player1.accessToken);
       const socket2 = createSocket(player2.accessToken);
-      
+
       const events1: any[] = [];
       const events2: any[] = [];
 
@@ -336,7 +367,7 @@ describe("WebSocket Real-time E2E Tests", () => {
         .send({ bot_id: player2.bot.id })
         .expect(201);
 
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 2000));
 
       socket1.disconnect();
       socket2.disconnect();
@@ -369,17 +400,17 @@ describe("WebSocket Real-time E2E Tests", () => {
 
       // Subscribe
       socket.emit("subscribeToTable", { tableId: tableRes.body.id });
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
 
       // Unsubscribe
       socket.emit("unsubscribeFromTable", { tableId: tableRes.body.id });
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
 
       const countAfterUnsub = eventCount;
 
       // Further events shouldn't increment count
-      await new Promise(r => setTimeout(r, 1000));
-      
+      await new Promise((r) => setTimeout(r, 1000));
+
       // Events after unsubscribe should not be received
       // This is a soft check as timing may vary
       socket.disconnect();
@@ -392,30 +423,33 @@ describe("WebSocket Real-time E2E Tests", () => {
       const socket = createSocket(player.accessToken);
 
       await new Promise<void>((resolve) => socket.on("connect", resolve));
-      
+
       expect(socket.connected).toBe(true);
-      
+
       socket.disconnect();
-      
-      await new Promise(r => setTimeout(r, 100));
+
+      await new Promise((r) => setTimeout(r, 100));
       expect(socket.connected).toBe(false);
     });
 
     it("should be able to reconnect after disconnection", async () => {
       const player = await registerPlayer();
-      
+
       // First connection
       const socket1 = createSocket(player.accessToken);
       await new Promise<void>((resolve) => socket1.on("connect", resolve));
       socket1.disconnect();
 
       // Wait a bit
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
 
       // Reconnect with new socket
       const socket2 = createSocket(player.accessToken);
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("Reconnection timeout")), 5000);
+        const timeout = setTimeout(
+          () => reject(new Error("Reconnection timeout")),
+          5000,
+        );
         socket2.on("connect", () => {
           clearTimeout(timeout);
           resolve();

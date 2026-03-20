@@ -14,13 +14,20 @@ describe("Worker Messages", () => {
     it("should return true for ADD_PLAYER command", () => {
       const command: WorkerCommand = {
         type: "ADD_PLAYER",
-        player: { id: "bot-1", name: "TestBot", endpoint: "http://localhost:8080" },
+        player: {
+          id: "bot-1",
+          name: "TestBot",
+          endpoint: "http://localhost:8080",
+        },
       };
       expect(isWorkerCommand(command)).toBe(true);
     });
 
     it("should return true for REMOVE_PLAYER command", () => {
-      const command: WorkerCommand = { type: "REMOVE_PLAYER", playerId: "bot-1" };
+      const command: WorkerCommand = {
+        type: "REMOVE_PLAYER",
+        playerId: "bot-1",
+      };
       expect(isWorkerCommand(command)).toBe(true);
     });
 

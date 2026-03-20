@@ -28,7 +28,9 @@ describe.concurrent("Bots Integration Tests (Unit-style)", () => {
   describe.concurrent("Bot Name Validation", () => {
     it("should validate bot names", () => {
       const validName = (name: string): boolean => {
-        return name.length >= 3 && name.length <= 50 && /^[a-zA-Z0-9_-]+$/.test(name);
+        return (
+          name.length >= 3 && name.length <= 50 && /^[a-zA-Z0-9_-]+$/.test(name)
+        );
       };
 
       expect(validName("MyBot")).toBe(true);
@@ -38,7 +40,9 @@ describe.concurrent("Bots Integration Tests (Unit-style)", () => {
 
     it("should reject invalid bot names", () => {
       const validName = (name: string): boolean => {
-        return name.length >= 3 && name.length <= 50 && /^[a-zA-Z0-9_-]+$/.test(name);
+        return (
+          name.length >= 3 && name.length <= 50 && /^[a-zA-Z0-9_-]+$/.test(name)
+        );
       };
 
       expect(validName("ab")).toBe(false);
@@ -137,7 +141,7 @@ describe.concurrent("Bots Integration Tests (Unit-style)", () => {
 
     it("should reset circuit after success", () => {
       let failures = 3;
-      let circuitOpen = false;
+      const circuitOpen = false;
 
       failures = 0;
 

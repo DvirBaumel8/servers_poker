@@ -390,12 +390,9 @@ describe("Tournaments E2E Tests", () => {
         "User2TournamentBot",
       );
 
-      const tournamentResponse = await createTestTournament(
-        user1.accessToken,
-        {
-          name: `MultiOwnerTournament-${uid()}`,
-        },
-      );
+      const tournamentResponse = await createTestTournament(user1.accessToken, {
+        name: `MultiOwnerTournament-${uid()}`,
+      });
       const tournamentId = tournamentResponse.body.id;
 
       await request(app.getHttpServer())
@@ -453,12 +450,9 @@ describe("Tournaments E2E Tests", () => {
       const bot1 = await createTestBot(user1.accessToken, "StateBot1");
       const bot2 = await createTestBot(user2.accessToken, "StateBot2");
 
-      const tournamentResponse = await createTestTournament(
-        user1.accessToken,
-        {
-          name: `StateTournament-${uid()}`,
-        },
-      );
+      const tournamentResponse = await createTestTournament(user1.accessToken, {
+        name: `StateTournament-${uid()}`,
+      });
       const tournamentId = tournamentResponse.body.id;
 
       await request(app.getHttpServer())
