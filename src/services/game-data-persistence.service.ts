@@ -106,7 +106,7 @@ export class GameDataPersistenceService implements OnModuleInit {
     private readonly chipMovementRepository: Repository<ChipMovement>,
   ) {}
 
-  onModuleInit(): void {
+  async onModuleInit(): Promise<void> {
     this.logger.log("Game Data Persistence Service initialized");
 
     this.eventEmitter.on("game.handStarted", this.onHandStarted.bind(this));
@@ -114,6 +114,41 @@ export class GameDataPersistenceService implements OnModuleInit {
     this.eventEmitter.on("game.handComplete", this.onHandComplete.bind(this));
     this.eventEmitter.on("game.finished", this.onGameFinished.bind(this));
     this.eventEmitter.on("game.penaltyFold", this.onPenaltyFold.bind(this));
+
+    await this.cleanupOrphanedGames();
+  }
+
+  private async cleanupOrphanedGames(): Promise<void> {
+    try {
+      const orphaned = await this.gameRepository.find({
+        where: { status: "running" as any },
+      });
+
+      if (orphaned.length > 0) {
+        for (const game of orphaned) {
+          await this.gameRepository.update(game.id, {
+            status: "finished" as any,
+            finished_at: new Date(),
+          });
+
+          await this.dataSource.query(
+            `UPDATE game_players SET end_chips = COALESCE(end_chips, start_chips) WHERE game_id = $1 AND end_chips IS NULL`,
+            [game.id],
+          );
+
+          await this.dataSource.query(
+            `UPDATE tables SET status = 'waiting' WHERE id = $1 AND status = 'running'`,
+            [game.table_id],
+          );
+        }
+
+        this.logger.warn(
+          `Cleaned up ${orphaned.length} orphaned game(s) from previous session`,
+        );
+      }
+    } catch (error: any) {
+      this.logger.error(`Orphaned game cleanup failed: ${error.message}`);
+    }
   }
 
   private async onHandStarted(event: HandStartedEvent): Promise<void> {
@@ -401,48 +436,49 @@ export class GameDataPersistenceService implements OnModuleInit {
   }
 
   private async updateBotStats(event: HandCompleteEvent): Promise<void> {
-    try {
-      for (const player of event.players || []) {
-        let stats = await this.botStatsRepository.findOne({
-          where: { bot_id: player.id },
-        });
-
-        if (!stats) {
-          stats = this.botStatsRepository.create({
-            bot_id: player.id,
-            total_hands: 0,
-            total_tournaments: 0,
-            tournament_wins: 0,
-            total_net: 0,
-            vpip_hands: 0,
-            pfr_hands: 0,
-            wtsd_hands: 0,
-            wmsd_hands: 0,
-            aggressive_actions: 0,
-            passive_actions: 0,
-          });
-        }
-
-        stats.total_hands += 1;
+    for (const player of event.players || []) {
+      try {
+        await this.ensureBotStatsExists(player.id);
 
         const isWinner = event.winners.some((w) => w.playerId === player.id);
         const winAmount = event.winners
           .filter((w) => w.playerId === player.id)
           .reduce((sum, w) => sum + w.amount, 0);
         const betAmount = player.totalBet ?? 0;
-        stats.total_net += winAmount - betAmount;
+        const netChange = winAmount - betAmount;
 
-        if (event.atShowdown && !player.folded) {
-          stats.wtsd_hands += 1;
-          if (isWinner) {
-            stats.wmsd_hands += 1;
-          }
+        await this.botStatsRepository.increment(
+          { bot_id: player.id },
+          "total_hands",
+          1,
+        );
+
+        if (netChange !== 0) {
+          await this.dataSource.query(
+            `UPDATE bot_stats SET total_net = total_net + $1, updated_at = NOW() WHERE bot_id = $2`,
+            [netChange, player.id],
+          );
         }
 
-        await this.botStatsRepository.save(stats);
+        if (event.atShowdown && !player.folded) {
+          await this.botStatsRepository.increment(
+            { bot_id: player.id },
+            "wtsd_hands",
+            1,
+          );
+          if (isWinner) {
+            await this.botStatsRepository.increment(
+              { bot_id: player.id },
+              "wmsd_hands",
+              1,
+            );
+          }
+        }
+      } catch (error: any) {
+        this.logger.error(
+          `Failed to update bot stats for ${player.id}: ${error.message}`,
+        );
       }
-    } catch (error: any) {
-      this.logger.error(`Failed to update bot stats: ${error.message}`);
     }
   }
 
@@ -518,29 +554,37 @@ export class GameDataPersistenceService implements OnModuleInit {
     }
   }
 
-  private async incrementBotStatField(
-    botId: string,
-    field: keyof BotStats,
-  ): Promise<void> {
-    let stats = await this.botStatsRepository.findOne({
+  private async ensureBotStatsExists(botId: string): Promise<void> {
+    const exists = await this.botStatsRepository.findOne({
       where: { bot_id: botId },
     });
-    if (!stats) {
-      stats = this.botStatsRepository.create({
-        bot_id: botId,
-        total_hands: 0,
-        total_tournaments: 0,
-        tournament_wins: 0,
-        total_net: 0,
-        vpip_hands: 0,
-        pfr_hands: 0,
-        wtsd_hands: 0,
-        wmsd_hands: 0,
-        aggressive_actions: 0,
-        passive_actions: 0,
-      });
+    if (!exists) {
+      try {
+        const stats = this.botStatsRepository.create({
+          bot_id: botId,
+          total_hands: 0,
+          total_tournaments: 0,
+          tournament_wins: 0,
+          total_net: 0,
+          vpip_hands: 0,
+          pfr_hands: 0,
+          wtsd_hands: 0,
+          wmsd_hands: 0,
+          aggressive_actions: 0,
+          passive_actions: 0,
+        });
+        await this.botStatsRepository.save(stats);
+      } catch {
+        // Ignore unique constraint violation (another call created it)
+      }
     }
-    (stats as any)[field] = ((stats as any)[field] || 0) + 1;
-    await this.botStatsRepository.save(stats);
+  }
+
+  private async incrementBotStatField(
+    botId: string,
+    field: string,
+  ): Promise<void> {
+    await this.ensureBotStatsExists(botId);
+    await this.botStatsRepository.increment({ bot_id: botId }, field, 1);
   }
 }

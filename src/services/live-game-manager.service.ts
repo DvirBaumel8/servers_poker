@@ -294,6 +294,10 @@ export class GameInstance {
         this.handNumber,
       );
       this.handSeeds.set(this.handNumber, this.currentHandSeed);
+      if (this.handSeeds.size > 50) {
+        const oldestKey = this.handSeeds.keys().next().value;
+        if (oldestKey !== undefined) this.handSeeds.delete(oldestKey);
+      }
       deck = shuffleWithOrder(createDeck(), this.currentHandSeed.deckOrder);
       this.logEvent({
         message: `Provably fair seed commitment: ${this.currentHandSeed.serverSeedHash.substring(0, 16)}...`,
