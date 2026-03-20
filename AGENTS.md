@@ -25,6 +25,22 @@
 4. Start frontend: `cd frontend && npx vite --port 3001`
 5. The `.env` file is created from `.env.example`; defaults work for local dev
 
+### Developer tooling
+
+| Tool | Check command | Auto-fix command |
+|------|--------------|-----------------|
+| ESLint (backend) | `npm run lint:check` | `npm run lint` |
+| ESLint (frontend) | `npm run lint:frontend` | — |
+| Prettier | `npm run format:check` | `npm run format` |
+| TypeScript | `npm run typecheck` | — |
+| Tests + coverage | `npm run test:cov` | — |
+| All checks | `npm run validate` | — |
+
+- **Coverage thresholds** (enforced in `vitest.config.ts`): 30% statements, 25% branches, 25% functions, 30% lines
+- **Pre-commit hooks**: Husky + lint-staged auto-lint and format staged `.ts` files on commit
+- **CI pipeline**: `.github/workflows/ci.yml` runs typecheck, lint, format, tests with coverage, security scan, and Docker build
+- **Cursor PR review rules**: `.cursor/rules/` contains review checklists for code quality, security, testing, and game engine integrity
+
 ### Key development notes
 
 - The backend uses NestJS with TypeORM. The `nest start --watch` dev command fails due to the TS error; use `npx tsc` + `node dist/src/main.js` or fix the type error first.
