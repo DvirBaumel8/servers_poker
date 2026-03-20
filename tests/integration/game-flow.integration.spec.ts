@@ -13,7 +13,13 @@ describe("Game Flow Integration Tests", () => {
   let eventEmitter: EventEmitter2;
 
   const mockBotCallerService = {
-    callBot: vi.fn().mockResolvedValue({ success: true, response: { type: "call" }, latencyMs: 10, attempt: 1, retried: false }),
+    callBot: vi.fn().mockResolvedValue({
+      success: true,
+      response: { type: "call" },
+      latencyMs: 10,
+      attempt: 1,
+      retried: false,
+    }),
     healthCheck: vi.fn().mockResolvedValue(true),
     getHealthStatus: vi.fn().mockReturnValue({ healthy: true }),
     getAllHealthStatuses: vi.fn().mockReturnValue([]),
@@ -25,7 +31,9 @@ describe("Game Flow Integration Tests", () => {
   };
 
   const mockBotResilienceService = {
-    callBotWithFallback: vi.fn().mockResolvedValue({ action: { type: "call" }, usedFallback: false }),
+    callBotWithFallback: vi
+      .fn()
+      .mockResolvedValue({ action: { type: "call" }, usedFallback: false }),
     recordSuccess: vi.fn(),
     recordFailure: vi.fn(),
     getCircuitState: vi.fn().mockReturnValue("closed"),

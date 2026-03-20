@@ -42,7 +42,9 @@ describe.concurrent("Auth Integration Tests (Unit-style)", () => {
       const minLength = 8;
       const testId = uid();
 
-      expect(`short${testId.slice(0, 2)}`.slice(0, 5).length >= minLength).toBe(false);
+      expect(`short${testId.slice(0, 2)}`.slice(0, 5).length >= minLength).toBe(
+        false,
+      );
       expect(`validpassword-${testId}`.length >= minLength).toBe(true);
       expect(`SecurePassword123!-${testId}`.length >= minLength).toBe(true);
     });

@@ -2,7 +2,7 @@
  * Stress & Edge Case E2E Tests
  * ============================
  * Tests designed to break the system, find edge cases, and verify robustness.
- * 
+ *
  * Categories:
  * 1. Timing attacks - slow bots, timeouts
  * 2. Invalid responses - malformed JSON, wrong action types
@@ -10,7 +10,7 @@
  * 4. Resource exhaustion - many bots, many games
  * 5. State manipulation - invalid game states
  * 6. Chip conservation - verify no chips created/destroyed
- * 
+ *
  * Note: Tests use isolated port ranges to enable parallel execution.
  * Each test gets its own port range: basePort + (testIndex * 10)
  */
@@ -49,7 +49,15 @@ function getNextPort(): number {
 
 function createBotServer(
   port: number,
-  behavior: "normal" | "slow" | "invalid-json" | "wrong-action" | "crash" | "huge-raise" | "negative-raise" | "all-in-always" = "normal",
+  behavior:
+    | "normal"
+    | "slow"
+    | "invalid-json"
+    | "wrong-action"
+    | "crash"
+    | "huge-raise"
+    | "negative-raise"
+    | "all-in-always" = "normal",
   delayMs: number = 0,
 ): Promise<BotServer> {
   return new Promise((resolve, reject) => {
@@ -126,8 +134,12 @@ function createBotServer(
       resolve({
         server,
         port,
-        get requestCount() { return requestCount; },
-        get lastPayload() { return lastPayload; },
+        get requestCount() {
+          return requestCount;
+        },
+        get lastPayload() {
+          return lastPayload;
+        },
         close: () => new Promise<void>((res) => server.close(() => res())),
       });
     });
@@ -179,7 +191,13 @@ describe("Stress & Edge Case E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     dataSource = moduleFixture.get(DataSource);
@@ -204,7 +222,12 @@ describe("Stress & Edge Case E2E Tests", () => {
       .then((res) => res.body);
   }
 
-  async function createTableAndJoin(token: string, botId: string, token2: string, botId2: string) {
+  async function createTableAndJoin(
+    token: string,
+    botId: string,
+    token2: string,
+    botId2: string,
+  ) {
     const tableResponse = await request(app.getHttpServer())
       .post("/api/v1/games/tables")
       .set("Authorization", `Bearer ${token}`)
@@ -244,20 +267,34 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`normal-${uid}@test.com`, `NormalBot-${uid}`, port1);
-        const dev2 = await registerDeveloper(`invalid-${uid}@test.com`, `InvalidBot-${uid}`, port2);
-
-        const tableId = await createTableAndJoin(
-          dev1.accessToken, dev1.bot.id,
-          dev2.accessToken, dev2.bot.id,
+        const dev1 = await registerDeveloper(
+          `normal-${uid}@test.com`,
+          `NormalBot-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `invalid-${uid}@test.com`,
+          `InvalidBot-${uid}`,
+          port2,
         );
 
-        await waitFor(async () => {
-          const state = await request(app.getHttpServer())
-            .get(`/api/v1/games/${tableId}/state`)
-            .set("Authorization", `Bearer ${dev1.accessToken}`);
-          return state.body?.handNumber >= 1;
-        }, 15000, 500);
+        const tableId = await createTableAndJoin(
+          dev1.accessToken,
+          dev1.bot.id,
+          dev2.accessToken,
+          dev2.bot.id,
+        );
+
+        await waitFor(
+          async () => {
+            const state = await request(app.getHttpServer())
+              .get(`/api/v1/games/${tableId}/state`)
+              .set("Authorization", `Bearer ${dev1.accessToken}`);
+            return state.body?.handNumber >= 1;
+          },
+          15000,
+          500,
+        );
 
         expect(invalidBot.requestCount).toBeGreaterThan(0);
       } finally {
@@ -274,20 +311,34 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`normal2-${uid}@test.com`, `NormalBot2-${uid}`, port1);
-        const dev2 = await registerDeveloper(`wrong-${uid}@test.com`, `WrongBot-${uid}`, port2);
-
-        const tableId = await createTableAndJoin(
-          dev1.accessToken, dev1.bot.id,
-          dev2.accessToken, dev2.bot.id,
+        const dev1 = await registerDeveloper(
+          `normal2-${uid}@test.com`,
+          `NormalBot2-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `wrong-${uid}@test.com`,
+          `WrongBot-${uid}`,
+          port2,
         );
 
-        await waitFor(async () => {
-          const state = await request(app.getHttpServer())
-            .get(`/api/v1/games/${tableId}/state`)
-            .set("Authorization", `Bearer ${dev1.accessToken}`);
-          return state.body?.handNumber >= 1;
-        }, 15000, 500);
+        const tableId = await createTableAndJoin(
+          dev1.accessToken,
+          dev1.bot.id,
+          dev2.accessToken,
+          dev2.bot.id,
+        );
+
+        await waitFor(
+          async () => {
+            const state = await request(app.getHttpServer())
+              .get(`/api/v1/games/${tableId}/state`)
+              .set("Authorization", `Bearer ${dev1.accessToken}`);
+            return state.body?.handNumber >= 1;
+          },
+          15000,
+          500,
+        );
 
         expect(wrongBot.requestCount).toBeGreaterThan(0);
       } finally {
@@ -304,20 +355,34 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`normal3-${uid}@test.com`, `NormalBot3-${uid}`, port1);
-        const dev2 = await registerDeveloper(`crash-${uid}@test.com`, `CrashBot-${uid}`, port2);
-
-        const tableId = await createTableAndJoin(
-          dev1.accessToken, dev1.bot.id,
-          dev2.accessToken, dev2.bot.id,
+        const dev1 = await registerDeveloper(
+          `normal3-${uid}@test.com`,
+          `NormalBot3-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `crash-${uid}@test.com`,
+          `CrashBot-${uid}`,
+          port2,
         );
 
-        await waitFor(async () => {
-          const state = await request(app.getHttpServer())
-            .get(`/api/v1/games/${tableId}/state`)
-            .set("Authorization", `Bearer ${dev1.accessToken}`);
-          return state.body?.handNumber >= 1;
-        }, 15000, 500);
+        const tableId = await createTableAndJoin(
+          dev1.accessToken,
+          dev1.bot.id,
+          dev2.accessToken,
+          dev2.bot.id,
+        );
+
+        await waitFor(
+          async () => {
+            const state = await request(app.getHttpServer())
+              .get(`/api/v1/games/${tableId}/state`)
+              .set("Authorization", `Bearer ${dev1.accessToken}`);
+            return state.body?.handNumber >= 1;
+          },
+          15000,
+          500,
+        );
       } finally {
         await normalBot.close();
         await crashBot.close();
@@ -332,20 +397,34 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`normal4-${uid}@test.com`, `NormalBot4-${uid}`, port1);
-        const dev2 = await registerDeveloper(`huge-${uid}@test.com`, `HugeRaiseBot-${uid}`, port2);
-
-        const tableId = await createTableAndJoin(
-          dev1.accessToken, dev1.bot.id,
-          dev2.accessToken, dev2.bot.id,
+        const dev1 = await registerDeveloper(
+          `normal4-${uid}@test.com`,
+          `NormalBot4-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `huge-${uid}@test.com`,
+          `HugeRaiseBot-${uid}`,
+          port2,
         );
 
-        await waitFor(async () => {
-          const state = await request(app.getHttpServer())
-            .get(`/api/v1/games/${tableId}/state`)
-            .set("Authorization", `Bearer ${dev1.accessToken}`);
-          return state.body?.handNumber >= 1;
-        }, 15000, 500);
+        const tableId = await createTableAndJoin(
+          dev1.accessToken,
+          dev1.bot.id,
+          dev2.accessToken,
+          dev2.bot.id,
+        );
+
+        await waitFor(
+          async () => {
+            const state = await request(app.getHttpServer())
+              .get(`/api/v1/games/${tableId}/state`)
+              .set("Authorization", `Bearer ${dev1.accessToken}`);
+            return state.body?.handNumber >= 1;
+          },
+          15000,
+          500,
+        );
 
         expect(hugeRaiseBot.requestCount).toBeGreaterThan(0);
       } finally {
@@ -362,20 +441,34 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`normal5-${uid}@test.com`, `NormalBot5-${uid}`, port1);
-        const dev2 = await registerDeveloper(`negative-${uid}@test.com`, `NegativeBot-${uid}`, port2);
-
-        const tableId = await createTableAndJoin(
-          dev1.accessToken, dev1.bot.id,
-          dev2.accessToken, dev2.bot.id,
+        const dev1 = await registerDeveloper(
+          `normal5-${uid}@test.com`,
+          `NormalBot5-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `negative-${uid}@test.com`,
+          `NegativeBot-${uid}`,
+          port2,
         );
 
-        await waitFor(async () => {
-          const state = await request(app.getHttpServer())
-            .get(`/api/v1/games/${tableId}/state`)
-            .set("Authorization", `Bearer ${dev1.accessToken}`);
-          return state.body?.handNumber >= 1;
-        }, 15000, 500);
+        const tableId = await createTableAndJoin(
+          dev1.accessToken,
+          dev1.bot.id,
+          dev2.accessToken,
+          dev2.bot.id,
+        );
+
+        await waitFor(
+          async () => {
+            const state = await request(app.getHttpServer())
+              .get(`/api/v1/games/${tableId}/state`)
+              .set("Authorization", `Bearer ${dev1.accessToken}`);
+            return state.body?.handNumber >= 1;
+          },
+          15000,
+          500,
+        );
       } finally {
         await normalBot.close();
         await negativeBot.close();
@@ -392,8 +485,16 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`fast-${uid}@test.com`, `FastBot-${uid}`, port1);
-        const dev2 = await registerDeveloper(`slow-${uid}@test.com`, `SlowBot-${uid}`, port2);
+        const dev1 = await registerDeveloper(
+          `fast-${uid}@test.com`,
+          `FastBot-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `slow-${uid}@test.com`,
+          `SlowBot-${uid}`,
+          port2,
+        );
 
         const tableResponse = await request(app.getHttpServer())
           .post("/api/v1/games/tables")
@@ -422,12 +523,16 @@ describe("Stress & Edge Case E2E Tests", () => {
           .send({ bot_id: dev2.bot.id })
           .expect(201);
 
-        await waitFor(async () => {
-          const state = await request(app.getHttpServer())
-            .get(`/api/v1/games/${tableId}/state`)
-            .set("Authorization", `Bearer ${dev1.accessToken}`);
-          return state.body?.handNumber >= 1;
-        }, 20000, 500);
+        await waitFor(
+          async () => {
+            const state = await request(app.getHttpServer())
+              .get(`/api/v1/games/${tableId}/state`)
+              .set("Authorization", `Bearer ${dev1.accessToken}`);
+            return state.body?.handNumber >= 1;
+          },
+          20000,
+          500,
+        );
 
         expect(slowBot.requestCount).toBeGreaterThan(0);
       } finally {
@@ -448,9 +553,21 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`concurrent1-${uid}@test.com`, `ConcBot1-${uid}`, port1);
-        const dev2 = await registerDeveloper(`concurrent2-${uid}@test.com`, `ConcBot2-${uid}`, port2);
-        const dev3 = await registerDeveloper(`concurrent3-${uid}@test.com`, `ConcBot3-${uid}`, port3);
+        const dev1 = await registerDeveloper(
+          `concurrent1-${uid}@test.com`,
+          `ConcBot1-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `concurrent2-${uid}@test.com`,
+          `ConcBot2-${uid}`,
+          port2,
+        );
+        const dev3 = await registerDeveloper(
+          `concurrent3-${uid}@test.com`,
+          `ConcBot3-${uid}`,
+          port3,
+        );
 
         const tableResponse = await request(app.getHttpServer())
           .post("/api/v1/games/tables")
@@ -483,7 +600,7 @@ describe("Stress & Edge Case E2E Tests", () => {
         ]);
 
         const successes = results.filter(
-          (r) => r.status === "fulfilled" && r.value.status === 201
+          (r) => r.status === "fulfilled" && r.value.status === 201,
         );
         expect(successes.length).toBe(2);
       } finally {
@@ -501,8 +618,16 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`double1-${uid}@test.com`, `DoubleBot1-${uid}`, port1);
-        await registerDeveloper(`double2-${uid}@test.com`, `DoubleBot2-${uid}`, port2);
+        const dev1 = await registerDeveloper(
+          `double1-${uid}@test.com`,
+          `DoubleBot1-${uid}`,
+          port1,
+        );
+        await registerDeveloper(
+          `double2-${uid}@test.com`,
+          `DoubleBot2-${uid}`,
+          port2,
+        );
 
         const tableResponse = await request(app.getHttpServer())
           .post("/api/v1/games/tables")
@@ -546,8 +671,16 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`chips1-${uid}@test.com`, `ChipsBot1-${uid}`, port1);
-        const dev2 = await registerDeveloper(`chips2-${uid}@test.com`, `ChipsBot2-${uid}`, port2);
+        const dev1 = await registerDeveloper(
+          `chips1-${uid}@test.com`,
+          `ChipsBot1-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `chips2-${uid}@test.com`,
+          `ChipsBot2-${uid}`,
+          port2,
+        );
 
         const STARTING_CHIPS = 500;
         const tableResponse = await request(app.getHttpServer())
@@ -577,19 +710,26 @@ describe("Stress & Edge Case E2E Tests", () => {
           .send({ bot_id: dev2.bot.id })
           .expect(201);
 
-        await waitFor(async () => {
-          const state = await request(app.getHttpServer())
-            .get(`/api/v1/games/${tableId}/state`)
-            .set("Authorization", `Bearer ${dev1.accessToken}`);
-          return state.body?.handNumber >= 2;
-        }, 20000, 500);
+        await waitFor(
+          async () => {
+            const state = await request(app.getHttpServer())
+              .get(`/api/v1/games/${tableId}/state`)
+              .set("Authorization", `Bearer ${dev1.accessToken}`);
+            return state.body?.handNumber >= 2;
+          },
+          20000,
+          500,
+        );
 
         const state = await request(app.getHttpServer())
           .get(`/api/v1/games/${tableId}/state`)
           .set("Authorization", `Bearer ${dev1.accessToken}`);
 
         const players = state.body.players || [];
-        const totalChips = players.reduce((sum: number, p: any) => sum + (p.chips || 0), 0);
+        const totalChips = players.reduce(
+          (sum: number, p: any) => sum + (p.chips || 0),
+          0,
+        );
         const pot = state.body.pot || 0;
 
         const expectedTotal = STARTING_CHIPS * 2;
@@ -610,20 +750,36 @@ describe("Stress & Edge Case E2E Tests", () => {
 
       try {
         const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const dev1 = await registerDeveloper(`allin1-${uid}@test.com`, `AllIn1-${uid}`, port1);
-        const dev2 = await registerDeveloper(`allin2-${uid}@test.com`, `AllIn2-${uid}`, port2);
-
-        const tableId = await createTableAndJoin(
-          dev1.accessToken, dev1.bot.id,
-          dev2.accessToken, dev2.bot.id,
+        const dev1 = await registerDeveloper(
+          `allin1-${uid}@test.com`,
+          `AllIn1-${uid}`,
+          port1,
+        );
+        const dev2 = await registerDeveloper(
+          `allin2-${uid}@test.com`,
+          `AllIn2-${uid}`,
+          port2,
         );
 
-        await waitFor(async () => {
-          const state = await request(app.getHttpServer())
-            .get(`/api/v1/games/${tableId}/state`)
-            .set("Authorization", `Bearer ${dev1.accessToken}`);
-          return state.body?.status === "finished" || state.body?.handNumber >= 1;
-        }, 20000, 500);
+        const tableId = await createTableAndJoin(
+          dev1.accessToken,
+          dev1.bot.id,
+          dev2.accessToken,
+          dev2.bot.id,
+        );
+
+        await waitFor(
+          async () => {
+            const state = await request(app.getHttpServer())
+              .get(`/api/v1/games/${tableId}/state`)
+              .set("Authorization", `Bearer ${dev1.accessToken}`);
+            return (
+              state.body?.status === "finished" || state.body?.handNumber >= 1
+            );
+          },
+          20000,
+          500,
+        );
 
         const finalState = await request(app.getHttpServer())
           .get(`/api/v1/games/${tableId}/state`)

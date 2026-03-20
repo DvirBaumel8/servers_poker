@@ -145,7 +145,7 @@ describe("Bot Connectivity", () => {
     it("should half-open circuit after reset time", async () => {
       const resetMs = 50;
       let circuitOpen = true;
-      let halfOpenAt = Date.now() + resetMs;
+      const halfOpenAt = Date.now() + resetMs;
 
       const isCircuitOpen = () => {
         if (!circuitOpen) return false;
@@ -356,9 +356,7 @@ describe("Bot Connectivity", () => {
         return { id: botId, healthy: bot?.healthy || false };
       };
 
-      const results = await Promise.all(
-        bots.map((b) => checkHealth(b.id)),
-      );
+      const results = await Promise.all(bots.map((b) => checkHealth(b.id)));
 
       const unhealthyBots = results.filter((r) => !r.healthy);
       const healthyBots = results.filter((r) => r.healthy);

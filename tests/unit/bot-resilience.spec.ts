@@ -163,31 +163,51 @@ describe("Bot Resilience Service", () => {
     };
 
     it("should accept valid fold", () => {
-      const context: GameContext = { canCheck: true, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: true,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ type: "fold" }, context);
       expect(result).toEqual({ type: "fold" });
     });
 
     it("should accept valid check when allowed", () => {
-      const context: GameContext = { canCheck: true, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: true,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ type: "check" }, context);
       expect(result).toEqual({ type: "check" });
     });
 
     it("should reject check when not allowed", () => {
-      const context: GameContext = { canCheck: false, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ type: "check" }, context);
       expect(result).toBeNull();
     });
 
     it("should accept valid call", () => {
-      const context: GameContext = { canCheck: false, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ type: "call" }, context);
       expect(result).toEqual({ type: "call" });
     });
 
     it("should accept valid raise within bounds", () => {
-      const context: GameContext = { canCheck: false, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction(
         { type: "raise", amount: 50 },
         context,
@@ -196,7 +216,11 @@ describe("Bot Resilience Service", () => {
     });
 
     it("should clamp raise below minimum to minRaise", () => {
-      const context: GameContext = { canCheck: false, minRaise: 20, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 20,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction(
         { type: "raise", amount: 10 },
         context,
@@ -205,7 +229,11 @@ describe("Bot Resilience Service", () => {
     });
 
     it("should clamp raise above maximum to maxRaise", () => {
-      const context: GameContext = { canCheck: false, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction(
         { type: "raise", amount: 150 },
         context,
@@ -214,7 +242,11 @@ describe("Bot Resilience Service", () => {
     });
 
     it("should floor fractional raise amounts", () => {
-      const context: GameContext = { canCheck: false, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction(
         { type: "raise", amount: 55.7 },
         context,
@@ -223,13 +255,21 @@ describe("Bot Resilience Service", () => {
     });
 
     it("should reject raise without amount", () => {
-      const context: GameContext = { canCheck: false, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ type: "raise" }, context);
       expect(result).toBeNull();
     });
 
     it("should reject negative raise amount", () => {
-      const context: GameContext = { canCheck: false, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction(
         { type: "raise", amount: -10 },
         context,
@@ -238,31 +278,51 @@ describe("Bot Resilience Service", () => {
     });
 
     it("should accept all_in", () => {
-      const context: GameContext = { canCheck: false, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: false,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ type: "all_in" }, context);
       expect(result).toEqual({ type: "all_in" });
     });
 
     it("should reject null response", () => {
-      const context: GameContext = { canCheck: true, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: true,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction(null, context);
       expect(result).toBeNull();
     });
 
     it("should reject response without type", () => {
-      const context: GameContext = { canCheck: true, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: true,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ amount: 50 }, context);
       expect(result).toBeNull();
     });
 
     it("should reject invalid action type", () => {
-      const context: GameContext = { canCheck: true, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: true,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ type: "bluff" }, context);
       expect(result).toBeNull();
     });
 
     it("should handle case-insensitive action types", () => {
-      const context: GameContext = { canCheck: true, minRaise: 10, maxRaise: 100 };
+      const context: GameContext = {
+        canCheck: true,
+        minRaise: 10,
+        maxRaise: 100,
+      };
       const result = validateAndNormalizeAction({ type: "FOLD" }, context);
       expect(result).toEqual({ type: "fold" });
     });

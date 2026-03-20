@@ -41,7 +41,8 @@ interface BotServer {
 function createAdvancedBotServer(port: number): Promise<BotServer> {
   return new Promise((resolve, reject) => {
     let requestCount = 0;
-    let lastRequest: { method: string; url: string; body: string } | null = null;
+    let lastRequest: { method: string; url: string; body: string } | null =
+      null;
     let responseType = "call";
     let responseAmount: number | undefined;
 
@@ -50,14 +51,20 @@ function createAdvancedBotServer(port: number): Promise<BotServer> {
       req.on("data", (chunk) => (body += chunk.toString()));
       req.on("end", () => {
         requestCount++;
-        lastRequest = { method: req.method || "GET", url: req.url || "/", body };
+        lastRequest = {
+          method: req.method || "GET",
+          url: req.url || "/",
+          body,
+        };
 
         if (req.method === "GET") {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ status: "ok", version: "1.0.0" }));
         } else {
           res.writeHead(200, { "Content-Type": "application/json" });
-          const response: { type: string; amount?: number } = { type: responseType };
+          const response: { type: string; amount?: number } = {
+            type: responseType,
+          };
           if (responseAmount !== undefined) {
             response.amount = responseAmount;
           }
@@ -71,8 +78,12 @@ function createAdvancedBotServer(port: number): Promise<BotServer> {
       resolve({
         server,
         port,
-        get requestCount() { return requestCount; },
-        get lastRequest() { return lastRequest; },
+        get requestCount() {
+          return requestCount;
+        },
+        get lastRequest() {
+          return lastRequest;
+        },
         respondWith: (type: string, amount?: number) => {
           responseType = type;
           responseAmount = amount;
@@ -100,7 +111,10 @@ interface IsolatedTestData {
   cleanup: () => Promise<void>;
 }
 
-async function createIsolatedTestData(ctx: TestContext, prefix: string): Promise<IsolatedTestData> {
+async function createIsolatedTestData(
+  ctx: TestContext,
+  prefix: string,
+): Promise<IsolatedTestData> {
   const id = uid();
   const email = `${prefix}-${id}@test.com`;
   const name = `${prefix}-${id}`;
@@ -111,7 +125,10 @@ async function createIsolatedTestData(ctx: TestContext, prefix: string): Promise
     .send({ email, name, password: "SecurePass123!" })
     .expect(201);
 
-  await ctx.dataSource.query('UPDATE "users" SET email_verified = true WHERE email = $1', [email]);
+  await ctx.dataSource.query(
+    'UPDATE "users" SET email_verified = true WHERE email = $1',
+    [email],
+  );
 
   const loginResponse = await request(ctx.app.getHttpServer())
     .post("/api/v1/auth/login")
@@ -166,7 +183,9 @@ describe("Bot Management E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([{ name: "default", ttl: 60000, limit: 100000 }]),
+        ThrottlerModule.forRoot([
+          { name: "default", ttl: 60000, limit: 100000 },
+        ]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -177,7 +196,13 @@ describe("Bot Management E2E Tests", () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     app.setGlobalPrefix("api/v1");
     await app.init();
     dataSource = moduleFixture.get(DataSource);
@@ -419,7 +444,9 @@ describe("Bot Management E2E Tests", () => {
           .set("Authorization", `Bearer ${testData.user.accessToken}`)
           .expect(200);
 
-        expect(getResponse.body.endpoint).toBe(`http://localhost:${botServer2.port}`);
+        expect(getResponse.body.endpoint).toBe(
+          `http://localhost:${botServer2.port}`,
+        );
       } finally {
         await testData.cleanup();
       }
@@ -646,7 +673,9 @@ describe("Bot Management E2E Tests", () => {
           .expect(200);
 
         expect(user1Bots.body).toHaveLength(2);
-        expect(user1Bots.body.every((b: any) => b.name.startsWith("User1"))).toBe(true);
+        expect(
+          user1Bots.body.every((b: any) => b.name.startsWith("User1")),
+        ).toBe(true);
 
         const user2Bots = await request(app.getHttpServer())
           .get("/api/v1/bots/my")
@@ -680,7 +709,9 @@ describe("Bot Management E2E Tests", () => {
           .expect(201);
 
         await request(app.getHttpServer())
-          .post(`/api/v1/bots/connectivity/health/${createResponse.body.id}/check`)
+          .post(
+            `/api/v1/bots/connectivity/health/${createResponse.body.id}/check`,
+          )
           .set("Authorization", `Bearer ${testData.user.accessToken}`)
           .expect(200);
 

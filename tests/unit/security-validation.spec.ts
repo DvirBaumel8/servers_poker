@@ -9,7 +9,7 @@ describe("Security Input Validation Rules", () => {
     });
 
     it("should block img tags", () => {
-      expect(regex.test('<img src=x onerror=alert(1)>')).toBe(false);
+      expect(regex.test("<img src=x onerror=alert(1)>")).toBe(false);
     });
 
     it("should block SQL injection", () => {
@@ -18,7 +18,7 @@ describe("Security Input Validation Rules", () => {
     });
 
     it("should block event handlers", () => {
-      expect(regex.test('onload=alert(1)')).toBe(false);
+      expect(regex.test("onload=alert(1)")).toBe(false);
     });
 
     it("should allow valid table names", () => {
@@ -67,7 +67,9 @@ describe("Security Input Validation Rules", () => {
     it("should allow safe descriptions", () => {
       expect(regex.test("A conservative poker bot")).toBe(true);
       expect(regex.test("Uses GTO strategy, version 2.0")).toBe(true);
-      expect(regex.test("Bot that plays tight-aggressive (TAG) style")).toBe(true);
+      expect(regex.test("Bot that plays tight-aggressive (TAG) style")).toBe(
+        true,
+      );
       expect(regex.test("Win rate: 55% | ROI: 12%")).toBe(true);
     });
 

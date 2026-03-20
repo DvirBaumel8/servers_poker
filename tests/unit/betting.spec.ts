@@ -68,7 +68,7 @@ describe("PotManager", () => {
       potManager.calculatePots(players);
 
       expect(potManager.pots.length).toBe(2);
-      
+
       const mainPot = potManager.pots[0];
       expect(mainPot.amount).toBe(150);
       expect(mainPot.eligiblePlayerIds).toHaveLength(3);
@@ -157,14 +157,14 @@ describe("BettingRound", () => {
     it("should return difference between current bet and player bet", () => {
       bettingRound.currentBet = 100;
       bettingRound.betsThisRound["p1"] = 50;
-      
+
       expect(bettingRound.getCallAmount(players[0])).toBe(50);
     });
 
     it("should cap call amount to player chips", () => {
       players[0].chips = 30;
       bettingRound.currentBet = 100;
-      
+
       expect(bettingRound.getCallAmount(players[0])).toBe(30);
     });
   });
@@ -184,7 +184,7 @@ describe("BettingRound", () => {
     describe("fold", () => {
       it("should mark player as folded", () => {
         const result = bettingRound.applyAction(players[0], { type: "fold" });
-        
+
         expect(result.valid).toBe(true);
         expect(result.amountAdded).toBe(0);
         expect(players[0].folded).toBe(true);
@@ -194,7 +194,7 @@ describe("BettingRound", () => {
     describe("check", () => {
       it("should allow check when no bet to call", () => {
         const result = bettingRound.applyAction(players[0], { type: "check" });
-        
+
         expect(result.valid).toBe(true);
         expect(result.amountAdded).toBe(0);
       });
@@ -202,7 +202,7 @@ describe("BettingRound", () => {
       it("should reject check when there is a bet to call", () => {
         bettingRound.currentBet = 100;
         const result = bettingRound.applyAction(players[0], { type: "check" });
-        
+
         expect(result.valid).toBe(false);
         expect(result.error).toContain("call");
       });
@@ -212,9 +212,9 @@ describe("BettingRound", () => {
       it("should deduct correct amount for call", () => {
         bettingRound.currentBet = 100;
         const chipsBefore = players[0].chips;
-        
+
         const result = bettingRound.applyAction(players[0], { type: "call" });
-        
+
         expect(result.valid).toBe(true);
         expect(result.amountAdded).toBe(100);
         expect(players[0].chips).toBe(chipsBefore - 100);
@@ -223,9 +223,9 @@ describe("BettingRound", () => {
       it("should put player all-in when calling with insufficient chips", () => {
         players[0].chips = 50;
         bettingRound.currentBet = 100;
-        
+
         const result = bettingRound.applyAction(players[0], { type: "call" });
-        
+
         expect(result.valid).toBe(true);
         expect(result.amountAdded).toBe(50);
         expect(players[0].chips).toBe(0);
@@ -238,12 +238,12 @@ describe("BettingRound", () => {
         bettingRound.currentBet = 20;
         bettingRound.betsThisRound["p1"] = 0;
         const chipsBefore = players[0].chips;
-        
-        const result = bettingRound.applyAction(players[0], { 
-          type: "raise", 
+
+        const result = bettingRound.applyAction(players[0], {
+          type: "raise",
           amount: 30,
         });
-        
+
         expect(result.valid).toBe(true);
         expect(result.amountAdded).toBe(50);
         expect(players[0].chips).toBe(chipsBefore - 50);
@@ -253,12 +253,12 @@ describe("BettingRound", () => {
       it("should reject raise below minimum", () => {
         bettingRound.currentBet = 20;
         bettingRound.minRaise = 20;
-        
-        const result = bettingRound.applyAction(players[0], { 
-          type: "raise", 
+
+        const result = bettingRound.applyAction(players[0], {
+          type: "raise",
           amount: 10,
         });
-        
+
         expect(result.valid).toBe(false);
         expect(result.error).toContain("Minimum raise");
       });
@@ -267,12 +267,12 @@ describe("BettingRound", () => {
         players[0].chips = 25;
         bettingRound.currentBet = 20;
         bettingRound.minRaise = 20;
-        
-        const result = bettingRound.applyAction(players[0], { 
-          type: "raise", 
+
+        const result = bettingRound.applyAction(players[0], {
+          type: "raise",
           amount: 5,
         });
-        
+
         expect(result.valid).toBe(true);
         expect(players[0].allIn).toBe(true);
       });
@@ -283,7 +283,7 @@ describe("BettingRound", () => {
     it("should return true when only one player left", () => {
       players[0].folded = true;
       players[1].folded = true;
-      
+
       expect(bettingRound.isBettingComplete()).toBe(true);
     });
 
@@ -291,13 +291,13 @@ describe("BettingRound", () => {
       players[0].allIn = true;
       players[1].allIn = true;
       players[2].allIn = true;
-      
+
       expect(bettingRound.isBettingComplete()).toBe(true);
     });
 
     it("should return false when players have not acted", () => {
       bettingRound.currentBet = 20;
-      
+
       expect(bettingRound.isBettingComplete()).toBe(false);
     });
 
@@ -305,7 +305,7 @@ describe("BettingRound", () => {
       bettingRound.actedPlayers.add("p1");
       bettingRound.actedPlayers.add("p2");
       bettingRound.actedPlayers.add("p3");
-      
+
       expect(bettingRound.isBettingComplete()).toBe(true);
     });
   });

@@ -204,14 +204,14 @@ describe("PokerGameService", () => {
 
     it("should process raise correctly", () => {
       game.setCurrentPlayer("player1");
-      const chipsBefore = game.getState().players.find(
-        (p) => p.id === "player1",
-      )!.chips;
+      const chipsBefore = game
+        .getState()
+        .players.find((p) => p.id === "player1")!.chips;
       const result = game.processAction("player1", "raise", 100);
       expect(result.valid).toBe(true);
-      const chipsAfter = game.getState().players.find(
-        (p) => p.id === "player1",
-      )!.chips;
+      const chipsAfter = game
+        .getState()
+        .players.find((p) => p.id === "player1")!.chips;
       expect(chipsAfter).toBeLessThan(chipsBefore);
     });
 
@@ -238,9 +238,9 @@ describe("PokerGameService", () => {
 
     it("should handle all-in correctly", () => {
       game.setCurrentPlayer("player1");
-      const p1Chips = game.getState().players.find(
-        (p) => p.id === "player1",
-      )!.chips;
+      const p1Chips = game
+        .getState()
+        .players.find((p) => p.id === "player1")!.chips;
       const result = game.processAction("player1", "raise", p1Chips);
       expect(result.valid).toBe(true);
       const state = game.getState();
@@ -362,18 +362,18 @@ describe("PokerGameService", () => {
       addPlayers(game, 2);
       game.startHand();
 
-      const chipsBefore = game.getState().players.find(
-        (p) => p.id === "player1",
-      )!.chips;
+      const chipsBefore = game
+        .getState()
+        .players.find((p) => p.id === "player1")!.chips;
 
       game.setCurrentPlayer("player1");
       game.processAction("player1", "raise", 100);
 
       game.rollbackHand();
 
-      const chipsAfter = game.getState().players.find(
-        (p) => p.id === "player1",
-      )!.chips;
+      const chipsAfter = game
+        .getState()
+        .players.find((p) => p.id === "player1")!.chips;
       expect(chipsAfter).toBe(chipsBefore);
     });
 

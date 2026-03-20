@@ -710,8 +710,7 @@ describe("Edge Case #18: Hand-for-Hand Bubble Play", () => {
       };
 
       const isBubble =
-        mockTournament.remainingPlayers ===
-        mockTournament.paidPositions + 1;
+        mockTournament.remainingPlayers === mockTournament.paidPositions + 1;
       expect(isBubble).toBe(true);
     });
 
