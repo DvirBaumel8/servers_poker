@@ -13,3 +13,6 @@ logs/
 
 # Storybook
 storybook-static/
+
+# Vite cache
+.vite/

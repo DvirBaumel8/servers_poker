@@ -10,10 +10,12 @@ globs:
 ## Coverage Requirements
 
 The project enforces minimum coverage thresholds:
-- **Statements**: 80%
-- **Branches**: 80%
-- **Functions**: 80%
-- **Lines**: 80%
+- **Statements**: 15%
+- **Branches**: 13%
+- **Functions**: 15%
+- **Lines**: 15%
+
+These are baseline thresholds. Goal is to incrementally improve coverage over time.
 
 These thresholds are defined in `vitest.config.ts` and enforced in CI.
 Run `npm run test:cov` to check coverage locally.

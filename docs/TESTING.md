@@ -379,15 +379,15 @@ jobs:
         run: npm run test:e2e
 ```
 
-## Test Coverage Goals
+## Test Coverage
 
-| Category | Target Coverage |
-|----------|----------------|
-| Game Logic (handEvaluator, betting, pot) | 95%+ |
-| Services | 80%+ |
-| Controllers | 70%+ |
-| Repositories | 60%+ |
-| DTOs/Entities | N/A (excluded) |
+Current coverage thresholds (enforced in CI):
+- **Statements**: 15%
+- **Branches**: 13%
+- **Functions**: 15%
+- **Lines**: 15%
+
+These are baseline thresholds. The goal is to incrementally improve coverage over time.
 
 Run coverage report:
 ```bash
@@ -395,3 +395,13 @@ npm run test:cov
 ```
 
 Coverage HTML report is generated at `coverage/index.html`.
+
+## CI/CD Integration
+
+Tests run automatically on every PR via GitHub Actions:
+
+- **Unit Tests**: Run with coverage reporting
+- **E2E Tests**: Run with PostgreSQL service container
+- **Coverage Report**: Posted as PR comment
+
+See `.github/workflows/ci.yml` for the full configuration.

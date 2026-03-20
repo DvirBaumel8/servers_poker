@@ -24,10 +24,11 @@ A No-Limit Texas Hold'em tournament platform where developers build HTTP-based b
 | Layer | Technology |
 |-------|-----------|
 | Backend | Node.js 22, NestJS, TypeORM, PostgreSQL 16 |
-| Frontend | React 18, Vite, Tailwind CSS, Zustand |
+| Frontend | React 19, Vite, Tailwind CSS v4, Zustand |
 | Auth | JWT (users), API Key (bots) |
 | Real-time | Socket.IO via @nestjs/websockets |
 | Testing | Vitest |
+| CI/CD | GitHub Actions, CodeQL, Lighthouse CI |
 
 ## Quick Start
 

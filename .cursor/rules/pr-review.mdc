@@ -35,7 +35,7 @@ When reviewing pull requests, check the following:
 - Critical game logic changes include integration tests
 - Test files follow the naming convention: `*.spec.ts` or `*.test.ts`
 - Tests are placed in the correct directory: `tests/unit/`, `tests/integration/`, or `tests/e2e/`
-- Coverage thresholds are met (80% statements, branches, functions, and lines)
+- Coverage thresholds are met (see `vitest.config.ts` for current thresholds)
 
 ### Game Engine Integrity
 - Poker hand evaluation logic changes must have comprehensive edge-case tests
