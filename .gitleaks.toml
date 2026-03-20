@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlist.paths]]
+description = "Test files may contain fake/example secrets for unit testing"
+paths = [
+  '''tests/.*\.spec\.ts$''',
+  '''tests/.*\.test\.ts$''',
+]
