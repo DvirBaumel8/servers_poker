@@ -1,0 +1,51 @@
+---
+description: Git workflow conventions for this project
+globs:
+  - "**/*"
+---
+
+# Git Workflow Rules
+
+## Branching Strategy
+
+- Always create feature branches from `main`
+- Use descriptive branch names: `feature/add-login`, `fix/betting-bug`, `chore/update-deps`
+
+## Commits
+
+- Write clear, concise commit messages
+- Use conventional commit format when appropriate: `feat:`, `fix:`, `chore:`, `docs:`, `test:`
+- Squash related commits before merging to keep history clean
+
+## Merging to Main
+
+- **ALWAYS use rebase, NEVER merge commits**
+- Before creating a PR: `git rebase origin/main`
+- When merging PRs: Use "Squash and merge" or "Rebase and merge" (never "Create a merge commit")
+- Keep the git history linear and clean
+
+## Pull Requests
+
+- All changes to `main` must go through a PR
+- PRs trigger CI checks that must pass before merging
+- Squash commits when merging to maintain clean history
+
+## Commands Reference
+
+```bash
+# Update your branch with latest main (rebase, not merge)
+git fetch origin
+git rebase origin/main
+
+# Interactive rebase to squash commits before PR
+git rebase -i origin/main
+
+# If you need to force push after rebase (your own branch only)
+git push --force-with-lease
+```
+
+## Important
+
+- Never force push to `main`
+- Never use `git merge` to update feature branches (use `git rebase`)
+- Always rebase before creating/updating a PR

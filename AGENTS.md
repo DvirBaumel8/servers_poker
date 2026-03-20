@@ -1,5 +1,14 @@
 ## Cursor Cloud specific instructions
 
+### Git Workflow (IMPORTANT)
+
+- **ALWAYS use rebase, NEVER merge commits**
+- Before creating/updating a PR: `git fetch origin && git rebase origin/main`
+- When merging PRs on GitHub: Use "Squash and merge" (preferred) or "Rebase and merge"
+- **NEVER use "Create a merge commit"**
+- All changes to `main` must go through Pull Requests
+- Keep git history linear and clean
+
 ### Architecture
 
 This is a NestJS (TypeScript) poker tournament platform with a React (Vite) frontend. See `package.json` scripts for standard commands; `docs/` for detailed documentation.
