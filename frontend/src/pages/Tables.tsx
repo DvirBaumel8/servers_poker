@@ -126,19 +126,18 @@ export function Tables() {
   }
 
   return (
-    <div>
+    <div className="container mx-auto px-6 py-8">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white">Cash Tables</h1>
-          <p className="text-gray-400 mt-2">
+          <h1 className="text-3xl font-display font-bold text-white">
+            Cash Tables
+          </h1>
+          <p className="text-gray-500 mt-2">
             Watch live games or join with your bot
           </p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={loadData}
-            className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-          >
+          <button onClick={loadData} className="btn-secondary text-sm">
             Refresh
           </button>
           {user && (
@@ -147,7 +146,7 @@ export function Tables() {
                 setCreateError(null);
                 setShowCreateModal(true);
               }}
-              className="px-4 py-2 bg-poker-gold text-gray-900 rounded-lg font-medium hover:bg-yellow-400 transition-colors"
+              className="btn-primary text-sm"
             >
               + Create Table
             </button>
@@ -185,49 +184,66 @@ export function Tables() {
           )}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {tables.map((table, index) => (
             <motion.div
               key={table.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-gray-800/50 rounded-xl p-6 border border-gray-700"
+              transition={{ delay: index * 0.08 }}
+              className="table-card"
             >
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-bold text-white">{table.name}</h3>
+              <div className="flex justify-between items-start mb-5">
+                <h3 className="text-lg font-semibold text-white">
+                  {table.name}
+                </h3>
                 <span
-                  className={`px-2 py-1 rounded text-xs font-medium ${
+                  className={
                     table.status === "running"
-                      ? "bg-green-500/20 text-green-400"
+                      ? "status-running"
                       : table.status === "waiting"
-                        ? "bg-yellow-500/20 text-yellow-400"
-                        : "bg-gray-500/20 text-gray-400"
-                  }`}
+                        ? "status-waiting"
+                        : "status-finished"
+                  }
                 >
+                  {table.status === "running" && (
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5 animate-pulse" />
+                  )}
                   {table.status}
                 </span>
               </div>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Blinds</span>
-                  <span className="text-white">
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Blinds</span>
+                  <span className="text-white font-medium">
                     {table.smallBlind} / {table.bigBlind}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Players</span>
-                  <span className="text-white">
-                    {table.currentPlayers} / {table.maxPlayers}
-                  </span>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Players</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex -space-x-1">
+                      {Array.from({
+                        length: Math.min(table.currentPlayers, 5),
+                      }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="w-5 h-5 rounded-full bg-gradient-to-br from-accent/60 to-accent-dark/60 border border-surface-400"
+                        />
+                      ))}
+                    </div>
+                    <span className="text-white font-medium">
+                      {table.currentPlayers}/{table.maxPlayers}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-gray-700 flex gap-2">
+              <div className="mt-5 pt-4 border-t border-white/5 flex gap-2">
                 <Link
                   to={`/game/${table.id}`}
-                  className="flex-1 px-4 py-2 bg-gray-700 text-white text-center text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                  className="btn-secondary flex-1 text-center text-sm py-2.5"
                 >
                   Watch
                 </Link>
@@ -235,7 +251,7 @@ export function Tables() {
                   <button
                     onClick={() => openJoinModal(table)}
                     disabled={myBots.length === 0}
-                    className="flex-1 px-4 py-2 bg-poker-gold text-gray-900 text-sm font-medium rounded-lg hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="btn-primary flex-1 text-sm py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
                     title={
                       myBots.length === 0
                         ? "Create a bot first"
