@@ -333,9 +333,14 @@ export class GameWorkerManagerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private handleWorkerError(tableId: string, err: Error): void {
-    this.logger.error(`Worker ${tableId} error: ${err.message}`, err.stack);
-    this.handleWorkerCrash(tableId, err);
+  private handleWorkerError(tableId: string, err: unknown): void {
+    const error =
+      err instanceof Error ? err : new Error(String(err));
+    this.logger.error(
+      `Worker ${tableId} error: ${error.message}`,
+      error.stack,
+    );
+    this.handleWorkerCrash(tableId, error);
   }
 
   private handleWorkerExit(tableId: string, code: number): void {
