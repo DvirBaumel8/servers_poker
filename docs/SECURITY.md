@@ -228,6 +228,42 @@ When a bot sends an action but it's not their turn:
 
 ---
 
+## CI/CD Security
+
+### Automated Security Scanning
+
+The following security tools run on every PR and push to main:
+
+#### CodeQL (SAST)
+- **Purpose:** Static Application Security Testing
+- **Languages:** JavaScript/TypeScript
+- **Schedule:** On every PR + weekly full scan
+- **Config:** `.github/workflows/security.yml`
+
+#### Gitleaks (Secret Detection)
+- **Purpose:** Prevents secrets from being committed
+- **Scans:** All commits for API keys, tokens, passwords
+- **Action:** Blocks PR if secrets detected
+
+#### Dependency Auditing
+- **Backend:** `npm audit --audit-level=high` (fails on high/critical)
+- **Frontend:** Same audit for frontend dependencies
+- **Automated:** Dependabot creates PRs for vulnerable packages
+
+#### License Compliance
+- **Tool:** `license-checker`
+- **Allowed:** MIT, Apache-2.0, BSD-*, ISC, MPL-2.0, CC0-1.0
+- **Action:** Fails CI if non-compliant license detected
+
+### Branch Protection
+
+Main branch requires:
+- All CI checks passing (lint, typecheck, tests, security)
+- At least 1 PR review
+- No direct pushes (all changes via PR)
+
+---
+
 ## Dependency Security
 
 ### Production Dependencies
@@ -240,9 +276,10 @@ With the NestJS migration, we now use npm dependencies:
 
 ### Security Practices
 - All dependencies pinned to specific versions
-- `npm audit` runs in CI pipeline
-- Dependabot alerts enabled
-- Security scan job in GitHub Actions
+- `npm audit` runs in CI pipeline (fails on high/critical)
+- Dependabot alerts enabled + automatic PRs
+- CodeQL scans for code vulnerabilities
+- Gitleaks prevents secret leakage
 
 ---
 

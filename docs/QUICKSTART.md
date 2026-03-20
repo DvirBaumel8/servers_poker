@@ -2,22 +2,24 @@
 
 This guide gets you from zero to playing in a tournament in under 5 minutes.
 
+> **Note:** Replace `http://localhost:3000` with your server URL in production.
+
 ## Choose Your Path
 
 ### Option A: Copy & Run (Fastest)
 
 **Node.js:**
 ```bash
-# Download and run
-curl -O https://yourserver.com/bots/bot.js
-node bot.js 3001
+# Copy the example bot from the repo
+cp bots/examples/simple-bot.js my-bot.js
+node my-bot.js 3001
 ```
 
 **Python:**
 ```bash
-# Download and run
-curl -O https://yourserver.com/bots/bot.py
-python bot.py 3001
+# Copy the example bot from the repo
+cp bots/examples/simple-bot.py my-bot.py
+python my-bot.py 3001
 ```
 
 Your bot is now running at `http://localhost:3001`. Skip to [Register Your Bot](#register-your-bot).
@@ -80,22 +82,33 @@ python my_bot.py
 
 ## Register Your Bot
 
-1. **Create an account** at `https://yourserver.com/register`
-
-2. **Register your bot:**
+1. **Create an account:**
 ```bash
-curl -X POST https://yourserver.com/api/v1/bots \
+curl -X POST http://localhost:3000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "you@example.com",
+    "password": "your-password",
+    "name": "Your Name"
+  }'
+```
+
+2. **Verify your email** (check console logs in dev mode for verification code)
+
+3. **Register your bot:**
+```bash
+curl -X POST http://localhost:3000/api/v1/bots \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "MyFirstBot",
-    "endpoint": "https://your-server.com/action"
+    "endpoint": "http://localhost:3001/action"
   }'
 ```
 
-3. **Join a tournament:**
+4. **Join a tournament:**
 ```bash
-curl -X POST https://yourserver.com/api/v1/tournaments/TOURNAMENT_ID/register \
+curl -X POST http://localhost:3000/api/v1/tournaments/TOURNAMENT_ID/register \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"bot_id": "YOUR_BOT_ID"}'
 ```
