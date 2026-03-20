@@ -2,9 +2,11 @@ import {
   IsString,
   IsNumber,
   IsOptional,
+  IsArray,
   Min,
   Max,
   IsInt,
+  ArrayMinSize,
 } from "class-validator";
 
 export class CreateGameDto {
@@ -152,4 +154,55 @@ export class HandHistoryDto {
   }>;
   started_at: Date;
   finished_at: Date;
+}
+
+// Provably Fair DTOs
+export class VerifyHandDto {
+  @IsString()
+  serverSeed: string;
+
+  @IsString()
+  serverSeedHash: string;
+
+  @IsString()
+  clientSeed: string;
+
+  @IsInt()
+  @Min(1)
+  nonce: number;
+
+  @IsArray()
+  @ArrayMinSize(52)
+  @IsInt({ each: true })
+  deckOrder: number[];
+}
+
+export class VerifyHandResponseDto {
+  valid: boolean;
+  serverSeedHashMatch: boolean;
+  deckOrderMatch: boolean;
+  message: string;
+  details?: {
+    providedServerSeed: string;
+    calculatedHash: string;
+    expectedHash: string;
+    calculatedDeckOrder: number[];
+    expectedDeckOrder: number[];
+  };
+}
+
+export class HandSeedCommitmentDto {
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+}
+
+export class HandSeedVerificationDto {
+  serverSeed: string;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+  combinedHash: string;
+  deckOrder: number[];
+  verificationUrl: string;
 }

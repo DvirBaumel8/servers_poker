@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
+import { Throttle, SkipThrottle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
 import {
   LoginDto,
@@ -18,6 +19,8 @@ import {
   ResendVerificationDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  RegisterDeveloperDto,
+  RegisterDeveloperResponseDto,
 } from "./dto/login.dto";
 import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -28,14 +31,34 @@ import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  /**
+   * Standard registration - requires email verification.
+   * Rate limited: 5 requests per IP per hour.
+   */
   @Public()
   @Post("register")
+  @Throttle({ default: { ttl: 3600000, limit: 5 } }) // 5 per hour
   async register(@Body() dto: RegisterDto): Promise<{
     message: string;
     email: string;
     requiresVerification: boolean;
   }> {
     return this.authService.register(dto);
+  }
+
+  /**
+   * Developer registration - register user + create bot in one API call.
+   * Returns JWT token, API key, and bot details immediately.
+   * No email verification required.
+   * Rate limited: 3 requests per IP per hour (stricter since it bypasses verification).
+   */
+  @Public()
+  @Post("register-developer")
+  @Throttle({ default: { ttl: 3600000, limit: 3 } }) // 3 per hour
+  async registerDeveloper(
+    @Body() dto: RegisterDeveloperDto,
+  ): Promise<RegisterDeveloperResponseDto> {
+    return this.authService.registerDeveloper(dto);
   }
 
   @Public()
@@ -54,9 +77,14 @@ export class AuthController {
     return this.authService.resendVerificationCode(dto);
   }
 
+  /**
+   * Forgot password - sends reset code.
+   * Rate limited: 3 requests per IP per 15 minutes.
+   */
   @Public()
   @Post("forgot-password")
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 900000, limit: 3 } }) // 3 per 15 minutes
   async forgotPassword(
     @Body() dto: ForgotPasswordDto,
   ): Promise<{ message: string }> {
@@ -72,9 +100,14 @@ export class AuthController {
     return this.authService.resetPassword(dto);
   }
 
+  /**
+   * Login - authenticate user.
+   * Rate limited: 10 requests per IP per 15 minutes.
+   */
   @Public()
   @Post("login")
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 900000, limit: 10 } }) // 10 per 15 minutes
   async login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
   }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
 describe("Bot Resilience Service", () => {
-  describe("Fallback Strategies", () => {
+  describe.concurrent("Fallback Strategies", () => {
     interface GameContext {
       canCheck: boolean;
       toCall: number;
@@ -32,7 +32,7 @@ describe("Bot Resilience Service", () => {
       return { type: "fold" };
     };
 
-    describe("Conservative Strategy", () => {
+    describe.concurrent("Conservative Strategy", () => {
       it("should check when possible", () => {
         const context: GameContext = {
           canCheck: true,
@@ -73,7 +73,7 @@ describe("Bot Resilience Service", () => {
       });
     });
 
-    describe("Check/Fold Strategy", () => {
+    describe.concurrent("Check/Fold Strategy", () => {
       it("should check when possible", () => {
         const context: GameContext = {
           canCheck: true,
@@ -102,7 +102,7 @@ describe("Bot Resilience Service", () => {
     });
   });
 
-  describe("Action Validation", () => {
+  describe.concurrent("Action Validation", () => {
     interface GameContext {
       canCheck: boolean;
       minRaise: number;
@@ -268,7 +268,7 @@ describe("Bot Resilience Service", () => {
     });
   });
 
-  describe("Fallback Selection", () => {
+  describe.concurrent("Fallback Selection", () => {
     it("should use fallback when bot call fails", () => {
       const callFailed = true;
       const fallbackUsed = callFailed;

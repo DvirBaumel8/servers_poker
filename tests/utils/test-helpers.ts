@@ -1,4 +1,4 @@
-import * as request from "supertest";
+import request from "supertest";
 import { INestApplication } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";

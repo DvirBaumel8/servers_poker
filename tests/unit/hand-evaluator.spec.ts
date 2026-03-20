@@ -16,8 +16,8 @@ function card(rank: string, suit: string): Card {
 }
 
 describe("Hand Evaluator", () => {
-  describe("bestHand", () => {
-    describe("Royal Flush", () => {
+  describe.concurrent("bestHand", () => {
+    describe.concurrent("Royal Flush", () => {
       it("should detect royal flush", () => {
         const holeCards = [card("A", "hearts"), card("K", "hearts")];
         const community = [
@@ -34,7 +34,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("Straight Flush", () => {
+    describe.concurrent("Straight Flush", () => {
       it("should detect straight flush", () => {
         const holeCards = [card("9", "spades"), card("8", "spades")];
         const community = [
@@ -65,7 +65,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("Four of a Kind", () => {
+    describe.concurrent("Four of a Kind", () => {
       it("should detect four of a kind", () => {
         const holeCards = [card("A", "hearts"), card("A", "diamonds")];
         const community = [
@@ -97,7 +97,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("Full House", () => {
+    describe.concurrent("Full House", () => {
       it("should detect full house", () => {
         const holeCards = [card("K", "hearts"), card("K", "diamonds")];
         const community = [
@@ -128,7 +128,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("Flush", () => {
+    describe.concurrent("Flush", () => {
       it("should detect flush", () => {
         const holeCards = [card("A", "hearts"), card("9", "hearts")];
         const community = [
@@ -162,7 +162,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("Straight", () => {
+    describe.concurrent("Straight", () => {
       it("should detect straight", () => {
         const holeCards = [card("10", "hearts"), card("9", "diamonds")];
         const community = [
@@ -207,7 +207,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("Three of a Kind", () => {
+    describe.concurrent("Three of a Kind", () => {
       it("should detect three of a kind", () => {
         const holeCards = [card("7", "hearts"), card("7", "diamonds")];
         const community = [
@@ -224,7 +224,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("Two Pair", () => {
+    describe.concurrent("Two Pair", () => {
       it("should detect two pair", () => {
         const holeCards = [card("K", "hearts"), card("K", "diamonds")];
         const community = [
@@ -255,7 +255,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("One Pair", () => {
+    describe.concurrent("One Pair", () => {
       it("should detect one pair", () => {
         const holeCards = [card("A", "hearts"), card("A", "diamonds")];
         const community = [
@@ -272,7 +272,7 @@ describe("Hand Evaluator", () => {
       });
     });
 
-    describe("High Card", () => {
+    describe.concurrent("High Card", () => {
       it("should detect high card", () => {
         const holeCards = [card("A", "hearts"), card("K", "diamonds")];
         const community = [
@@ -290,7 +290,7 @@ describe("Hand Evaluator", () => {
     });
   });
 
-  describe("determineWinners", () => {
+  describe.concurrent("determineWinners", () => {
     it("should determine single winner correctly", () => {
       const players = [
         { id: "p1", holeCards: [card("A", "hearts"), card("A", "diamonds")] },

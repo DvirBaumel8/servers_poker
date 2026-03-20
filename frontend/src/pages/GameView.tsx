@@ -1,13 +1,81 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Table } from "../components/game/Table";
+import { ActionFeed, useActionFeed } from "../components/game/ActionFeed";
 import { useWebSocket } from "../hooks/useWebSocket";
 import clsx from "clsx";
+import type { HandResult } from "../types";
+
+const DEFAULT_TURN_TIMEOUT_MS = 10000;
 
 export function GameView() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
-  const { connected, error, gameState, gameFinished } = useWebSocket(tableId);
+  const { actions, addAction, clearActions } = useActionFeed();
+  const [activeHandResult, setActiveHandResult] = useState<HandResult | null>(null);
+  const [playerActions, setPlayerActions] = useState<
+    Record<string, { type: string; amount?: number; timestamp: number }>
+  >({});
+  const [turnStartTime, setTurnStartTime] = useState<number | undefined>();
+  const lastActivePlayerId = useRef<string | null>(null);
+
+  const handlePlayerAction = useCallback(
+    (action: { botId: string; action: string; amount: number }) => {
+      const playerName = action.botId.slice(0, 8);
+      addAction(playerName, action.action, action.amount);
+      
+      // Track last action for each player
+      setPlayerActions((prev) => ({
+        ...prev,
+        [action.botId]: {
+          type: action.action,
+          amount: action.amount,
+          timestamp: Date.now(),
+        },
+      }));
+    },
+    [addAction]
+  );
+
+  const handleHandStarted = useCallback(() => {
+    clearActions();
+    setActiveHandResult(null); // Clear previous hand result
+    setPlayerActions({}); // Clear actions for new hand
+    setTurnStartTime(Date.now()); // Reset turn timer
+  }, [clearActions]);
+
+  const { connected, error, gameState, gameFinished, lastHandResult } = useWebSocket(tableId, {
+    onPlayerAction: handlePlayerAction,
+    onHandStarted: handleHandStarted,
+  });
+
+  // Show hand result when it comes in
+  useEffect(() => {
+    if (lastHandResult) {
+      setActiveHandResult(lastHandResult);
+    }
+  }, [lastHandResult]);
+
+  const handleHandResultComplete = useCallback(() => {
+    setActiveHandResult(null);
+  }, []);
+
+  // Track when the active player changes to reset the turn timer
+  useEffect(() => {
+    if (gameState?.currentPlayerId && gameState.currentPlayerId !== lastActivePlayerId.current) {
+      lastActivePlayerId.current = gameState.currentPlayerId;
+      setTurnStartTime(Date.now());
+    }
+  }, [gameState?.currentPlayerId]);
+
+  const playerNames = useMemo(() => {
+    if (!gameState) return {};
+    return gameState.players.reduce((acc, p) => {
+      acc[p.id] = p.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [gameState]);
 
   if (error) {
     return (
@@ -51,6 +119,9 @@ export function GameView() {
         background: "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)",
       }}
     >
+      {/* Action feed */}
+      <ActionFeed actions={actions} />
+
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3">
         <button
@@ -74,20 +145,28 @@ export function GameView() {
         </div>
       </div>
 
-      {/* Main table area */}
+      {/* Main table area - with bottom padding to avoid fixed bar overlap */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-center px-4 pt-4 pb-8"
-        style={{ minHeight: "calc(100vh - 140px)" }}
+        className="flex items-center justify-center px-4 pt-2 pb-24"
+        style={{ minHeight: "calc(100vh - 60px)" }}
       >
-        <Table gameState={gameState} />
+        <Table 
+          gameState={gameState} 
+          playerActions={playerActions}
+          turnStartTime={turnStartTime}
+          turnTimeoutMs={DEFAULT_TURN_TIMEOUT_MS}
+          handResult={activeHandResult}
+          onHandResultComplete={handleHandResultComplete}
+          playerNames={playerNames}
+        />
       </motion.div>
 
       {/* Bottom info bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent px-4 py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-black/50 px-4 py-3 z-50">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-center gap-8 bg-black/60 backdrop-blur-md rounded-2xl px-8 py-4 border border-white/10">
+          <div className="flex items-center justify-center gap-6 bg-black/70 backdrop-blur-md rounded-xl px-6 py-3 border border-white/10">
             <InfoItem
               label="Blinds"
               value={`${formatAmount(gameState.blinds?.small || 0)}/${formatAmount(gameState.blinds?.big || 0)}`}

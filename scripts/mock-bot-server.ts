@@ -1,6 +1,6 @@
 import * as http from "http";
 
-const PORT = 4000;
+const PORT = parseInt(process.env.PORT || "4000", 10);
 
 interface BotPayload {
   gameId: string;

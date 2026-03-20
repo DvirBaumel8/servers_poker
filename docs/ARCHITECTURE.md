@@ -7,7 +7,8 @@ A No-Limit Texas Hold'em tournament platform where developers build bot servers 
 ```
 ┌───────────────────────────────────────────────────────────────┐
 │                       NestJS Game Server                       │
-│  POST /auth/register          — create account                 │
+│  POST /auth/register          — create account (UI flow)       │
+│  POST /auth/register-developer — create account + bot (API)    │
 │  POST /auth/login             — get JWT token                  │
 │  POST /bots                   — register a bot                 │
 │  GET  /tournaments            — list tournaments               │
@@ -64,7 +65,11 @@ servers_poker/
 │   │   ├── action.entity.ts         — Player action
 │   │   ├── audit-log.entity.ts      — Request audit trail
 │   │   ├── chip-movement.entity.ts  — Chip transaction log
-│   │   └── game-state-snapshot.entity.ts — Persisted game state for recovery
+│   │   ├── game-state-snapshot.entity.ts — Persisted game state for recovery
+│   │   └── hand-seed.entity.ts      — Provably fair hand seeds
+│   ├── common/
+│   │   ├── validators/
+│   │   │   └── url-validator.service.ts — Bot endpoint URL validation
 │   ├── repositories/
 │   │   ├── base.repository.ts       — Abstract base with CRUD operations
 │   │   ├── user.repository.ts       — User data access (extends BaseRepository)
@@ -73,6 +78,7 @@ servers_poker/
 │   │   ├── game.repository.ts       — Game/hand data access (extends BaseRepository)
 │   │   ├── table.repository.ts      — Table management (extends BaseRepository)
 │   │   ├── game-state.repository.ts — Game state snapshots (extends BaseRepository)
+│   │   ├── hand-seed.repository.ts  — Provably fair seeds (extends BaseRepository)
 │   │   └── analytics.repository.ts  — Multi-entity analytics queries (standalone)
 │   ├── modules/
 │   │   ├── auth/                    — JWT & API key auth
@@ -82,12 +88,18 @@ servers_poker/
 │   │   └── games/                   — Tables, game joining, WebSocket
 │   ├── services/
 │   │   ├── live-game-manager.service.ts — In-memory game state management
+│   │   ├── game-worker-manager.service.ts — Worker thread game isolation
 │   │   ├── game-state-persistence.service.ts — Periodic state persistence to DB
 │   │   ├── game-recovery.service.ts — Auto-recovery on server restart
 │   │   ├── bot-caller.service.ts    — Resilient bot API calls
 │   │   ├── bot-resilience.service.ts — Fallback strategies
 │   │   ├── bot-health-scheduler.service.ts — Periodic health checks
-│   │   └── bot-metrics.gateway.ts   — Real-time bot monitoring
+│   │   ├── bot-metrics.gateway.ts   — Real-time bot monitoring
+│   │   ├── provably-fair.service.ts — HMAC commit-reveal deck shuffling
+│   │   └── hand-seed-persistence.service.ts — Persist seeds to database
+│   ├── workers/
+│   │   ├── game.worker.ts           — Isolated game execution in worker thread
+│   │   └── messages.ts              — Worker message protocol types
 │   ├── migrations/
 │   │   ├── 1710864000000-InitialSchema.ts — Initial database schema
 │   │   ├── 1710864001000-AddGameStateSnapshots.ts — Game state persistence
@@ -346,6 +358,119 @@ Outgoing webhook authentication.
 - **Format:** Stripe-style `v1=<signature>` in `X-Poker-Webhook-Signature`
 - **Protection:** Timestamp validation prevents replay attacks
 - **Headers:** Includes webhook ID and timestamp for verification
+
+### Worker Thread Architecture (`src/workers/`)
+
+Optional game isolation using Node.js worker threads. Each game runs in a separate V8 isolate for fault tolerance and CPU distribution.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Main Thread                             │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │ GameWorkerManagerService                                 ││
+│  │ - Spawns/manages worker threads                         ││
+│  │ - Routes messages via MessagePort                        ││
+│  │ - Handles crashes and recovery                          ││
+│  └─────────────────────────────────────────────────────────┘│
+│                           │                                  │
+│              ┌────────────┼────────────┐                    │
+│              ▼            ▼            ▼                    │
+│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐     │
+│  │ Worker 1      │ │ Worker 2      │ │ Worker N      │     │
+│  │ (Game A)      │ │ (Game B)      │ │ (Game X)      │     │
+│  │ - GameInstance│ │ - GameInstance│ │ - GameInstance│     │
+│  │ - HTTP to bots│ │ - HTTP to bots│ │ - HTTP to bots│     │
+│  └───────────────┘ └───────────────┘ └───────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Message Protocol (`messages.ts`)
+Type-safe communication between main thread and workers:
+- **Commands (Main→Worker):** `ADD_PLAYER`, `REMOVE_PLAYER`, `STOP`, `GET_STATE`, `UPDATE_BLINDS`
+- **Events (Worker→Main):** `STATE_UPDATE`, `HAND_STARTED`, `HAND_COMPLETE`, `GAME_FINISHED`, `ERROR`, `LOG`
+
+#### GameWorkerManagerService
+Worker lifecycle management:
+- `createGame(config, players?)` — Spawns new worker
+- `addPlayer(tableId, player)` — Sends ADD_PLAYER command
+- `stopGame(tableId)` — Graceful shutdown with termination fallback
+- `getGameState(tableId)` — Returns cached state
+- Automatic crash recovery via `game.workerCrash` event
+
+#### Configuration
+```bash
+ENABLE_WORKER_THREADS=true   # Enable worker isolation (default: false)
+MAX_CONCURRENT_GAMES=100     # Worker pool limit
+WORKER_TIMEOUT=30000         # Worker termination timeout (ms)
+```
+
+#### Benefits
+1. **Fault Isolation:** One game crash doesn't affect others
+2. **CPU Distribution:** Games utilize multiple CPU cores
+3. **Memory Isolation:** Each worker has independent heap
+4. **Foundation for Scaling:** Message-passing enables future Redis pub/sub
+
+### Provably Fair RNG (`src/services/provably-fair.service.ts`)
+
+The platform implements a cryptographically verifiable deck shuffling system using HMAC-SHA256 commit-reveal scheme. This ensures players can verify that each hand was shuffled fairly.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          Provably Fair Flow                                  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  BEFORE HAND (Commitment)                                                    │
+│  ┌─────────────────────────────────────────────────────────────────┐         │
+│  │ 1. Generate serverSeed (32 random bytes)                        │         │
+│  │ 2. Generate clientSeed (16 random bytes)                        │         │
+│  │ 3. Compute serverSeedHash = SHA256(serverSeed)                  │         │
+│  │ 4. Share serverSeedHash + clientSeed with players               │         │
+│  │    (serverSeed remains SECRET)                                  │         │
+│  └─────────────────────────────────────────────────────────────────┘         │
+│                              │                                               │
+│                              ▼                                               │
+│  DURING HAND (Shuffle)                                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐         │
+│  │ combinedHash = HMAC-SHA256(serverSeed, clientSeed + ":" + nonce)│         │
+│  │ deckOrder = deterministic_shuffle(combinedHash)                 │         │
+│  │ shuffledDeck = apply_order(standardDeck, deckOrder)             │         │
+│  └─────────────────────────────────────────────────────────────────┘         │
+│                              │                                               │
+│                              ▼                                               │
+│  AFTER HAND (Reveal)                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐         │
+│  │ Reveal serverSeed + deckOrder to players                        │         │
+│  │ Persist to hand_seeds table for audit                           │         │
+│  └─────────────────────────────────────────────────────────────────┘         │
+│                              │                                               │
+│                              ▼                                               │
+│  VERIFICATION (Player)                                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐         │
+│  │ 1. Check: SHA256(serverSeed) === serverSeedHash (commitment)    │         │
+│  │ 2. Recompute: deckOrder from seeds                              │         │
+│  │ 3. Verify: deckOrder matches what was used                      │         │
+│  └─────────────────────────────────────────────────────────────────┘         │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Key Components
+- **ProvablyFairService** — Core HMAC/hashing logic and verification
+- **HandSeedPersistenceService** — Event listener that persists seeds to database
+- **HandSeedRepository** — Data access for seed storage/retrieval
+- **HandSeed Entity** — Database schema for seed storage
+
+#### API Endpoints
+- `POST /api/v1/games/verify-hand` — Verify a hand with provided seeds
+- `GET /api/v1/games/provably-fair/info` — Algorithm explanation
+- `GET /api/v1/games/:gameId/seeds` — All seeds for a game
+- `GET /api/v1/games/:gameId/seeds/:handNumber` — Specific hand seed
+
+#### Security Properties
+- Server cannot predict player actions when committing
+- Server cannot change shuffle after commitment (hash binding)
+- Players can independently verify without trusting server
+- All seeds persisted for post-game audit
 
 ### Simulation Engine (`src/simulation/`)
 

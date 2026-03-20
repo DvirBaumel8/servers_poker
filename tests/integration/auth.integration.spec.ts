@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import { AuthService } from "../../src/modules/auth/auth.service";
 import * as bcrypt from "bcrypt";
 
-describe("Auth Integration Tests (Unit-style)", () => {
-  describe("Password Hashing", () => {
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+describe.concurrent("Auth Integration Tests (Unit-style)", () => {
+  describe.concurrent("Password Hashing", () => {
     it("should hash passwords correctly", async () => {
-      const password = "SecurePassword123!";
+      const password = `SecurePassword123!-${uid()}`;
       const hash = await bcrypt.hash(password, 10);
 
       expect(hash).not.toBe(password);
@@ -16,8 +18,8 @@ describe("Auth Integration Tests (Unit-style)", () => {
     });
 
     it("should reject wrong password", async () => {
-      const password = "SecurePassword123!";
-      const wrongPassword = "WrongPassword123!";
+      const password = `SecurePassword123!-${uid()}`;
+      const wrongPassword = `WrongPassword123!-${uid()}`;
       const hash = await bcrypt.hash(password, 10);
 
       const isMatch = await bcrypt.compare(wrongPassword, hash);
@@ -25,26 +27,28 @@ describe("Auth Integration Tests (Unit-style)", () => {
     });
   });
 
-  describe("Input Validation", () => {
+  describe.concurrent("Input Validation", () => {
     it("should validate email format", () => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const testId = uid();
 
-      expect(emailRegex.test("user@example.com")).toBe(true);
-      expect(emailRegex.test("user.name@example.co.uk")).toBe(true);
-      expect(emailRegex.test("invalid-email")).toBe(false);
-      expect(emailRegex.test("missing@domain")).toBe(false);
+      expect(emailRegex.test(`user-${testId}@example.com`)).toBe(true);
+      expect(emailRegex.test(`user.name-${testId}@example.co.uk`)).toBe(true);
+      expect(emailRegex.test(`invalid-email-${testId}`)).toBe(false);
+      expect(emailRegex.test(`missing-${testId}@domain`)).toBe(false);
     });
 
     it("should validate password length", () => {
       const minLength = 8;
+      const testId = uid();
 
-      expect("short".length >= minLength).toBe(false);
-      expect("validpassword".length >= minLength).toBe(true);
-      expect("SecurePassword123!".length >= minLength).toBe(true);
+      expect(`short${testId.slice(0, 2)}`.slice(0, 5).length >= minLength).toBe(false);
+      expect(`validpassword-${testId}`.length >= minLength).toBe(true);
+      expect(`SecurePassword123!-${testId}`.length >= minLength).toBe(true);
     });
   });
 
-  describe("API Key Generation", () => {
+  describe.concurrent("API Key Generation", () => {
     it("should generate unique API keys", async () => {
       const keys = new Set<string>();
 

@@ -11,7 +11,11 @@ import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { BotCallerService } from "./bot-caller.service";
 import { BotResilienceService } from "./bot-resilience.service";
-import { createDeck, shuffle, cardToString } from "../deck";
+import {
+  ProvablyFairService,
+  HandSeedData,
+} from "./provably-fair.service";
+import { createDeck, shuffle, shuffleWithOrder, cardToString } from "../deck";
 import { determineWinners, bestHand } from "../handEvaluator";
 import { PotManager, BettingRound } from "../betting";
 
@@ -50,6 +54,11 @@ export interface GameStateSnapshot {
     holeCards?: string[];
   }>;
   log: Array<{ message: string; timestamp: number }>;
+  provablyFair?: {
+    serverSeedHash: string;
+    clientSeed: string;
+    nonce: number;
+  };
 }
 
 interface GamePlayer {
@@ -106,6 +115,11 @@ export class GameInstance {
   private expectedTotalChips?: number;
   private sleepMs: number = 4000;
 
+  // Provably Fair fields
+  private provablyFairService: ProvablyFairService | null = null;
+  private currentHandSeed: HandSeedData | null = null;
+  private handSeeds: Map<number, HandSeedData> = new Map();
+
   constructor(
     private readonly logger: Logger,
     private readonly eventEmitter: EventEmitter2,
@@ -121,6 +135,7 @@ export class GameInstance {
       startingChips?: number;
       turnTimeoutMs?: number;
     },
+    provablyFairService?: ProvablyFairService,
   ) {
     this.tableId = config.tableId;
     this.gameId = config.gameId;
@@ -130,6 +145,7 @@ export class GameInstance {
     this.ante = config.ante ?? 0;
     this.startingChips = config.startingChips ?? 1000;
     this.turnTimeoutMs = config.turnTimeoutMs ?? 10000;
+    this.provablyFairService = provablyFairService || null;
   }
 
   addPlayer(player: {
@@ -232,6 +248,12 @@ export class GameInstance {
           gameId: this.gameId,
           winnerId: winner?.id,
           winnerName: winner?.name,
+          reason: "last_player_standing",
+          handNumber: this.handNumber,
+          players: this.players.map((p) => ({
+            id: p.id,
+            chips: p.chips,
+          })),
         });
         break;
       }
@@ -268,7 +290,21 @@ export class GameInstance {
       p.allIn = false;
     }
 
-    const deck = shuffle(createDeck());
+    // Generate provably fair seed for this hand
+    let deck;
+    if (this.provablyFairService) {
+      this.currentHandSeed = this.provablyFairService.createHandSeeds(
+        this.handNumber,
+      );
+      this.handSeeds.set(this.handNumber, this.currentHandSeed);
+      deck = shuffleWithOrder(createDeck(), this.currentHandSeed.deckOrder);
+      this.logEvent({
+        message: `Provably fair seed commitment: ${this.currentHandSeed.serverSeedHash.substring(0, 16)}...`,
+      });
+    } else {
+      deck = shuffle(createDeck());
+    }
+
     let di = 0;
     for (const p of this.players.filter((p) => !p.folded)) {
       p.holeCards = [deck[di++], deck[di++]];
@@ -282,6 +318,17 @@ export class GameInstance {
       tableId: this.tableId,
       gameId: this.gameId,
       handNumber: this.handNumber,
+      dealerBotId: this.players[this.dealerIndex].id,
+      smallBlind: this.smallBlind,
+      bigBlind: this.bigBlind,
+      players: this.players.map((p, idx) => ({
+        id: p.id,
+        chips: p.chips,
+        position: idx,
+      })),
+      provablyFair: this.currentHandSeed
+        ? this.provablyFairService?.getCommitment(this.currentHandSeed)
+        : undefined,
     });
 
     if (this.ante > 0) {
@@ -398,6 +445,7 @@ export class GameInstance {
           message: `Invalid action from ${player.name}: ${result.error} — folding`,
         });
         this.bettingRound.applyAction(player, { type: "fold" });
+        this.emitPlayerAction(player, { type: "fold" }, 0);
       } else {
         if (result.amountAdded > 0) {
           this.potManager!.addBet(player.id, result.amountAdded);
@@ -405,6 +453,7 @@ export class GameInstance {
         this.logEvent({
           message: this.describeAction(player, action, result),
         });
+        this.emitPlayerAction(player, action, result.amountAdded);
       }
 
       this.emitStateUpdate();
@@ -501,6 +550,17 @@ export class GameInstance {
       handNumber: this.handNumber,
       winners: [{ playerId: winner.id, amount: total }],
       atShowdown: false,
+      pot: total,
+      communityCards: this.communityCards,
+      players: this.players.map((p) => ({
+        id: p.id,
+        chips: p.chips,
+        folded: p.folded,
+        allIn: p.allIn,
+      })),
+      provablyFair: this.currentHandSeed
+        ? this.provablyFairService?.getVerificationData(this.currentHandSeed)
+        : undefined,
     });
   }
 
@@ -530,6 +590,7 @@ export class GameInstance {
       });
     }
 
+    const totalPot = results.reduce((sum, r) => sum + r.amount, 0);
     this.potManager!.pots = [{ amount: 0, eligiblePlayerIds: [] }];
     this.emitStateUpdate();
     this.eventEmitter.emit("game.handComplete", {
@@ -538,6 +599,17 @@ export class GameInstance {
       handNumber: this.handNumber,
       winners: results,
       atShowdown: true,
+      pot: totalPot,
+      communityCards: this.communityCards,
+      players: this.players.map((p) => ({
+        id: p.id,
+        chips: p.chips,
+        folded: p.folded,
+        allIn: p.allIn,
+      })),
+      provablyFair: this.currentHandSeed
+        ? this.provablyFairService?.getVerificationData(this.currentHandSeed)
+        : undefined,
     });
   }
 
@@ -597,7 +669,7 @@ export class GameInstance {
 
   getPublicState(forPlayerId: string | null = null): GameStateSnapshot {
     const positions = this.status === "running" ? this.computePositions() : {};
-    return {
+    const state: GameStateSnapshot = {
       tableId: this.tableId,
       gameId: this.gameId,
       handNumber: this.handNumber,
@@ -626,6 +698,41 @@ export class GameInstance {
             : p.holeCards.map(() => "??"),
       })),
       log: this.log.slice(-20),
+    };
+
+    // Include provably fair commitment (hash only, not the actual seed)
+    if (this.currentHandSeed && this.provablyFairService) {
+      state.provablyFair = this.provablyFairService.getCommitment(
+        this.currentHandSeed,
+      );
+    }
+
+    return state;
+  }
+
+  /**
+   * Get provably fair verification data for a specific hand
+   * Returns null if hand not found or provably fair is not enabled
+   */
+  getHandVerificationData(handNumber: number): {
+    serverSeed: string;
+    serverSeedHash: string;
+    clientSeed: string;
+    nonce: number;
+    combinedHash: string;
+    deckOrder: number[];
+  } | null {
+    const seedData = this.handSeeds.get(handNumber);
+    if (!seedData || !this.provablyFairService) {
+      return null;
+    }
+    return {
+      serverSeed: seedData.serverSeed,
+      serverSeedHash: seedData.serverSeedHash,
+      clientSeed: seedData.clientSeed,
+      nonce: seedData.nonce,
+      combinedHash: seedData.combinedHash,
+      deckOrder: seedData.deckOrder,
     };
   }
 
@@ -693,6 +800,24 @@ export class GameInstance {
     });
   }
 
+  private emitPlayerAction(
+    player: GamePlayer,
+    action: { type: string; amount?: number },
+    amountAdded: number,
+  ): void {
+    this.eventEmitter.emit("game.playerAction", {
+      tableId: this.tableId,
+      gameId: this.gameId,
+      handNumber: this.handNumber,
+      botId: player.id,
+      action: action.type,
+      amount: action.amount ?? amountAdded,
+      pot: this.potManager?.getTotalPot?.() ?? 0,
+      stage: this.stage,
+      chipsAfter: player.chips,
+    });
+  }
+
   private assertChipConservation(): void {
     if (this.expectedTotalChips === undefined) return;
     const inStacks = this.players.reduce((s, p) => s + p.chips, 0);
@@ -729,6 +854,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
     private readonly eventEmitter: EventEmitter2,
     private readonly botCaller: BotCallerService,
     private readonly botResilience: BotResilienceService,
+    private readonly provablyFairService: ProvablyFairService,
   ) {
     this.eventEmitter.on(
       "game.stateUpdated",
@@ -787,6 +913,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
           startingChips: Number(snapshot.starting_chips),
           turnTimeoutMs: snapshot.turn_timeout_ms,
         },
+        this.provablyFairService,
       );
 
       for (const player of snapshot.players) {
@@ -868,6 +995,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
         startingChips: config.startingChips,
         turnTimeoutMs: config.turnTimeoutMs,
       },
+      this.provablyFairService,
     );
 
     const liveGame: LiveGame = {

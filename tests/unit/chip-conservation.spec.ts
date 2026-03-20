@@ -11,7 +11,7 @@ describe("ChipInvariantChecker", () => {
     checker = new ChipInvariantChecker();
   });
 
-  describe("assertChipConservation", () => {
+  describe.concurrent("assertChipConservation", () => {
     it("should pass when chips are conserved", () => {
       const gameState = {
         players: [
@@ -62,7 +62,7 @@ describe("ChipInvariantChecker", () => {
     });
   });
 
-  describe("assertNonNegativeChips", () => {
+  describe.concurrent("assertNonNegativeChips", () => {
     it("should pass for positive chips", () => {
       expect(() =>
         checker.assertNonNegativeChips({ id: "p1", name: "Test", chips: 100 }),
@@ -82,7 +82,7 @@ describe("ChipInvariantChecker", () => {
     });
   });
 
-  describe("validateAction", () => {
+  describe.concurrent("validateAction", () => {
     it("should validate fold action", () => {
       const result = checker.validateAction({
         action: "fold",
@@ -221,7 +221,7 @@ describe("ChipInvariantChecker", () => {
     });
   });
 
-  describe("computeExpectedTotal", () => {
+  describe.concurrent("computeExpectedTotal", () => {
     it("should sum player chips and pot", () => {
       const players = [
         { id: "p1", name: "P1", chips: 500 },
@@ -252,47 +252,49 @@ describe("TransactionAuditLog", () => {
     auditLog = new TransactionAuditLog();
   });
 
-  it("should log transactions", () => {
-    auditLog.log("bet", "p1", 100, 1000, 900, 1);
+  describe.concurrent("TransactionAuditLog operations", () => {
+    it("should log transactions", () => {
+      auditLog.log("bet", "p1", 100, 1000, 900, 1);
 
-    const entries = auditLog.getEntries();
-    expect(entries).toHaveLength(1);
-    expect(entries[0].type).toBe("bet");
-    expect(entries[0].playerId).toBe("p1");
-    expect(entries[0].amount).toBe(100);
-    expect(entries[0].balanceBefore).toBe(1000);
-    expect(entries[0].balanceAfter).toBe(900);
-  });
+      const entries = auditLog.getEntries();
+      expect(entries).toHaveLength(1);
+      expect(entries[0].type).toBe("bet");
+      expect(entries[0].playerId).toBe("p1");
+      expect(entries[0].amount).toBe(100);
+      expect(entries[0].balanceBefore).toBe(1000);
+      expect(entries[0].balanceAfter).toBe(900);
+    });
 
-  it("should filter entries by hand number", () => {
-    auditLog.log("bet", "p1", 100, 1000, 900, 1);
-    auditLog.log("win", "p1", 200, 900, 1100, 1);
-    auditLog.log("bet", "p1", 50, 1100, 1050, 2);
+    it("should filter entries by hand number", () => {
+      auditLog.log("bet", "p1", 100, 1000, 900, 1);
+      auditLog.log("win", "p1", 200, 900, 1100, 1);
+      auditLog.log("bet", "p1", 50, 1100, 1050, 2);
 
-    const hand1Entries = auditLog.getEntriesForHand(1);
-    expect(hand1Entries).toHaveLength(2);
-  });
+      const hand1Entries = auditLog.getEntriesForHand(1);
+      expect(hand1Entries).toHaveLength(2);
+    });
 
-  it("should filter entries by player", () => {
-    auditLog.log("bet", "p1", 100, 1000, 900, 1);
-    auditLog.log("bet", "p2", 100, 1000, 900, 1);
-    auditLog.log("win", "p1", 200, 900, 1100, 1);
+    it("should filter entries by player", () => {
+      auditLog.log("bet", "p1", 100, 1000, 900, 1);
+      auditLog.log("bet", "p2", 100, 1000, 900, 1);
+      auditLog.log("win", "p1", 200, 900, 1100, 1);
 
-    const p1Entries = auditLog.getEntriesForPlayer("p1");
-    expect(p1Entries).toHaveLength(2);
-  });
+      const p1Entries = auditLog.getEntriesForPlayer("p1");
+      expect(p1Entries).toHaveLength(2);
+    });
 
-  it("should verify balance correctly", () => {
-    auditLog.log("bet", "p1", 100, 1000, 900, 1);
+    it("should verify balance correctly", () => {
+      auditLog.log("bet", "p1", 100, 1000, 900, 1);
 
-    expect(auditLog.verifyBalance("p1", 900)).toBe(true);
-    expect(auditLog.verifyBalance("p1", 1000)).toBe(false);
-  });
+      expect(auditLog.verifyBalance("p1", 900)).toBe(true);
+      expect(auditLog.verifyBalance("p1", 1000)).toBe(false);
+    });
 
-  it("should clear entries", () => {
-    auditLog.log("bet", "p1", 100, 1000, 900, 1);
-    auditLog.clear();
+    it("should clear entries", () => {
+      auditLog.log("bet", "p1", 100, 1000, 900, 1);
+      auditLog.clear();
 
-    expect(auditLog.getEntries()).toHaveLength(0);
+      expect(auditLog.getEntries()).toHaveLength(0);
+    });
   });
 });

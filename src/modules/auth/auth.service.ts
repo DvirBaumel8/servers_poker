@@ -9,6 +9,7 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
 import { UserRepository } from "../../repositories/user.repository";
+import { BotRepository } from "../../repositories/bot.repository";
 import { User } from "../../entities/user.entity";
 import {
   LoginDto,
@@ -18,9 +19,12 @@ import {
   ResendVerificationDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  RegisterDeveloperDto,
+  RegisterDeveloperResponseDto,
 } from "./dto/login.dto";
 import { JwtPayload } from "./strategies/jwt.strategy";
 import { EmailService } from "../../services/email.service";
+import { UrlValidatorService } from "../../common/validators/url-validator.service";
 
 interface RegisterResponse {
   message: string;
@@ -29,6 +33,7 @@ interface RegisterResponse {
 }
 
 const SALT_ROUNDS = 12;
+const MAX_BOTS_PER_ACCOUNT = 10;
 
 @Injectable()
 export class AuthService {
@@ -36,9 +41,11 @@ export class AuthService {
 
   constructor(
     private readonly userRepository: UserRepository,
+    private readonly botRepository: BotRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
+    private readonly urlValidator: UrlValidatorService,
   ) {}
 
   async register(dto: RegisterDto): Promise<RegisterResponse> {
@@ -270,6 +277,83 @@ export class AuthService {
     this.logger.log(`Password reset successful for ${user.email}`);
 
     return { message: "Password has been reset successfully" };
+  }
+
+  /**
+   * Developer registration - creates user + bot in one call.
+   * Skips email verification for developer convenience.
+   * Validates bot endpoint with health check.
+   */
+  async registerDeveloper(
+    dto: RegisterDeveloperDto,
+  ): Promise<RegisterDeveloperResponseDto> {
+    // 1. Validate email is not already registered
+    const existingUser = await this.userRepository.findByEmail(dto.email);
+    if (existingUser) {
+      throw new ConflictException("Email already registered");
+    }
+
+    // 2. Validate bot name is not taken
+    const existingBot = await this.botRepository.findByName(dto.botName);
+    if (existingBot) {
+      throw new ConflictException(`Bot name '${dto.botName}' already exists`);
+    }
+
+    // 3. Validate bot endpoint URL
+    const urlValidation = await this.urlValidator.validateWithHealthCheck(
+      dto.botEndpoint,
+      5000,
+    );
+    if (!urlValidation.valid) {
+      throw new BadRequestException(urlValidation.error);
+    }
+
+    // 4. Create user (skip email verification for developers)
+    const { raw: apiKey, hash: apiKeyHash } =
+      this.userRepository.generateApiKey();
+    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+
+    const user = await this.userRepository.create({
+      email: dto.email,
+      name: dto.name,
+      password_hash: passwordHash,
+      api_key_hash: apiKeyHash,
+      role: "user",
+      email_verified: true, // Skip verification for API registration
+    });
+
+    // 5. Create bot
+    const bot = await this.botRepository.create({
+      name: dto.botName,
+      endpoint: dto.botEndpoint,
+      description: dto.botDescription,
+      user_id: user.id,
+      active: true,
+    });
+
+    // 6. Generate JWT tokens
+    const tokens = this.generateTokens(user);
+
+    this.logger.log(
+      `Developer registered: ${user.email} with bot ${bot.name}`,
+    );
+
+    return {
+      accessToken: tokens.accessToken,
+      expiresIn: tokens.expiresIn,
+      apiKey,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+      bot: {
+        id: bot.id,
+        name: bot.name,
+        endpoint: bot.endpoint,
+      },
+      warnings: urlValidation.warnings,
+    };
   }
 
   async validateApiKey(apiKey: string): Promise<User | null> {

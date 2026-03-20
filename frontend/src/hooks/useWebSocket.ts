@@ -12,7 +12,7 @@ interface UseWebSocketOptions {
   onTournamentUpdate?: (update: TournamentUpdateEvent) => void;
 }
 
-interface PlayerAction {
+export interface PlayerAction {
   botId: string;
   action: string;
   amount: number;
@@ -55,15 +55,7 @@ export function useWebSocket(
   tableId: string | undefined,
   options: UseWebSocketOptions = {}
 ) {
-  const {
-    autoConnect = true,
-    token,
-    onPlayerAction,
-    onPlayerLeft,
-    onGameFinished,
-    onHandStarted,
-    onTournamentUpdate,
-  } = options;
+  const { autoConnect = true, token } = options;
 
   const socketRef = useRef<Socket | null>(null);
   const [state, setState] = useState<WebSocketState>({
@@ -73,6 +65,10 @@ export function useWebSocket(
     lastHandResult: null,
     gameFinished: null,
   });
+
+  // Use refs for callbacks to avoid reconnection on callback changes
+  const callbacksRef = useRef(options);
+  callbacksRef.current = options;
 
   const connect = useCallback(() => {
     if (!tableId || socketRef.current?.connected) return;
@@ -105,7 +101,8 @@ export function useWebSocket(
     });
 
     socket.on("handStarted", (data: HandStartedEvent) => {
-      onHandStarted?.(data);
+      setState((s) => ({ ...s, lastHandResult: null })); // Clear previous result
+      callbacksRef.current.onHandStarted?.(data);
     });
 
     socket.on("handResult", (result: HandResult) => {
@@ -114,31 +111,23 @@ export function useWebSocket(
 
     socket.on("gameFinished", (data: GameFinishedEvent) => {
       setState((s) => ({ ...s, gameFinished: data }));
-      onGameFinished?.(data);
+      callbacksRef.current.onGameFinished?.(data);
     });
 
     socket.on("playerLeft", (data: PlayerLeftEvent) => {
-      onPlayerLeft?.(data);
+      callbacksRef.current.onPlayerLeft?.(data);
     });
 
     socket.on("playerAction", (action: PlayerAction) => {
-      onPlayerAction?.(action);
+      callbacksRef.current.onPlayerAction?.(action);
     });
 
     socket.on("tournamentUpdate", (update: TournamentUpdateEvent) => {
-      onTournamentUpdate?.(update);
+      callbacksRef.current.onTournamentUpdate?.(update);
     });
 
     socketRef.current = socket;
-  }, [
-    tableId,
-    token,
-    onPlayerAction,
-    onPlayerLeft,
-    onGameFinished,
-    onHandStarted,
-    onTournamentUpdate,
-  ]);
+  }, [tableId, token]);
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {

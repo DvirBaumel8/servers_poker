@@ -4,7 +4,7 @@ import { PokerGameService } from "../../src/game/poker-game.service";
 import { PotManager, BettingRound } from "../../src/betting";
 
 describe("Critical Edge Cases", () => {
-  describe("Odd Chip Distribution in Split Pots", () => {
+  describe.concurrent("Odd Chip Distribution in Split Pots", () => {
     it("should distribute odd chip to first player after button in 2-way split", () => {
       const pot = 101;
       const winners = ["p1", "p2"];
@@ -80,7 +80,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("Short All-In Does Not Reopen Betting", () => {
+  describe.concurrent("Short All-In Does Not Reopen Betting", () => {
     it("should allow short all-in and set it as current bet", () => {
       const players = [
         { id: "p1", chips: 700, folded: false, allIn: false },
@@ -138,7 +138,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("All-In for Exactly Blind Amount", () => {
+  describe.concurrent("All-In for Exactly Blind Amount", () => {
     it("should handle player all-in for exactly BB", () => {
       const players = [
         { id: "p1", chips: 1000, folded: false, allIn: false },
@@ -163,7 +163,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("Heads-Up Blind Posting", () => {
+  describe.concurrent("Heads-Up Blind Posting", () => {
     let game: PokerGameService;
     let eventEmitter: EventEmitter2;
 
@@ -207,7 +207,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("Multiple All-Ins with Different Stacks", () => {
+  describe.concurrent("Multiple All-Ins with Different Stacks", () => {
     it("should create correct number of side pots", () => {
       const potManager = new PotManager();
       const players = [
@@ -262,7 +262,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("Simultaneous Bust in Tournament", () => {
+  describe.concurrent("Simultaneous Bust in Tournament", () => {
     it("should handle two players busting on same hand", () => {
       const players = [
         { id: "p1", chips: 100, busted: false, finishPosition: 0 },
@@ -286,7 +286,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("All Players All-In Preflop", () => {
+  describe.concurrent("All Players All-In Preflop", () => {
     it("should complete hand without more betting rounds", () => {
       const players = [
         { id: "p1", chips: 0, folded: false, allIn: true },
@@ -308,7 +308,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("Bot Response Edge Cases", () => {
+  describe.concurrent("Bot Response Edge Cases", () => {
     let game: PokerGameService;
     let eventEmitter: EventEmitter2;
 
@@ -346,7 +346,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("Integer Chip Amounts", () => {
+  describe.concurrent("Integer Chip Amounts", () => {
     it("should always result in integer chip values", () => {
       const pot = 100;
       const winners = 3;
@@ -371,7 +371,7 @@ describe("Critical Edge Cases", () => {
     });
   });
 
-  describe("Betting Round Completion Edge Cases", () => {
+  describe.concurrent("Betting Round Completion Edge Cases", () => {
     it("should complete when all but one player folded", () => {
       const players = [
         { id: "p1", chips: 800, folded: true, allIn: false },

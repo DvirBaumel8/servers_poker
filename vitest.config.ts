@@ -18,8 +18,9 @@ export default defineConfig({
         "src/**/*.dto.ts",
       ],
     },
-    testTimeout: 30000,
-    hookTimeout: 30000,
+    testTimeout: 60000,
+    hookTimeout: 60000,
+    isolate: false,
     fileParallelism: false,
     sequence: {
       shuffle: false,

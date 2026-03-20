@@ -15,6 +15,11 @@ export interface Player {
   position?: number;
   strikes?: number;
   holeCards?: Card[];
+  lastAction?: {
+    type: string;
+    amount?: number;
+    timestamp: number;
+  };
 }
 
 export interface GameState {
@@ -100,4 +105,21 @@ export interface HandResult {
     handName: string;
   }>;
   pot: number;
+  provablyFair?: ProvablyFairData;
+}
+
+export interface ProvablyFairData {
+  serverSeed: string;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+  combinedHash: string;
+  deckOrder: number[];
+  verificationUrl: string;
+}
+
+export interface ProvablyFairCommitment {
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
 }

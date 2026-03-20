@@ -23,7 +23,7 @@ describe("WebhookSigningService", () => {
     service = module.get<WebhookSigningService>(WebhookSigningService);
   });
 
-  describe("createSignedWebhook", () => {
+  describe.concurrent("createSignedWebhook", () => {
     it("should create a signed webhook with all fields", () => {
       const event = "game.started";
       const data = { gameId: "123", players: ["bot1", "bot2"] };
@@ -48,7 +48,7 @@ describe("WebhookSigningService", () => {
     });
   });
 
-  describe("verifyWebhook", () => {
+  describe.concurrent("verifyWebhook", () => {
     it("should verify a valid webhook", () => {
       const event = "hand.completed";
       const data = { handNumber: 5, winner: "bot1" };

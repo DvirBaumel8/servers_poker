@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
-import * as request from "supertest";
+import request from "supertest";
 import { DataSource } from "typeorm";
 import { io, Socket } from "socket.io-client";
 import { AuthModule } from "../../src/modules/auth/auth.module";
@@ -18,11 +18,11 @@ import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { sleep } from "../utils/test-helpers";
 
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 describe("WebSocket E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
-  let accessToken: string;
-  let userId: string;
   let serverUrl: string;
   let clientSocket: Socket | null = null;
 
@@ -44,12 +44,7 @@ describe("WebSocket E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([
-          {
-            ttl: 60000,
-            limit: 1000,
-          },
-        ]),
+        ThrottlerModule.forRoot([{ ttl: 60000, limit: 100000 }]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -98,33 +93,27 @@ describe("WebSocket E2E Tests", () => {
     await app.close();
   });
 
-  beforeEach(async () => {
+  afterEach(async () => {
     if (clientSocket?.connected) {
       clientSocket.disconnect();
       clientSocket = null;
     }
+  });
 
-    const tableNames = dataSource.entityMetadatas
-      .map((entity) => `"${entity.tableName}"`)
-      .join(", ");
-
-    if (tableNames) {
-      await dataSource.query(
-        `TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`,
-      );
-    }
-
+  async function createTestUser() {
+    const id = uid();
     const response = await request(app.getHttpServer())
       .post("/api/v1/auth/register")
       .send({
-        email: "wstest@example.com",
-        name: "WSTest",
+        email: `wstest-${id}@example.com`,
+        name: `WSTest-${id}`,
         password: "SecurePassword123!",
       });
-
-    accessToken = response.body.accessToken;
-    userId = response.body.user.id;
-  });
+    return {
+      accessToken: response.body.accessToken,
+      userId: response.body.user.id,
+    };
+  }
 
   function connectSocket(token?: string): Promise<Socket> {
     return new Promise((resolve, reject) => {
@@ -148,49 +137,55 @@ describe("WebSocket E2E Tests", () => {
     });
   }
 
-  describe("WebSocket Connection", () => {
+  describe.concurrent("WebSocket Connection", () => {
     it("should connect with valid JWT token", async () => {
-      clientSocket = await connectSocket(accessToken);
-      expect(clientSocket.connected).toBe(true);
+      const { accessToken } = await createTestUser();
+      const socket = await connectSocket(accessToken);
+      expect(socket.connected).toBe(true);
+      socket.disconnect();
     });
 
     it("should allow connection without token (for public events)", async () => {
       try {
-        clientSocket = await connectSocket();
-        expect(clientSocket.connected).toBe(true);
+        const socket = await connectSocket();
+        expect(socket.connected).toBe(true);
+        socket.disconnect();
       } catch {
         expect(true).toBe(true);
       }
     });
 
     it("should disconnect cleanly", async () => {
-      clientSocket = await connectSocket(accessToken);
-      expect(clientSocket.connected).toBe(true);
+      const { accessToken } = await createTestUser();
+      const socket = await connectSocket(accessToken);
+      expect(socket.connected).toBe(true);
 
-      clientSocket.disconnect();
+      socket.disconnect();
       await sleep(100);
 
-      expect(clientSocket.connected).toBe(false);
+      expect(socket.connected).toBe(false);
     });
   });
 
-  describe("Table Subscription", () => {
+  describe.concurrent("Table Subscription", () => {
     it("should subscribe to table events", async () => {
-      clientSocket = await connectSocket(accessToken);
+      const { accessToken } = await createTestUser();
+      const socket = await connectSocket(accessToken);
+      const id = uid();
 
       const botResponse = await request(app.getHttpServer())
         .post("/api/v1/bots")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "WSBot1",
-          endpoint: "http://localhost:19201",
+          name: `WSBot1-${id}`,
+          endpoint: `http://localhost:19201/bot-${id}`,
         });
 
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "WSTable",
+          name: `WSTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -199,39 +194,42 @@ describe("WebSocket E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       const subscribePromise = new Promise<void>((resolve, reject) => {
-        clientSocket!.emit("subscribe_table", { tableId });
+        socket.emit("subscribe_table", { tableId });
 
-        clientSocket!.on("table_subscribed", (data: any) => {
+        socket.on("table_subscribed", (data: any) => {
           if (data.tableId === tableId) {
             resolve();
           }
         });
 
-        clientSocket!.on("error", reject);
+        socket.on("error", reject);
 
         setTimeout(() => resolve(), 2000);
       });
 
       await subscribePromise;
       expect(true).toBe(true);
+      socket.disconnect();
     });
 
     it("should receive seat update when bot joins", async () => {
-      clientSocket = await connectSocket(accessToken);
+      const { accessToken } = await createTestUser();
+      const socket = await connectSocket(accessToken);
+      const id = uid();
 
       const botResponse = await request(app.getHttpServer())
         .post("/api/v1/bots")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "WSBot2",
-          endpoint: "http://localhost:19202",
+          name: `WSBot2-${id}`,
+          endpoint: `http://localhost:19202/bot-${id}`,
         });
 
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "WSTable2",
+          name: `WSTable2-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -240,7 +238,7 @@ describe("WebSocket E2E Tests", () => {
       const tableId = tableResponse.body.id;
       const botId = botResponse.body.id;
 
-      clientSocket.emit("subscribe_table", { tableId });
+      socket.emit("subscribe_table", { tableId });
       await sleep(100);
 
       const eventPromise = new Promise<any>((resolve, reject) => {
@@ -248,12 +246,12 @@ describe("WebSocket E2E Tests", () => {
           resolve(null);
         }, 3000);
 
-        clientSocket!.on("seat_update", (data: any) => {
+        socket.on("seat_update", (data: any) => {
           clearTimeout(timeout);
           resolve(data);
         });
 
-        clientSocket!.on("player_joined", (data: any) => {
+        socket.on("player_joined", (data: any) => {
           clearTimeout(timeout);
           resolve(data);
         });
@@ -267,28 +265,24 @@ describe("WebSocket E2E Tests", () => {
         });
 
       const event = await eventPromise;
+      socket.disconnect();
     });
   });
 
-  describe("Game Events", () => {
+  describe.concurrent("Game Events", () => {
     it("should handle multiple clients subscribing to same table", async () => {
-      const socket1 = await connectSocket(accessToken);
+      const { accessToken: token1 } = await createTestUser();
+      const { accessToken: token2 } = await createTestUser();
+      const id = uid();
 
-      const response2 = await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({
-          email: "wstest2@example.com",
-          name: "WSTest2",
-          password: "SecurePassword123!",
-        });
-
-      const socket2 = await connectSocket(response2.body.accessToken);
+      const socket1 = await connectSocket(token1);
+      const socket2 = await connectSocket(token2);
 
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set("Authorization", `Bearer ${token1}`)
         .send({
-          name: "SharedTable",
+          name: `SharedTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -309,13 +303,15 @@ describe("WebSocket E2E Tests", () => {
     });
 
     it("should unsubscribe from table events", async () => {
-      clientSocket = await connectSocket(accessToken);
+      const { accessToken } = await createTestUser();
+      const socket = await connectSocket(accessToken);
+      const id = uid();
 
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "UnsubTable",
+          name: `UnsubTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -323,46 +319,51 @@ describe("WebSocket E2E Tests", () => {
 
       const tableId = tableResponse.body.id;
 
-      clientSocket.emit("subscribe_table", { tableId });
+      socket.emit("subscribe_table", { tableId });
       await sleep(100);
 
-      clientSocket.emit("unsubscribe_table", { tableId });
+      socket.emit("unsubscribe_table", { tableId });
       await sleep(100);
 
-      expect(clientSocket.connected).toBe(true);
+      expect(socket.connected).toBe(true);
+      socket.disconnect();
     });
   });
 
-  describe("Error Handling", () => {
+  describe.concurrent("Error Handling", () => {
     it("should handle subscription to non-existent table gracefully", async () => {
-      clientSocket = await connectSocket(accessToken);
+      const { accessToken } = await createTestUser();
+      const socket = await connectSocket(accessToken);
 
       const errorPromise = new Promise<any>((resolve) => {
         const timeout = setTimeout(() => resolve(null), 2000);
 
-        clientSocket!.on("error", (data: any) => {
+        socket.on("error", (data: any) => {
           clearTimeout(timeout);
           resolve(data);
         });
 
-        clientSocket!.on("exception", (data: any) => {
+        socket.on("exception", (data: any) => {
           clearTimeout(timeout);
           resolve(data);
         });
       });
 
-      clientSocket.emit("subscribe_table", { tableId: "non-existent-table" });
+      socket.emit("subscribe_table", { tableId: `non-existent-table-${uid()}` });
 
       const error = await errorPromise;
+      socket.disconnect();
     });
 
     it("should handle malformed messages gracefully", async () => {
-      clientSocket = await connectSocket(accessToken);
+      const { accessToken } = await createTestUser();
+      const socket = await connectSocket(accessToken);
 
-      clientSocket.emit("subscribe_table", { invalid: "data" });
+      socket.emit("subscribe_table", { invalid: "data" });
       await sleep(100);
 
-      expect(clientSocket.connected).toBe(true);
+      expect(socket.connected).toBe(true);
+      socket.disconnect();
     });
   });
 });

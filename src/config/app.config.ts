@@ -1,3 +1,9 @@
+export interface WorkerConfig {
+  enableWorkerThreads: boolean;
+  maxConcurrentGames: number;
+  workerTimeout: number;
+}
+
 export interface AppConfig {
   port: number;
   nodeEnv: string;
@@ -8,6 +14,7 @@ export interface AppConfig {
   rateLimitWindowMs: number;
   botTimeoutMs: number;
   maxBodySize: number;
+  workers: WorkerConfig;
 }
 
 export const appConfig = (): AppConfig => ({
@@ -20,4 +27,9 @@ export const appConfig = (): AppConfig => ({
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
   botTimeoutMs: parseInt(process.env.BOT_TIMEOUT_MS || "10000", 10),
   maxBodySize: parseInt(process.env.MAX_BODY_SIZE || "65536", 10),
+  workers: {
+    enableWorkerThreads: process.env.ENABLE_WORKER_THREADS === "true",
+    maxConcurrentGames: parseInt(process.env.MAX_CONCURRENT_GAMES || "100", 10),
+    workerTimeout: parseInt(process.env.WORKER_TIMEOUT || "30000", 10),
+  },
 });

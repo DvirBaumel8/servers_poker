@@ -1,6 +1,8 @@
 export { BaseEntity } from "./base.entity";
 export { User } from "./user.entity";
 export { Bot } from "./bot.entity";
+export { Table, TableStatus as CashTableStatus } from "./table.entity";
+export { TableSeat } from "./table-seat.entity";
 export { BotStats } from "./bot-stats.entity";
 export { BotEvent, EventType } from "./bot-event.entity";
 export {
@@ -27,3 +29,4 @@ export {
   GameStateSnapshot,
   SnapshotStatus,
 } from "./game-state-snapshot.entity";
+export { HandSeed } from "./hand-seed.entity";

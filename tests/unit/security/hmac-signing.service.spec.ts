@@ -23,7 +23,7 @@ describe("HmacSigningService", () => {
     service = module.get<HmacSigningService>(HmacSigningService);
   });
 
-  describe("signPayload", () => {
+  describe.concurrent("signPayload", () => {
     it("should sign a payload with all required fields", () => {
       const payload = { action: "call", amount: 100 };
       const signed = service.signPayload(payload, secretKey);
@@ -51,7 +51,7 @@ describe("HmacSigningService", () => {
     });
   });
 
-  describe("verifySignature", () => {
+  describe.concurrent("verifySignature", () => {
     it("should verify a valid signature", () => {
       const payload = { action: "raise", amount: 200 };
       const signed = service.signPayload(payload, secretKey);
@@ -109,7 +109,7 @@ describe("HmacSigningService", () => {
     });
   });
 
-  describe("generateSecretKey", () => {
+  describe.concurrent("generateSecretKey", () => {
     it("should generate a 64-character hex key", () => {
       const key = service.generateSecretKey();
 
@@ -126,7 +126,7 @@ describe("HmacSigningService", () => {
     });
   });
 
-  describe("generateSignedHeaders", () => {
+  describe.concurrent("generateSignedHeaders", () => {
     it("should generate all required headers", () => {
       const payload = { data: "test" };
       const headers = service.generateSignedHeaders(payload, secretKey);
@@ -138,7 +138,7 @@ describe("HmacSigningService", () => {
     });
   });
 
-  describe("verifySignedRequest", () => {
+  describe.concurrent("verifySignedRequest", () => {
     it("should verify request with valid headers", () => {
       const payload = { test: true };
       const headers = service.generateSignedHeaders(payload, secretKey);

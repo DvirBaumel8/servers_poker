@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
   Logger,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -15,6 +16,9 @@ import {
   BotResponseDto,
   ValidateBotResponseDto,
 } from "./dto/bot.dto";
+import { UrlValidatorService } from "../../common/validators/url-validator.service";
+
+const MAX_BOTS_PER_ACCOUNT = 10;
 
 @Injectable()
 export class BotsService {
@@ -25,20 +29,41 @@ export class BotsService {
     private readonly botRepository: BotRepository,
     private readonly analyticsRepository: AnalyticsRepository,
     private readonly configService: ConfigService,
+    private readonly urlValidator: UrlValidatorService,
   ) {
     this.botTimeoutMs = this.configService.get<number>("BOT_TIMEOUT_MS", 10000);
   }
 
   async create(userId: string, dto: CreateBotDto): Promise<BotResponseDto> {
+    // Check bot limit per account
+    const userBots = await this.botRepository.findByUserId(userId);
+    if (userBots.length >= MAX_BOTS_PER_ACCOUNT) {
+      throw new BadRequestException(
+        `Maximum ${MAX_BOTS_PER_ACCOUNT} bots per account. Please deactivate or delete an existing bot.`,
+      );
+    }
+
+    // Check bot name uniqueness
     const existing = await this.botRepository.findByName(dto.name);
     if (existing) {
       throw new ConflictException(`Bot name '${dto.name}' already exists`);
+    }
+
+    // Validate endpoint URL with health check
+    const urlValidation = await this.urlValidator.validateWithHealthCheck(
+      dto.endpoint,
+      5000,
+    );
+    if (!urlValidation.valid) {
+      throw new BadRequestException(urlValidation.error);
     }
 
     const bot = await this.botRepository.create({
       ...dto,
       user_id: userId,
     });
+
+    this.logger.log(`Bot created: ${bot.name} by user ${userId}`);
 
     return this.toResponseDto(bot);
   }

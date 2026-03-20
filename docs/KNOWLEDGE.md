@@ -78,6 +78,43 @@ React SPA in `/frontend` connects to NestJS backend:
 - Events: `gameState`, `handStarted`, `handResult`, `gameFinished`, `playerLeft`, `playerAction`
 - Frontend hook: `useWebSocket(tableId, { token })` handles connection lifecycle
 
+### API-Only Developer Registration
+
+Developers can register and create a bot without using the UI:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/register-developer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "developer@example.com",
+    "name": "Bot Developer",
+    "password": "SecurePass123",
+    "botName": "MyPokerBot",
+    "botEndpoint": "http://localhost:3001/action",
+    "botDescription": "My first poker bot"
+  }'
+```
+
+**Response:**
+```json
+{
+  "accessToken": "jwt...",
+  "expiresIn": 86400,
+  "apiKey": "pk_...",
+  "user": { "id": "...", "email": "...", "name": "..." },
+  "bot": { "id": "...", "name": "MyPokerBot", "endpoint": "..." },
+  "warnings": ["Using HTTP - HTTPS will be required in production"]
+}
+```
+
+**Security Features:**
+- Rate limited: 3 requests per IP per hour
+- Health check required: Bot endpoint must respond before registration succeeds
+- Input validation: Strict validation on all fields (email, password complexity, bot name format)
+- Max 10 bots per account
+- Email verification skipped (tracked in TECH_DEBT.md)
+- Localhost/HTTP allowed in development only (tracked in TECH_DEBT.md)
+
 **Development:**
 - `npm run dev:all` — Runs both backend (3000) and frontend (3001) concurrently
 - `npm run build:all` — Builds both for production
@@ -121,6 +158,50 @@ TypeORM migrations manage schema changes:
 - `npm run migration:generate` — Auto-generate from entity changes
 - `npm run migration:revert` — Rollback last migration
 - **Never use `synchronize: true` in production**
+
+### Worker Thread Game Isolation
+Optional architecture where each game runs in a separate worker thread:
+
+**Motivation:**
+- Single-threaded Node.js can't utilize multiple CPU cores for game logic
+- One buggy bot or game crash could affect all games on server
+- Memory pressure from many concurrent games in single heap
+
+**Implementation:**
+- `GameWorkerManagerService` manages worker lifecycle
+- `game.worker.ts` runs isolated `GameInstance` per thread
+- Typed message protocol (`messages.ts`) for communication
+- Feature flag: `ENABLE_WORKER_THREADS=false` (default off)
+
+**Trade-offs:**
+- Workers have higher memory overhead (~10MB per isolate)
+- Message serialization cost for state updates
+- Workers can't share NestJS DI container (use standalone HTTP client)
+- More complex debugging (separate thread stacks)
+
+**When to enable:**
+- High concurrent game count (>50 games)
+- CPU-bound game logic causing event loop delays
+- Need fault isolation for untrusted bot interactions
+- Multi-core server optimization
+
+### One Bot Per Player Rule
+A user can only have one bot in any given table or tournament:
+
+**Tables:**
+- When joining a table, if another bot owned by the same user is already seated, the join is rejected
+- Error: "You already have a bot (BotName) seated at this table. Only one bot per player allowed."
+- Enforced in `TableRepository.atomicJoinTable()` within SERIALIZABLE transaction
+
+**Tournaments:**
+- When registering for a tournament, if another bot owned by the same user is already registered, registration is rejected
+- Error: "You already have a bot (BotName) registered in this tournament. Only one bot per player allowed."
+- Enforced in `TournamentsService.register()` with bot ownership verification
+
+**Rationale:**
+- Prevents collusion between bots owned by the same player
+- Ensures fair competition
+- Simplifies chip conservation tracking per player
 
 ---
 
@@ -544,15 +625,66 @@ See `docs/TESTING.md` for complete testing documentation.
 
 ---
 
+## Provably Fair RNG
+
+### Overview
+The platform implements a provably fair deck shuffling system using HMAC-SHA256 commit-reveal scheme. This allows players to verify that the shuffle was truly random and not manipulated after the fact.
+
+### How It Works
+
+1. **Before Each Hand (Commitment Phase)**:
+   - Server generates a random 32-byte `serverSeed`
+   - Server generates a random 16-byte `clientSeed`
+   - Server computes `serverSeedHash = SHA256(serverSeed)`
+   - Server shares the `serverSeedHash` (commitment) with players BEFORE dealing cards
+   - The `serverSeed` remains secret during the hand
+
+2. **Deck Shuffle (Deterministic)**:
+   - `combinedHash = HMAC-SHA256(serverSeed, clientSeed + ":" + handNumber)`
+   - The deck is shuffled deterministically using `combinedHash` as the random seed
+   - Fisher-Yates shuffle with seeded RNG ensures reproducibility
+
+3. **After Hand (Reveal Phase)**:
+   - Server reveals the `serverSeed` along with `deckOrder`
+   - This data is persisted in the `hand_seeds` table
+
+4. **Verification**:
+   - Players can verify `SHA256(serverSeed) === serverSeedHash` (proves commitment)
+   - Players can recompute the deck order and verify it matches
+   - Verification endpoint: `POST /api/v1/games/verify-hand`
+
+### Key Files
+- `src/services/provably-fair.service.ts` — Core HMAC/hashing/verification logic
+- `src/services/hand-seed-persistence.service.ts` — Persists seeds to database
+- `src/entities/hand-seed.entity.ts` — Database entity for seed storage
+- `src/repositories/hand-seed.repository.ts` — Data access for seeds
+
+### API Endpoints
+- `POST /api/v1/games/verify-hand` — Verify a hand's fairness
+- `GET /api/v1/games/provably-fair/info` — Get explanation of the algorithm
+- `GET /api/v1/games/:gameId/seeds` — Get all hand seeds for a game
+- `GET /api/v1/games/:gameId/seeds/:handNumber` — Get specific hand seed
+
+### WebSocket Events
+- `handStarted` — Includes `provablyFair.serverSeedHash` commitment
+- `handResult` — Includes full `provablyFair` verification data
+
+### Security Properties
+- Server cannot predict player actions, so shuffling before commitment is fair
+- Server cannot change the shuffle after commitment (hash binding)
+- Players can independently verify without trusting the server
+- All seeds are persisted for post-game audit
+
+---
+
 ## Known Gaps / Future Work
 
 - **Scheduled tournament start** — `type:'scheduled'` exists but no timer fires at `scheduled_start_at`
 - **Tournament reset** — finished tournaments can't be restarted without manual DB changes
 - **Redis for session state** — currently in-memory, need Redis for horizontal scaling
 - **WebSocket authentication** — JWT validation on connection implemented, need refresh handling
-- **HMAC bot payload signing** — planned for additional security
-- **Key rotation** — API key rotation mechanism not yet implemented
 - **Hand-for-hand bubble play** — not implemented for tournament bubble
 - **Dead button rule** — need to choose and implement consistently
+- **Client-provided seeds** — Players could provide their own client seed for extra transparency
 
 For comprehensive edge case documentation, see `EDGE_CASES.md`.

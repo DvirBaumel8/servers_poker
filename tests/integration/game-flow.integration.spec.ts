@@ -5,6 +5,7 @@ import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { LiveGameManagerService } from "../../src/services/live-game-manager.service";
 import { BotCallerService } from "../../src/services/bot-caller.service";
 import { BotResilienceService } from "../../src/services/bot-resilience.service";
+import { ProvablyFairService } from "../../src/services/provably-fair.service";
 import { v4 as uuidv4 } from "uuid";
 
 describe("Game Flow Integration Tests", () => {
@@ -38,6 +39,7 @@ describe("Game Flow Integration Tests", () => {
       ],
       providers: [
         LiveGameManagerService,
+        ProvablyFairService,
         {
           provide: BotCallerService,
           useValue: mockBotCallerService,
@@ -59,7 +61,7 @@ describe("Game Flow Integration Tests", () => {
     vi.clearAllMocks();
   });
 
-  describe("Game Lifecycle", () => {
+  describe.concurrent("Game Lifecycle", () => {
     it("should create a new game instance", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
@@ -129,7 +131,7 @@ describe("Game Flow Integration Tests", () => {
     });
   });
 
-  describe("Game State", () => {
+  describe.concurrent("Game State", () => {
     it("should return game state snapshot", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
@@ -178,7 +180,7 @@ describe("Game Flow Integration Tests", () => {
     });
   });
 
-  describe("Player Management", () => {
+  describe.concurrent("Player Management", () => {
     it("should remove player from game", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
@@ -225,7 +227,7 @@ describe("Game Flow Integration Tests", () => {
     });
   });
 
-  describe("Game Removal", () => {
+  describe.concurrent("Game Removal", () => {
     it("should remove game properly", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
@@ -250,7 +252,7 @@ describe("Game Flow Integration Tests", () => {
     });
   });
 
-  describe("Tournament Support", () => {
+  describe.concurrent("Tournament Support", () => {
     it("should create game with tournament ID", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;

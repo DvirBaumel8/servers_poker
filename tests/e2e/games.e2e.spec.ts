@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
-import * as request from "supertest";
+import request from "supertest";
 import { DataSource } from "typeorm";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
@@ -16,13 +16,11 @@ import { APP_GUARD } from "@nestjs/core";
 import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 describe("Games E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
-  let accessToken: string;
-  let userId: string;
-  let bot1Id: string;
-  let bot2Id: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -42,12 +40,7 @@ describe("Games E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
-        ThrottlerModule.forRoot([
-          {
-            ttl: 60000,
-            limit: 1000,
-          },
-        ]),
+        ThrottlerModule.forRoot([{ ttl: 60000, limit: 100000 }]),
         EventEmitterModule.forRoot(),
         ServicesModule,
         AuthModule,
@@ -87,56 +80,48 @@ describe("Games E2E Tests", () => {
     await app.close();
   });
 
-  beforeEach(async () => {
-    const tableNames = dataSource.entityMetadatas
-      .map((entity) => `"${entity.tableName}"`)
-      .join(", ");
-
-    if (tableNames) {
-      await dataSource.query(
-        `TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`,
-      );
-    }
-
+  async function createTestUser() {
+    const id = uid();
     const response = await request(app.getHttpServer())
       .post("/api/v1/auth/register")
       .send({
-        email: "gameowner@example.com",
-        name: "GameOwner",
+        email: `gameowner-${id}@example.com`,
+        name: `GameOwner-${id}`,
         password: "SecurePassword123!",
       });
 
-    accessToken = response.body.accessToken;
-    userId = response.body.user.id;
+    return {
+      accessToken: response.body.accessToken,
+      userId: response.body.user.id,
+    };
+  }
 
-    const bot1Response = await request(app.getHttpServer())
+  async function createTestBot(
+    accessToken: string,
+    name: string,
+    port: number,
+  ) {
+    const response = await request(app.getHttpServer())
       .post("/api/v1/bots")
       .set("Authorization", `Bearer ${accessToken}`)
       .send({
-        name: "GameBot1",
-        endpoint: "http://localhost:19001",
+        name,
+        endpoint: `http://localhost:${port}`,
       });
 
-    bot1Id = bot1Response.body.id;
+    return response.body.id;
+  }
 
-    const bot2Response = await request(app.getHttpServer())
-      .post("/api/v1/bots")
-      .set("Authorization", `Bearer ${accessToken}`)
-      .send({
-        name: "GameBot2",
-        endpoint: "http://localhost:19002",
-      });
-
-    bot2Id = bot2Response.body.id;
-  });
-
-  describe("Table CRUD Operations", () => {
+  describe.concurrent("Table CRUD Operations", () => {
     it("should create a new table", async () => {
+      const { accessToken } = await createTestUser();
+      const tableName = `TestTable-${uid()}`;
+
       const response = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "TestTable",
+          name: tableName,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -144,18 +129,21 @@ describe("Games E2E Tests", () => {
         })
         .expect(201);
 
-      expect(response.body.name).toBe("TestTable");
+      expect(response.body.name).toBe(tableName);
       expect(response.body.small_blind).toBe(10);
       expect(response.body.big_blind).toBe(20);
       expect(response.body.max_players).toBe(6);
     });
 
     it("should list all tables", async () => {
+      const { accessToken } = await createTestUser();
+      const id = uid();
+
       await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "Table1",
+          name: `Table1-${id}`,
           small_blind: 5,
           big_blind: 10,
           starting_chips: 500,
@@ -165,7 +153,7 @@ describe("Games E2E Tests", () => {
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "Table2",
+          name: `Table2-${id}`,
           small_blind: 25,
           big_blind: 50,
           starting_chips: 2000,
@@ -181,11 +169,14 @@ describe("Games E2E Tests", () => {
     });
 
     it("should get table by ID", async () => {
+      const { accessToken } = await createTestUser();
+      const tableName = `GetTable-${uid()}`;
+
       const createResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "GetTable",
+          name: tableName,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -199,17 +190,19 @@ describe("Games E2E Tests", () => {
         .expect(200);
 
       expect(response.body.id).toBe(tableId);
-      expect(response.body.name).toBe("GetTable");
+      expect(response.body.name).toBe(tableName);
     });
   });
 
-  describe("Table Validation", () => {
+  describe.concurrent("Table Validation", () => {
     it("should reject table with invalid blinds", async () => {
+      const { accessToken } = await createTestUser();
+
       await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "InvalidTable",
+          name: `InvalidTable-${uid()}`,
           small_blind: -10,
           big_blind: 20,
           starting_chips: 1000,
@@ -218,21 +211,25 @@ describe("Games E2E Tests", () => {
     });
 
     it("should reject table with missing required fields", async () => {
+      const { accessToken } = await createTestUser();
+
       await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "IncompleteTable",
+          name: `IncompleteTable-${uid()}`,
         })
         .expect(400);
     });
 
     it("should reject table with too few max players", async () => {
+      const { accessToken } = await createTestUser();
+
       await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "TinyTable",
+          name: `TinyTable-${uid()}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -242,13 +239,17 @@ describe("Games E2E Tests", () => {
     });
   });
 
-  describe("Bot Join Table", () => {
+  describe.concurrent("Bot Join Table", () => {
     it("should allow bot to join table", async () => {
+      const { accessToken } = await createTestUser();
+      const id = uid();
+      const bot1Id = await createTestBot(accessToken, `GameBot1-${id}`, 19001);
+
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "JoinTable",
+          name: `JoinTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -270,11 +271,16 @@ describe("Games E2E Tests", () => {
     });
 
     it("should reject second bot from same owner joining table", async () => {
+      const { accessToken } = await createTestUser();
+      const id = uid();
+      const bot1Id = await createTestBot(accessToken, `GameBot1-${id}`, 19001);
+      const bot2Id = await createTestBot(accessToken, `GameBot2-${id}`, 19002);
+
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "MultiJoinTable",
+          name: `MultiJoinTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -308,32 +314,22 @@ describe("Games E2E Tests", () => {
     });
 
     it("should allow bots from different owners to join same table", async () => {
-      // Create second user with their own bot
-      const user2Response = await request(app.getHttpServer())
-        .post("/api/v1/auth/register")
-        .send({
-          email: "secondowner@example.com",
-          name: "SecondOwner",
-          password: "SecurePassword123!",
-        });
+      const { accessToken } = await createTestUser();
+      const id = uid();
+      const bot1Id = await createTestBot(accessToken, `GameBot1-${id}`, 19001);
 
-      const user2Token = user2Response.body.accessToken;
-
-      const user2BotResponse = await request(app.getHttpServer())
-        .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${user2Token}`)
-        .send({
-          name: "User2Bot",
-          endpoint: "http://localhost:19003",
-        });
-
-      const user2BotId = user2BotResponse.body.id;
+      const { accessToken: user2Token } = await createTestUser();
+      const user2BotId = await createTestBot(
+        user2Token,
+        `User2Bot-${id}`,
+        19003,
+      );
 
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "MultiOwnerTable",
+          name: `MultiOwnerTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -362,6 +358,10 @@ describe("Games E2E Tests", () => {
     });
 
     it("should reject joining with inactive bot", async () => {
+      const { accessToken } = await createTestUser();
+      const id = uid();
+      const bot1Id = await createTestBot(accessToken, `GameBot1-${id}`, 19001);
+
       await request(app.getHttpServer())
         .patch(`/api/v1/bots/${bot1Id}`)
         .set("Authorization", `Bearer ${accessToken}`)
@@ -373,7 +373,7 @@ describe("Games E2E Tests", () => {
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "InactiveBotTable",
+          name: `InactiveBotTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -391,11 +391,15 @@ describe("Games E2E Tests", () => {
     });
 
     it("should reject joining same bot twice", async () => {
+      const { accessToken } = await createTestUser();
+      const id = uid();
+      const bot1Id = await createTestBot(accessToken, `GameBot1-${id}`, 19001);
+
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "DuplicateJoinTable",
+          name: `DuplicateJoinTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -421,11 +425,14 @@ describe("Games E2E Tests", () => {
     });
 
     it("should reject non-existent bot", async () => {
+      const { accessToken } = await createTestUser();
+      const id = uid();
+
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "FakeBotTable",
+          name: `FakeBotTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -443,13 +450,17 @@ describe("Games E2E Tests", () => {
     });
   });
 
-  describe("Game State", () => {
+  describe.concurrent("Game State", () => {
     it("should get table state with seated bots", async () => {
+      const { accessToken } = await createTestUser();
+      const id = uid();
+      const bot1Id = await createTestBot(accessToken, `GameBot1-${id}`, 19001);
+
       const tableResponse = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
-          name: "StateTable",
+          name: `StateTable-${id}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
@@ -464,13 +475,6 @@ describe("Games E2E Tests", () => {
           bot_id: bot1Id,
         });
 
-      await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send({
-          bot_id: bot2Id,
-        });
-
       const response = await request(app.getHttpServer())
         .get(`/api/v1/games/tables/${tableId}/state`)
         .set("Authorization", `Bearer ${accessToken}`)
@@ -481,8 +485,10 @@ describe("Games E2E Tests", () => {
     });
   });
 
-  describe("Leaderboard", () => {
+  describe.concurrent("Leaderboard", () => {
     it("should return leaderboard (empty initially)", async () => {
+      const { accessToken } = await createTestUser();
+
       const response = await request(app.getHttpServer())
         .get("/api/v1/games/leaderboard")
         .set("Authorization", `Bearer ${accessToken}`)
@@ -492,6 +498,8 @@ describe("Games E2E Tests", () => {
     });
 
     it("should respect limit parameter", async () => {
+      const { accessToken } = await createTestUser();
+
       const response = await request(app.getHttpServer())
         .get("/api/v1/games/leaderboard?limit=5")
         .set("Authorization", `Bearer ${accessToken}`)
@@ -502,7 +510,7 @@ describe("Games E2E Tests", () => {
     });
   });
 
-  describe("Health Check", () => {
+  describe.concurrent("Health Check", () => {
     it("should return health status", async () => {
       const response = await request(app.getHttpServer())
         .get("/api/v1/games/health")

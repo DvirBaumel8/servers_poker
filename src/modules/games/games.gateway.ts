@@ -17,6 +17,7 @@ import {
   LiveGameManagerService,
   GameStateSnapshot,
 } from "../../services/live-game-manager.service";
+import { GameWorkerManagerService } from "../../services/game-worker-manager.service";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -87,12 +88,17 @@ export class GamesGateway
   private readonly tableSubscriptions = new Map<string, Set<string>>();
   private readonly playerSockets = new Map<string, string>();
 
+  private readonly useWorkerThreads: boolean;
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly liveGameManager: LiveGameManagerService,
-  ) {}
+    private readonly gameWorkerManager: GameWorkerManagerService,
+  ) {
+    this.useWorkerThreads = this.gameWorkerManager.isEnabled();
+  }
 
   onModuleInit() {
     this.eventEmitter.on(
@@ -104,10 +110,15 @@ export class GamesGateway
 
     this.eventEmitter.on(
       "game.handStarted",
-      (event: { tableId: string; handNumber: number }) => {
+      (event: {
+        tableId: string;
+        handNumber: number;
+        provablyFair?: { serverSeedHash: string; clientSeed: string; nonce: number };
+      }) => {
         this.server.to(`table:${event.tableId}`).emit("handStarted", {
           tableId: event.tableId,
           handNumber: event.handNumber,
+          provablyFair: event.provablyFair,
         });
       },
     );
@@ -121,8 +132,27 @@ export class GamesGateway
           handName: w.hand?.name || "Winner",
         })),
         pot: event.winners.reduce((sum: number, w: any) => sum + w.amount, 0),
+        provablyFair: event.provablyFair,
       });
     });
+
+    this.eventEmitter.on(
+      "game.playerAction",
+      (event: {
+        tableId: string;
+        botId: string;
+        action: string;
+        amount: number;
+        pot: number;
+      }) => {
+        this.broadcastPlayerAction(event.tableId, {
+          botId: event.botId,
+          action: event.action,
+          amount: event.amount,
+          pot: event.pot,
+        });
+      },
+    );
 
     this.eventEmitter.on(
       "game.finished",
@@ -138,7 +168,7 @@ export class GamesGateway
     this.eventEmitter.on(
       "game.playerRemoved",
       (event: { tableId: string; playerId: string }) => {
-        const state = this.liveGameManager.getGameState(event.tableId);
+        const state = this.getGameState(event.tableId);
         this.broadcastPlayerLeft(event.tableId, {
           playerId: event.playerId,
           playerName: "Player",
@@ -150,6 +180,16 @@ export class GamesGateway
     );
 
     this.logger.log("Game event listeners registered");
+  }
+
+  private getGameState(tableId: string): GameStateSnapshot | null {
+    if (this.useWorkerThreads) {
+      const workerState = this.gameWorkerManager.getGameState(tableId);
+      if (workerState) {
+        return workerState as unknown as GameStateSnapshot;
+      }
+    }
+    return this.liveGameManager.getGameState(tableId) || null;
   }
 
   afterInit(_server: Server) {
@@ -209,7 +249,7 @@ export class GamesGateway
     this.logger.debug(`Client ${client.id} subscribed to table ${tableId}`);
 
     // Send initial game state to the client
-    const snapshot = this.liveGameManager.getGameState(tableId);
+    const snapshot = this.getGameState(tableId);
     if (snapshot) {
       client.emit("gameState", this.snapshotToGameState(snapshot));
     } else {
@@ -331,7 +371,25 @@ export class GamesGateway
   }
 
   broadcastGameState(tableId: string, state: GameState) {
-    this.server.to(`table:${tableId}`).emit("gameState", state);
+    const transformedState = {
+      ...state,
+      blinds: {
+        small: (state as any).smallBlind || 0,
+        big: (state as any).bigBlind || 0,
+        ante: (state as any).ante || 0,
+      },
+      currentPlayerId: (state as any).activePlayerId || null,
+      dealerPosition: this.getDealerPosition(state),
+    };
+    this.server.to(`table:${tableId}`).emit("gameState", transformedState);
+  }
+
+  private getDealerPosition(state: GameState): number {
+    const players = (state as any).players || [];
+    const dealerIndex = players.findIndex(
+      (p: any) => p.position === "Dealer" || p.position === "BTN",
+    );
+    return dealerIndex >= 0 ? dealerIndex : 0;
   }
 
   sendPrivateState(botId: string, state: PrivatePlayerState) {
@@ -354,6 +412,15 @@ export class GamesGateway
         handName: string;
       }>;
       pot: number;
+      provablyFair?: {
+        serverSeed: string;
+        serverSeedHash: string;
+        clientSeed: string;
+        nonce: number;
+        combinedHash: string;
+        deckOrder: number[];
+        verificationUrl: string;
+      };
     },
   ) {
     this.server.to(`table:${tableId}`).emit("handResult", result);

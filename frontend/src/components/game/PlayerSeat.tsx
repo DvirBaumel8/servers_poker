@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
+import { useEffect, useState } from "react";
 import type { Player } from "../../types";
 
 interface PlayerSeatProps {
@@ -9,6 +10,13 @@ interface PlayerSeatProps {
   showCards?: boolean;
   seatIndex?: number;
   className?: string;
+  lastAction?: {
+    type: string;
+    amount?: number;
+    timestamp: number;
+  };
+  turnTimeoutMs?: number;
+  turnStartTime?: number;
 }
 
 const AVATAR_IMAGES = [
@@ -34,12 +42,39 @@ export function PlayerSeat({
   showCards = false,
   seatIndex = 0,
   className,
+  lastAction,
+  turnTimeoutMs = 10000,
+  turnStartTime,
 }: PlayerSeatProps) {
   const isFolded = player.folded;
   const isAllIn = player.allIn;
   const isDisconnected = player.disconnected;
   const avatarEmoji = AVATAR_IMAGES[seatIndex % AVATAR_IMAGES.length];
   const avatarBg = AVATAR_BG_COLORS[seatIndex % AVATAR_BG_COLORS.length];
+  
+  const actionToShow = lastAction || player.lastAction;
+  const isRecentAction = actionToShow && (Date.now() - actionToShow.timestamp < 5000);
+
+  // Timer state for active player
+  const [timeRemaining, setTimeRemaining] = useState(turnTimeoutMs);
+  const [progress, setProgress] = useState(100);
+
+  useEffect(() => {
+    if (!isActive || !turnStartTime) {
+      setTimeRemaining(turnTimeoutMs);
+      setProgress(100);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - turnStartTime;
+      const remaining = Math.max(0, turnTimeoutMs - elapsed);
+      setTimeRemaining(remaining);
+      setProgress((remaining / turnTimeoutMs) * 100);
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [isActive, turnStartTime, turnTimeoutMs]);
 
   return (
     <motion.div
@@ -72,6 +107,35 @@ export function PlayerSeat({
           <span className="text-white text-[10px] font-bold">{(seatIndex + 1) * 10}</span>
         </div>
 
+        {/* Timer ring for active player */}
+        {isActive && (
+          <div className="absolute -inset-1 z-5">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
+              {/* Background circle */}
+              <circle
+                cx="32"
+                cy="32"
+                r="29"
+                fill="none"
+                stroke="rgba(0,0,0,0.3)"
+                strokeWidth="4"
+              />
+              {/* Progress circle */}
+              <circle
+                cx="32"
+                cy="32"
+                r="29"
+                fill="none"
+                stroke={progress > 30 ? "#22c55e" : progress > 10 ? "#eab308" : "#ef4444"}
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeDasharray={`${(progress / 100) * 182} 182`}
+                className="transition-all duration-100"
+              />
+            </svg>
+          </div>
+        )}
+
         {/* Avatar */}
         <div
           className={clsx(
@@ -95,6 +159,28 @@ export function PlayerSeat({
           </motion.div>
         )}
       </div>
+
+      {/* "THINKING" indicator for active player */}
+      {isActive && !isFolded && !isAllIn && (
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute -top-6 left-1/2 -translate-x-1/2 z-20"
+        >
+          <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-black text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1">
+            <motion.span
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 0.8, repeat: Infinity }}
+            >
+              ⏳
+            </motion.span>
+            <span>THINKING</span>
+            <span className="font-mono text-[8px]">
+              {(timeRemaining / 1000).toFixed(1)}s
+            </span>
+          </div>
+        </motion.div>
+      )}
 
       {/* Cards */}
       <div className="flex gap-0.5 mt-1 -mb-1">
@@ -154,8 +240,105 @@ export function PlayerSeat({
           </span>
         </motion.div>
       )}
+
+      {/* Last action badge - positioned below name plate */}
+      {isRecentAction && actionToShow && !isFolded && (
+        <motion.div
+          key={actionToShow.timestamp}
+          initial={{ scale: 0, y: -5, opacity: 0 }}
+          animate={{ scale: 1, y: 0, opacity: 1 }}
+          exit={{ scale: 0, opacity: 0 }}
+          className="mt-1 z-30"
+        >
+          <ActionBadge action={actionToShow.type} amount={actionToShow.amount} />
+        </motion.div>
+      )}
     </motion.div>
   );
+}
+
+function ActionBadge({ action, amount }: { action: string; amount?: number }) {
+  const config = getActionConfig(action);
+  const showAmount = typeof amount === "number" && amount > 0;
+  
+  return (
+    <motion.div
+      initial={{ scale: 0.8 }}
+      animate={{ scale: [1, 1.1, 1] }}
+      transition={{ duration: 0.3 }}
+      className={clsx(
+        "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide",
+        "shadow-lg border whitespace-nowrap",
+        config.bg,
+        config.text,
+        config.border
+      )}
+    >
+      <span className="mr-1">{config.icon}</span>
+      {action.toUpperCase()}
+      {showAmount && ` ${formatChips(amount)}`}
+    </motion.div>
+  );
+}
+
+function getActionConfig(action: string): { 
+  icon: string; 
+  bg: string; 
+  text: string; 
+  border: string;
+} {
+  const actionLower = action.toLowerCase();
+  const configs: Record<string, { icon: string; bg: string; text: string; border: string }> = {
+    fold: { 
+      icon: "✗", 
+      bg: "bg-red-900/90", 
+      text: "text-red-300", 
+      border: "border-red-700" 
+    },
+    check: { 
+      icon: "✓", 
+      bg: "bg-blue-900/90", 
+      text: "text-blue-300", 
+      border: "border-blue-700" 
+    },
+    call: { 
+      icon: "📞", 
+      bg: "bg-green-900/90", 
+      text: "text-green-300", 
+      border: "border-green-700" 
+    },
+    bet: { 
+      icon: "💰", 
+      bg: "bg-yellow-900/90", 
+      text: "text-yellow-300", 
+      border: "border-yellow-700" 
+    },
+    raise: { 
+      icon: "⬆", 
+      bg: "bg-orange-900/90", 
+      text: "text-orange-300", 
+      border: "border-orange-700" 
+    },
+    all_in: { 
+      icon: "🔥", 
+      bg: "bg-red-800/90", 
+      text: "text-red-200", 
+      border: "border-red-600" 
+    },
+    allin: { 
+      icon: "🔥", 
+      bg: "bg-red-800/90", 
+      text: "text-red-200", 
+      border: "border-red-600" 
+    },
+  };
+
+  return configs[actionLower] || { 
+    icon: "•", 
+    bg: "bg-gray-800/90", 
+    text: "text-gray-300", 
+    border: "border-gray-600" 
+  };
 }
 
 function MiniCard({ card }: { card: { rank: string; suit: string } | string }) {

@@ -49,6 +49,9 @@ function createDeck(): Card[] {
   return deck;
 }
 
+/**
+ * Standard shuffle using Math.random() - not provably fair
+ */
 function shuffle(deck: Card[]): Card[] {
   const d: Card[] = [...deck];
   for (let i = d.length - 1; i > 0; i--) {
@@ -58,8 +61,34 @@ function shuffle(deck: Card[]): Card[] {
   return d;
 }
 
+/**
+ * Provably fair shuffle using pre-computed deck order
+ * @param deck - Original deck in standard order
+ * @param deckOrder - Array of indices defining the shuffle order
+ * @returns Shuffled deck
+ */
+function shuffleWithOrder(deck: Card[], deckOrder: number[]): Card[] {
+  if (deckOrder.length !== deck.length) {
+    throw new Error(
+      `Deck order length (${deckOrder.length}) must match deck length (${deck.length})`,
+    );
+  }
+  const shuffled: Card[] = new Array(deck.length);
+  for (let i = 0; i < deck.length; i++) {
+    shuffled[i] = deck[deckOrder[i]];
+  }
+  return shuffled;
+}
+
 function cardToString(card: Card): string {
   return `${card.rank}${card.suit}`;
 }
 
-export { createDeck, shuffle, cardToString, RANK_VALUES, Card };
+export {
+  createDeck,
+  shuffle,
+  shuffleWithOrder,
+  cardToString,
+  RANK_VALUES,
+  Card,
+};

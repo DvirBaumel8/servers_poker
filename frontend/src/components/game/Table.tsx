@@ -1,12 +1,20 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
+import { useMemo } from "react";
 import { PlayerSeat } from "./PlayerSeat";
 import { CommunityCards } from "./CommunityCards";
-import type { GameState } from "../../types";
+import { WinnerAnimation } from "./WinnerAnimation";
+import type { GameState, HandResult } from "../../types";
 
 interface TableProps {
   gameState: GameState;
   className?: string;
+  playerActions?: Record<string, { type: string; amount?: number; timestamp: number }>;
+  turnStartTime?: number;
+  turnTimeoutMs?: number;
+  handResult?: HandResult | null;
+  onHandResultComplete?: () => void;
+  playerNames?: Record<string, string>;
 }
 
 const SEAT_POSITIONS_9 = [
@@ -33,7 +41,16 @@ const BET_POSITIONS_9 = [
   { top: "65%", left: "72%" },
 ];
 
-export function Table({ gameState, className }: TableProps) {
+export function Table({ 
+  gameState, 
+  className, 
+  playerActions = {},
+  turnStartTime,
+  turnTimeoutMs = 10000,
+  handResult,
+  onHandResultComplete,
+  playerNames = {},
+}: TableProps) {
   const { players, communityCards, pot, stage, handNumber, status } = gameState;
 
   const getPositions = () => {
@@ -41,12 +58,12 @@ export function Table({ gameState, className }: TableProps) {
     if (count <= 2) {
       return {
         seats: [
-          { top: "85%", left: "50%" },  // Bottom - moved further down
-          { top: "8%", left: "50%" },   // Top - moved further up
+          { top: "82%", left: "50%" },  // Bottom player - clear of center content
+          { top: "3%", left: "50%" },   // Top player
         ],
         bets: [
-          { top: "70%", left: "50%" },
-          { top: "25%", left: "50%" },
+          { top: "68%", left: "50%" },  // Bottom player's bet - between player and pot
+          { top: "20%", left: "50%" },  // Top player's bet
         ],
       };
     }
@@ -75,8 +92,25 @@ export function Table({ gameState, className }: TableProps) {
 
   const { seats, bets } = getPositions();
 
+  // Find winner position for chip animation
+  const winnerPosition = useMemo(() => {
+    if (!handResult || !handResult.winners.length) return null;
+    const winnerId = handResult.winners[0].botId;
+    const winnerIndex = players.findIndex((p) => p.id === winnerId);
+    if (winnerIndex === -1) return null;
+    return seats[winnerIndex % seats.length];
+  }, [handResult, players, seats]);
+
   return (
     <div className={clsx("relative w-full max-w-5xl aspect-[16/10]", className)}>
+      {/* Winner animation overlay */}
+      <WinnerAnimation
+        result={handResult || null}
+        winnerPosition={winnerPosition}
+        onComplete={onHandResultComplete || (() => {})}
+        playerNames={playerNames}
+      />
+
       {/* Outer table shadow */}
       <div
         className="absolute inset-[3%] rounded-[50%]"
@@ -110,24 +144,24 @@ export function Table({ gameState, className }: TableProps) {
         </div>
       </div>
 
-      {/* Center content - higher z-index to show above bet chips */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center z-30 pointer-events-none">
+      {/* Center content - z-index 10 to stay below players but above table */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
         {/* Game type / branding - positioned at top of center area */}
-        <div className="text-white/15 text-xl font-bold tracking-widest absolute top-[25%]">
+        <div className="text-white/15 text-xl font-bold tracking-widest absolute top-[18%]">
           NL HOLD'EM
         </div>
 
-        {/* Community cards - centered */}
-        <div className="mt-4">
+        {/* Community cards - centered in the middle of the table */}
+        <div className="absolute top-[38%]">
           <CommunityCards cards={communityCards} stage={stage} />
         </div>
 
-        {/* Pot display */}
+        {/* Pot display - positioned below cards */}
         {pot > 0 && (
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="mt-3 flex flex-col items-center"
+            className="absolute top-[50%] flex flex-col items-center"
           >
             <div className="flex items-center gap-1 mb-1">
               <ChipStack size="sm" />
@@ -136,18 +170,24 @@ export function Table({ gameState, className }: TableProps) {
               <span className="text-gray-400 text-xs mr-1">Total Pot</span>
               <span className="text-yellow-400 font-bold">{formatAmount(pot)}</span>
             </div>
+            {/* Hand info - directly below pot */}
+            {handNumber > 0 && status !== "waiting" && (
+              <div className="mt-1 text-white/40 text-xs">
+                Hand #{handNumber} • {formatStage(stage)}
+              </div>
+            )}
           </motion.div>
         )}
 
-        {/* Hand info - positioned below pot */}
-        {handNumber > 0 && status !== "waiting" && (
-          <div className="mt-2 text-white/40 text-sm">
+        {/* Hand info when no pot yet */}
+        {pot === 0 && handNumber > 0 && status !== "waiting" && (
+          <div className="absolute top-[55%] text-white/40 text-xs">
             Hand #{handNumber} • {formatStage(stage)}
           </div>
         )}
 
         {status === "waiting" && players.length < 2 && (
-          <div className="text-white/50 text-lg mt-4">
+          <div className="absolute top-[50%] text-white/50 text-lg">
             Waiting for players...
           </div>
         )}
@@ -164,7 +204,7 @@ export function Table({ gameState, className }: TableProps) {
           <div key={player.id || index}>
             {/* Player seat */}
             <div
-              className="absolute z-20"
+              className="absolute z-30"
               style={{
                 top: seatPos.top,
                 left: seatPos.left,
@@ -177,6 +217,9 @@ export function Table({ gameState, className }: TableProps) {
                 isActive={isActive}
                 showCards={stage === "showdown" || status === "finished"}
                 seatIndex={index}
+                lastAction={playerActions[player.id]}
+                turnStartTime={isActive ? turnStartTime : undefined}
+                turnTimeoutMs={turnTimeoutMs}
               />
             </div>
 

@@ -1,15 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
-import * as request from "supertest";
+import request from "supertest";
 import { DataSource } from "typeorm";
 import { AuthModule } from "../../src/modules/auth/auth.module";
-import { User } from "../../src/entities/user.entity";
-import { Bot } from "../../src/entities/bot.entity";
+import * as entities from "../../src/entities";
 import { appConfig } from "../../src/config";
+
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 describe("Auth E2E Tests", () => {
   let app: INestApplication;
@@ -29,7 +30,7 @@ describe("Auth E2E Tests", () => {
           username: process.env.TEST_DB_USERNAME || "postgres",
           password: process.env.TEST_DB_PASSWORD || "postgres",
           database: process.env.TEST_DB_NAME || "poker_test",
-          entities: [User, Bot],
+          entities: Object.values(entities),
           synchronize: true,
           dropSchema: true,
         }),
@@ -59,67 +60,99 @@ describe("Auth E2E Tests", () => {
     await app.close();
   });
 
-  beforeEach(async () => {
-    await dataSource.query('TRUNCATE TABLE "users" RESTART IDENTITY CASCADE');
-  });
-
-  describe("User Registration Flow", () => {
-    it("should register a new user and return JWT", async () => {
+  describe.concurrent("User Registration Flow", () => {
+    it("should register a new user and require email verification", async () => {
+      const testEmail = `newuser-${uid()}@example.com`;
       const response = await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
-          email: "newuser@example.com",
-          name: "NewUser",
+          email: testEmail,
+          name: `NewUser-${uid()}`,
           password: "SecurePassword123!",
         })
         .expect(201);
 
-      expect(response.body).toHaveProperty("accessToken");
-      expect(response.body).toHaveProperty("user");
-      expect(response.body.user.email).toBe("newuser@example.com");
-      expect(response.body.user.name).toBe("NewUser");
-      expect(response.body.user.role).toBe("user");
+      expect(response.body).toHaveProperty("message");
+      expect(response.body).toHaveProperty("email");
+      expect(response.body.email).toBe(testEmail);
+      expect(response.body.requiresVerification).toBe(true);
 
       const users = await dataSource.query(
         'SELECT * FROM "users" WHERE email = $1',
-        ["newuser@example.com"],
+        [testEmail],
       );
       expect(users).toHaveLength(1);
+      expect(users[0].email_verified).toBe(false);
     });
 
-    it("should prevent duplicate email registration", async () => {
+    it("should prevent duplicate email registration for verified users", async () => {
+      const testEmail = `duplicate-${uid()}@example.com`;
+      // First registration
       await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
-          email: "duplicate@example.com",
-          name: "User1",
+          email: testEmail,
+          name: `User1-${uid()}`,
           password: "SecurePassword123!",
         })
         .expect(201);
 
+      // Verify the email
+      await dataSource.query(
+        'UPDATE "users" SET email_verified = true WHERE email = $1',
+        [testEmail],
+      );
+
+      // Second registration should fail
       await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
-          email: "duplicate@example.com",
-          name: "User2",
+          email: testEmail,
+          name: `User2-${uid()}`,
           password: "SecurePassword123!",
         })
         .expect(409);
     });
 
-    it("should hash passwords (not store plaintext)", async () => {
+    it("should allow re-registration for unverified users", async () => {
+      const testEmail = `unverified-${uid()}@example.com`;
+      // First registration (unverified)
       await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
-          email: "hashtest@example.com",
-          name: "HashTest",
+          email: testEmail,
+          name: `User1-${uid()}`,
+          password: "SecurePassword123!",
+        })
+        .expect(201);
+
+      // Second registration should succeed (resends verification)
+      const response = await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({
+          email: testEmail,
+          name: `User2-${uid()}`,
+          password: "NewPassword123!",
+        })
+        .expect(201);
+
+      expect(response.body.message).toContain("Verification code sent");
+    });
+
+    it("should hash passwords (not store plaintext)", async () => {
+      const testEmail = `hashtest-${uid()}@example.com`;
+      await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({
+          email: testEmail,
+          name: `HashTest-${uid()}`,
           password: "MyPlainPassword123!",
         })
         .expect(201);
 
       const users = await dataSource.query(
         'SELECT * FROM "users" WHERE email = $1',
-        ["hashtest@example.com"],
+        [testEmail],
       );
 
       expect(users[0].api_key_hash).toBeDefined();
@@ -128,35 +161,44 @@ describe("Auth E2E Tests", () => {
     });
   });
 
-  describe("User Login Flow", () => {
-    beforeEach(async () => {
+  describe.concurrent("User Login Flow", () => {
+    async function createVerifiedUser() {
+      const testEmail = `logintest-${uid()}@example.com`;
+      const testPassword = "TestPassword123!";
       await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
-          email: "logintest@example.com",
-          name: "LoginTest",
-          password: "TestPassword123!",
+          email: testEmail,
+          name: `LoginTest-${uid()}`,
+          password: testPassword,
         });
-    });
+      await dataSource.query(
+        'UPDATE "users" SET email_verified = true WHERE email = $1',
+        [testEmail],
+      );
+      return { email: testEmail, password: testPassword };
+    }
 
     it("should login with correct credentials", async () => {
+      const { email, password } = await createVerifiedUser();
       const response = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
-          email: "logintest@example.com",
-          password: "TestPassword123!",
+          email,
+          password,
         })
         .expect(200);
 
       expect(response.body).toHaveProperty("accessToken");
-      expect(response.body.user.email).toBe("logintest@example.com");
+      expect(response.body.user.email).toBe(email);
     });
 
     it("should reject login with wrong password", async () => {
+      const { email } = await createVerifiedUser();
       await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
-          email: "logintest@example.com",
+          email,
           password: "WrongPassword123!",
         })
         .expect(401);
@@ -166,34 +208,45 @@ describe("Auth E2E Tests", () => {
       await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
-          email: "nonexistent@example.com",
+          email: `nonexistent-${uid()}@example.com`,
           password: "SomePassword123!",
         })
         .expect(401);
     });
   });
 
-  describe("Protected Routes", () => {
-    let accessToken: string;
-
-    beforeEach(async () => {
-      const response = await request(app.getHttpServer())
+  describe.concurrent("Protected Routes", () => {
+    async function createAuthenticatedUser() {
+      const testEmail = `protected-${uid()}@example.com`;
+      const testPassword = "TestPassword123!";
+      await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
-          email: "protected@example.com",
-          name: "ProtectedTest",
-          password: "TestPassword123!",
+          email: testEmail,
+          name: `ProtectedTest-${uid()}`,
+          password: testPassword,
         });
-      accessToken = response.body.accessToken;
-    });
+      await dataSource.query(
+        'UPDATE "users" SET email_verified = true WHERE email = $1',
+        [testEmail],
+      );
+      const loginResponse = await request(app.getHttpServer())
+        .post("/api/v1/auth/login")
+        .send({
+          email: testEmail,
+          password: testPassword,
+        });
+      return { email: testEmail, accessToken: loginResponse.body.accessToken };
+    }
 
     it("should access /me with valid token", async () => {
+      const { email, accessToken } = await createAuthenticatedUser();
       const response = await request(app.getHttpServer())
         .get("/api/v1/auth/me")
         .set("Authorization", `Bearer ${accessToken}`)
         .expect(200);
 
-      expect(response.body.email).toBe("protected@example.com");
+      expect(response.body.email).toBe(email);
     });
 
     it("should reject /me without token", async () => {
@@ -208,6 +261,7 @@ describe("Auth E2E Tests", () => {
     });
 
     it("should regenerate API key", async () => {
+      const { accessToken } = await createAuthenticatedUser();
       const response = await request(app.getHttpServer())
         .post("/api/v1/auth/regenerate-api-key")
         .set("Authorization", `Bearer ${accessToken}`)

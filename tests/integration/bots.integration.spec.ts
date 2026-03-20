@@ -1,14 +1,19 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { BotsService } from "../../src/modules/bots/bots.service";
+import { describe, it, expect } from "vitest";
 
-describe("Bots Integration Tests (Unit-style)", () => {
-  describe("Bot Endpoint Validation", () => {
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+let portCounter = 25000;
+const getNextPort = () => portCounter++;
+
+describe.concurrent("Bots Integration Tests (Unit-style)", () => {
+  describe.concurrent("Bot Endpoint Validation", () => {
     it("should validate valid HTTP URLs", () => {
       const urlRegex = /^https?:\/\/.+/;
+      const port = getNextPort();
 
-      expect(urlRegex.test("http://localhost:8080")).toBe(true);
+      expect(urlRegex.test(`http://localhost:${port}`)).toBe(true);
       expect(urlRegex.test("https://api.example.com/bot")).toBe(true);
-      expect(urlRegex.test("http://192.168.1.1:3000/action")).toBe(true);
+      expect(urlRegex.test(`http://192.168.1.1:${port}/action`)).toBe(true);
     });
 
     it("should reject invalid URLs", () => {
@@ -20,7 +25,7 @@ describe("Bots Integration Tests (Unit-style)", () => {
     });
   });
 
-  describe("Bot Name Validation", () => {
+  describe.concurrent("Bot Name Validation", () => {
     it("should validate bot names", () => {
       const validName = (name: string): boolean => {
         return name.length >= 3 && name.length <= 50 && /^[a-zA-Z0-9_-]+$/.test(name);
@@ -42,7 +47,7 @@ describe("Bots Integration Tests (Unit-style)", () => {
     });
   });
 
-  describe("Bot Response Parsing", () => {
+  describe.concurrent("Bot Response Parsing", () => {
     it("should parse valid fold action", () => {
       const response = { type: "fold" };
       expect(response.type).toBe("fold");
@@ -76,11 +81,13 @@ describe("Bots Integration Tests (Unit-style)", () => {
     });
   });
 
-  describe("Bot Health Status", () => {
+  describe.concurrent("Bot Health Status", () => {
     it("should track health status fields", () => {
+      const botId = `bot-${uid()}`;
+      const port = getNextPort();
       const status = {
-        botId: "bot-123",
-        endpoint: "http://localhost:8080",
+        botId,
+        endpoint: `http://localhost:${port}`,
         healthy: true,
         lastCheck: new Date(),
         consecutiveFailures: 0,
@@ -94,9 +101,11 @@ describe("Bots Integration Tests (Unit-style)", () => {
     });
 
     it("should track unhealthy status", () => {
+      const botId = `bot-${uid()}`;
+      const port = getNextPort();
       const status = {
-        botId: "bot-123",
-        endpoint: "http://localhost:8080",
+        botId,
+        endpoint: `http://localhost:${port}`,
         healthy: false,
         lastCheck: new Date(),
         consecutiveFailures: 5,
@@ -110,7 +119,7 @@ describe("Bots Integration Tests (Unit-style)", () => {
     });
   });
 
-  describe("Circuit Breaker Logic", () => {
+  describe.concurrent("Circuit Breaker Logic", () => {
     it("should open circuit after threshold failures", () => {
       const threshold = 5;
       let failures = 0;

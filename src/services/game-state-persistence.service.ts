@@ -167,7 +167,7 @@ export class GameStatePersistenceService
         betting_round_state: state.bettingRoundState || null,
         server_instance_id: this.serverInstanceId,
         last_action_at: new Date(),
-        action_log: state.actionLog.slice(-100),
+        action_log: state.actionLog?.slice(-100) ?? [],
       });
     } catch (error) {
       this.logger.error(

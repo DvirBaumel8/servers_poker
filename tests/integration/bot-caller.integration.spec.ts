@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
@@ -8,14 +8,14 @@ import {
   MockBotServer,
   createCallingBot,
   createFoldingBot,
-  createSlowBot,
   createUnreliableBot,
 } from "../utils/mock-bot-server";
 
+let portCounter = 26000;
+const getNextPort = () => portCounter++;
+
 describe("BotCaller Integration Tests", () => {
   let botCallerService: BotCallerService;
-  let mockBot: MockBotServer;
-  const basePort = 19300;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -29,127 +29,137 @@ describe("BotCaller Integration Tests", () => {
     botCallerService = moduleFixture.get<BotCallerService>(BotCallerService);
   });
 
-  afterAll(async () => {
-    if (mockBot) {
-      await mockBot.stop();
-    }
-  });
-
-  beforeEach(async () => {
-    if (mockBot) {
-      await mockBot.stop();
-    }
-  });
-
-  describe("Health Check", () => {
+  describe.concurrent("Health Check", () => {
     it("should detect healthy bot", async () => {
-      mockBot = createCallingBot(basePort);
-      await mockBot.start();
+      const port = getNextPort();
+      const mockBot = createCallingBot(port);
+      try {
+        await mockBot.start();
 
-      const result = await botCallerService.healthCheck(
-        "test-bot",
-        mockBot.getEndpoint(),
-      );
+        const result = await botCallerService.healthCheck(
+          `test-bot-${port}`,
+          mockBot.getEndpoint(),
+        );
 
-      expect(result).toBe(true);
+        expect(result).toBe(true);
+      } finally {
+        await mockBot.stop();
+      }
     });
 
     it("should detect unhealthy bot (connection refused)", async () => {
+      const port = getNextPort();
       const result = await botCallerService.healthCheck(
-        "offline-bot",
-        "http://localhost:19999",
+        `offline-bot-${port}`,
+        `http://localhost:${port}`,
       );
 
       expect(result).toBe(false);
     });
   });
 
-  describe("Bot Call Requests", () => {
+  describe.concurrent("Bot Call Requests", () => {
     it("should receive response from bot", async () => {
-      mockBot = createFoldingBot(basePort + 2);
-      await mockBot.start();
+      const port = getNextPort();
+      const mockBot = createFoldingBot(port);
+      try {
+        await mockBot.start();
 
-      const payload = {
-        gameId: "test-game",
-        handId: "test-hand",
-        communityCards: [],
-        pot: 100,
-        action: {
-          canCheck: false,
-          callAmount: 20,
-          minRaise: 40,
-          maxRaise: 1000,
-        },
-      };
+        const payload = {
+          gameId: "test-game",
+          handId: "test-hand",
+          communityCards: [],
+          pot: 100,
+          action: {
+            canCheck: false,
+            callAmount: 20,
+            minRaise: 40,
+            maxRaise: 1000,
+          },
+        };
 
-      const result = await botCallerService.callBot(
-        "fold-bot",
-        mockBot.getEndpoint(),
-        payload,
-      );
+        const result = await botCallerService.callBot(
+          `fold-bot-${port}`,
+          mockBot.getEndpoint(),
+          payload,
+        );
 
-      expect(result.success).toBe(true);
-      expect(result.response).toBeDefined();
-      expect(result.response.type).toBe("fold");
+        expect(result.success).toBe(true);
+        expect(result.response).toBeDefined();
+        expect(result.response.type).toBe("fold");
+      } finally {
+        await mockBot.stop();
+      }
     });
 
     it("should receive call action from calling bot", async () => {
-      mockBot = createCallingBot(basePort + 3);
-      await mockBot.start();
+      const port = getNextPort();
+      const mockBot = createCallingBot(port);
+      try {
+        await mockBot.start();
 
-      const payload = {
-        gameId: "test-game",
-        handId: "test-hand",
-        communityCards: [],
-        pot: 100,
-        action: {
-          canCheck: false,
-          callAmount: 20,
-          minRaise: 40,
-          maxRaise: 1000,
-        },
-      };
+        const payload = {
+          gameId: "test-game",
+          handId: "test-hand",
+          communityCards: [],
+          pot: 100,
+          action: {
+            canCheck: false,
+            callAmount: 20,
+            minRaise: 40,
+            maxRaise: 1000,
+          },
+        };
 
-      const result = await botCallerService.callBot(
-        "call-bot",
-        mockBot.getEndpoint(),
-        payload,
-      );
+        const result = await botCallerService.callBot(
+          `call-bot-${port}`,
+          mockBot.getEndpoint(),
+          payload,
+        );
 
-      expect(result.success).toBe(true);
-      expect(result.response.type).toBe("call");
+        expect(result.success).toBe(true);
+        expect(result.response.type).toBe("call");
+      } finally {
+        await mockBot.stop();
+      }
     });
 
     it("should receive check action when allowed", async () => {
-      mockBot = createCallingBot(basePort + 4);
-      await mockBot.start();
+      const port = getNextPort();
+      const mockBot = createCallingBot(port);
+      try {
+        await mockBot.start();
 
-      const payload = {
-        gameId: "test-game",
-        handId: "test-hand",
-        communityCards: [],
-        pot: 100,
-        action: {
-          canCheck: true,
-          callAmount: 0,
-          minRaise: 20,
-          maxRaise: 1000,
-        },
-      };
+        const payload = {
+          gameId: "test-game",
+          handId: "test-hand",
+          communityCards: [],
+          pot: 100,
+          action: {
+            canCheck: true,
+            callAmount: 0,
+            minRaise: 20,
+            maxRaise: 1000,
+          },
+        };
 
-      const result = await botCallerService.callBot(
-        "check-bot",
-        mockBot.getEndpoint(),
-        payload,
-      );
+        const result = await botCallerService.callBot(
+          `check-bot-${port}`,
+          mockBot.getEndpoint(),
+          payload,
+        );
 
-      expect(result.success).toBe(true);
-      expect(result.response.type).toBe("check");
+        expect(result.success).toBe(true);
+        expect(result.response.type).toBe("check");
+      } finally {
+        await mockBot.stop();
+      }
     });
   });
 
-  describe("Error Handling", () => {
+  describe.concurrent("Error Handling", () => {
     it("should handle connection errors gracefully", async () => {
+      const port = getNextPort();
       const payload = {
         gameId: "test-game",
         handId: "test-hand",
@@ -158,8 +168,8 @@ describe("BotCaller Integration Tests", () => {
       };
 
       const result = await botCallerService.callBot(
-        "offline-bot",
-        "http://localhost:19999",
+        `offline-bot-${port}`,
+        `http://localhost:${port}`,
         payload,
       );
 
@@ -168,117 +178,149 @@ describe("BotCaller Integration Tests", () => {
     });
 
     it("should handle intermittent failures and retry", async () => {
-      mockBot = createUnreliableBot(basePort + 6, 0.3);
-      await mockBot.start();
+      const port = getNextPort();
+      const mockBot = createUnreliableBot(port, 0.3);
+      try {
+        await mockBot.start();
 
-      const results: boolean[] = [];
+        const results: boolean[] = [];
 
-      for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 5; i++) {
+          const payload = {
+            gameId: "test-game",
+            handId: `test-hand-${i}`,
+            communityCards: [],
+            pot: 100,
+            action: {
+              canCheck: true,
+              callAmount: 0,
+            },
+          };
+
+          const result = await botCallerService.callBot(
+            `unreliable-bot-${port}`,
+            mockBot.getEndpoint(),
+            payload,
+          );
+
+          results.push(result.success);
+        }
+
+        expect(results.some((r) => r === true)).toBe(true);
+      } finally {
+        await mockBot.stop();
+      }
+    });
+  });
+
+  describe.concurrent("Request Tracking", () => {
+    it("should receive correct payload structure", async () => {
+      const port = getNextPort();
+      const mockBot = createCallingBot(port);
+      try {
+        await mockBot.start();
+
         const payload = {
-          gameId: "test-game",
-          handId: `test-hand-${i}`,
-          communityCards: [],
-          pot: 100,
+          gameId: "tracked-game",
+          handId: "tracked-hand",
+          communityCards: ["Ah", "Kd", "Qc"],
+          pot: 500,
           action: {
-            canCheck: true,
-            callAmount: 0,
+            canCheck: false,
+            callAmount: 50,
+            minRaise: 100,
+            maxRaise: 1000,
           },
         };
 
-        const result = await botCallerService.callBot(
-          "unreliable-bot",
+        await botCallerService.callBot(
+          `tracked-bot-${port}`,
           mockBot.getEndpoint(),
           payload,
         );
 
-        results.push(result.success);
+        const lastRequest = mockBot.getLastRequest();
+        expect(lastRequest.gameId).toBe("tracked-game");
+        expect(lastRequest.pot).toBe(500);
+      } finally {
+        await mockBot.stop();
       }
-
-      expect(results.some((r) => r === true)).toBe(true);
     });
   });
 
-  describe("Request Tracking", () => {
-    it("should receive correct payload structure", async () => {
-      mockBot = createCallingBot(basePort + 7);
-      await mockBot.start();
-
-      const payload = {
-        gameId: "tracked-game",
-        handId: "tracked-hand",
-        communityCards: ["Ah", "Kd", "Qc"],
-        pot: 500,
-        action: {
-          canCheck: false,
-          callAmount: 50,
-          minRaise: 100,
-          maxRaise: 1000,
-        },
-      };
-
-      await botCallerService.callBot(
-        "tracked-bot",
-        mockBot.getEndpoint(),
-        payload,
-      );
-
-      const lastRequest = mockBot.getLastRequest();
-      expect(lastRequest.gameId).toBe("tracked-game");
-      expect(lastRequest.pot).toBe(500);
-    });
-  });
-
-  describe("Health Status Tracking", () => {
+  describe.concurrent("Health Status Tracking", () => {
     it("should track health status after checks", async () => {
-      mockBot = createCallingBot(basePort + 8);
-      await mockBot.start();
+      const port = getNextPort();
+      const mockBot = createCallingBot(port);
+      const botName = `status-bot-${port}`;
+      try {
+        await mockBot.start();
 
-      await botCallerService.healthCheck("status-bot", mockBot.getEndpoint());
+        await botCallerService.healthCheck(botName, mockBot.getEndpoint());
 
-      const status = botCallerService.getHealthStatus("status-bot");
-      expect(status).toBeDefined();
-      expect(status?.healthy).toBe(true);
+        const status = botCallerService.getHealthStatus(botName);
+        expect(status).toBeDefined();
+        expect(status?.healthy).toBe(true);
+      } finally {
+        await mockBot.stop();
+      }
     });
 
     it("should track consecutive failures", async () => {
+      const port = getNextPort();
+      const botName = `failing-bot-${port}`;
+
       for (let i = 0; i < 3; i++) {
         await botCallerService.healthCheck(
-          "failing-bot",
-          "http://localhost:19999",
+          botName,
+          `http://localhost:${port}`,
         );
       }
 
-      const status = botCallerService.getHealthStatus("failing-bot");
+      const status = botCallerService.getHealthStatus(botName);
       expect(status?.healthy).toBe(false);
       expect(status?.consecutiveFailures).toBeGreaterThanOrEqual(1);
     });
 
     it("should reset circuit breaker", () => {
-      botCallerService.resetCircuitBreaker("test-bot");
+      const port = getNextPort();
+      botCallerService.resetCircuitBreaker(`test-bot-${port}`);
       expect(true).toBe(true);
     });
 
     it("should return all health statuses", async () => {
-      mockBot = createCallingBot(basePort + 9);
-      await mockBot.start();
+      const port1 = getNextPort();
+      const port2 = getNextPort();
+      const mockBot = createCallingBot(port1);
+      try {
+        await mockBot.start();
 
-      await botCallerService.healthCheck("all-bot-1", mockBot.getEndpoint());
-      await botCallerService.healthCheck("all-bot-2", mockBot.getEndpoint());
+        await botCallerService.healthCheck(`all-bot-${port1}`, mockBot.getEndpoint());
+        await botCallerService.healthCheck(`all-bot-${port2}`, mockBot.getEndpoint());
 
-      const allStatuses = botCallerService.getAllHealthStatuses();
-      expect(Array.isArray(allStatuses)).toBe(true);
+        const allStatuses = botCallerService.getAllHealthStatuses();
+        expect(Array.isArray(allStatuses)).toBe(true);
+      } finally {
+        await mockBot.stop();
+      }
     });
 
     it("should track average latency", async () => {
-      mockBot = createCallingBot(basePort + 10);
-      await mockBot.start();
+      const port = getNextPort();
+      const mockBot = createCallingBot(port);
+      const botName = `latency-bot-${port}`;
+      try {
+        await mockBot.start();
 
-      await botCallerService.callBot("latency-bot", mockBot.getEndpoint(), {});
-      await botCallerService.callBot("latency-bot", mockBot.getEndpoint(), {});
-      await botCallerService.callBot("latency-bot", mockBot.getEndpoint(), {});
+        await botCallerService.callBot(botName, mockBot.getEndpoint(), {});
+        await botCallerService.callBot(botName, mockBot.getEndpoint(), {});
+        await botCallerService.callBot(botName, mockBot.getEndpoint(), {});
 
-      const avgLatency = botCallerService.getAverageLatency("latency-bot");
-      expect(avgLatency).toBeGreaterThanOrEqual(0);
+        const avgLatency = botCallerService.getAverageLatency(botName);
+        expect(avgLatency).toBeGreaterThanOrEqual(0);
+      } finally {
+        await mockBot.stop();
+      }
     });
   });
 });

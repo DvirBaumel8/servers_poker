@@ -19,14 +19,14 @@ import { PokerGameService } from "../../src/game/poker-game.service";
 import { PotManager, BettingRound } from "../../src/betting";
 
 describe("Edge Case #2 & #3: Split Pot Odd Chip Distribution", () => {
-  describe("PotManager.distributePot()", () => {
+  describe.concurrent("PotManager.distributePot()", () => {
     let potManager: PotManager;
 
     beforeEach(() => {
       potManager = new PotManager();
     });
 
-    describe("Two-way split with odd chips", () => {
+    describe.concurrent("Two-way split with odd chips", () => {
       it("should give odd chip to player closest to button (dealer + 1)", () => {
         const pot = 101;
         const winners = [
@@ -89,7 +89,7 @@ describe("Edge Case #2 & #3: Split Pot Odd Chip Distribution", () => {
       });
     });
 
-    describe("Three-way split with odd chips", () => {
+    describe.concurrent("Three-way split with odd chips", () => {
       it("should distribute 2 odd chips to first 2 players after button", () => {
         const pot = 101;
         const winners = [
@@ -141,7 +141,7 @@ describe("Edge Case #2 & #3: Split Pot Odd Chip Distribution", () => {
       });
     });
 
-    describe("Four-way split with odd chips", () => {
+    describe.concurrent("Four-way split with odd chips", () => {
       it("should distribute 3 odd chips to first 3 players after button", () => {
         const pot = 103;
         const winners = [
@@ -173,7 +173,7 @@ describe("Edge Case #2 & #3: Split Pot Odd Chip Distribution", () => {
       });
     });
 
-    describe("Edge cases", () => {
+    describe.concurrent("Edge cases", () => {
       it("should handle $1 pot split between 3 players (1 gets $1, others get $0)", () => {
         const pot = 1;
         const winners = [
@@ -236,7 +236,7 @@ describe("Edge Case #2 & #3: Split Pot Odd Chip Distribution", () => {
 });
 
 describe("Edge Case #5: Short All-In Does Not Reopen Betting", () => {
-  describe("BettingRound short all-in validation", () => {
+  describe.concurrent("BettingRound short all-in validation", () => {
     it("should NOT allow re-raise after short all-in", () => {
       const players = [
         { id: "p1", chips: 500, folded: false, allIn: false },
@@ -367,7 +367,7 @@ describe("Edge Case #7: Hand Cancellation/Rollback", () => {
     });
   });
 
-  describe("rollbackHand()", () => {
+  describe.concurrent("rollbackHand()", () => {
     it("should restore all players to start-of-hand chip amounts", () => {
       game.addPlayer({
         id: "p1",
@@ -545,7 +545,7 @@ describe("Edge Case #9: Dead Button Rule", () => {
     });
   });
 
-  describe("Button movement after player bust", () => {
+  describe.concurrent("Button movement after player bust", () => {
     it("should skip eliminated player when moving button", () => {
       game.addPlayer({
         id: "p1",
@@ -696,7 +696,7 @@ describe("Edge Case #9: Dead Button Rule", () => {
 });
 
 describe("Edge Case #18: Hand-for-Hand Bubble Play", () => {
-  describe("TournamentDirectorService hand-for-hand mode", () => {
+  describe.concurrent("TournamentDirectorService hand-for-hand mode", () => {
     it("should enable hand-for-hand mode at bubble", () => {
       const mockTournament = {
         id: "tourn-1",

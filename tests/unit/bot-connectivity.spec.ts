@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
 describe("Bot Connectivity", () => {
-  describe("Timeout Mechanism", () => {
+  describe.concurrent("Timeout Mechanism", () => {
     it("should timeout after configured duration", async () => {
       const timeoutMs = 100;
       const startTime = Date.now();
@@ -37,7 +37,7 @@ describe("Bot Connectivity", () => {
     });
   });
 
-  describe("Retry Logic", () => {
+  describe.concurrent("Retry Logic", () => {
     it("should retry on transient failures", async () => {
       let attempts = 0;
       const maxRetries = 2;
@@ -100,7 +100,7 @@ describe("Bot Connectivity", () => {
     });
   });
 
-  describe("Circuit Breaker", () => {
+  describe.concurrent("Circuit Breaker", () => {
     it("should open circuit after threshold failures", () => {
       const threshold = 3;
       let failures = 0;
@@ -164,7 +164,7 @@ describe("Bot Connectivity", () => {
     });
   });
 
-  describe("Response Validation", () => {
+  describe.concurrent("Response Validation", () => {
     const validateResponse = (
       response: any,
     ): { valid: boolean; errors: string[] } => {
@@ -246,7 +246,7 @@ describe("Bot Connectivity", () => {
     });
   });
 
-  describe("Latency Tracking", () => {
+  describe.concurrent("Latency Tracking", () => {
     it("should calculate average latency correctly", () => {
       const samples = [100, 150, 200, 50, 100];
       const average = samples.reduce((a, b) => a + b, 0) / samples.length;
@@ -273,7 +273,7 @@ describe("Bot Connectivity", () => {
     });
   });
 
-  describe("Health Check", () => {
+  describe.concurrent("Health Check", () => {
     it("should track consecutive failures", () => {
       let consecutiveFailures = 0;
 
@@ -299,7 +299,7 @@ describe("Bot Connectivity", () => {
     });
   });
 
-  describe("Strike System Integration", () => {
+  describe.concurrent("Strike System Integration", () => {
     it("should disconnect after max strikes", () => {
       const maxStrikes = 3;
       let strikes = 0;
@@ -341,7 +341,7 @@ describe("Bot Connectivity", () => {
     });
   });
 
-  describe("Pre-game Health Check", () => {
+  describe.concurrent("Pre-game Health Check", () => {
     it("should identify unhealthy bots before game", async () => {
       const bots = [
         { id: "bot1", healthy: true },

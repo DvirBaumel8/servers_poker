@@ -10,6 +10,7 @@ import { BotEvent } from "../../entities/bot-event.entity";
 import { TournamentEntry } from "../../entities/tournament-entry.entity";
 import { BotRepository } from "../../repositories/bot.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
+import { UrlValidatorService } from "../../common/validators/url-validator.service";
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { AnalyticsRepository } from "../../repositories/analytics.repository";
     ConfigModule,
   ],
   controllers: [BotsController, BotsConnectivityController],
-  providers: [BotsService, BotRepository, AnalyticsRepository],
+  providers: [BotsService, BotRepository, AnalyticsRepository, UrlValidatorService],
   exports: [BotsService, BotRepository],
 })
 export class BotsModule {}
