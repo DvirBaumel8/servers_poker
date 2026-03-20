@@ -265,7 +265,7 @@ export class GameRepository extends BaseRepository<Game> {
       games_played: number;
       total_hands: number;
       total_wins: number;
-      net_profit: number;
+      total_winnings: number;
       win_rate_pct: number | null;
     }>
   > {
@@ -277,7 +277,7 @@ export class GameRepository extends BaseRepository<Game> {
         COUNT(DISTINCT gp.game_id) AS games_played,
         COALESCE(SUM(gp.hands_played), 0) AS total_hands,
         COALESCE(SUM(gp.hands_won), 0) AS total_wins,
-        COALESCE(SUM(gp.end_chips - gp.start_chips), 0) AS net_profit,
+        COALESCE(SUM(gp.end_chips - gp.start_chips), 0) AS total_winnings,
         ROUND(
           100.0 * COALESCE(SUM(gp.hands_won), 0) / NULLIF(COALESCE(SUM(gp.hands_played), 0), 0),
           1
@@ -286,7 +286,7 @@ export class GameRepository extends BaseRepository<Game> {
       JOIN bots b ON b.id = gp.bot_id
       WHERE gp.end_chips IS NOT NULL
       GROUP BY b.id, b.name
-      ORDER BY net_profit DESC
+      ORDER BY total_winnings DESC
       LIMIT $1
       `,
       [limit],
