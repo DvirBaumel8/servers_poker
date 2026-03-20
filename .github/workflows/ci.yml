@@ -36,7 +36,7 @@ jobs:
         run: npm run build
 
       - name: Run unit tests
-        run: node --experimental-sqlite test.js
+        run: npm run test:unit
         env:
           NODE_ENV: test
 
