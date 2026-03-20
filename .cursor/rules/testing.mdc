@@ -9,13 +9,18 @@ globs:
 
 ## Coverage Requirements
 
-The project enforces minimum coverage thresholds:
-- **Statements**: 15%
-- **Branches**: 13%
-- **Functions**: 15%
-- **Lines**: 15%
+The project enforces minimum coverage thresholds on **unit-testable code**:
+- **Statements**: 80%
+- **Branches**: 70%
+- **Functions**: 85%
+- **Lines**: 80%
 
-These are baseline thresholds. Goal is to incrementally improve coverage over time.
+Files excluded from coverage (better suited for integration/E2E tests):
+- Controllers, Gateways, Entities, DTOs, Modules
+- Migrations, Workers, Simulation scripts
+- Database repositories, Redis services
+- Passport strategies, Validation pipes
+- Services that require external systems (bot-caller, persistence, recovery)
 
 These thresholds are defined in `vitest.config.ts` and enforced in CI.
 Run `npm run test:cov` to check coverage locally.

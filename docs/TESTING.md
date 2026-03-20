@@ -381,13 +381,22 @@ jobs:
 
 ## Test Coverage
 
-Current coverage thresholds (enforced in CI):
-- **Statements**: 15%
-- **Branches**: 13%
-- **Functions**: 15%
-- **Lines**: 15%
+Current coverage thresholds (enforced in CI) for **unit-testable code**:
+- **Statements**: 80%
+- **Branches**: 70%
+- **Functions**: 85%
+- **Lines**: 80%
 
-These are baseline thresholds. The goal is to incrementally improve coverage over time.
+### Files Excluded from Unit Test Coverage
+
+The following are excluded because they're better suited for integration/E2E tests:
+
+- **Controllers/Gateways/Entities/DTOs** - NestJS boilerplate, thin wrappers
+- **Migrations/Workers/Simulation** - Database schema, worker threads, scripts
+- **Repositories/Redis services** - External system dependencies
+- **Passport strategies/Pipes** - Framework integration
+- **Persistence/Manager services** - Complex external dependencies
+- **Tournament director** - Complex state machine requiring integration tests
 
 Run coverage report:
 ```bash
