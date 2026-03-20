@@ -2,21 +2,21 @@
  * Provably Fair RNG Service
  * =========================
  * Implements HMAC-based commit-reveal scheme for verifiable deck shuffling.
- * 
+ *
  * How it works:
  * 1. Before each hand, server generates:
  *    - Server seed (random secret)
  *    - Client seed (can be provided by players or generated)
  *    - Nonce (hand number)
- * 
+ *
  * 2. Server creates commitment:
  *    - seedHash = SHA256(serverSeed)
  *    - This hash is shared with clients BEFORE the hand starts
- * 
+ *
  * 3. During the hand:
  *    - Combined seed = HMAC-SHA256(serverSeed, clientSeed + nonce)
  *    - This combined seed is used to deterministically shuffle the deck
- * 
+ *
  * 4. After the hand:
  *    - Server reveals serverSeed
  *    - Players can verify:

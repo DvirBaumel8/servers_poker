@@ -11,10 +11,7 @@ import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { BotCallerService } from "./bot-caller.service";
 import { BotResilienceService } from "./bot-resilience.service";
-import {
-  ProvablyFairService,
-  HandSeedData,
-} from "./provably-fair.service";
+import { ProvablyFairService, HandSeedData } from "./provably-fair.service";
 import { createDeck, shuffle, shuffleWithOrder, cardToString } from "../deck";
 import { determineWinners, bestHand } from "../handEvaluator";
 import { PotManager, BettingRound } from "../betting";

@@ -87,7 +87,12 @@ export type WorkerCommand =
   | { type: "REMOVE_PLAYER"; playerId: string }
   | { type: "STOP" }
   | { type: "GET_STATE" }
-  | { type: "UPDATE_BLINDS"; smallBlind: number; bigBlind: number; ante?: number };
+  | {
+      type: "UPDATE_BLINDS";
+      smallBlind: number;
+      bigBlind: number;
+      ante?: number;
+    };
 
 // ============================================================================
 // Worker -> Main Thread Events
@@ -96,13 +101,39 @@ export type WorkerCommand =
 export type WorkerEvent =
   | { type: "READY"; tableId: string }
   | { type: "STATE_UPDATE"; tableId: string; state: WorkerGameState }
-  | { type: "PLAYER_JOINED"; tableId: string; playerId: string; playerName: string }
+  | {
+      type: "PLAYER_JOINED";
+      tableId: string;
+      playerId: string;
+      playerName: string;
+    }
   | { type: "PLAYER_LEFT"; tableId: string; playerId: string }
-  | { type: "HAND_STARTED"; tableId: string; handNumber: number; dealerName: string }
-  | { type: "HAND_COMPLETE"; tableId: string; handNumber: number; winners: WinnerInfo[]; atShowdown: boolean }
-  | { type: "GAME_FINISHED"; tableId: string; winnerId: string | null; winnerName: string | null }
+  | {
+      type: "HAND_STARTED";
+      tableId: string;
+      handNumber: number;
+      dealerName: string;
+    }
+  | {
+      type: "HAND_COMPLETE";
+      tableId: string;
+      handNumber: number;
+      winners: WinnerInfo[];
+      atShowdown: boolean;
+    }
+  | {
+      type: "GAME_FINISHED";
+      tableId: string;
+      winnerId: string | null;
+      winnerName: string | null;
+    }
   | { type: "ERROR"; tableId: string; error: string; fatal: boolean }
-  | { type: "LOG"; tableId: string; level: "debug" | "info" | "warn" | "error"; message: string };
+  | {
+      type: "LOG";
+      tableId: string;
+      level: "debug" | "info" | "warn" | "error";
+      message: string;
+    };
 
 // ============================================================================
 // Worker Initialization Data (passed via workerData)

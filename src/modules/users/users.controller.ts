@@ -120,7 +120,8 @@ export class UsersController {
 
     return {
       message: "All API keys revoked for user",
-      warning: "User will need to generate a new API key to continue using the API",
+      warning:
+        "User will need to generate a new API key to continue using the API",
     };
   }
 }
