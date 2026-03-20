@@ -42,7 +42,7 @@ jobs:
         run: npx eslint "src/**/*.ts" "tests/**/*.ts"
 
       - name: Lint frontend
-        run: npx eslint src --report-unused-disable-directives --max-warnings 0
+        run: npx eslint src --max-warnings 0
         working-directory: frontend
 
   # ─── Type-check ─────────────────────────────────────────────────────
