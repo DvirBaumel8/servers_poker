@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist for test fixtures"
+paths = [
+  '''tests/.*\.spec\.ts$''',
+  '''tests/.*\.test\.ts$''',
+]
