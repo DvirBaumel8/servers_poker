@@ -33,7 +33,7 @@ interface RegisterResponse {
 }
 
 const SALT_ROUNDS = 12;
-const MAX_BOTS_PER_ACCOUNT = 10;
+const _MAX_BOTS_PER_ACCOUNT = 10;
 
 @Injectable()
 export class AuthService {
@@ -334,9 +334,7 @@ export class AuthService {
     // 6. Generate JWT tokens
     const tokens = this.generateTokens(user);
 
-    this.logger.log(
-      `Developer registered: ${user.email} with bot ${bot.name}`,
-    );
+    this.logger.log(`Developer registered: ${user.email} with bot ${bot.name}`);
 
     return {
       accessToken: tokens.accessToken,
