@@ -116,34 +116,43 @@ export function Table({
         playerNames={playerNames}
       />
 
-      {/* Outer table shadow */}
+      {/* Wood rail */}
       <div
-        className="absolute inset-[3%] rounded-[50%]"
+        className="absolute inset-[2%] rounded-[50%]"
         style={{
-          background: "linear-gradient(180deg, #0d3320 0%, #0a2518 100%)",
+          background:
+            "linear-gradient(180deg, #6b3a1f 0%, #4a2812 30%, #3a1f0d 70%, #2d180a 100%)",
           boxShadow: `
-            0 0 0 8px #5c3a21,
-            0 0 0 12px #3d2614,
-            0 0 0 14px #2a1a0e,
-            0 15px 40px rgba(0, 0, 0, 0.6)
+            0 0 0 3px #1a0f06,
+            0 0 0 5px rgba(107,58,31,0.3),
+            0 20px 60px rgba(0, 0, 0, 0.7),
+            inset 0 2px 4px rgba(255,255,255,0.1)
           `,
         }}
       >
-        {/* Inner felt */}
+        {/* Felt surface */}
         <div
-          className="absolute inset-[3%] rounded-[50%]"
+          className="absolute inset-[5%] rounded-[50%]"
           style={{
-            background: `
-              radial-gradient(ellipse at 50% 30%, #1a5d3a 0%, #0f4528 40%, #0a3520 100%)
-            `,
-            boxShadow: "inset 0 0 80px rgba(0, 0, 0, 0.5)",
+            background:
+              "radial-gradient(ellipse at 50% 35%, #1b6b44 0%, #145536 30%, #0e4129 60%, #092e1e 100%)",
+            boxShadow:
+              "inset 0 0 60px rgba(0,0,0,0.4), inset 0 -10px 30px rgba(0,0,0,0.2), 0 0 0 2px #0a2e1e",
           }}
         >
-          {/* Felt texture overlay */}
+          {/* Subtle felt texture */}
           <div
-            className="absolute inset-0 rounded-[50%] opacity-20"
+            className="absolute inset-0 rounded-[50%] opacity-[0.08]"
             style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            }}
+          />
+
+          {/* Inner rail line */}
+          <div
+            className="absolute inset-[1%] rounded-[50%]"
+            style={{
+              border: "1px solid rgba(255,255,255,0.04)",
             }}
           />
         </div>
@@ -151,9 +160,15 @@ export function Table({
 
       {/* Center content - z-index 10 to stay below players but above table */}
       <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-        {/* Game type / branding - positioned at top of center area */}
-        <div className="text-white/15 text-xl font-bold tracking-widest absolute top-[18%]">
-          NL HOLD'EM
+        {/* Game type / branding */}
+        <div
+          className="absolute top-[18%] text-lg font-bold tracking-[0.3em] uppercase"
+          style={{
+            color: "rgba(201,162,39,0.12)",
+            textShadow: "0 0 20px rgba(201,162,39,0.05)",
+          }}
+        >
+          No-Limit Hold'em
         </div>
 
         {/* Community cards - centered in the middle of the table */}
@@ -171,9 +186,17 @@ export function Table({
             <div className="flex items-center gap-1 mb-1">
               <ChipStack size="sm" />
             </div>
-            <div className="bg-black/60 px-4 py-1 rounded-full backdrop-blur-sm">
-              <span className="text-gray-400 text-xs mr-1">Total Pot</span>
-              <span className="text-yellow-400 font-bold">
+            <div
+              className="px-5 py-1.5 rounded-full"
+              style={{
+                background: "rgba(0,0,0,0.7)",
+                backdropFilter: "blur(8px)",
+                border: "1px solid rgba(201,162,39,0.2)",
+                boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+              }}
+            >
+              <span className="text-gray-400 text-xs mr-1.5">Pot</span>
+              <span className="font-bold text-sm" style={{ color: "#dbb842" }}>
                 {formatAmount(pot)}
               </span>
             </div>

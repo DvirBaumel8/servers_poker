@@ -8,62 +8,77 @@ interface CommunityCardsProps {
   className?: string;
 }
 
+const SUIT_SYMBOLS: Record<string, string> = {
+  hearts: "♥",
+  diamonds: "♦",
+  clubs: "♣",
+  spades: "♠",
+  "♥": "♥",
+  "♦": "♦",
+  "♣": "♣",
+  "♠": "♠",
+};
+
+const SUIT_COLORS: Record<string, string> = {
+  hearts: "#dc2626",
+  diamonds: "#2563eb",
+  clubs: "#16a34a",
+  spades: "#1e293b",
+  "♥": "#dc2626",
+  "♦": "#2563eb",
+  "♣": "#16a34a",
+  "♠": "#1e293b",
+};
+
 export function CommunityCards({
   cards,
   stage,
   className,
 }: CommunityCardsProps) {
-  // Don't show anything during pre-flop or waiting
   if (stage === "pre-flop" || stage === "waiting") {
     return null;
   }
 
-  // If we have no cards but should (post-flop), show placeholders
   if (!cards || cards.length === 0) {
     return null;
   }
 
-  // Show cards we have, pad to 5 with placeholders
   const displayCards = [...cards];
   while (displayCards.length < 5) {
     displayCards.push(null as unknown as CardType);
   }
 
   return (
-    <div className={clsx("flex gap-2", className)}>
+    <div className={clsx("flex gap-2 items-center", className)}>
       {displayCards.map((card, index) => (
         <motion.div
           key={index}
-          initial={{ rotateY: 180, scale: 0.8, opacity: 0 }}
+          initial={{ rotateY: 90, scale: 0.7, opacity: 0 }}
           animate={{
-            rotateY: card ? 0 : 180,
-            scale: card ? 1 : 0.95,
+            rotateY: card ? 0 : 90,
+            scale: card ? 1 : 0.9,
             opacity: 1,
           }}
           transition={{
-            duration: 0.4,
-            delay: card ? index * 0.1 : 0,
+            duration: 0.5,
+            delay: card ? index * 0.12 : 0,
             type: "spring",
             stiffness: 200,
+            damping: 20,
           }}
-          style={{ perspective: 1000 }}
+          style={{ perspective: 800 }}
         >
-          {card ? <PokerCard card={card} /> : <CardPlaceholder />}
+          {card ? <BoardCard card={card} /> : <CardSlot />}
         </motion.div>
       ))}
     </div>
   );
 }
 
-interface PokerCardProps {
-  card: CardType | string;
-}
-
-function PokerCard({ card }: PokerCardProps) {
+function BoardCard({ card }: { card: CardType | string }) {
   let rank: string;
   let suit: string;
 
-  // Handle case where card might be a string like "K♥" or an object {rank, suit}
   if (typeof card === "string") {
     const chars = [...card];
     suit = chars.pop() || "?";
@@ -73,71 +88,43 @@ function PokerCard({ card }: PokerCardProps) {
     suit = card.suit || "?";
   }
 
-  const isRed =
-    suit === "hearts" ||
-    suit === "diamonds" ||
-    suit === "♥" ||
-    suit === "♦" ||
-    suit === "h" ||
-    suit === "d";
-  const suitSymbol = getSuitSymbol(suit);
+  const suitSymbol = SUIT_SYMBOLS[suit] || suit;
+  const suitColor = SUIT_COLORS[suit] || "#1e293b";
 
   return (
     <div
-      className={clsx(
-        "w-14 h-20 rounded-lg bg-white shadow-xl",
-        "flex flex-col items-center justify-center",
-        "border-2 border-gray-200 relative overflow-hidden",
-      )}
+      className="w-[52px] h-[74px] rounded-lg relative overflow-hidden select-none"
       style={{
-        background: "linear-gradient(135deg, #fff 0%, #f8f8f8 100%)",
+        background:
+          "linear-gradient(160deg, #ffffff 0%, #f8f9fa 30%, #f1f3f5 100%)",
+        border: "1.5px solid #ced4da",
         boxShadow:
-          "0 4px 15px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.8)",
+          "0 6px 20px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.95)",
       }}
     >
-      {/* Top left corner */}
-      <div className="absolute top-1 left-1.5 flex flex-col items-center">
-        <span
-          className={clsx(
-            "font-bold text-sm leading-none",
-            isRed ? "text-red-600" : "text-gray-900",
-          )}
-        >
+      <div className="absolute top-[3px] left-[5px] flex flex-col items-center leading-none">
+        <span className="font-black text-[13px]" style={{ color: suitColor }}>
           {rank}
         </span>
+        <span className="text-[12px] -mt-px" style={{ color: suitColor }}>
+          {suitSymbol}
+        </span>
+      </div>
+
+      <div className="absolute inset-0 flex items-center justify-center pt-1">
         <span
-          className={clsx(
-            "text-sm leading-none",
-            isRed ? "text-red-600" : "text-gray-900",
-          )}
+          className="text-[28px] drop-shadow-sm"
+          style={{ color: suitColor }}
         >
           {suitSymbol}
         </span>
       </div>
 
-      {/* Center suit */}
-      <span
-        className={clsx("text-3xl", isRed ? "text-red-600" : "text-gray-900")}
-      >
-        {suitSymbol}
-      </span>
-
-      {/* Bottom right corner (inverted) */}
-      <div className="absolute bottom-1 right-1.5 flex flex-col items-center rotate-180">
-        <span
-          className={clsx(
-            "font-bold text-sm leading-none",
-            isRed ? "text-red-600" : "text-gray-900",
-          )}
-        >
+      <div className="absolute bottom-[3px] right-[5px] flex flex-col items-center leading-none rotate-180">
+        <span className="font-black text-[13px]" style={{ color: suitColor }}>
           {rank}
         </span>
-        <span
-          className={clsx(
-            "text-sm leading-none",
-            isRed ? "text-red-600" : "text-gray-900",
-          )}
-        >
+        <span className="text-[12px] -mt-px" style={{ color: suitColor }}>
           {suitSymbol}
         </span>
       </div>
@@ -145,28 +132,14 @@ function PokerCard({ card }: PokerCardProps) {
   );
 }
 
-function CardPlaceholder() {
+function CardSlot() {
   return (
     <div
-      className={clsx(
-        "w-14 h-20 rounded-lg",
-        "border-2 border-dashed border-white/20",
-        "bg-white/5",
-      )}
+      className="w-[52px] h-[74px] rounded-lg"
+      style={{
+        border: "2px dashed rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.03)",
+      }}
     />
   );
-}
-
-function getSuitSymbol(suit: string): string {
-  const symbols: Record<string, string> = {
-    hearts: "♥",
-    diamonds: "♦",
-    clubs: "♣",
-    spades: "♠",
-    "♥": "♥",
-    "♦": "♦",
-    "♣": "♣",
-    "♠": "♠",
-  };
-  return symbols[suit] || suit;
 }
