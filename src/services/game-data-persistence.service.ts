@@ -56,6 +56,7 @@ interface HandCompleteEvent {
     chips: number;
     folded: boolean;
     allIn: boolean;
+    totalBet?: number;
   }>;
 }
 
@@ -262,6 +263,7 @@ export class GameDataPersistenceService implements OnModuleInit {
               folded: player.folded,
               all_in: player.allIn,
               saw_showdown: event.atShowdown && !player.folded,
+              amount_bet: player.totalBet ?? 0,
             },
           );
 

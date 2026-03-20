@@ -554,6 +554,7 @@ export class GameInstance {
         chips: p.chips,
         folded: p.folded,
         allIn: p.allIn,
+        totalBet: this.potManager?.getPlayerTotalBet(p.id) || 0,
       })),
       provablyFair: this.currentHandSeed
         ? this.provablyFairService?.getVerificationData(this.currentHandSeed)
@@ -603,6 +604,7 @@ export class GameInstance {
         chips: p.chips,
         folded: p.folded,
         allIn: p.allIn,
+        totalBet: this.potManager?.getPlayerTotalBet(p.id) || 0,
       })),
       provablyFair: this.currentHandSeed
         ? this.provablyFairService?.getVerificationData(this.currentHandSeed)
