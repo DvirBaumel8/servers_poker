@@ -16,7 +16,7 @@
     "socket.io-client": "^4.8.3",
     "zustand": "^4.5.4",
     "clsx": "^2.1.1",
-    "framer-motion": "^11.3.24"
+    "framer-motion": "^12.38.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
