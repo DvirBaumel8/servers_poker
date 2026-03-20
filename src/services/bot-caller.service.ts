@@ -61,7 +61,10 @@ export class BotCallerService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     private readonly hmacSigningService: HmacSigningService,
   ) {
-    const parseNum = (val: string | number | undefined, defaultVal: number): number => {
+    const parseNum = (
+      val: string | number | undefined,
+      defaultVal: number,
+    ): number => {
       if (val === undefined) return defaultVal;
       const parsed = typeof val === "string" ? parseInt(val, 10) : val;
       return isNaN(parsed) ? defaultVal : parsed;
@@ -82,7 +85,10 @@ export class BotCallerService implements OnModuleInit {
       30000,
     );
     this.maxResponseBytes = 65536;
-    this.enableHmacSigning = this.configService.get<boolean>("ENABLE_BOT_HMAC_SIGNING", false);
+    this.enableHmacSigning = this.configService.get<boolean>(
+      "ENABLE_BOT_HMAC_SIGNING",
+      false,
+    );
 
     this.httpAgent = new http.Agent({
       keepAlive: true,

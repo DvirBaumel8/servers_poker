@@ -9,7 +9,10 @@ import type { GameState, HandResult } from "../../types";
 interface TableProps {
   gameState: GameState;
   className?: string;
-  playerActions?: Record<string, { type: string; amount?: number; timestamp: number }>;
+  playerActions?: Record<
+    string,
+    { type: string; amount?: number; timestamp: number }
+  >;
   turnStartTime?: number;
   turnTimeoutMs?: number;
   handResult?: HandResult | null;
@@ -18,15 +21,15 @@ interface TableProps {
 }
 
 const SEAT_POSITIONS_9 = [
-  { top: "72%", left: "50%" },      // Bottom center (hero position)
-  { top: "68%", left: "18%" },      // Bottom left
-  { top: "45%", left: "5%" },       // Left middle
-  { top: "20%", left: "12%" },      // Top left
-  { top: "12%", left: "35%" },      // Top left-center
-  { top: "12%", left: "65%" },      // Top right-center
-  { top: "20%", left: "88%" },      // Top right
-  { top: "45%", left: "95%" },      // Right middle
-  { top: "68%", left: "82%" },      // Bottom right
+  { top: "72%", left: "50%" }, // Bottom center (hero position)
+  { top: "68%", left: "18%" }, // Bottom left
+  { top: "45%", left: "5%" }, // Left middle
+  { top: "20%", left: "12%" }, // Top left
+  { top: "12%", left: "35%" }, // Top left-center
+  { top: "12%", left: "65%" }, // Top right-center
+  { top: "20%", left: "88%" }, // Top right
+  { top: "45%", left: "95%" }, // Right middle
+  { top: "68%", left: "82%" }, // Bottom right
 ];
 
 const BET_POSITIONS_9 = [
@@ -41,9 +44,9 @@ const BET_POSITIONS_9 = [
   { top: "65%", left: "72%" },
 ];
 
-export function Table({ 
-  gameState, 
-  className, 
+export function Table({
+  gameState,
+  className,
   playerActions = {},
   turnStartTime,
   turnTimeoutMs = 10000,
@@ -58,12 +61,12 @@ export function Table({
     if (count <= 2) {
       return {
         seats: [
-          { top: "82%", left: "50%" },  // Bottom player - clear of center content
-          { top: "3%", left: "50%" },   // Top player
+          { top: "82%", left: "50%" }, // Bottom player - clear of center content
+          { top: "3%", left: "50%" }, // Top player
         ],
         bets: [
-          { top: "68%", left: "50%" },  // Bottom player's bet - between player and pot
-          { top: "20%", left: "50%" },  // Top player's bet
+          { top: "68%", left: "50%" }, // Bottom player's bet - between player and pot
+          { top: "20%", left: "50%" }, // Top player's bet
         ],
       };
     }
@@ -102,7 +105,9 @@ export function Table({
   }, [handResult, players, seats]);
 
   return (
-    <div className={clsx("relative w-full max-w-5xl aspect-[16/10]", className)}>
+    <div
+      className={clsx("relative w-full max-w-5xl aspect-[16/10]", className)}
+    >
       {/* Winner animation overlay */}
       <WinnerAnimation
         result={handResult || null}
@@ -168,7 +173,9 @@ export function Table({
             </div>
             <div className="bg-black/60 px-4 py-1 rounded-full backdrop-blur-sm">
               <span className="text-gray-400 text-xs mr-1">Total Pot</span>
-              <span className="text-yellow-400 font-bold">{formatAmount(pot)}</span>
+              <span className="text-yellow-400 font-bold">
+                {formatAmount(pot)}
+              </span>
             </div>
             {/* Hand info - directly below pot */}
             {handNumber > 0 && status !== "waiting" && (
@@ -257,9 +264,24 @@ function ChipStack({ size = "sm" }: { size?: "xs" | "sm" | "md" }) {
 
   return (
     <div className="flex -space-x-1">
-      <div className={clsx("rounded-full bg-gradient-to-b from-red-400 to-red-600 border border-red-300 shadow", sizeClasses[size])} />
-      <div className={clsx("rounded-full bg-gradient-to-b from-blue-400 to-blue-600 border border-blue-300 shadow", sizeClasses[size])} />
-      <div className={clsx("rounded-full bg-gradient-to-b from-green-400 to-green-600 border border-green-300 shadow", sizeClasses[size])} />
+      <div
+        className={clsx(
+          "rounded-full bg-gradient-to-b from-red-400 to-red-600 border border-red-300 shadow",
+          sizeClasses[size],
+        )}
+      />
+      <div
+        className={clsx(
+          "rounded-full bg-gradient-to-b from-blue-400 to-blue-600 border border-blue-300 shadow",
+          sizeClasses[size],
+        )}
+      />
+      <div
+        className={clsx(
+          "rounded-full bg-gradient-to-b from-green-400 to-green-600 border border-green-300 shadow",
+          sizeClasses[size],
+        )}
+      />
     </div>
   );
 }

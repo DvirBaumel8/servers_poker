@@ -1,0 +1,45 @@
+version: 2
+
+updates:
+  # Backend npm dependencies
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      nestjs:
+        patterns: ["@nestjs/*"]
+      testing:
+        patterns: ["vitest", "@vitest/*", "supertest", "@types/supertest"]
+      eslint:
+        patterns: ["eslint*", "@typescript-eslint/*", "prettier"]
+    labels:
+      - dependencies
+      - backend
+
+  # Frontend npm dependencies
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react*"]
+      vite:
+        patterns: ["vite", "@vitejs/*"]
+    labels:
+      - dependencies
+      - frontend
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - ci

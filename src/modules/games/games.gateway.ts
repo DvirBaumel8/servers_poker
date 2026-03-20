@@ -113,7 +113,11 @@ export class GamesGateway
       (event: {
         tableId: string;
         handNumber: number;
-        provablyFair?: { serverSeedHash: string; clientSeed: string; nonce: number };
+        provablyFair?: {
+          serverSeedHash: string;
+          clientSeed: string;
+          nonce: number;
+        };
       }) => {
         this.server.to(`table:${event.tableId}`).emit("handStarted", {
           tableId: event.tableId,

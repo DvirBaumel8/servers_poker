@@ -41,7 +41,7 @@ export function Layout() {
                     "text-sm font-medium transition-colors",
                     location.pathname === item.path
                       ? "text-poker-gold"
-                      : "text-gray-400 hover:text-white"
+                      : "text-gray-400 hover:text-white",
                   )}
                 >
                   {item.label}
@@ -57,7 +57,7 @@ export function Layout() {
                         "text-sm font-medium transition-colors",
                         location.pathname === "/profile"
                           ? "text-poker-gold"
-                          : "text-gray-400 hover:text-white"
+                          : "text-gray-400 hover:text-white",
                       )}
                     >
                       {user.username}
@@ -77,7 +77,7 @@ export function Layout() {
                         "text-sm font-medium transition-colors",
                         location.pathname === "/login"
                           ? "text-poker-gold"
-                          : "text-gray-400 hover:text-white"
+                          : "text-gray-400 hover:text-white",
                       )}
                     >
                       Login

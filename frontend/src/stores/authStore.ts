@@ -67,6 +67,6 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "poker-auth",
       partialize: (state) => ({ token: state.token }),
-    }
-  )
+    },
+  ),
 );

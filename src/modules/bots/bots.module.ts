@@ -18,7 +18,12 @@ import { UrlValidatorService } from "../../common/validators/url-validator.servi
     ConfigModule,
   ],
   controllers: [BotsController, BotsConnectivityController],
-  providers: [BotsService, BotRepository, AnalyticsRepository, UrlValidatorService],
+  providers: [
+    BotsService,
+    BotRepository,
+    AnalyticsRepository,
+    UrlValidatorService,
+  ],
   exports: [BotsService, BotRepository],
 })
 export class BotsModule {}

@@ -76,7 +76,7 @@ interface GameFinishedEvent {
 @Injectable()
 export class GameDataPersistenceService implements OnModuleInit {
   private readonly logger = new Logger(GameDataPersistenceService.name);
-  
+
   private handIdCache: Map<string, string> = new Map();
   private actionSeqCache: Map<string, number> = new Map();
   private gameStatusCache: Map<string, "running" | "finished"> = new Map();
@@ -108,7 +108,7 @@ export class GameDataPersistenceService implements OnModuleInit {
   private async onHandStarted(event: HandStartedEvent): Promise<void> {
     try {
       const cacheKey = `${event.gameId}:${event.handNumber}`;
-      
+
       if (this.gameStatusCache.get(event.gameId) !== "running") {
         await this.gameRepository.update(event.gameId, {
           status: "running",

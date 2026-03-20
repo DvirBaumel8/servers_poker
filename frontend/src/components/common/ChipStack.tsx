@@ -40,24 +40,26 @@ export function ChipStack({ amount, size = "md", className }: ChipStackProps) {
   return (
     <div className={clsx("flex flex-col items-center", className)}>
       <div className="relative flex flex-col-reverse">
-        {chips.slice(0, 4).map((chip, i) =>
-          Array.from({ length: chip.count }).map((_, j) => (
-            <motion.div
-              key={`${chip.value}-${j}`}
-              initial={{ y: -20, opacity: 0 }}
-              animate={{ y: -i * 4, opacity: 1 }}
-              transition={{ delay: (i * chip.count + j) * 0.02 }}
-              className={clsx(
-                "rounded-full border-2 shadow-md",
-                chipSize,
-                chip.color,
-                chip.border,
-                "absolute"
-              )}
-              style={{ bottom: (i * chip.count + j) * 4 }}
-            />
-          ))
-        )}
+        {chips
+          .slice(0, 4)
+          .map((chip, i) =>
+            Array.from({ length: chip.count }).map((_, j) => (
+              <motion.div
+                key={`${chip.value}-${j}`}
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: -i * 4, opacity: 1 }}
+                transition={{ delay: (i * chip.count + j) * 0.02 }}
+                className={clsx(
+                  "rounded-full border-2 shadow-md",
+                  chipSize,
+                  chip.color,
+                  chip.border,
+                  "absolute",
+                )}
+                style={{ bottom: (i * chip.count + j) * 4 }}
+              />
+            )),
+          )}
       </div>
       <span className="mt-2 text-white font-bold text-sm">
         {formatChips(amount)}

@@ -43,7 +43,7 @@ export function Profile() {
     if (!token) return;
     if (
       !confirm(
-        "Are you sure? This will invalidate your current API key and all bots using it."
+        "Are you sure? This will invalidate your current API key and all bots using it.",
       )
     )
       return;
@@ -54,7 +54,9 @@ export function Profile() {
       setApiKey(result.api_key);
       setShowApiKey(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to regenerate API key");
+      setError(
+        err instanceof Error ? err.message : "Failed to regenerate API key",
+      );
     } finally {
       setRegenerating(false);
     }
@@ -108,7 +110,9 @@ export function Profile() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-gray-800/50 rounded-xl border border-gray-700 p-6 mb-6"
       >
-        <h2 className="text-xl font-bold text-white mb-4">Account Information</h2>
+        <h2 className="text-xl font-bold text-white mb-4">
+          Account Information
+        </h2>
 
         <div className="grid md:grid-cols-2 gap-6">
           <div>
@@ -132,7 +136,9 @@ export function Profile() {
             </span>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Member Since</label>
+            <label className="block text-sm text-gray-400 mb-1">
+              Member Since
+            </label>
             <p className="text-white">
               {user?.createdAt
                 ? new Date(user.createdAt).toLocaleDateString()
@@ -235,7 +241,9 @@ export function Profile() {
         {myBots.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-4xl mb-3">🤖</div>
-            <p className="text-gray-400 mb-4">You haven't created any bots yet</p>
+            <p className="text-gray-400 mb-4">
+              You haven't created any bots yet
+            </p>
             <Link
               to="/bots"
               className="inline-block px-4 py-2 bg-poker-gold text-gray-900 rounded-lg font-medium hover:bg-yellow-400 transition-colors"

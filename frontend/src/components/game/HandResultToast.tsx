@@ -8,7 +8,11 @@ interface HandResultToastProps {
   playerNames?: Record<string, string>;
 }
 
-export function HandResultToast({ result, onDismiss, playerNames = {} }: HandResultToastProps) {
+export function HandResultToast({
+  result,
+  onDismiss,
+  playerNames = {},
+}: HandResultToastProps) {
   if (!result) return null;
 
   const getPlayerName = (botId: string) => {
@@ -27,7 +31,9 @@ export function HandResultToast({ result, onDismiss, playerNames = {} }: HandRes
           {/* Trophy header */}
           <div className="flex items-center justify-center gap-2 mb-4">
             <span className="text-3xl">🏆</span>
-            <h3 className="text-xl font-bold text-white">Hand #{result.handNumber}</h3>
+            <h3 className="text-xl font-bold text-white">
+              Hand #{result.handNumber}
+            </h3>
           </div>
 
           {/* Winners list */}
@@ -45,8 +51,12 @@ export function HandResultToast({ result, onDismiss, playerNames = {} }: HandRes
                     {idx + 1}
                   </div>
                   <div>
-                    <div className="text-white font-semibold">{getPlayerName(winner.botId)}</div>
-                    <div className="text-gray-400 text-sm">{winner.handName}</div>
+                    <div className="text-white font-semibold">
+                      {getPlayerName(winner.botId)}
+                    </div>
+                    <div className="text-gray-400 text-sm">
+                      {winner.handName}
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -61,12 +71,17 @@ export function HandResultToast({ result, onDismiss, playerNames = {} }: HandRes
           {/* Total pot */}
           <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
             <span className="text-gray-400">Total Pot</span>
-            <span className="text-yellow-400 font-bold text-lg">{formatAmount(result.pot)}</span>
+            <span className="text-yellow-400 font-bold text-lg">
+              {formatAmount(result.pot)}
+            </span>
           </div>
 
           {/* Provably Fair Info */}
           {result.provablyFair && (
-            <ProvablyFairInfo data={result.provablyFair} handNumber={result.handNumber} />
+            <ProvablyFairInfo
+              data={result.provablyFair}
+              handNumber={result.handNumber}
+            />
           )}
 
           {/* Dismiss button */}

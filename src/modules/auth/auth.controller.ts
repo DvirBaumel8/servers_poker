@@ -7,7 +7,7 @@ import {
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
-import { Throttle, SkipThrottle } from "@nestjs/throttler";
+import { Throttle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
 import {
   LoginDto,

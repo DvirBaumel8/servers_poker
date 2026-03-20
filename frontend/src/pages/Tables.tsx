@@ -82,7 +82,9 @@ export function Tables() {
       });
       loadData();
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create table");
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create table",
+      );
     } finally {
       setCreateLoading(false);
     }
@@ -165,7 +167,9 @@ export function Tables() {
       {tables.length === 0 ? (
         <div className="text-center py-12 bg-gray-800/50 rounded-xl border border-gray-700">
           <div className="text-6xl mb-4">🎰</div>
-          <h2 className="text-2xl font-bold text-white mb-2">No Active Tables</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            No Active Tables
+          </h2>
           <p className="text-gray-400 mb-4">
             {user
               ? "Create a table to start playing!"
@@ -197,8 +201,8 @@ export function Tables() {
                     table.status === "running"
                       ? "bg-green-500/20 text-green-400"
                       : table.status === "waiting"
-                      ? "bg-yellow-500/20 text-yellow-400"
-                      : "bg-gray-500/20 text-gray-400"
+                        ? "bg-yellow-500/20 text-yellow-400"
+                        : "bg-gray-500/20 text-gray-400"
                   }`}
                 >
                   {table.status}
@@ -232,7 +236,11 @@ export function Tables() {
                     onClick={() => openJoinModal(table)}
                     disabled={myBots.length === 0}
                     className="flex-1 px-4 py-2 bg-poker-gold text-gray-900 text-sm font-medium rounded-lg hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title={myBots.length === 0 ? "Create a bot first" : "Join with your bot"}
+                    title={
+                      myBots.length === 0
+                        ? "Create a bot first"
+                        : "Join with your bot"
+                    }
                   >
                     Join
                   </button>
@@ -260,7 +268,9 @@ export function Tables() {
               className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-2xl font-bold text-white mb-6">Create Table</h2>
+              <h2 className="text-2xl font-bold text-white mb-6">
+                Create Table
+              </h2>
 
               <form onSubmit={handleCreateTable} className="space-y-4">
                 {createError && (
@@ -408,7 +418,8 @@ export function Tables() {
             >
               <h2 className="text-2xl font-bold text-white mb-2">Join Table</h2>
               <p className="text-gray-400 mb-6">
-                Select a bot to join <span className="text-white">{joiningTable.name}</span>
+                Select a bot to join{" "}
+                <span className="text-white">{joiningTable.name}</span>
               </p>
 
               <form onSubmit={handleJoinTable} className="space-y-4">
@@ -460,7 +471,8 @@ export function Tables() {
                       <div className="flex justify-between">
                         <span className="text-gray-400">Players</span>
                         <span className="text-white">
-                          {joiningTable.currentPlayers} / {joiningTable.maxPlayers}
+                          {joiningTable.currentPlayers} /{" "}
+                          {joiningTable.maxPlayers}
                         </span>
                       </div>
                     </div>

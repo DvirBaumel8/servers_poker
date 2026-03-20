@@ -43,13 +43,13 @@ export const botsApi = {
 
   create: (
     data: { name: string; endpoint: string; description?: string },
-    token: string
+    token: string,
   ) => api.post<Bot>("/bots", data, token),
 
   update: (
     id: string,
     data: { endpoint?: string; description?: string },
-    token: string
+    token: string,
   ) => api.put<Bot>(`/bots/${id}`, data, token),
 
   validate: (id: string, token: string) =>

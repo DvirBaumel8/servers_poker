@@ -49,7 +49,9 @@ export function TournamentCard({
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   const registeredBotIds = tournament.entries?.map((e) => e.botId) || [];
-  const myRegisteredBotId = myBotIds.find((id) => registeredBotIds.includes(id));
+  const myRegisteredBotId = myBotIds.find((id) =>
+    registeredBotIds.includes(id),
+  );
 
   const prizePool = tournament.buyIn * tournament.entriesCount;
 
@@ -92,7 +94,7 @@ export function TournamentCard({
       className={clsx(
         "bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700",
         "p-6 hover:border-poker-gold transition-colors",
-        className
+        className,
       )}
     >
       <Link to={`/tournaments/${tournament.id}`}>
@@ -106,7 +108,7 @@ export function TournamentCard({
           <span
             className={clsx(
               "px-3 py-1 rounded-full text-xs font-medium text-white",
-              STATUS_COLORS[tournament.status]
+              STATUS_COLORS[tournament.status],
             )}
           >
             {tournament.status.replace("_", " ").toUpperCase()}
@@ -129,7 +131,8 @@ export function TournamentCard({
           <div>
             <span className="text-gray-400">Players</span>
             <p className="text-white font-medium">
-              {tournament.entriesCount || tournament.registeredPlayers} / {tournament.maxPlayers}
+              {tournament.entriesCount || tournament.registeredPlayers} /{" "}
+              {tournament.maxPlayers}
             </p>
           </div>
           <div>
@@ -181,17 +184,19 @@ export function TournamentCard({
               {isLateRegOpen ? "Late Register" : "Register"}
             </button>
           )}
-          {myRegisteredBotId && onUnregister && tournament.status === "registering" && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                onUnregister(myRegisteredBotId);
-              }}
-              className="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-500 transition-colors"
-            >
-              Unregister
-            </button>
-          )}
+          {myRegisteredBotId &&
+            onUnregister &&
+            tournament.status === "registering" && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  onUnregister(myRegisteredBotId);
+                }}
+                className="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-500 transition-colors"
+              >
+                Unregister
+              </button>
+            )}
           {onStart && (
             <button
               onClick={(e) => {

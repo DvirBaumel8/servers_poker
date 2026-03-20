@@ -28,7 +28,9 @@ describe("API Contract Tests", () => {
 
   describe("GET /games/leaderboard", () => {
     it("returns leaderboard entries with expected structure", async () => {
-      const response = await fetch(`${API_BASE}/games/leaderboard?limit=10&period=all`);
+      const response = await fetch(
+        `${API_BASE}/games/leaderboard?limit=10&period=all`,
+      );
       expect(response.ok).toBe(true);
 
       const entries = await response.json();
@@ -91,14 +93,19 @@ describe("API Contract Tests", () => {
     it("returns game state with expected structure", async () => {
       const tablesResponse = await fetch(`${API_BASE}/games`);
       const tables = await tablesResponse.json();
-      
-      const runningTable = tables.find((t: { status: string }) => t.status === "running" || t.status === "finished");
+
+      const runningTable = tables.find(
+        (t: { status: string }) =>
+          t.status === "running" || t.status === "finished",
+      );
       if (!runningTable) {
         console.log("No running/finished tables to test game state");
         return;
       }
 
-      const response = await fetch(`${API_BASE}/games/${runningTable.id}/state`);
+      const response = await fetch(
+        `${API_BASE}/games/${runningTable.id}/state`,
+      );
       expect(response.ok).toBe(true);
 
       const state = await response.json();
@@ -111,7 +118,7 @@ describe("API Contract Tests", () => {
       expect(state).toHaveProperty("players");
       expect(state).toHaveProperty("smallBlind");
       expect(state).toHaveProperty("bigBlind");
-      
+
       expect(Array.isArray(state.players)).toBe(true);
       if (state.players.length > 0) {
         const player = state.players[0];
@@ -129,12 +136,15 @@ describe("API Contract Tests", () => {
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "alice@example.com", password: "testpass123" }),
+        body: JSON.stringify({
+          email: "alice@example.com",
+          password: "testpass123",
+        }),
       });
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
+
       expect(data).toHaveProperty("accessToken");
       expect(data).toHaveProperty("user");
       expect(data.user).toHaveProperty("id");

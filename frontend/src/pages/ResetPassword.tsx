@@ -45,7 +45,10 @@ export function ResetPassword() {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const pastedData = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6);
     if (pastedData.length === 6) {
       setCode(pastedData.split(""));
       inputRefs.current[5]?.focus();

@@ -56,7 +56,11 @@ export class WebhookSigningService {
     };
 
     const payloadString = JSON.stringify(payload);
-    const signature = this.computeSignature(payloadString, timestamp, webhookSecret);
+    const signature = this.computeSignature(
+      payloadString,
+      timestamp,
+      webhookSecret,
+    );
 
     return {
       payload,
@@ -80,7 +84,7 @@ export class WebhookSigningService {
   ): WebhookVerificationResult {
     const signature = headers[this.signatureHeader.toLowerCase()];
     const timestampStr = headers[this.timestampHeader.toLowerCase()];
-    const webhookId = headers[this.idHeader.toLowerCase()];
+    const _webhookId = headers[this.idHeader.toLowerCase()];
 
     if (!signature) {
       return { valid: false, error: `Missing ${this.signatureHeader} header` };
@@ -111,7 +115,11 @@ export class WebhookSigningService {
     }
 
     // Compute expected signature
-    const expectedSignature = this.computeSignature(body, timestamp, webhookSecret);
+    const expectedSignature = this.computeSignature(
+      body,
+      timestamp,
+      webhookSecret,
+    );
 
     // Parse signature format: v1=<signature>
     const signatureParts = signature.split(",");

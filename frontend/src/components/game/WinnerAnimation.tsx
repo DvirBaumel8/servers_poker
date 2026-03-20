@@ -43,7 +43,8 @@ export function WinnerAnimation({
   if (!result || phase === "done") return null;
 
   const winner = result.winners[0];
-  const winnerName = playerNames[winner?.botId] || winner?.botId?.slice(0, 8) || "Winner";
+  const winnerName =
+    playerNames[winner?.botId] || winner?.botId?.slice(0, 8) || "Winner";
 
   return (
     <AnimatePresence>
@@ -73,7 +74,7 @@ export function WinnerAnimation({
           <div className="relative">
             {/* Glow effect */}
             <div className="absolute -inset-4 bg-yellow-500/20 rounded-full blur-xl" />
-            
+
             {/* Main content */}
             <div className="relative bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-lg rounded-2xl border border-yellow-500/50 shadow-2xl shadow-yellow-500/20 px-8 py-5">
               {/* Trophy and hand number */}
@@ -102,7 +103,9 @@ export function WinnerAnimation({
                 transition={{ delay: 0.3 }}
                 className="text-center"
               >
-                <div className="text-white text-xl font-bold mb-1">{winnerName}</div>
+                <div className="text-white text-xl font-bold mb-1">
+                  {winnerName}
+                </div>
                 <div className="text-yellow-400/80 text-sm font-medium">
                   {winner?.handName || "Winner"}
                 </div>
