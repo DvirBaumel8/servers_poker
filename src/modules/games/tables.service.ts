@@ -40,18 +40,33 @@ export class TablesService {
   }
 
   async create(dto: CreateTableDto): Promise<Table> {
-    const table = await this.tableRepository.create({
-      name: dto.name,
-      small_blind: dto.small_blind ?? 10,
-      big_blind: dto.big_blind ?? 20,
-      starting_chips: dto.starting_chips ?? 1000,
-      max_players: dto.max_players ?? 9,
-      turn_timeout_ms: dto.turn_timeout_ms ?? 10000,
-      status: "waiting" as TableStatus,
-    });
+    try {
+      const table = await this.tableRepository.create({
+        name: dto.name,
+        small_blind: dto.small_blind ?? 10,
+        big_blind: dto.big_blind ?? 20,
+        starting_chips: dto.starting_chips ?? 1000,
+        max_players: dto.max_players ?? 9,
+        turn_timeout_ms: dto.turn_timeout_ms ?? 10000,
+        status: "waiting" as TableStatus,
+      });
 
-    this.logger.log(`Table ${table.id} created: ${table.name}`);
-    return table;
+      this.logger.log(`Table ${table.id} created: ${table.name}`);
+      return table;
+    } catch (error: any) {
+      if (error?.code === "23505") {
+        throw new BadRequestException("A table with this name already exists");
+      }
+      if (error?.code === "23514") {
+        throw new BadRequestException(
+          "Invalid table configuration: check that blind values and starting chips are valid positive numbers",
+        );
+      }
+      this.logger.error(`Failed to create table: ${error?.message}`);
+      throw new BadRequestException(
+        "Failed to create table. Please check your input and try again.",
+      );
+    }
   }
 
   async findById(id: string): Promise<Table | null> {

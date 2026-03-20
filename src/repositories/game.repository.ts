@@ -266,6 +266,7 @@ export class GameRepository extends BaseRepository<Game> {
       total_hands: number;
       total_wins: number;
       total_winnings: number;
+      net_profit: number;
       win_rate_pct: number | null;
     }>
   > {
@@ -278,6 +279,7 @@ export class GameRepository extends BaseRepository<Game> {
         COALESCE(SUM(gp.hands_played), 0) AS total_hands,
         COALESCE(SUM(gp.hands_won), 0) AS total_wins,
         COALESCE(SUM(gp.end_chips - gp.start_chips), 0) AS total_winnings,
+        COALESCE(SUM(gp.end_chips - gp.start_chips), 0) AS net_profit,
         ROUND(
           100.0 * COALESCE(SUM(gp.hands_won), 0) / NULLIF(COALESCE(SUM(gp.hands_played), 0), 0),
           1

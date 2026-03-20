@@ -11,7 +11,7 @@ describe("ChipInvariantChecker", () => {
     checker = new ChipInvariantChecker();
   });
 
-  describe.concurrent("assertChipConservation", () => {
+  describe("assertChipConservation", () => {
     it("should pass when chips are conserved", () => {
       const gameState = {
         players: [
@@ -62,7 +62,7 @@ describe("ChipInvariantChecker", () => {
     });
   });
 
-  describe.concurrent("assertNonNegativeChips", () => {
+  describe("assertNonNegativeChips", () => {
     it("should pass for positive chips", () => {
       expect(() =>
         checker.assertNonNegativeChips({ id: "p1", name: "Test", chips: 100 }),
@@ -82,7 +82,7 @@ describe("ChipInvariantChecker", () => {
     });
   });
 
-  describe.concurrent("validateAction", () => {
+  describe("validateAction", () => {
     it("should validate fold action", () => {
       const result = checker.validateAction({
         action: "fold",
@@ -221,7 +221,7 @@ describe("ChipInvariantChecker", () => {
     });
   });
 
-  describe.concurrent("computeExpectedTotal", () => {
+  describe("computeExpectedTotal", () => {
     it("should sum player chips and pot", () => {
       const players = [
         { id: "p1", name: "P1", chips: 500 },
@@ -252,7 +252,7 @@ describe("TransactionAuditLog", () => {
     auditLog = new TransactionAuditLog();
   });
 
-  describe.concurrent("TransactionAuditLog operations", () => {
+  describe("TransactionAuditLog operations", () => {
     it("should log transactions", () => {
       auditLog.log("bet", "p1", 100, 1000, 900, 1);
 

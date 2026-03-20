@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddPasswordAndResetFields1710000000004 implements MigrationInterface {
-  name = "AddPasswordAndResetFields1710000000004";
+export class AddPasswordAndResetFields1710864000004 implements MigrationInterface {
+  name = "AddPasswordAndResetFields1710864000004";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add password_hash column

@@ -27,6 +27,9 @@ export class CreateBotDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @Matches(/^[^<>]*$/, {
+    message: "Description must not contain HTML tags",
+  })
   description?: string;
 }
 
@@ -42,6 +45,9 @@ export class UpdateBotDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @Matches(/^[^<>]*$/, {
+    message: "Description must not contain HTML tags",
+  })
   description?: string;
 }
 

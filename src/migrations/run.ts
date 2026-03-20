@@ -26,4 +26,6 @@ async function runMigrations() {
   }
 }
 
-runMigrations();
+if (require.main === module) {
+  runMigrations();
+}

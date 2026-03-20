@@ -7,6 +7,9 @@ import {
   Max,
   IsInt,
   ArrayMinSize,
+  Matches,
+  MaxLength,
+  MinLength,
 } from "class-validator";
 
 export class CreateGameDto {
@@ -25,6 +28,12 @@ export class JoinTableDto {
 
 export class CreateTableDto {
   @IsString()
+  @MinLength(1, { message: "Table name must not be empty" })
+  @MaxLength(50, { message: "Table name must not exceed 50 characters" })
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/, {
+    message:
+      "Table name must start with a letter or number and contain only letters, numbers, spaces, underscores, and hyphens",
+  })
   name: string;
 
   @IsOptional()

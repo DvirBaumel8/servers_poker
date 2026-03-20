@@ -106,9 +106,43 @@ export class GameStatePersistenceService
       );
     }, this.cleanupIntervalMs);
 
-    this.eventEmitter.on("game.stateUpdated", (event: { state: GameState }) => {
-      this.queueSnapshot(event.state);
-    });
+    this.eventEmitter.on(
+      "game.stateUpdated",
+      (event: { state: any; tableId?: string; gameId?: string }) => {
+        const raw = event.state;
+        const adapted: GameState = {
+          gameId: raw.gameId || event.gameId || "",
+          tableId: raw.tableId || event.tableId || "",
+          tournamentId: raw.tournamentId,
+          handNumber: raw.handNumber || 0,
+          stage: raw.stage || "waiting",
+          dealerIndex: raw.dealerIndex ?? 0,
+          pot: raw.pot || 0,
+          currentBet: raw.currentBet || 0,
+          smallBlind: raw.smallBlind || 10,
+          bigBlind: raw.bigBlind || 20,
+          ante: raw.ante || 0,
+          startingChips: raw.startingChips || 1000,
+          turnTimeoutMs: raw.turnTimeoutMs || 10000,
+          communityCards: raw.communityCards || [],
+          activePlayerId: raw.activePlayerId || null,
+          players: (raw.players || []).map((p: any) => ({
+            id: p.id,
+            name: p.name || "",
+            endpoint: p.endpoint || "",
+            chips: p.chips || 0,
+            holeCards: p.holeCards || [],
+            folded: p.folded || false,
+            allIn: p.allIn || false,
+            strikes: p.strikes || 0,
+            disconnected: p.disconnected || false,
+            currentBet: p.currentBet ?? p.bet ?? 0,
+          })),
+          actionLog: raw.actionLog || raw.log || [],
+        };
+        this.queueSnapshot(adapted);
+      },
+    );
 
     this.eventEmitter.on(
       "game.finished",

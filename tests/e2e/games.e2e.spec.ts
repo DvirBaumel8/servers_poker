@@ -259,7 +259,7 @@ describe("Games E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       const response = await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot1Id,
@@ -290,7 +290,7 @@ describe("Games E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot1Id,
@@ -298,7 +298,7 @@ describe("Games E2E Tests", () => {
         .expect(201);
 
       const join2Response = await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot2Id,
@@ -339,7 +339,7 @@ describe("Games E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       const join1 = await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot1Id,
@@ -347,7 +347,7 @@ describe("Games E2E Tests", () => {
         .expect(201);
 
       const join2 = await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${user2Token}`)
         .send({
           bot_id: user2BotId,
@@ -382,7 +382,7 @@ describe("Games E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot1Id,
@@ -408,7 +408,7 @@ describe("Games E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot1Id,
@@ -416,7 +416,7 @@ describe("Games E2E Tests", () => {
         .expect(201);
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot1Id,
@@ -441,7 +441,7 @@ describe("Games E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: "non-existent-bot-id",
@@ -469,14 +469,14 @@ describe("Games E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: bot1Id,
         });
 
       const response = await request(app.getHttpServer())
-        .get(`/api/v1/games/tables/${tableId}/state`)
+        .get(`/api/v1/games/${tableId}/state`)
         .set("Authorization", `Bearer ${accessToken}`)
         .expect(200);
 

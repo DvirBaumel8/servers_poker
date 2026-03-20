@@ -194,7 +194,7 @@ describe("WebSocket E2E Tests", () => {
       const tableId = tableResponse.body.id;
 
       const subscribePromise = new Promise<void>((resolve, reject) => {
-        socket.emit("subscribe_table", { tableId });
+        socket.emit("subscribe", { tableId });
 
         socket.on("table_subscribed", (data: any) => {
           if (data.tableId === tableId) {
@@ -238,7 +238,7 @@ describe("WebSocket E2E Tests", () => {
       const tableId = tableResponse.body.id;
       const botId = botResponse.body.id;
 
-      socket.emit("subscribe_table", { tableId });
+      socket.emit("subscribe", { tableId });
       await sleep(100);
 
       const eventPromise = new Promise<any>((resolve, reject) => {
@@ -258,7 +258,7 @@ describe("WebSocket E2E Tests", () => {
       });
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/tables/${tableId}/join`)
+        .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
           bot_id: botId,
@@ -290,8 +290,8 @@ describe("WebSocket E2E Tests", () => {
 
       const tableId = tableResponse.body.id;
 
-      socket1.emit("subscribe_table", { tableId });
-      socket2.emit("subscribe_table", { tableId });
+      socket1.emit("subscribe", { tableId });
+      socket2.emit("subscribe", { tableId });
 
       await sleep(100);
 
@@ -319,10 +319,10 @@ describe("WebSocket E2E Tests", () => {
 
       const tableId = tableResponse.body.id;
 
-      socket.emit("subscribe_table", { tableId });
+      socket.emit("subscribe", { tableId });
       await sleep(100);
 
-      socket.emit("unsubscribe_table", { tableId });
+      socket.emit("unsubscribe", { tableId });
       await sleep(100);
 
       expect(socket.connected).toBe(true);
@@ -349,7 +349,7 @@ describe("WebSocket E2E Tests", () => {
         });
       });
 
-      socket.emit("subscribe_table", { tableId: `non-existent-table-${uid()}` });
+      socket.emit("subscribe", { tableId: `non-existent-table-${uid()}` });
 
       const error = await errorPromise;
       socket.disconnect();
@@ -359,7 +359,7 @@ describe("WebSocket E2E Tests", () => {
       const { accessToken } = await createTestUser();
       const socket = await connectSocket(accessToken);
 
-      socket.emit("subscribe_table", { invalid: "data" });
+      socket.emit("subscribe", { invalid: "data" });
       await sleep(100);
 
       expect(socket.connected).toBe(true);

@@ -21,6 +21,10 @@ import { Hand } from "../entities/hand.entity";
 import { HandPlayer } from "../entities/hand-player.entity";
 import { Action } from "../entities/action.entity";
 import { GamePlayer } from "../entities/game-player.entity";
+import { BotStats } from "../entities/bot-stats.entity";
+import { BotEvent } from "../entities/bot-event.entity";
+import { ChipMovement } from "../entities/chip-movement.entity";
+import { AuditLog } from "../entities/audit-log.entity";
 import { GameStateRepository } from "../repositories/game-state.repository";
 import { HandSeedRepository } from "../repositories/hand-seed.repository";
 import { BotRepository } from "../repositories/bot.repository";
@@ -41,6 +45,10 @@ import { SecurityModule } from "../common/security/security.module";
       HandPlayer,
       Action,
       GamePlayer,
+      BotStats,
+      BotEvent,
+      ChipMovement,
+      AuditLog,
     ]),
     SecurityModule,
   ],

@@ -15,7 +15,7 @@ describe("PotManager - Side Pot Calculations", () => {
     potManager = new PotManager();
   });
 
-  describe.concurrent("simple all-in scenarios", () => {
+  describe("simple all-in scenarios", () => {
     it("should handle three players with one short all-in", () => {
       const players: TestPlayer[] = [
         { id: "short", chips: 0, folded: false, allIn: true },
@@ -68,7 +68,7 @@ describe("PotManager - Side Pot Calculations", () => {
     });
   });
 
-  describe.concurrent("folded player scenarios", () => {
+  describe("folded player scenarios", () => {
     it("should include folded player contributions but exclude from eligibility", () => {
       const players: TestPlayer[] = [
         { id: "folder", chips: 900, folded: true, allIn: false },
@@ -111,7 +111,7 @@ describe("PotManager - Side Pot Calculations", () => {
     });
   });
 
-  describe.concurrent("chip conservation", () => {
+  describe("chip conservation", () => {
     it("should conserve chips in simple scenario", () => {
       const startingChips = {
         p1: 1000,
@@ -171,7 +171,7 @@ describe("PotManager - Side Pot Calculations", () => {
     });
   });
 
-  describe.concurrent("odd chip distribution", () => {
+  describe("odd chip distribution", () => {
     it("should handle odd chip remainders in split pots", () => {
       const players: TestPlayer[] = [
         { id: "p1", chips: 900, folded: false, allIn: false },
@@ -188,7 +188,7 @@ describe("PotManager - Side Pot Calculations", () => {
     });
   });
 
-  describe.concurrent("edge cases", () => {
+  describe("edge cases", () => {
     it("should handle zero bets", () => {
       const players: TestPlayer[] = [
         { id: "p1", chips: 1000, folded: false, allIn: false },

@@ -1,36 +1,210 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --poker-green: #1a472a;
-  --poker-felt: #35654d;
-  --poker-gold: #d4af37;
+  --poker-green: #0d3b2e;
+  --poker-felt: #1b5e45;
+  --poker-gold: #c9a227;
+  --surface: #111827;
+  --surface-light: #1e293b;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 162, 39, 0.3) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(201, 162, 39, 0.3);
+  border-radius: 3px;
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #0a0e17;
+  color: #e2e8f0;
 }
 
-.card {
-  @apply bg-white rounded-lg shadow-lg;
-  aspect-ratio: 2.5 / 3.5;
-}
+@layer components {
+  .poker-card {
+    @apply rounded-lg shadow-card relative overflow-hidden;
+    aspect-ratio: 2.5 / 3.5;
+    background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 100%);
+  }
 
-.chip {
-  @apply rounded-full shadow-md;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent);
-}
+  .poker-card-back {
+    @apply rounded-lg shadow-card relative overflow-hidden;
+    aspect-ratio: 2.5 / 3.5;
+    background: linear-gradient(135deg, #1e3a5f 0%, #0d1f35 50%, #1e3a5f 100%);
+    border: 2px solid rgba(201, 162, 39, 0.4);
+  }
 
-.felt-texture {
-  background: 
-    radial-gradient(ellipse at center, var(--poker-felt) 0%, var(--poker-green) 100%);
+  .poker-card-back::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 6px;
+    border: 1px solid rgba(201, 162, 39, 0.2);
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 4px,
+      rgba(201, 162, 39, 0.05) 4px,
+      rgba(201, 162, 39, 0.05) 8px
+    );
+  }
+
+  .chip {
+    @apply rounded-full shadow-md relative;
+    background: radial-gradient(
+      circle at 30% 30%,
+      rgba(255, 255, 255, 0.3),
+      transparent 70%
+    );
+  }
+
+  .chip::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 255, 255, 0.2);
+  }
+
+  .felt-texture {
+    background: radial-gradient(
+      ellipse at center,
+      #1b5e45 0%,
+      #0d3b2e 40%,
+      #0a2e23 100%
+    );
+  }
+
+  .glass-panel {
+    @apply rounded-2xl border;
+    background: rgba(17, 24, 39, 0.7);
+    border-color: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .glass-panel-light {
+    @apply rounded-2xl border;
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .gold-gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #dbb842 0%, #c9a227 50%, #a8871d 100%);
+  }
+
+  .gold-border {
+    border-image: linear-gradient(135deg, #c9a227, #dbb842, #c9a227) 1;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200;
+    background: linear-gradient(135deg, #c9a227 0%, #dbb842 100%);
+    color: #0a0e17;
+    box-shadow: 0 4px 15px rgba(201, 162, 39, 0.3);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(201, 162, 39, 0.4);
+    background: linear-gradient(135deg, #dbb842 0%, #e8c94d 100%);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 border;
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(201, 162, 39, 0.3);
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl text-sm transition-all duration-200 outline-none;
+    background: rgba(15, 23, 36, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+  }
+
+  .input-field:focus {
+    border-color: rgba(201, 162, 39, 0.5);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.1);
+  }
+
+  .input-field::placeholder {
+    color: #64748b;
+  }
+
+  .status-badge {
+    @apply px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider;
+  }
+
+  .status-running {
+    @apply status-badge;
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+
+  .status-waiting {
+    @apply status-badge;
+    background: rgba(201, 162, 39, 0.15);
+    color: #dbb842;
+    border: 1px solid rgba(201, 162, 39, 0.3);
+  }
+
+  .status-finished {
+    @apply status-badge;
+    background: rgba(107, 114, 128, 0.15);
+    color: #9ca3af;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+  }
+
+  .table-card {
+    @apply glass-panel p-6 transition-all duration-300;
+  }
+
+  .table-card:hover {
+    border-color: rgba(201, 162, 39, 0.2);
+    box-shadow: 0 0 30px rgba(201, 162, 39, 0.05);
+    transform: translateY(-2px);
+  }
 }
 
 @layer utilities {
   .text-shadow {
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  .text-shadow-lg {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.7);
   }
 }
