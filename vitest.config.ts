@@ -8,7 +8,7 @@ export default defineConfig({
     exclude: ["node_modules", "dist"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html"],
+      reporter: ["text", "text-summary", "json", "json-summary", "html", "lcov"],
       include: ["src/**/*.ts"],
       exclude: [
         "src/**/*.spec.ts",
@@ -16,7 +16,15 @@ export default defineConfig({
         "src/main.ts",
         "src/**/*.module.ts",
         "src/**/*.dto.ts",
+        "src/migrations/**",
+        "src/config/**",
       ],
+      thresholds: {
+        statements: 30,
+        branches: 25,
+        functions: 25,
+        lines: 30,
+      },
     },
     testTimeout: 60000,
     hookTimeout: 60000,
