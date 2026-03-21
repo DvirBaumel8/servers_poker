@@ -24,6 +24,7 @@ import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.g
 import request from "supertest";
 import * as http from "http";
 import { DataSource } from "typeorm";
+import { v4 as uuidv4 } from "uuid";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { GamesModule } from "../../src/modules/games/games.module";
@@ -305,21 +306,16 @@ describe("Security E2E Tests", () => {
       const user2 = await registerUserWithBot();
 
       try {
-        const tableResponse = await request(app.getHttpServer())
-          .post("/api/v1/games/tables")
-          .set("Authorization", `Bearer ${user1.accessToken}`)
-          .send({
-            name: `SecureTable${uid()}`,
-            small_blind: 10,
-            big_blind: 20,
-            starting_chips: 1000,
-            max_players: 6,
-            turn_timeout_ms: 5000,
-          })
-          .expect(201);
+        // Create table directly in DB (table creation requires admin)
+        const tableId = uuidv4();
+        await dataSource.query(
+          `INSERT INTO tables (id, name, small_blind, big_blind, starting_chips, max_players, status, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, 'waiting', NOW(), NOW())`,
+          [tableId, `SecureTable${uid()}`, 10, 20, 1000, 6],
+        );
 
         await request(app.getHttpServer())
-          .post(`/api/v1/games/${tableResponse.body.id}/join`)
+          .post(`/api/v1/games/${tableId}/join`)
           .set("Authorization", `Bearer ${user2.accessToken}`)
           .send({ bot_id: user1.botId })
           .expect(403);

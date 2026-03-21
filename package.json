@@ -193,6 +193,10 @@
     "tests/**/*.ts": [
       "eslint --fix",
       "prettier --write"
+    ],
+    "frontend/src/**/*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
     ]
   },
   "dependencies": {
