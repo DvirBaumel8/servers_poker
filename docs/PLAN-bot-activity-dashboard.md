@@ -1,5 +1,11 @@
 # Feature Plan: Bot Activity Dashboard & Auto-Registration
 
+**STATUS: IMPLEMENTED** (March 2026)
+
+> This feature has been fully implemented. See the implementation notes at the end of this document.
+
+---
+
 ## Problem Statement
 
 A developer builds a poker bot. The bot joins a cash table or tournament at 8 PM. The developer opens the UI at 8 PM and has **no way to know**:
@@ -331,3 +337,72 @@ No new tables needed for Phase 1 — all activity data comes from existing `game
 2. **Health check before auto-join**: Should we verify the bot endpoint is healthy before auto-registering? (Prevents dead bots from occupying tournament slots.)
 3. **Notification preferences**: Should auto-registration events trigger email notifications? WebSocket push? Both?
 4. **Cash table auto-join priority**: If multiple bots want to auto-join the same table, should we use a queue/lottery system?
+
+---
+
+## Implementation Notes (March 2026)
+
+### What Was Implemented
+
+**Phase 1 (Bot Activity Dashboard) - COMPLETE:**
+- `BotActivityService` for real-time activity tracking
+- API endpoints: `GET /bots/:id/activity`, `GET /bots/my/activity`, `GET /bots/active`
+- WebSocket events: `subscribeBotActivity`, `subscribeActiveBots`, `botActivity`, `activeBots`
+- Frontend `BotProfile.tsx` page with live activity display
+- "Active Now" panel on Bots page showing currently playing bots
+- Navbar live badge showing count of active bots
+- Unit tests for activity service
+
+**Phase 2 (Auto-Registration) - COMPLETE:**
+- `BotSubscription` entity with migration (`1710864003000-AddBotSubscriptions.ts`)
+- `BotSubscriptionRepository` with matching logic
+- Subscription CRUD endpoints: `GET/POST/PUT/DELETE /bots/:botId/subscriptions`
+- Pause/resume endpoints: `POST /bots/:botId/subscriptions/:id/pause|resume`
+- `BotAutoRegistrationService` with:
+  - Event-driven registration on `tournament.created` and `tournament.statusChanged`
+  - Scheduled background processing every minute
+  - Automatic cleanup of expired subscriptions
+  - Priority-based processing
+  - One bot per user per tournament enforcement
+- Frontend subscription management UI in BotProfile page
+- Unit tests for auto-registration service and subscriptions controller
+
+**Phase 3 - NOT YET IMPLEMENTED:**
+- Cash table auto-join
+- Email/webhook notifications
+- Activity timeline chart
+- Mobile optimization
+
+### Key Files Added/Modified
+
+**New Services:**
+- `src/services/bot-activity.service.ts`
+- `src/services/bot-auto-registration.service.ts`
+
+**New Entity:**
+- `src/entities/bot-subscription.entity.ts`
+
+**New Repository:**
+- `src/repositories/bot-subscription.repository.ts`
+
+**New Controllers:**
+- `src/modules/bots/subscriptions.controller.ts`
+
+**New Frontend Pages:**
+- `frontend/src/pages/BotProfile.tsx`
+
+**Modified Files:**
+- `src/modules/bots/bots.controller.ts` - Added activity endpoints
+- `src/modules/bots/bots.module.ts` - Added subscription components
+- `src/modules/games/games.gateway.ts` - Added activity WebSocket events
+- `src/services/services.module.ts` - Added new services
+- `frontend/src/pages/Bots.tsx` - Added Active Now panel
+- `frontend/src/components/layout/Layout.tsx` - Added navbar badge
+- `frontend/src/api/bots.ts` - Added activity and subscription API methods
+- `frontend/src/types/index.ts` - Added activity and subscription types
+
+**New Tests:**
+- `tests/unit/services/bot-activity.service.spec.ts`
+- `tests/unit/services/bot-auto-registration.service.spec.ts`
+- `tests/unit/modules/subscriptions.controller.spec.ts`
+- Updated `tests/unit/modules/bots.controller.spec.ts`

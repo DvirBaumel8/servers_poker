@@ -70,8 +70,17 @@ export class TournamentsController {
     @Body() dto: RegisterBotDto,
     @CurrentUser() user: User,
   ) {
-    await this.tournamentsService.register(id, dto.bot_id, user.id);
-    return { success: true };
+    // Get current level for late registration check
+    const state = this.tournamentDirector.getTournamentState(id);
+    const currentLevel = state?.level;
+
+    await this.tournamentsService.register(
+      id,
+      dto.bot_id,
+      user.id,
+      currentLevel,
+    );
+    return { success: true, lateRegistration: currentLevel !== undefined };
   }
 
   @UseGuards(JwtAuthGuard)

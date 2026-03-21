@@ -13,6 +13,12 @@ logs/
 
 # Storybook
 storybook-static/
+**/storybook-static/
+
+# Test coverage
+coverage/
 
 # Vite cache
 .vite/
+
+*storybook.log

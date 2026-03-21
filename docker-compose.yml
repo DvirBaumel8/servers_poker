@@ -1,6 +1,23 @@
 version: "3.9"
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: poker-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - poker-network
+
   postgres:
     image: postgres:16-alpine
     container_name: poker-postgres
@@ -40,8 +57,12 @@ services:
       - DB_NAME=${DB_NAME:-poker}
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/games/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
@@ -72,11 +93,15 @@ services:
       - DB_NAME=${DB_NAME:-poker}
       - JWT_SECRET=dev-secret-key
       - LOG_LEVEL=debug
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - .:/app
       - /app/node_modules
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: ["npm", "run", "dev"]
     networks:
@@ -106,6 +131,8 @@ services:
 
 volumes:
   postgres-data:
+    driver: local
+  redis-data:
     driver: local
 
 networks:

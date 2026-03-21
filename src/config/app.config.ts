@@ -1,7 +1,17 @@
+import { v4 as uuidv4 } from "uuid";
+
 export interface WorkerConfig {
   enableWorkerThreads: boolean;
   maxConcurrentGames: number;
   workerTimeout: number;
+}
+
+export interface RedisConfig {
+  host: string;
+  port: number;
+  password?: string;
+  db: number;
+  keyPrefix: string;
 }
 
 export interface AppConfig {
@@ -15,6 +25,10 @@ export interface AppConfig {
   botTimeoutMs: number;
   maxBodySize: number;
   workers: WorkerConfig;
+  redis: RedisConfig;
+  instanceId: string;
+  gameOwnershipTtlMs: number;
+  gameOwnershipRenewalMs: number;
 }
 
 export const appConfig = (): AppConfig => ({
@@ -32,4 +46,20 @@ export const appConfig = (): AppConfig => ({
     maxConcurrentGames: parseInt(process.env.MAX_CONCURRENT_GAMES || "100", 10),
     workerTimeout: parseInt(process.env.WORKER_TIMEOUT || "30000", 10),
   },
+  redis: {
+    host: process.env.REDIS_HOST || "localhost",
+    port: parseInt(process.env.REDIS_PORT || "6379", 10),
+    password: process.env.REDIS_PASSWORD || undefined,
+    db: parseInt(process.env.REDIS_DB || "0", 10),
+    keyPrefix: process.env.REDIS_KEY_PREFIX || "poker:",
+  },
+  instanceId: process.env.INSTANCE_ID || uuidv4(),
+  gameOwnershipTtlMs: parseInt(
+    process.env.GAME_OWNERSHIP_TTL_MS || "10000",
+    10,
+  ),
+  gameOwnershipRenewalMs: parseInt(
+    process.env.GAME_OWNERSHIP_RENEWAL_MS || "3000",
+    10,
+  ),
 });

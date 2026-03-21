@@ -7,3 +7,7 @@ export * from "./bot-metrics.gateway";
 export * from "./live-game-manager.service";
 export * from "./game-state-persistence.service";
 export * from "./game-recovery.service";
+export * from "./bot-activity.service";
+export * from "./bot-auto-registration.service";
+export * from "./platform-analytics.service";
+export * from "./daily-summary.service";

@@ -120,3 +120,42 @@ export class BotLatencyDto {
   botId: string;
   averageLatencyMs: number;
 }
+
+export interface BotActivityGame {
+  tableId: string;
+  gameId: string;
+  tournamentId?: string;
+  tournamentName?: string;
+  tableName?: string;
+  status: "waiting" | "running" | "finished" | "error";
+  handNumber: number;
+  chips: number;
+  position?: number;
+  joinedAt: string;
+}
+
+export interface BotActivityTournament {
+  tournamentId: string;
+  tournamentName: string;
+  status: "registering" | "running" | "final_table" | "finished" | "cancelled";
+  chips: number;
+  position?: number;
+  tableId?: string;
+  tableName?: string;
+  registeredAt: string;
+}
+
+export class BotActivityDto {
+  botId: string;
+  botName: string;
+  isActive: boolean;
+  activeGames: BotActivityGame[];
+  activeTournaments: BotActivityTournament[];
+  lastActivityAt: string | null;
+}
+
+export class ActiveBotsResponseDto {
+  bots: BotActivityDto[];
+  totalActive: number;
+  timestamp: string;
+}

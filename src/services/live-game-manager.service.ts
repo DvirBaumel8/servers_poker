@@ -853,6 +853,16 @@ export class LiveGameManagerService implements OnModuleDestroy {
   private readonly liveGames = new Map<string, LiveGame>();
   private readonly gameStates = new Map<string, GameStateSnapshot>();
 
+  private redisGameStateService:
+    | import("./redis-game-state.service").RedisGameStateService
+    | null = null;
+  private gameOwnershipService:
+    | import("./game-ownership.service").GameOwnershipService
+    | null = null;
+  private redisEventBusService:
+    | import("./redis-event-bus.service").RedisEventBusService
+    | null = null;
+
   constructor(
     private readonly eventEmitter: EventEmitter2,
     private readonly botCaller: BotCallerService,
@@ -862,7 +872,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
     this.eventEmitter.on(
       "game.stateUpdated",
       (event: { tableId: string; state: GameStateSnapshot }) => {
-        this.gameStates.set(event.tableId, event.state);
+        this.handleStateUpdate(event.tableId, event.state);
       },
     );
 
@@ -879,14 +889,94 @@ export class LiveGameManagerService implements OnModuleDestroy {
         );
       },
     );
+
+    this.setupRedisEventForwarding();
   }
 
-  onModuleDestroy(): void {
+  setRedisServices(
+    redisGameStateService: import("./redis-game-state.service").RedisGameStateService,
+    gameOwnershipService: import("./game-ownership.service").GameOwnershipService,
+    redisEventBusService: import("./redis-event-bus.service").RedisEventBusService,
+  ): void {
+    this.redisGameStateService = redisGameStateService;
+    this.gameOwnershipService = gameOwnershipService;
+    this.redisEventBusService = redisEventBusService;
+    this.logger.log("Redis services injected for distributed state sync");
+  }
+
+  private isRedisEnabled(): boolean {
+    return (
+      this.redisGameStateService !== null &&
+      this.gameOwnershipService !== null &&
+      this.redisEventBusService !== null
+    );
+  }
+
+  private handleStateUpdate(tableId: string, state: GameStateSnapshot): void {
+    this.gameStates.set(tableId, state);
+
+    if (this.isRedisEnabled() && this.liveGames.has(tableId)) {
+      const liveGame = this.liveGames.get(tableId)!;
+      this.redisGameStateService!.saveGameState(tableId, state, {
+        gameDbId: liveGame.gameDbId,
+        tournamentId: liveGame.tournamentId || null,
+        botIdMap: liveGame.botIdMap,
+        startedAt: liveGame.startedAt.toISOString(),
+        ownerInstanceId: this.gameOwnershipService!.getInstanceId(),
+      }).catch((err) =>
+        this.logger.error(`Failed to save state to Redis: ${err.message}`),
+      );
+
+      this.redisEventBusService!.publish(
+        "game.stateUpdated",
+        tableId,
+        state,
+      ).catch((err) =>
+        this.logger.error(`Failed to publish state event: ${err.message}`),
+      );
+    }
+  }
+
+  private setupRedisEventForwarding(): void {
+    const eventsToForward = [
+      "game.handStarted",
+      "game.handComplete",
+      "game.playerAction",
+      "game.finished",
+      "game.playerRemoved",
+      "game.playerJoined",
+    ] as const;
+
+    for (const eventType of eventsToForward) {
+      this.eventEmitter.on(
+        eventType,
+        (event: { tableId: string; [key: string]: unknown }) => {
+          if (this.isRedisEnabled() && this.liveGames.has(event.tableId)) {
+            this.redisEventBusService!.publish(
+              eventType,
+              event.tableId,
+              event,
+            ).catch((err) =>
+              this.logger.error(
+                `Failed to publish ${eventType} event: ${err.message}`,
+              ),
+            );
+          }
+        },
+      );
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
     for (const [tableId, entry] of this.liveGames) {
       this.logger.log(
         `Stopping game at table ${tableId} due to module shutdown`,
       );
       entry.game.stop();
+
+      if (this.isRedisEnabled()) {
+        await this.gameOwnershipService!.releaseGameOwnership(tableId);
+      }
     }
     this.liveGames.clear();
     this.gameStates.clear();
@@ -969,7 +1059,88 @@ export class LiveGameManagerService implements OnModuleDestroy {
     }
   }
 
-  createGame(config: {
+  async createGame(config: {
+    tableId: string;
+    gameDbId: string;
+    tournamentId?: string;
+    smallBlind?: number;
+    bigBlind?: number;
+    ante?: number;
+    startingChips?: number;
+    turnTimeoutMs?: number;
+  }): Promise<GameInstance> {
+    if (this.liveGames.has(config.tableId)) {
+      return this.liveGames.get(config.tableId)!.game;
+    }
+
+    if (this.isRedisEnabled()) {
+      const acquired = await this.gameOwnershipService!.acquireGameOwnership(
+        config.tableId,
+      );
+      if (!acquired) {
+        const existingState = await this.redisGameStateService!.getGameState(
+          config.tableId,
+        );
+        if (existingState) {
+          this.logger.log(
+            `Game ${config.tableId} owned by another instance, returning cached state`,
+          );
+          this.gameStates.set(config.tableId, existingState.snapshot);
+        }
+        throw new Error(
+          `Cannot create game: table ${config.tableId} is owned by another instance`,
+        );
+      }
+    }
+
+    const game = new GameInstance(
+      this.logger,
+      this.eventEmitter,
+      this.botCaller,
+      this.botResilience,
+      {
+        tableId: config.tableId,
+        gameId: config.gameDbId,
+        tournamentId: config.tournamentId,
+        smallBlind: config.smallBlind,
+        bigBlind: config.bigBlind,
+        ante: config.ante,
+        startingChips: config.startingChips,
+        turnTimeoutMs: config.turnTimeoutMs,
+      },
+      this.provablyFairService,
+    );
+
+    const liveGame: LiveGame = {
+      game,
+      tableId: config.tableId,
+      gameDbId: config.gameDbId,
+      botIdMap: {},
+      tournamentId: config.tournamentId,
+      startedAt: new Date(),
+    };
+
+    this.liveGames.set(config.tableId, liveGame);
+    this.logger.log(`Created live game for table ${config.tableId}`);
+
+    if (this.isRedisEnabled()) {
+      await this.redisGameStateService!.saveGameState(
+        config.tableId,
+        game.getPublicState(),
+        {
+          gameDbId: config.gameDbId,
+          tournamentId: config.tournamentId || null,
+          botIdMap: {},
+          startedAt: liveGame.startedAt.toISOString(),
+          ownerInstanceId: this.gameOwnershipService!.getInstanceId(),
+        },
+      );
+    }
+
+    return game;
+  }
+
+  createGameSync(config: {
     tableId: string;
     gameDbId: string;
     tournamentId?: string;
@@ -1011,7 +1182,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
     };
 
     this.liveGames.set(config.tableId, liveGame);
-    this.logger.log(`Created live game for table ${config.tableId}`);
+    this.logger.log(`Created live game for table ${config.tableId} (sync)`);
 
     return game;
   }
@@ -1028,16 +1199,55 @@ export class LiveGameManagerService implements OnModuleDestroy {
     return this.gameStates.get(tableId);
   }
 
+  async getGameStateAsync(
+    tableId: string,
+  ): Promise<GameStateSnapshot | undefined> {
+    const liveGame = this.liveGames.get(tableId);
+    if (liveGame) {
+      return liveGame.game.getPublicState();
+    }
+
+    const localState = this.gameStates.get(tableId);
+    if (localState) {
+      return localState;
+    }
+
+    if (this.isRedisEnabled()) {
+      const redisState =
+        await this.redisGameStateService!.getGameState(tableId);
+      if (redisState) {
+        this.gameStates.set(tableId, redisState.snapshot);
+        return redisState.snapshot;
+      }
+    }
+
+    return undefined;
+  }
+
   getAllGames(): LiveGame[] {
     return Array.from(this.liveGames.values());
   }
 
-  removeGame(tableId: string): void {
+  async removeGame(tableId: string): Promise<void> {
     const liveGame = this.liveGames.get(tableId);
     if (liveGame) {
       liveGame.game.stop();
       this.liveGames.delete(tableId);
       this.logger.log(`Removed live game for table ${tableId}`);
+
+      if (this.isRedisEnabled()) {
+        await this.gameOwnershipService!.releaseGameOwnership(tableId);
+        await this.redisGameStateService!.deleteGameState(tableId);
+      }
+    }
+  }
+
+  removeGameSync(tableId: string): void {
+    const liveGame = this.liveGames.get(tableId);
+    if (liveGame) {
+      liveGame.game.stop();
+      this.liveGames.delete(tableId);
+      this.logger.log(`Removed live game for table ${tableId} (sync)`);
     }
   }
 
@@ -1050,5 +1260,27 @@ export class LiveGameManagerService implements OnModuleDestroy {
     if (liveGame) {
       liveGame.botIdMap[botName] = botId;
     }
+  }
+
+  isGameOwnedLocally(tableId: string): boolean {
+    return this.liveGames.has(tableId);
+  }
+
+  async isGameOwner(tableId: string): Promise<boolean> {
+    if (!this.isRedisEnabled()) {
+      return this.liveGames.has(tableId);
+    }
+    return this.gameOwnershipService!.isGameOwner(tableId);
+  }
+
+  async getAllActiveGamesFromRedis(): Promise<string[]> {
+    if (!this.isRedisEnabled()) {
+      return Array.from(this.liveGames.keys());
+    }
+    return this.redisGameStateService!.getAllActiveGames();
+  }
+
+  getInstanceId(): string | null {
+    return this.gameOwnershipService?.getInstanceId() || null;
   }
 }

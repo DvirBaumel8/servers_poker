@@ -245,7 +245,7 @@ export class TablesService {
             manager,
           );
           gameDbId = gameRow.id;
-          this.liveGameManager.createGame({
+          this.liveGameManager.createGameSync({
             tableId,
             gameDbId,
             smallBlind: Number(table.small_blind),

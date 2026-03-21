@@ -5,6 +5,7 @@ import { Tournaments } from "./pages/Tournaments";
 import { TournamentDetail } from "./pages/TournamentDetail";
 import { GameView } from "./pages/GameView";
 import { Bots } from "./pages/Bots";
+import { BotProfile } from "./pages/BotProfile";
 import { Leaderboard } from "./pages/Leaderboard";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
@@ -13,6 +14,7 @@ import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
 import { Tables } from "./pages/Tables";
 import { Profile } from "./pages/Profile";
+import { AdminAnalytics } from "./pages/AdminAnalytics";
 
 function App() {
   return (
@@ -29,8 +31,10 @@ function App() {
         <Route path="tournaments/:id" element={<TournamentDetail />} />
         <Route path="game/:tableId" element={<GameView />} />
         <Route path="bots" element={<Bots />} />
+        <Route path="bots/:id" element={<BotProfile />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="admin/analytics" element={<AdminAnalytics />} />
       </Route>
     </Routes>
   );

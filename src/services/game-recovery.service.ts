@@ -1,9 +1,20 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Optional,
+  Inject,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { GameStatePersistenceService } from "./game-state-persistence.service";
 import { GameStateSnapshot } from "../entities/game-state-snapshot.entity";
 import { BotRepository } from "../repositories/bot.repository";
+import {
+  RedisGameStateService,
+  RedisGameState,
+} from "./redis-game-state.service";
+import { GameOwnershipService } from "./game-ownership.service";
 
 export interface RecoveryResult {
   totalFound: number;
@@ -23,12 +34,24 @@ export class GameRecoveryService implements OnModuleInit {
     private readonly botRepository: BotRepository,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    @Optional()
+    @Inject(RedisGameStateService)
+    private readonly redisGameStateService: RedisGameStateService | null,
+    @Optional()
+    @Inject(GameOwnershipService)
+    private readonly gameOwnershipService: GameOwnershipService | null,
   ) {
     this.autoRecoverEnabled =
       this.configService.get<string>("GAME_AUTO_RECOVER", "true") === "true";
     this.recoveryDelayMs = this.configService.get<number>(
       "GAME_RECOVERY_DELAY_MS",
       5000,
+    );
+  }
+
+  private isRedisEnabled(): boolean {
+    return (
+      this.redisGameStateService !== null && this.gameOwnershipService !== null
     );
   }
 
@@ -56,18 +79,28 @@ export class GameRecoveryService implements OnModuleInit {
     };
 
     try {
+      if (this.isRedisEnabled()) {
+        const redisResult = await this.attemptRedisRecovery();
+        result.totalFound += redisResult.totalFound;
+        result.recovered += redisResult.recovered;
+        result.orphaned += redisResult.orphaned;
+        result.errors.push(...redisResult.errors);
+      }
+
       const recoverableGames =
         await this.persistenceService.getRecoverableGames();
-      result.totalFound = recoverableGames.length;
+      result.totalFound += recoverableGames.length;
 
-      if (recoverableGames.length === 0) {
+      if (recoverableGames.length === 0 && result.totalFound === 0) {
         this.logger.log("No recoverable games found");
         return result;
       }
 
-      this.logger.log(
-        `Found ${recoverableGames.length} potentially recoverable games`,
-      );
+      if (recoverableGames.length > 0) {
+        this.logger.log(
+          `Found ${recoverableGames.length} potentially recoverable games from DB`,
+        );
+      }
 
       for (const snapshot of recoverableGames) {
         try {
@@ -100,6 +133,115 @@ export class GameRecoveryService implements OnModuleInit {
     }
 
     return result;
+  }
+
+  private async attemptRedisRecovery(): Promise<RecoveryResult> {
+    const result: RecoveryResult = {
+      totalFound: 0,
+      recovered: 0,
+      orphaned: 0,
+      errors: [],
+    };
+
+    if (!this.isRedisEnabled()) {
+      return result;
+    }
+
+    this.logger.log("Checking Redis for orphaned games...");
+
+    try {
+      const allGameKeys = await this.redisGameStateService!.getAllActiveGames();
+      result.totalFound = allGameKeys.length;
+
+      for (const key of allGameKeys) {
+        const tableId = key.replace("game:state:", "");
+        const owner = await this.gameOwnershipService!.getGameOwner(tableId);
+
+        if (!owner) {
+          this.logger.log(`Found orphaned Redis game: ${tableId}`);
+          const acquired =
+            await this.gameOwnershipService!.acquireGameOwnership(tableId);
+
+          if (acquired) {
+            try {
+              const redisState =
+                await this.redisGameStateService!.getGameState(tableId);
+              if (redisState) {
+                await this.recoverFromRedisState(redisState);
+                result.recovered++;
+              }
+            } catch (error) {
+              const errorMsg = `Failed to recover Redis game ${tableId}: ${error}`;
+              this.logger.error(errorMsg);
+              result.errors.push(errorMsg);
+              await this.gameOwnershipService!.releaseGameOwnership(tableId);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      const errorMsg = `Redis recovery scan failed: ${error}`;
+      this.logger.error(errorMsg);
+      result.errors.push(errorMsg);
+    }
+
+    return result;
+  }
+
+  private async recoverFromRedisState(
+    redisState: RedisGameState,
+  ): Promise<void> {
+    const { snapshot, metadata } = redisState;
+
+    this.logger.log(
+      `Recovering game from Redis: ${metadata.tableId} (hand #${snapshot.handNumber})`,
+    );
+
+    const dbSnapshot = {
+      game_id: metadata.gameDbId,
+      table_id: metadata.tableId,
+      tournament_id: metadata.tournamentId,
+      hand_number: snapshot.handNumber,
+      game_stage: snapshot.stage,
+      dealer_index: 0,
+      small_blind: snapshot.smallBlind,
+      big_blind: snapshot.bigBlind,
+      ante: snapshot.ante,
+      starting_chips: 1000,
+      turn_timeout_ms: 10000,
+      community_cards: snapshot.communityCards,
+      players: snapshot.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        endpoint: "",
+        chips: p.chips,
+        holeCards: p.holeCards || [],
+        folded: p.folded,
+        allIn: p.allIn,
+        strikes: p.strikes,
+        disconnected: p.disconnected,
+      })),
+    };
+
+    for (const player of dbSnapshot.players) {
+      if (!player.disconnected) {
+        try {
+          const bot = await this.botRepository.findById(player.id);
+          if (bot) {
+            player.endpoint = bot.endpoint;
+          }
+        } catch {
+          this.logger.warn(`Could not find bot endpoint for ${player.id}`);
+        }
+      }
+    }
+
+    this.eventEmitter.emit("game.recovery.start", {
+      gameId: metadata.gameDbId,
+      tableId: metadata.tableId,
+      tournamentId: metadata.tournamentId,
+      snapshot: dbSnapshot,
+    });
   }
 
   private async validateRecovery(

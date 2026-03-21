@@ -10,6 +10,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { BotsService } from "./bots.service";
+import { BotActivityService } from "../../services/bot-activity.service";
 import { CreateBotDto, UpdateBotDto } from "./dto/bot.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -18,7 +19,10 @@ import { Public } from "../../common/decorators/public.decorator";
 
 @Controller("bots")
 export class BotsController {
-  constructor(private readonly botsService: BotsService) {}
+  constructor(
+    private readonly botsService: BotsService,
+    private readonly botActivityService: BotActivityService,
+  ) {}
 
   @Public()
   @Get()
@@ -30,6 +34,30 @@ export class BotsController {
   @Get("my")
   async findMy(@CurrentUser() user: User) {
     return this.botsService.findByUserId(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("my/activity")
+  async getMyBotsActivity(@CurrentUser() user: User) {
+    const activities = await this.botActivityService.getActiveBotsForUser(
+      user.id,
+    );
+    return {
+      bots: activities,
+      totalActive: activities.filter((a) => a.isActive).length,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Public()
+  @Get("active")
+  async getActiveBots() {
+    const activities = await this.botActivityService.getAllActiveBots();
+    return {
+      bots: activities,
+      totalActive: activities.length,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   @Public()
@@ -46,6 +74,16 @@ export class BotsController {
   @Get(":id/profile")
   async getProfile(@Param("id") id: string) {
     return this.botsService.getProfile(id);
+  }
+
+  @Public()
+  @Get(":id/activity")
+  async getBotActivity(@Param("id") id: string) {
+    const activity = await this.botActivityService.getBotActivity(id);
+    if (!activity) {
+      throw new NotFoundException(`Bot ${id} not found`);
+    }
+    return activity;
   }
 
   @UseGuards(JwtAuthGuard)

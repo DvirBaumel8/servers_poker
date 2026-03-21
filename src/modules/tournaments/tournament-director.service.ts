@@ -13,6 +13,8 @@ import {
   Logger,
   OnModuleInit,
   OnModuleDestroy,
+  Optional,
+  Inject,
 } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { DataSource } from "typeorm";
@@ -23,6 +25,9 @@ import {
   GameInstance,
 } from "../../services/live-game-manager.service";
 import { BotCallerService } from "../../services/bot-caller.service";
+import { GameOwnershipService } from "../../services/game-ownership.service";
+import { RedisGameStateService } from "../../services/redis-game-state.service";
+import { RedisEventBusService } from "../../services/redis-event-bus.service";
 import {
   HANDS_PER_LEVEL,
   getBlindLevel,
@@ -87,7 +92,24 @@ export class TournamentDirectorService
     private readonly liveGameManager: LiveGameManagerService,
     private readonly botCaller: BotCallerService,
     private readonly dataSource: DataSource,
+    @Optional()
+    @Inject(GameOwnershipService)
+    private readonly gameOwnershipService: GameOwnershipService | null,
+    @Optional()
+    @Inject(RedisGameStateService)
+    private readonly redisGameStateService: RedisGameStateService | null,
+    @Optional()
+    @Inject(RedisEventBusService)
+    private readonly redisEventBusService: RedisEventBusService | null,
   ) {}
+
+  private isRedisEnabled(): boolean {
+    return (
+      this.gameOwnershipService !== null &&
+      this.redisGameStateService !== null &&
+      this.redisEventBusService !== null
+    );
+  }
 
   onModuleInit(): void {
     this.schedulerInterval = setInterval(() => {
@@ -149,17 +171,51 @@ export class TournamentDirectorService
       throw new Error("Tournament already running");
     }
 
+    if (this.isRedisEnabled()) {
+      const acquired =
+        await this.gameOwnershipService!.acquireTournamentOwnership(
+          tournamentId,
+        );
+      if (!acquired) {
+        const existingState =
+          await this.redisGameStateService!.getTournamentState(tournamentId);
+        if (existingState) {
+          this.logger.log(
+            `Tournament ${tournamentId} owned by another instance`,
+          );
+        }
+        throw new Error(
+          `Cannot start tournament: ${tournamentId} is owned by another instance`,
+        );
+      }
+    }
+
     const tournament = await this.tournamentRepository.findById(tournamentId);
     if (!tournament) {
+      if (this.isRedisEnabled()) {
+        await this.gameOwnershipService!.releaseTournamentOwnership(
+          tournamentId,
+        );
+      }
       throw new Error("Tournament not found");
     }
 
     if (tournament.status !== "registering") {
+      if (this.isRedisEnabled()) {
+        await this.gameOwnershipService!.releaseTournamentOwnership(
+          tournamentId,
+        );
+      }
       throw new Error("Tournament cannot be started");
     }
 
     const entries = await this.tournamentRepository.getEntries(tournamentId);
     if (entries.length < tournament.min_players) {
+      if (this.isRedisEnabled()) {
+        await this.gameOwnershipService!.releaseTournamentOwnership(
+          tournamentId,
+        );
+      }
       throw new Error(
         `Not enough players: ${entries.length}/${tournament.min_players}`,
       );
@@ -178,6 +234,9 @@ export class TournamentDirectorService
       this.botCaller,
       this.tournamentRepository,
       this.dataSource,
+      this.redisGameStateService,
+      this.redisEventBusService,
+      this.gameOwnershipService?.getInstanceId() || null,
     );
 
     this.activeDirectors.set(tournamentId, director);
@@ -203,6 +262,13 @@ export class TournamentDirectorService
     if (director) {
       director.stop();
       this.activeDirectors.delete(tournamentId);
+
+      if (this.isRedisEnabled()) {
+        await this.gameOwnershipService!.releaseTournamentOwnership(
+          tournamentId,
+        );
+        await this.redisGameStateService!.deleteTournamentState(tournamentId);
+      }
     }
   }
 }
@@ -228,8 +294,64 @@ class ActiveTournament {
     private readonly botCaller: BotCallerService,
     private readonly tournamentRepository: TournamentRepository,
     private readonly dataSource: DataSource,
+    private readonly redisGameStateService: RedisGameStateService | null,
+    private readonly redisEventBusService: RedisEventBusService | null,
+    private readonly instanceId: string | null,
   ) {
     this.totalEntrants = entries.length;
+  }
+
+  private isRedisEnabled(): boolean {
+    return (
+      this.redisGameStateService !== null &&
+      this.redisEventBusService !== null &&
+      this.instanceId !== null
+    );
+  }
+
+  private async saveStateToRedis(): Promise<void> {
+    if (!this.isRedisEnabled()) return;
+
+    const blindLevel = getBlindLevel(this.currentLevel);
+    await this.redisGameStateService!.saveTournamentState(this.tournamentId, {
+      name: this.name,
+      status: this.running ? "running" : "finished",
+      level: this.currentLevel,
+      handsThisLevel: this.handsThisLevel,
+      handsPerLevel: HANDS_PER_LEVEL,
+      blinds: {
+        small: blindLevel.small_blind,
+        big: blindLevel.big_blind,
+        ante: blindLevel.ante,
+      },
+      playersRemaining: this.activeBots.size,
+      totalEntrants: this.totalEntrants,
+      tables: Array.from(this.tables.values()).map((t) => ({
+        tableId: t.tableDbId,
+        tableNumber: t.tableNumber,
+      })),
+      buyIn: this.config.buy_in,
+      prizePool: this.totalEntrants * this.config.buy_in,
+      ownerInstanceId: this.instanceId!,
+    });
+  }
+
+  private async publishEvent(
+    eventType:
+      | "tournament.stateUpdated"
+      | "tournament.levelChanged"
+      | "tournament.playerBusted"
+      | "tournament.tableBreak"
+      | "tournament.finished",
+    payload: unknown,
+  ): Promise<void> {
+    if (!this.isRedisEnabled()) return;
+
+    await this.redisEventBusService!.publishTournamentEvent(
+      eventType,
+      this.tournamentId,
+      payload,
+    );
   }
 
   async start(): Promise<void> {
@@ -279,7 +401,7 @@ class ActiveTournament {
 
     const blindLevel = getBlindLevel(this.currentLevel);
 
-    const game = this.liveGameManager.createGame({
+    const game = this.liveGameManager.createGameSync({
       tableId: tableDbId,
       gameDbId,
       tournamentId: this.tournamentId,
@@ -307,6 +429,16 @@ class ActiveTournament {
       });
       tableEntry.botIdMap[bot.name] = bot.botId;
       bot.tableDbId = tableDbId;
+
+      // Create seat record in database for leaderboard tracking
+      await this.tournamentRepository.seatBot({
+        tournament_id: this.tournamentId,
+        tournament_table_id: tableDbId,
+        bot_id: bot.botId,
+        seat_number: Object.keys(tableEntry.botIdMap).length,
+        chips: bot.chips,
+        busted: false,
+      });
     }
 
     this.tables.set(tableDbId, tableEntry);
@@ -350,6 +482,100 @@ class ActiveTournament {
       await this.checkForBustedPlayers();
       await this.checkTableBalancing();
       await this.checkBlindLevelAdvance();
+      await this.checkAndRecoverErroredGames();
+      await this.syncChipsToDatabase();
+      this.emitStateUpdate();
+    }
+  }
+
+  private async syncChipsToDatabase(): Promise<void> {
+    // Sync chip counts from in-memory game state to database
+    for (const [_tableId, tableEntry] of this.tables) {
+      const state = tableEntry.game.getPublicState();
+
+      for (const player of state.players) {
+        if (!player.disconnected) {
+          const bot = this.activeBots.get(player.id);
+          if (bot && bot.chips !== player.chips) {
+            bot.chips = player.chips;
+            await this.tournamentRepository.updateSeatChips(
+              this.tournamentId,
+              player.id,
+              player.chips,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  private async checkAndRecoverErroredGames(): Promise<void> {
+    for (const [tableId, tableEntry] of this.tables) {
+      const state = tableEntry.game.getPublicState();
+
+      if (state.status === "error") {
+        this.logger.warn(
+          `Table ${tableEntry.tableNumber} is in error state, attempting recovery`,
+        );
+
+        // Get remaining active players
+        const activePlayers = state.players.filter(
+          (p) => p.chips > 0 && !p.disconnected,
+        );
+
+        if (activePlayers.length < 2) {
+          this.logger.log(
+            `Table ${tableEntry.tableNumber} has < 2 active players, breaking table`,
+          );
+          await this.breakTable(tableId);
+          continue;
+        }
+
+        // Try to restart the game
+        try {
+          tableEntry.game.stop();
+          this.liveGameManager.removeGameSync(tableId);
+
+          // Create new game for this table
+          const blindLevel = getBlindLevel(this.currentLevel);
+          const newGameDbId = `${tableId}_game_${Date.now()}`;
+
+          const newGame = this.liveGameManager.createGameSync({
+            tableId,
+            gameDbId: newGameDbId,
+            tournamentId: this.tournamentId,
+            smallBlind: blindLevel.small_blind,
+            bigBlind: blindLevel.big_blind,
+            ante: blindLevel.ante,
+            startingChips: this.config.starting_chips,
+            turnTimeoutMs: this.config.turn_timeout_ms,
+          });
+
+          // Add active players back
+          for (const player of activePlayers) {
+            const bot = this.activeBots.get(player.id);
+            if (bot) {
+              newGame.addPlayer({
+                id: player.id,
+                name: player.name,
+                endpoint: bot.endpoint,
+                chips: player.chips,
+              });
+            }
+          }
+
+          tableEntry.game = newGame;
+          tableEntry.gameDbId = newGameDbId;
+
+          this.logger.log(
+            `Table ${tableEntry.tableNumber} recovered with ${activePlayers.length} players`,
+          );
+        } catch (err: any) {
+          this.logger.error(
+            `Failed to recover table ${tableEntry.tableNumber}: ${err.message}`,
+          );
+        }
+      }
     }
   }
 
@@ -367,11 +593,20 @@ class ActiveTournament {
             const position = this.totalEntrants - this.bustOrder.length + 1;
             this.logger.log(`${player.name} busted in position ${position}`);
 
+            // Remove the busted player from the game
+            tableEntry.game.removePlayer(player.id);
+
             await this.tournamentRepository.bustEntry(
               this.tournamentId,
               player.id,
               this.currentLevel,
               position,
+            );
+
+            // Update seat record to reflect bust
+            await this.tournamentRepository.bustSeat(
+              this.tournamentId,
+              player.id,
             );
 
             this.eventEmitter.emit("tournament.playerBusted", {
@@ -414,7 +649,7 @@ class ActiveTournament {
 
     tableEntry.game.stop();
     this.tables.delete(tableId);
-    this.liveGameManager.removeGame(tableId);
+    this.liveGameManager.removeGameSync(tableId);
 
     const remainingTables = Array.from(this.tables.values());
     let targetIndex = 0;
@@ -437,6 +672,12 @@ class ActiveTournament {
     }
 
     this.eventEmitter.emit("tournament.tableBreak", {
+      tournamentId: this.tournamentId,
+      tableId,
+      playersRedistributed: playersToMove.length,
+    });
+
+    await this.publishEvent("tournament.tableBreak", {
       tournamentId: this.tournamentId,
       tableId,
       playersRedistributed: playersToMove.length,
@@ -492,7 +733,7 @@ class ActiveTournament {
 
     for (const [tableId, tableEntry] of this.tables) {
       tableEntry.game.stop();
-      this.liveGameManager.removeGame(tableId);
+      this.liveGameManager.removeGameSync(tableId);
     }
     this.tables.clear();
 
@@ -506,6 +747,19 @@ class ActiveTournament {
       winnerName: winner?.name,
       payouts,
     });
+
+    await this.publishEvent("tournament.finished", {
+      tournamentId: this.tournamentId,
+      winnerId: winner?.botId,
+      winnerName: winner?.name,
+      payouts,
+    });
+
+    if (this.isRedisEnabled()) {
+      await this.redisGameStateService!.deleteTournamentState(
+        this.tournamentId,
+      );
+    }
   }
 
   getState(): TournamentState {
@@ -536,10 +790,21 @@ class ActiveTournament {
   }
 
   private emitStateUpdate(): void {
+    const state = this.getState();
     this.eventEmitter.emit("tournament.stateUpdated", {
       tournamentId: this.tournamentId,
-      state: this.getState(),
+      state,
     });
+
+    this.saveStateToRedis().catch((err) =>
+      this.logger.error(`Failed to save tournament state to Redis: ${err}`),
+    );
+    this.publishEvent("tournament.stateUpdated", {
+      tournamentId: this.tournamentId,
+      state,
+    }).catch((err) =>
+      this.logger.error(`Failed to publish tournament state event: ${err}`),
+    );
   }
 
   stop(): void {

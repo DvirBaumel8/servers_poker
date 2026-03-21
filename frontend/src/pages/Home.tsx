@@ -1,5 +1,8 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { analyticsApi, PlatformStats } from "../api";
+import { usePageTracking } from "../utils/analytics";
 
 const FEATURES = [
   {
@@ -25,12 +28,20 @@ const FEATURES = [
   },
 ];
 
-const STATS = [
-  { value: "1M+", label: "Hands Dealt" },
-  { value: "500+", label: "Active Bots" },
-  { value: "100+", label: "Tournaments" },
-  { value: "99.9%", label: "Uptime" },
-];
+function formatNumber(num: number): string {
+  if (num >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(1)}M+`;
+  }
+  if (num >= 1_000) {
+    return `${(num / 1_000).toFixed(1)}K+`;
+  }
+  return num.toString();
+}
+
+interface StatItem {
+  value: string;
+  label: string;
+}
 
 const STEPS = [
   {
@@ -54,6 +65,38 @@ const STEPS = [
 ];
 
 export function Home() {
+  usePageTracking();
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    analyticsApi
+      .getPlatformStats()
+      .then(setStats)
+      .catch(console.error)
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const displayStats: StatItem[] = stats
+    ? [
+        {
+          value: formatNumber(stats.lifetime.totalHandsDealt),
+          label: "Hands Dealt",
+        },
+        { value: formatNumber(stats.lifetime.totalBots), label: "Total Bots" },
+        {
+          value: formatNumber(stats.lifetime.totalTournaments),
+          label: "Tournaments",
+        },
+        { value: `${stats.live.activeGames}`, label: "Live Games" },
+      ]
+    : [
+        { value: "—", label: "Hands Dealt" },
+        { value: "—", label: "Total Bots" },
+        { value: "—", label: "Tournaments" },
+        { value: "—", label: "Live Games" },
+      ];
+
   return (
     <div className="relative">
       {/* Hero */}
@@ -122,7 +165,7 @@ export function Home() {
       <section className="relative border-y border-white/5 bg-surface-300/50">
         <div className="container mx-auto px-6 py-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {STATS.map((stat, i) => (
+            {displayStats.map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 10 }}
@@ -131,7 +174,11 @@ export function Home() {
                 className="text-center"
               >
                 <div className="text-2xl md:text-3xl font-bold gold-gradient-text">
-                  {stat.value}
+                  {isLoading ? (
+                    <span className="inline-block w-16 h-8 bg-surface-400 animate-pulse rounded" />
+                  ) : (
+                    stat.value
+                  )}
                 </div>
                 <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
               </motion.div>

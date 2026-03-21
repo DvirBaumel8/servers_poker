@@ -8,7 +8,7 @@ import {
   ConnectedSocket,
   MessageBody,
 } from "@nestjs/websockets";
-import { Logger, OnModuleInit } from "@nestjs/common";
+import { Logger, OnModuleInit, Optional, Inject } from "@nestjs/common";
 import { Server, Socket } from "socket.io";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
@@ -18,6 +18,11 @@ import {
   GameStateSnapshot,
 } from "../../services/live-game-manager.service";
 import { GameWorkerManagerService } from "../../services/game-worker-manager.service";
+import {
+  RedisEventBusService,
+  RedisGameEvent,
+} from "../../services/redis-event-bus.service";
+import { BotActivityService } from "../../services/bot-activity.service";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -87,6 +92,7 @@ export class GamesGateway
   private readonly connectedClients = new Map<string, AuthenticatedSocket>();
   private readonly tableSubscriptions = new Map<string, Set<string>>();
   private readonly playerSockets = new Map<string, string>();
+  private readonly botActivitySubscriptions = new Map<string, Set<string>>();
 
   private readonly useWorkerThreads: boolean;
 
@@ -96,11 +102,23 @@ export class GamesGateway
     private readonly eventEmitter: EventEmitter2,
     private readonly liveGameManager: LiveGameManagerService,
     private readonly gameWorkerManager: GameWorkerManagerService,
+    @Optional()
+    @Inject(RedisEventBusService)
+    private readonly redisEventBus: RedisEventBusService | null,
+    @Optional()
+    @Inject(BotActivityService)
+    private readonly botActivityService: BotActivityService | null,
   ) {
     this.useWorkerThreads = this.gameWorkerManager.isEnabled();
   }
 
   onModuleInit() {
+    this.setupLocalEventListeners();
+    this.setupRedisEventListeners();
+    this.logger.log("Game event listeners registered");
+  }
+
+  private setupLocalEventListeners(): void {
     this.eventEmitter.on(
       "game.stateUpdated",
       (event: { tableId: string; state: GameStateSnapshot }) => {
@@ -180,10 +198,129 @@ export class GamesGateway
           remainingPlayers:
             state?.players.filter((p) => !p.disconnected).length || 0,
         });
+        this.broadcastBotActivityUpdate(event.playerId).catch((e) =>
+          this.logger.error(`Failed to broadcast bot activity: ${e.message}`),
+        );
       },
     );
 
-    this.logger.log("Game event listeners registered");
+    this.eventEmitter.on(
+      "game.playerJoined",
+      (event: { tableId: string; gameId: string; player: { id: string } }) => {
+        this.broadcastBotActivityUpdate(event.player.id).catch((e) =>
+          this.logger.error(`Failed to broadcast bot activity: ${e.message}`),
+        );
+      },
+    );
+  }
+
+  private setupRedisEventListeners(): void {
+    if (!this.redisEventBus) {
+      this.logger.debug(
+        "Redis event bus not available, skipping Redis listeners",
+      );
+      return;
+    }
+
+    this.redisEventBus.onRedisEvent(
+      "game.stateUpdated",
+      (event: RedisGameEvent) => {
+        this.broadcastGameState(event.tableId, event.payload as any);
+      },
+    );
+
+    this.redisEventBus.onRedisEvent(
+      "game.handStarted",
+      (event: RedisGameEvent) => {
+        const payload = event.payload as {
+          tableId: string;
+          handNumber: number;
+          provablyFair?: {
+            serverSeedHash: string;
+            clientSeed: string;
+            nonce: number;
+          };
+        };
+        this.server.to(`table:${event.tableId}`).emit("handStarted", {
+          tableId: payload.tableId,
+          handNumber: payload.handNumber,
+          provablyFair: payload.provablyFair,
+        });
+      },
+    );
+
+    this.redisEventBus.onRedisEvent(
+      "game.handComplete",
+      (event: RedisGameEvent) => {
+        const payload = event.payload as any;
+        this.broadcastHandResult(event.tableId, {
+          handNumber: payload.handNumber,
+          winners: payload.winners.map((w: any) => ({
+            botId: w.playerId,
+            amount: w.amount,
+            handName: w.hand?.name || "Winner",
+          })),
+          pot: payload.winners.reduce(
+            (sum: number, w: any) => sum + w.amount,
+            0,
+          ),
+          provablyFair: payload.provablyFair,
+        });
+      },
+    );
+
+    this.redisEventBus.onRedisEvent(
+      "game.playerAction",
+      (event: RedisGameEvent) => {
+        const payload = event.payload as {
+          tableId: string;
+          botId: string;
+          action: string;
+          amount: number;
+          pot: number;
+        };
+        this.broadcastPlayerAction(event.tableId, {
+          botId: payload.botId,
+          action: payload.action,
+          amount: payload.amount,
+          pot: payload.pot,
+        });
+      },
+    );
+
+    this.redisEventBus.onRedisEvent(
+      "game.finished",
+      (event: RedisGameEvent) => {
+        const payload = event.payload as {
+          tableId: string;
+          winnerId?: string;
+          winnerName?: string;
+        };
+        this.broadcastGameFinished(event.tableId, {
+          reason: "winner_determined",
+          winnerId: payload.winnerId,
+          winnerName: payload.winnerName,
+        });
+      },
+    );
+
+    this.redisEventBus.onRedisEvent(
+      "game.playerRemoved",
+      (event: RedisGameEvent) => {
+        const payload = event.payload as {
+          tableId: string;
+          playerId: string;
+        };
+        this.broadcastPlayerLeft(event.tableId, {
+          playerId: payload.playerId,
+          playerName: "Player",
+          reason: "disconnect",
+          remainingPlayers: 0,
+        });
+      },
+    );
+
+    this.logger.log("Redis event listeners registered for cross-instance sync");
   }
 
   private getGameState(tableId: string): GameStateSnapshot | null {
@@ -309,6 +446,82 @@ export class GamesGateway
 
     this.logger.log(`Bot ${botId} registered on socket ${client.id}`);
     return { success: true, botId };
+  }
+
+  @SubscribeMessage("subscribeBotActivity")
+  async handleSubscribeBotActivity(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { botId: string },
+  ) {
+    const { botId } = data;
+
+    if (!this.botActivitySubscriptions.has(botId)) {
+      this.botActivitySubscriptions.set(botId, new Set());
+    }
+    this.botActivitySubscriptions.get(botId)!.add(client.id);
+
+    client.join(`bot:${botId}`);
+    this.logger.debug(
+      `Client ${client.id} subscribed to bot activity for ${botId}`,
+    );
+
+    if (this.botActivityService) {
+      const activity = await this.botActivityService.getBotActivity(botId);
+      if (activity) {
+        client.emit("botActivity", activity);
+      }
+    }
+
+    return { success: true, botId };
+  }
+
+  @SubscribeMessage("unsubscribeBotActivity")
+  handleUnsubscribeBotActivity(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { botId: string },
+  ) {
+    const { botId } = data;
+
+    const subscribers = this.botActivitySubscriptions.get(botId);
+    if (subscribers) {
+      subscribers.delete(client.id);
+      if (subscribers.size === 0) {
+        this.botActivitySubscriptions.delete(botId);
+      }
+    }
+
+    client.leave(`bot:${botId}`);
+    this.logger.debug(
+      `Client ${client.id} unsubscribed from bot activity for ${botId}`,
+    );
+
+    return { success: true, botId };
+  }
+
+  @SubscribeMessage("subscribeActiveBots")
+  async handleSubscribeActiveBots(
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    client.join("activeBots");
+    this.logger.debug(`Client ${client.id} subscribed to active bots`);
+
+    if (this.botActivityService) {
+      const activeBots = await this.botActivityService.getAllActiveBots();
+      client.emit("activeBots", {
+        bots: activeBots,
+        totalActive: activeBots.length,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return { success: true };
+  }
+
+  @SubscribeMessage("unsubscribeActiveBots")
+  handleUnsubscribeActiveBots(@ConnectedSocket() client: AuthenticatedSocket) {
+    client.leave("activeBots");
+    this.logger.debug(`Client ${client.id} unsubscribed from active bots`);
+    return { success: true };
   }
 
   @SubscribeMessage("action")
@@ -452,6 +665,22 @@ export class GamesGateway
     this.server
       .to(`tournament:${tournamentId}`)
       .emit("tournamentUpdate", update);
+  }
+
+  async broadcastBotActivityUpdate(botId: string): Promise<void> {
+    if (!this.botActivityService) return;
+
+    const activity = await this.botActivityService.getBotActivity(botId);
+    if (activity) {
+      this.server.to(`bot:${botId}`).emit("botActivity", activity);
+    }
+
+    const activeBots = await this.botActivityService.getAllActiveBots();
+    this.server.to("activeBots").emit("activeBots", {
+      bots: activeBots,
+      totalActive: activeBots.length,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   getConnectedCount(): number {

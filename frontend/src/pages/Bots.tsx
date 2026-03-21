@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { botsApi } from "../api/bots";
 import { useAuthStore } from "../stores/authStore";
-import type { Bot } from "../types";
+import type { Bot, BotActivity } from "../types";
 
 interface BotFormData {
   name: string;
@@ -27,6 +27,7 @@ export function Bots() {
   const { user, token } = useAuthStore();
   const [bots, setBots] = useState<Bot[]>([]);
   const [myBots, setMyBots] = useState<Bot[]>([]);
+  const [activeBots, setActiveBots] = useState<BotActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showMyBots, setShowMyBots] = useState(false);
@@ -52,8 +53,12 @@ export function Bots() {
   const loadBots = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await botsApi.getAll();
+      const [data, activeData] = await Promise.all([
+        botsApi.getAll(),
+        botsApi.getActiveBots(),
+      ]);
       setBots(data);
+      setActiveBots(activeData.bots);
 
       if (token) {
         const myData = await botsApi.getMy(token);
@@ -237,6 +242,68 @@ export function Bots() {
         </div>
       )}
 
+      {activeBots.length > 0 && !showMyBots && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 bg-gray-800/50 rounded-xl border border-green-500/30 p-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <h2 className="text-lg font-bold text-white">Active Now</h2>
+            <span className="text-sm text-gray-400">
+              ({activeBots.length} bot{activeBots.length !== 1 ? "s" : ""}{" "}
+              playing)
+            </span>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {activeBots.slice(0, 8).map((activity) => (
+              <Link
+                key={activity.botId}
+                to={`/bots/${activity.botId}`}
+                className="bg-gray-900/50 rounded-lg p-4 hover:bg-gray-900/70 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-poker-gold/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-lg">🤖</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-white truncate">
+                      {activity.botName}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      {activity.activeGames.length > 0 && (
+                        <span className="text-green-400">
+                          {activity.activeGames.length} game
+                          {activity.activeGames.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                      {activity.activeGames.length > 0 &&
+                        activity.activeTournaments.length > 0 && (
+                          <span> • </span>
+                        )}
+                      {activity.activeTournaments.length > 0 && (
+                        <span className="text-poker-gold">
+                          {activity.activeTournaments.length} tournament
+                          {activity.activeTournaments.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+          {activeBots.length > 8 && (
+            <div className="mt-4 text-center">
+              <span className="text-sm text-gray-400">
+                +{activeBots.length - 8} more active bots
+              </span>
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {displayedBots.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🤖</div>
@@ -266,6 +333,7 @@ export function Bots() {
           {displayedBots.map((bot, index) => {
             const isOwner = user && bot.userId === user.id;
             const validation = validationResults[bot.id];
+            const botActivity = activeBots.find((a) => a.botId === bot.id);
 
             return (
               <motion.div
@@ -275,22 +343,35 @@ export function Bots() {
                 transition={{ delay: index * 0.05 }}
                 className="bg-gray-800/50 rounded-xl border border-gray-700 p-6"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold text-white truncate">
-                      {bot.name}
-                    </h3>
-                    <span className="text-sm text-gray-400 truncate block">
-                      {bot.endpoint}
-                    </span>
+                <Link
+                  to={`/bots/${bot.id}`}
+                  className="block hover:opacity-80 transition-opacity"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-bold text-white truncate">
+                        {bot.name}
+                      </h3>
+                      <span className="text-sm text-gray-400 truncate block">
+                        {bot.endpoint}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                      {botActivity?.isActive && (
+                        <span
+                          className="w-2 h-2 rounded-full bg-green-500 animate-pulse"
+                          title="Active now"
+                        />
+                      )}
+                      <span
+                        className={`w-3 h-3 rounded-full ${
+                          bot.active ? "bg-green-500" : "bg-gray-500"
+                        }`}
+                        title={bot.active ? "Active" : "Inactive"}
+                      />
+                    </div>
                   </div>
-                  <span
-                    className={`w-3 h-3 rounded-full flex-shrink-0 ml-2 ${
-                      bot.active ? "bg-green-500" : "bg-gray-500"
-                    }`}
-                    title={bot.active ? "Active" : "Inactive"}
-                  />
-                </div>
+                </Link>
 
                 {bot.description && (
                   <p className="text-gray-400 text-sm mb-4 line-clamp-2">

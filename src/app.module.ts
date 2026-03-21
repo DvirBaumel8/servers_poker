@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { EventEmitterModule } from "@nestjs/event-emitter";
+import { ScheduleModule } from "@nestjs/schedule";
 import { APP_FILTER, APP_INTERCEPTOR, APP_GUARD } from "@nestjs/core";
 
 import { appConfig, getDatabaseConfig } from "./config";
@@ -19,6 +20,7 @@ import { UsersModule } from "./modules/users/users.module";
 import { BotsModule } from "./modules/bots/bots.module";
 import { GamesModule } from "./modules/games/games.module";
 import { TournamentsModule } from "./modules/tournaments/tournaments.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { ServicesModule } from "./services/services.module";
 import { SecurityModule } from "./common/security";
 
@@ -45,6 +47,7 @@ import { SecurityModule } from "./common/security";
       inject: [ConfigService],
     }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forFeature([AuditLog]),
     SecurityModule,
     ServicesModule,
@@ -53,6 +56,7 @@ import { SecurityModule } from "./common/security";
     BotsModule,
     GamesModule,
     TournamentsModule,
+    AnalyticsModule,
   ],
   providers: [
     {

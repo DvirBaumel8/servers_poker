@@ -15,6 +15,11 @@ describe("BotsController", () => {
     activate: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
   };
+  let mockBotActivityService: {
+    getBotActivity: ReturnType<typeof vi.fn>;
+    getActiveBotsForUser: ReturnType<typeof vi.fn>;
+    getAllActiveBots: ReturnType<typeof vi.fn>;
+  };
 
   const mockBot = {
     id: "bot-123",
@@ -31,6 +36,24 @@ describe("BotsController", () => {
     role: "user",
   };
 
+  const mockActivity = {
+    botId: "bot-123",
+    botName: "TestBot",
+    isActive: true,
+    activeGames: [
+      {
+        tableId: "table-1",
+        gameId: "game-1",
+        status: "running",
+        handNumber: 5,
+        chips: 1000,
+        joinedAt: new Date().toISOString(),
+      },
+    ],
+    activeTournaments: [],
+    lastActivityAt: new Date().toISOString(),
+  };
+
   beforeEach(() => {
     mockBotsService = {
       findActive: vi.fn(),
@@ -44,7 +67,16 @@ describe("BotsController", () => {
       deactivate: vi.fn(),
     };
 
-    controller = new BotsController(mockBotsService as never);
+    mockBotActivityService = {
+      getBotActivity: vi.fn(),
+      getActiveBotsForUser: vi.fn(),
+      getAllActiveBots: vi.fn(),
+    };
+
+    controller = new BotsController(
+      mockBotsService as never,
+      mockBotActivityService as never,
+    );
   });
 
   describe("findAll", () => {
@@ -187,6 +219,56 @@ describe("BotsController", () => {
         "user-123",
         false,
       );
+    });
+  });
+
+  describe("getBotActivity", () => {
+    it("should return bot activity when found", async () => {
+      mockBotActivityService.getBotActivity.mockResolvedValue(mockActivity);
+
+      const result = await controller.getBotActivity("bot-123");
+
+      expect(result).toEqual(mockActivity);
+      expect(mockBotActivityService.getBotActivity).toHaveBeenCalledWith(
+        "bot-123",
+      );
+    });
+
+    it("should throw NotFoundException when activity not found", async () => {
+      mockBotActivityService.getBotActivity.mockResolvedValue(null);
+
+      await expect(controller.getBotActivity("nonexistent")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe("getMyBotsActivity", () => {
+    it("should return activities for user bots", async () => {
+      const activities = [mockActivity];
+      mockBotActivityService.getActiveBotsForUser.mockResolvedValue(activities);
+
+      const result = await controller.getMyBotsActivity(mockUser as never);
+
+      expect(result.bots).toEqual(activities);
+      expect(result.totalActive).toBe(1);
+      expect(result.timestamp).toBeDefined();
+      expect(mockBotActivityService.getActiveBotsForUser).toHaveBeenCalledWith(
+        "user-123",
+      );
+    });
+  });
+
+  describe("getActiveBots", () => {
+    it("should return all active bots", async () => {
+      const activities = [mockActivity];
+      mockBotActivityService.getAllActiveBots.mockResolvedValue(activities);
+
+      const result = await controller.getActiveBots();
+
+      expect(result.bots).toEqual(activities);
+      expect(result.totalActive).toBe(1);
+      expect(result.timestamp).toBeDefined();
     });
   });
 });
