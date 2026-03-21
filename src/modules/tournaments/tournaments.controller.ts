@@ -16,7 +16,6 @@ import { CreateTournamentDto, RegisterBotDto } from "./dto/tournament.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { User } from "../../entities/user.entity";
-import { Public } from "../../common/decorators/public.decorator";
 import { TournamentStatus } from "../../entities/tournament.entity";
 
 @Controller("tournaments")
@@ -26,29 +25,39 @@ export class TournamentsController {
     private readonly tournamentDirector: TournamentDirectorService,
   ) {}
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get()
   async findAll(@Query("status") status?: TournamentStatus) {
     return this.tournamentsService.findAll(status);
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get(":id")
   async findOne(@Param("id") id: string) {
     const tournament = await this.tournamentsService.findById(id);
     if (!tournament) {
       throw new NotFoundException(`Tournament ${id} not found`);
     }
-    return tournament;
+    const state = this.tournamentDirector.getTournamentState(id);
+    if (!state) {
+      return tournament;
+    }
+
+    return {
+      ...tournament,
+      current_level: state.level,
+      small_blind: state.blinds.small,
+      big_blind: state.blinds.big,
+    };
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get(":id/results")
   async getResults(@Param("id") id: string) {
     return this.tournamentsService.getResults(id);
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get(":id/leaderboard")
   async getLeaderboard(@Param("id") id: string) {
     return this.tournamentsService.getLeaderboard(id);
@@ -114,7 +123,7 @@ export class TournamentsController {
     return { success: true };
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get(":id/state")
   async getState(@Param("id") id: string) {
     const state = this.tournamentDirector.getTournamentState(id);
@@ -134,7 +143,7 @@ export class TournamentsController {
     return state;
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get("active")
   async getActiveTournaments() {
     return {

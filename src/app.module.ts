@@ -14,6 +14,7 @@ import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor
 import { AuditLog } from "./entities/audit-log.entity";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
+import { IpBlockGuard } from "./common/guards/ip-block.guard";
 
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -21,6 +22,7 @@ import { BotsModule } from "./modules/bots/bots.module";
 import { GamesModule } from "./modules/games/games.module";
 import { TournamentsModule } from "./modules/tournaments/tournaments.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { PreviewModule } from "./modules/preview/preview.module";
 import { ServicesModule } from "./services/services.module";
 import { SecurityModule } from "./common/security";
 
@@ -57,6 +59,7 @@ import { SecurityModule } from "./common/security";
     GamesModule,
     TournamentsModule,
     AnalyticsModule,
+    PreviewModule,
   ],
   providers: [
     {
@@ -74,6 +77,10 @@ import { SecurityModule } from "./common/security";
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditLogInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: IpBlockGuard,
     },
     {
       provide: APP_GUARD,

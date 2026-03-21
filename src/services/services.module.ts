@@ -1,25 +1,26 @@
 import { Module, Global, OnModuleInit } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { JwtModule } from "@nestjs/jwt";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { EventEmitterModule } from "@nestjs/event-emitter";
-import { BotCallerService } from "./bot-caller.service";
-import { BotValidatorService } from "./bot-validator.service";
-import { BotHealthSchedulerService } from "./bot-health-scheduler.service";
-import { BotResilienceService } from "./bot-resilience.service";
+import { BotCallerService } from "./bot/bot-caller.service";
+import { BotValidatorService } from "./bot/bot-validator.service";
+import { BotHealthSchedulerService } from "./bot/bot-health-scheduler.service";
+import { BotResilienceService } from "./bot/bot-resilience.service";
 import { BotMetricsGateway } from "./bot-metrics.gateway";
-import { LiveGameManagerService } from "./live-game-manager.service";
-import { GameWorkerManagerService } from "./game-worker-manager.service";
-import { GameStatePersistenceService } from "./game-state-persistence.service";
-import { GameRecoveryService } from "./game-recovery.service";
+import { LiveGameManagerService } from "./game/live-game-manager.service";
+import { GameWorkerManagerService } from "./game/game-worker-manager.service";
+import { GameStatePersistenceService } from "./game/game-state-persistence.service";
+import { GameRecoveryService } from "./game/game-recovery.service";
 import { ProvablyFairService } from "./provably-fair.service";
 import { HandSeedPersistenceService } from "./hand-seed-persistence.service";
-import { GameDataPersistenceService } from "./game-data-persistence.service";
-import { GameOwnershipService } from "./game-ownership.service";
-import { RedisGameStateService } from "./redis-game-state.service";
-import { RedisEventBusService } from "./redis-event-bus.service";
-import { RedisHealthService } from "./redis-health.service";
-import { BotActivityService } from "./bot-activity.service";
-import { BotAutoRegistrationService } from "./bot-auto-registration.service";
+import { GameDataPersistenceService } from "./game/game-data-persistence.service";
+import { GameOwnershipService } from "./game/game-ownership.service";
+import { RedisGameStateService } from "./redis/redis-game-state.service";
+import { RedisEventBusService } from "./redis/redis-event-bus.service";
+import { RedisHealthService } from "./redis/redis-health.service";
+import { BotActivityService } from "./bot/bot-activity.service";
+import { BotAutoRegistrationService } from "./bot/bot-auto-registration.service";
 import { PlatformAnalyticsService } from "./platform-analytics.service";
 import { DailySummaryService } from "./daily-summary.service";
 import { EmailService } from "./email.service";
@@ -56,6 +57,19 @@ import { RedisModule } from "../common/redis";
   imports: [
     ConfigModule,
     EventEmitterModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>(
+          "JWT_SECRET",
+          "change-me-in-production",
+        ),
+        signOptions: {
+          expiresIn: "24h" as const,
+        },
+      }),
+      inject: [ConfigService],
+    }),
     TypeOrmModule.forFeature([
       GameStateSnapshot,
       Bot,

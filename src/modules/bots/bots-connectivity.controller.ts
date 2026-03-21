@@ -13,15 +13,15 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import {
   BotCallerService,
   BotHealthStatus,
-} from "../../services/bot-caller.service";
+} from "../../services/bot/bot-caller.service";
 import {
   BotHealthSchedulerService,
   HealthCheckRound,
-} from "../../services/bot-health-scheduler.service";
+} from "../../services/bot/bot-health-scheduler.service";
 import {
   BotValidatorService,
   ValidationReport,
-} from "../../services/bot-validator.service";
+} from "../../services/bot/bot-validator.service";
 import { BotsService } from "./bots.service";
 import {
   HealthSummaryDto,

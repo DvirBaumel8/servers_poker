@@ -16,18 +16,24 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import {
   LiveGameManagerService,
   GameStateSnapshot,
-} from "../../services/live-game-manager.service";
-import { GameWorkerManagerService } from "../../services/game-worker-manager.service";
+} from "../../services/game/live-game-manager.service";
+import { GameWorkerManagerService } from "../../services/game/game-worker-manager.service";
 import {
   RedisEventBusService,
   RedisGameEvent,
-} from "../../services/redis-event-bus.service";
-import { BotActivityService } from "../../services/bot-activity.service";
+} from "../../services/redis/redis-event-bus.service";
+import { BotActivityService } from "../../services/bot/bot-activity.service";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   botId?: string;
+  messageCount?: number;
+  windowStart?: number;
 }
+
+// WebSocket rate limiting configuration
+const WS_RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const WS_RATE_LIMIT_MAX_MESSAGES = 100; // 100 messages per minute per client
 
 interface GameState {
   id: string;
@@ -73,7 +79,10 @@ interface PrivatePlayerState {
 
 @WebSocketGateway({
   cors: {
-    origin: "*",
+    origin: process.env.CORS_ORIGINS?.split(",") || [
+      "http://localhost:3001",
+      "http://localhost:3002",
+    ],
     credentials: true,
   },
   namespace: "/game",
@@ -95,6 +104,36 @@ export class GamesGateway
   private readonly botActivitySubscriptions = new Map<string, Set<string>>();
 
   private readonly useWorkerThreads: boolean;
+
+  /**
+   * Check if a client is rate limited.
+   * Returns true if the request should be blocked.
+   */
+  private isRateLimited(client: AuthenticatedSocket): boolean {
+    const now = Date.now();
+
+    // Initialize or reset window
+    if (
+      !client.windowStart ||
+      now - client.windowStart > WS_RATE_LIMIT_WINDOW_MS
+    ) {
+      client.windowStart = now;
+      client.messageCount = 1;
+      return false;
+    }
+
+    // Increment and check
+    client.messageCount = (client.messageCount || 0) + 1;
+
+    if (client.messageCount > WS_RATE_LIMIT_MAX_MESSAGES) {
+      this.logger.warn(
+        `WebSocket rate limit exceeded for client ${client.id} (user: ${client.userId || "unknown"})`,
+      );
+      return true;
+    }
+
+    return false;
+  }
 
   constructor(
     private readonly jwtService: JwtService,
@@ -340,19 +379,36 @@ export class GamesGateway
   async handleConnection(client: AuthenticatedSocket) {
     try {
       const token = this.extractToken(client);
-      if (token) {
-        const payload = this.jwtService.verify(token, {
-          secret: this.configService.get<string>("JWT_SECRET"),
+      if (!token) {
+        this.logger.warn(
+          `Connection rejected for client ${client.id}: No authentication token`,
+        );
+        client.emit("error", {
+          code: "UNAUTHORIZED",
+          message: "Authentication required. Please provide a valid JWT token.",
         });
-        client.userId = payload.sub;
+        client.disconnect(true);
+        return;
       }
+
+      const payload = this.jwtService.verify(token, {
+        secret: this.configService.get<string>("JWT_SECRET"),
+      });
+      client.userId = payload.sub;
 
       this.connectedClients.set(client.id, client);
       this.logger.log(
-        `Client connected: ${client.id} (user: ${client.userId || "anonymous"})`,
+        `Client connected: ${client.id} (user: ${client.userId})`,
       );
     } catch (error) {
-      this.logger.warn(`Auth failed for client ${client.id}`);
+      this.logger.warn(
+        `Connection rejected for client ${client.id}: Invalid token`,
+      );
+      client.emit("error", {
+        code: "UNAUTHORIZED",
+        message: "Invalid or expired authentication token.",
+      });
+      client.disconnect(true);
     }
   }
 
@@ -379,6 +435,10 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tableId: string },
   ) {
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
     const { tableId } = data;
 
     if (!this.tableSubscriptions.has(tableId)) {
@@ -419,6 +479,10 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tableId: string },
   ) {
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
     const { tableId } = data;
 
     const subscribers = this.tableSubscriptions.get(tableId);
@@ -440,6 +504,10 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
     const { botId } = data;
     client.botId = botId;
     this.playerSockets.set(botId, client.id);
@@ -453,6 +521,10 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
     const { botId } = data;
 
     if (!this.botActivitySubscriptions.has(botId)) {
@@ -480,6 +552,10 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
     const { botId } = data;
 
     const subscribers = this.botActivitySubscriptions.get(botId);
@@ -502,6 +578,10 @@ export class GamesGateway
   async handleSubscribeActiveBots(
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
     client.join("activeBots");
     this.logger.debug(`Client ${client.id} subscribed to active bots`);
 
@@ -519,6 +599,10 @@ export class GamesGateway
 
   @SubscribeMessage("unsubscribeActiveBots")
   handleUnsubscribeActiveBots(@ConnectedSocket() client: AuthenticatedSocket) {
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
     client.leave("activeBots");
     this.logger.debug(`Client ${client.id} unsubscribed from active bots`);
     return { success: true };
@@ -534,6 +618,10 @@ export class GamesGateway
       amount?: number;
     },
   ) {
+    if (this.isRateLimited(client)) {
+      return { error: "Rate limit exceeded", code: "RATE_LIMITED" };
+    }
+
     if (!client.botId) {
       return { error: "Bot not registered", code: "NOT_REGISTERED" };
     }

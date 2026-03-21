@@ -1,12 +1,24 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, type ChangeEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "../stores/authStore";
+import { getEmailValidationMessage, normalizeEmail } from "../utils/email";
+import { normalizeRedirectPath } from "../utils/navigation";
+import {
+  AlertBanner,
+  Button,
+  PasswordField,
+  SurfaceCard,
+  TextField,
+} from "../components/ui/primitives";
 
 export function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = normalizeRedirectPath(searchParams.get("redirectTo"));
   const { login, isLoading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
 
   const needsVerification =
@@ -15,9 +27,17 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedEmail = normalizeEmail(email);
+    const emailValidationMessage = getEmailValidationMessage(normalizedEmail);
+
+    if (emailValidationMessage) {
+      setEmailTouched(true);
+      return;
+    }
+
     try {
-      await login(email, password);
-      navigate("/");
+      await login(normalizedEmail, password);
+      navigate(redirectTo);
     } catch {
       // Error is handled in store
     }
@@ -35,96 +55,96 @@ export function Login() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <div className="bg-gray-800/50 rounded-2xl p-8 border border-gray-700">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
-            <p className="text-gray-400">Sign in to manage your bots</p>
+        <SurfaceCard className="space-y-8 p-8">
+          <div className="space-y-3 text-center">
+            <div className="eyebrow-label">Sign in</div>
+            <h1 className="text-3xl font-display font-semibold text-white">
+              Welcome back
+            </h1>
+            <p className="text-sm leading-6 text-slate-400">
+              Access your bot workspace, live tables, tournaments, and
+              analytics.
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form noValidate onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div
-                className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg cursor-pointer"
-                onClick={clearError}
+              <AlertBanner
+                title="Sign in failed"
+                dismissible
+                onDismiss={clearError}
               >
                 <p>{error}</p>
                 {needsVerification && (
                   <button
                     type="button"
                     onClick={handleVerifyEmail}
-                    className="mt-2 text-poker-gold hover:text-yellow-400 font-medium text-sm underline"
+                    className="mt-2 text-sm font-medium text-accent underline"
                   >
                     Go to verification page
                   </button>
                 )}
-              </div>
+              </AlertBanner>
             )}
 
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent"
-                placeholder="you@example.com"
-              />
-            </div>
+            <TextField
+              label="Email"
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                setEmail(e.target.value);
+              }}
+              onBlur={() => setEmailTouched(true)}
+              required
+              placeholder="you@example.com"
+              error={
+                emailTouched ? (getEmailValidationMessage(email) ?? undefined) : undefined
+              }
+            />
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-gray-300"
+                  className="text-sm font-medium text-slate-200"
                 >
                   Password
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-sm text-poker-gold hover:text-yellow-400"
+                  className="text-sm text-accent hover:text-accent-light"
                 >
                   Forgot password?
                 </Link>
               </div>
-              <input
+              <PasswordField
                 id="password"
-                type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setPassword(e.target.value)
+                }
                 required
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent"
                 placeholder="••••••••"
+                className="space-y-0"
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
+            <Button type="submit" disabled={isLoading} className="w-full">
               {isLoading ? "Signing in..." : "Sign In"}
-            </button>
+            </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-400">
-              Don't have an account?{" "}
-              <Link
-                to="/register"
-                className="text-poker-gold hover:text-yellow-400 font-medium"
-              >
-                Sign up
-              </Link>
-            </p>
+          <div className="space-y-2 text-center text-sm text-slate-400">
+            <p>Don't have an account?</p>
+            <Link
+              to={`/register${redirectTo !== "/" ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ""}`}
+              className="inline-flex items-center gap-2 font-medium text-accent underline decoration-accent/60 underline-offset-4 transition hover:text-accent-light hover:decoration-accent-light"
+            >
+              Sign up
+            </Link>
           </div>
-        </div>
+        </SurfaceCard>
       </motion.div>
     </div>
   );

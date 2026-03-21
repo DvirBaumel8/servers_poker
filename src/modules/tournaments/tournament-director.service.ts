@@ -23,16 +23,19 @@ import { BotRepository } from "../../repositories/bot.repository";
 import {
   LiveGameManagerService,
   GameInstance,
-} from "../../services/live-game-manager.service";
-import { BotCallerService } from "../../services/bot-caller.service";
-import { GameOwnershipService } from "../../services/game-ownership.service";
-import { RedisGameStateService } from "../../services/redis-game-state.service";
-import { RedisEventBusService } from "../../services/redis-event-bus.service";
+} from "../../services/game/live-game-manager.service";
+import { BotCallerService } from "../../services/bot/bot-caller.service";
+import { GameOwnershipService } from "../../services/game/game-ownership.service";
+import { RedisGameStateService } from "../../services/redis/redis-game-state.service";
+import { RedisEventBusService } from "../../services/redis/redis-event-bus.service";
 import {
   HANDS_PER_LEVEL,
   getBlindLevel,
   calculatePayouts,
-} from "../../../tournaments.config";
+} from "../../config/tournaments.config";
+import { Game } from "../../entities/game.entity";
+import { GamePlayer } from "../../entities/game-player.entity";
+import * as crypto from "crypto";
 
 const SEATS_PER_TABLE = 9;
 const BREAK_THRESHOLD = 4;
@@ -275,10 +278,12 @@ export class TournamentDirectorService
 
 class ActiveTournament {
   private tables = new Map<string, TableEntry>();
+  private tableHandNumbers = new Map<string, number>();
   private currentLevel = 1;
   private handsThisLevel = 0;
   private activeBots = new Map<string, BotInfo>();
   private bustOrder: string[] = [];
+  private bustedBots = new Set<string>();
   private running = false;
   private handLock = false;
   private totalEntrants: number;
@@ -360,12 +365,15 @@ class ActiveTournament {
       `Starting tournament ${this.name} with ${this.entries.length} players`,
     );
 
+    // Ensure starting_chips is a number (bigint from DB comes as string)
+    const startingChips = Number(this.config.starting_chips);
+
     for (const entry of this.entries) {
       this.activeBots.set(entry.bot_id, {
         botId: entry.bot_id,
         name: entry.bot?.name || "Unknown",
         endpoint: entry.bot?.endpoint || "",
-        chips: this.config.starting_chips,
+        chips: startingChips,
         tableDbId: null,
       });
     }
@@ -396,10 +404,17 @@ class ActiveTournament {
     tableNumber: number,
     bots: BotInfo[],
   ): Promise<void> {
-    const tableDbId = `${this.tournamentId}_table_${tableNumber}`;
-    const gameDbId = `${tableDbId}_game_${Date.now()}`;
+    // Use short UUIDs for database IDs (max 36 chars)
+    const tableDbId = crypto.randomUUID();
+    const gameDbId = crypto.randomUUID();
 
     const blindLevel = getBlindLevel(this.currentLevel);
+
+    await this.persistTournamentGame(tableDbId, gameDbId, bots, {
+      createTable: true,
+      tableNumber,
+      tableStatus: "active",
+    });
 
     const game = this.liveGameManager.createGameSync({
       tableId: tableDbId,
@@ -442,7 +457,90 @@ class ActiveTournament {
     }
 
     this.tables.set(tableDbId, tableEntry);
+    this.tableHandNumbers.set(tableDbId, 0);
     this.logger.log(`Created table ${tableNumber} with ${bots.length} players`);
+  }
+
+  private async persistTournamentGame(
+    tableDbId: string,
+    gameDbId: string,
+    bots: Array<{ botId: string; chips: number }>,
+    options?: {
+      createTable?: boolean;
+      tableNumber?: number;
+      tableStatus?: "active" | "broken" | "finished";
+    },
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const gameRepository = manager.getRepository(Game);
+      const gamePlayerRepository = manager.getRepository(GamePlayer);
+
+      await gameRepository.save(
+        gameRepository.create({
+          id: gameDbId,
+          table_id: tableDbId,
+          tournament_id: this.tournamentId,
+          status: "waiting",
+          total_hands: 0,
+          started_at: new Date(),
+          finished_at: null,
+        }),
+      );
+
+      if (options?.createTable) {
+        await this.tournamentRepository.createTable(
+          {
+            id: tableDbId,
+            tournament_id: this.tournamentId,
+            table_number: options.tableNumber,
+            status: options.tableStatus ?? "active",
+            game_id: gameDbId,
+          },
+          manager,
+        );
+      } else {
+        await this.tournamentRepository.updateTableGame(
+          tableDbId,
+          gameDbId,
+          manager,
+        );
+      }
+
+      for (const bot of bots) {
+        await gamePlayerRepository.save(
+          gamePlayerRepository.create({
+            game_id: gameDbId,
+            bot_id: bot.botId,
+            start_chips: bot.chips,
+            end_chips: null,
+          }),
+        );
+      }
+    });
+  }
+
+  private async finalizePersistedGame(
+    gameDbId: string,
+    players: Array<{ botId: string; chips: number }>,
+    totalHands: number,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const gameRepository = manager.getRepository(Game);
+      const gamePlayerRepository = manager.getRepository(GamePlayer);
+
+      await gameRepository.update(gameDbId, {
+        status: "finished",
+        total_hands: Math.max(0, totalHands),
+        finished_at: new Date(),
+      });
+
+      for (const player of players) {
+        await gamePlayerRepository.update(
+          { game_id: gameDbId, bot_id: player.botId },
+          { end_chips: player.chips },
+        );
+      }
+    });
   }
 
   private async startBlindLevel(level: number): Promise<void> {
@@ -533,12 +631,30 @@ class ActiveTournament {
 
         // Try to restart the game
         try {
+          await this.finalizePersistedGame(
+            tableEntry.gameDbId,
+            state.players.map((player) => ({
+              botId: player.id,
+              chips: player.chips,
+            })),
+            state.handNumber,
+          );
+
           tableEntry.game.stop();
           this.liveGameManager.removeGameSync(tableId);
 
           // Create new game for this table
           const blindLevel = getBlindLevel(this.currentLevel);
-          const newGameDbId = `${tableId}_game_${Date.now()}`;
+          const newGameDbId = crypto.randomUUID();
+
+          await this.persistTournamentGame(
+            tableId,
+            newGameDbId,
+            activePlayers.map((player) => ({
+              botId: player.id,
+              chips: player.chips,
+            })),
+          );
 
           const newGame = this.liveGameManager.createGameSync({
             tableId,
@@ -566,6 +682,7 @@ class ActiveTournament {
 
           tableEntry.game = newGame;
           tableEntry.gameDbId = newGameDbId;
+          this.tableHandNumbers.set(tableId, 0);
 
           this.logger.log(
             `Table ${tableEntry.tableNumber} recovered with ${activePlayers.length} players`,
@@ -585,8 +702,13 @@ class ActiveTournament {
 
       for (const player of state.players) {
         if (player.chips === 0 && !player.disconnected) {
+          if (this.bustedBots.has(player.id)) {
+            continue;
+          }
+
           const bot = this.activeBots.get(player.id);
           if (bot) {
+            this.bustedBots.add(player.id);
             this.bustOrder.push(player.id);
             this.activeBots.delete(player.id);
 
@@ -647,15 +769,64 @@ class ActiveTournament {
       (p) => !p.disconnected && p.chips > 0,
     );
 
+    const remainingTables = Array.from(this.tables.entries())
+      .filter(([id]) => id !== tableId)
+      .map(([, entry]) => entry);
+    const availableSeats = remainingTables.reduce(
+      (sum, entry) =>
+        sum +
+        Math.max(
+          0,
+          SEATS_PER_TABLE -
+            entry.game.players.filter((p) => !p.disconnected && p.chips > 0)
+              .length,
+        ),
+      0,
+    );
+
+    if (playersToMove.length > availableSeats) {
+      this.logger.warn(
+        `Cannot break table ${tableEntry.tableNumber}: ${playersToMove.length} players but only ${availableSeats} seats available`,
+      );
+      return;
+    }
+
+    await this.finalizePersistedGame(
+      tableEntry.gameDbId,
+      playersToMove.map((player) => ({
+        botId: player.id,
+        chips: player.chips,
+      })),
+      tableEntry.game.handNumber,
+    );
+    await this.tournamentRepository.updateTableStatus(tableId, "broken");
+
     tableEntry.game.stop();
     this.tables.delete(tableId);
+    this.tableHandNumbers.delete(tableId);
     this.liveGameManager.removeGameSync(tableId);
 
-    const remainingTables = Array.from(this.tables.values());
-    let targetIndex = 0;
-
     for (const player of playersToMove) {
-      const targetTable = remainingTables[targetIndex % remainingTables.length];
+      const targetTable = remainingTables
+        .filter(
+          (entry) =>
+            entry.game.players.filter((p) => !p.disconnected && p.chips > 0)
+              .length < SEATS_PER_TABLE,
+        )
+        .sort(
+          (left, right) =>
+            left.game.players.filter((p) => !p.disconnected && p.chips > 0)
+              .length -
+            right.game.players.filter((p) => !p.disconnected && p.chips > 0)
+              .length,
+        )[0];
+
+      if (!targetTable) {
+        throw new Error(
+          `No target table available while redistributing players from table ${tableEntry.tableNumber}`,
+        );
+      }
+
       targetTable.game.addPlayer({
         id: player.id,
         name: player.name,
@@ -668,7 +839,16 @@ class ActiveTournament {
         bot.tableDbId = targetTable.tableDbId;
       }
 
-      targetIndex++;
+      await this.tournamentRepository.seatBot({
+        tournament_id: this.tournamentId,
+        tournament_table_id: targetTable.tableDbId,
+        bot_id: player.id,
+        seat_number: targetTable.game.players.filter(
+          (p) => p.chips > 0 && !p.disconnected,
+        ).length,
+        chips: player.chips,
+        busted: false,
+      });
     }
 
     this.eventEmitter.emit("tournament.tableBreak", {
@@ -685,14 +865,42 @@ class ActiveTournament {
   }
 
   private async checkBlindLevelAdvance(): Promise<void> {
-    let totalHands = 0;
-    for (const [, tableEntry] of this.tables) {
-      totalHands += tableEntry.game.handNumber;
+    let completedHandsDelta = 0;
+    for (const [tableId, tableEntry] of this.tables) {
+      const currentHandNumber = tableEntry.game.handNumber;
+      const previousHandNumber = this.tableHandNumbers.get(tableId) ?? 0;
+
+      if (currentHandNumber > previousHandNumber) {
+        completedHandsDelta += currentHandNumber - previousHandNumber;
+      } else if (currentHandNumber < previousHandNumber) {
+        // Recovery recreates a table's live game and resets its local hand counter.
+        completedHandsDelta += currentHandNumber;
+      }
+
+      this.tableHandNumbers.set(tableId, currentHandNumber);
     }
 
-    const expectedHands = this.currentLevel * HANDS_PER_LEVEL;
-    if (totalHands >= expectedHands) {
+    if (completedHandsDelta > 0) {
+      this.handsThisLevel += completedHandsDelta;
+      await this.tournamentRepository.incrementLevelHands(
+        this.tournamentId,
+        this.currentLevel,
+        completedHandsDelta,
+      );
+    }
+
+    while (this.handsThisLevel >= HANDS_PER_LEVEL) {
+      const overflowHands = this.handsThisLevel - HANDS_PER_LEVEL;
       await this.startBlindLevel(this.currentLevel + 1);
+      this.handsThisLevel = overflowHands;
+
+      if (overflowHands > 0) {
+        await this.tournamentRepository.incrementLevelHands(
+          this.tournamentId,
+          this.currentLevel,
+          overflowHands,
+        );
+      }
 
       const blindLevel = getBlindLevel(this.currentLevel);
       for (const [, tableEntry] of this.tables) {
@@ -713,25 +921,34 @@ class ActiveTournament {
 
     const prizePool = this.totalEntrants * this.config.buy_in;
     const payouts = calculatePayouts(prizePool, this.totalEntrants);
+    const payoutByPosition = new Map(
+      payouts.map((payout) => [payout.position, payout.amount]),
+    );
 
-    for (let i = 0; i < payouts.length; i++) {
-      const position = payouts[i].position;
-      const amount = payouts[i].amount;
-      const botId = this.bustOrder[this.bustOrder.length - position];
-
-      if (botId) {
-        await this.tournamentRepository.setEntryPayout(
-          this.tournamentId,
-          botId,
-          amount,
-          position,
-        );
-      }
+    const finalOrder = [...this.bustOrder].reverse();
+    for (let index = 0; index < finalOrder.length; index++) {
+      const position = index + 1;
+      const botId = finalOrder[index];
+      await this.tournamentRepository.setEntryPayout(
+        this.tournamentId,
+        botId,
+        payoutByPosition.get(position) ?? 0,
+        position,
+      );
     }
 
     await this.tournamentRepository.updateStatus(this.tournamentId, "finished");
 
     for (const [tableId, tableEntry] of this.tables) {
+      await this.finalizePersistedGame(
+        tableEntry.gameDbId,
+        tableEntry.game.players.map((player) => ({
+          botId: player.id,
+          chips: player.chips,
+        })),
+        tableEntry.game.handNumber,
+      );
+      await this.tournamentRepository.updateTableStatus(tableId, "finished");
       tableEntry.game.stop();
       this.liveGameManager.removeGameSync(tableId);
     }

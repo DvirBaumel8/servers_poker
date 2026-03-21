@@ -623,6 +623,35 @@ Built-in functions reduce implementation complexity:
 
 ## Testing Strategy
 
+### Simulation Test Framework
+
+Integration tests that run real games through the actual backend services.
+
+**Tiers:**
+| Tier | Players | Duration | Run When |
+|------|---------|----------|----------|
+| Basic | 2 | ~30s | Every commit |
+| Single-Table | 9 | ~2-5min | Daily/PR |
+| Multi-Table | 30 | ~10-15min | Weekly/Release |
+
+**Commands:**
+```bash
+npm run sim:basic    # Fast check
+npm run sim:single   # Tournament mechanics
+npm run sim:multi    # Full lifecycle
+npm run sim:all      # Complete suite
+npm run sim:ci       # CI mode (basic only, fail fast)
+```
+
+**Location:** `tests/qa/simulations/`
+
+**Key Assertions:**
+- Chip conservation: Total chips remain constant
+- State consistency: DB matches in-memory
+- Event propagation: Tournament tracks eliminations
+- Error handling: Graceful recovery
+- Completion: Proper end state reached
+
 ### Three-Tier Test Structure
 
 **Unit Tests** (`tests/unit/`):
@@ -910,6 +939,179 @@ ANALYTICS_RETENTION_DAYS=90             # Days to keep analytics events
 
 ---
 
+## Tournament Director Improvements (2026-03)
+
+### Late Registration Support
+Tournament registration now works during running tournaments if within `late_reg_ends_level`:
+- `TournamentsService.register()` accepts optional `currentLevel` parameter
+- Controller fetches current level from `TournamentDirectorService.getTournamentState()`
+- Registration allowed if `currentLevel <= tournament.late_reg_ends_level`
+- Returns `lateRegistration: true` in response when late reg used
+
+### Proper Table Creation
+Tables are now correctly created in the database before seating players:
+- `TournamentDirectorService.createTable()` calls `tournamentRepository.createTable()` first
+- Creates `tournament_tables` record with proper UUID
+- Then creates `tournament_seats` records (satisfies FK constraint)
+- Uses `crypto.randomUUID()` for all IDs (fits varchar(36))
+
+### Leaderboard Synchronization
+Tournament leaderboard now reflects live chip counts:
+- Seats created when players added to tables via `tournamentRepository.seatBot()`
+- Chips synced periodically via `syncChipsToDatabase()` in game loop
+- Busted players marked via `tournamentRepository.bustSeat()`
+
+### Game Error Recovery
+Tournament director now recovers from game errors:
+- `checkAndRecoverErroredGames()` runs in game loop
+- Detects tables in "error" status
+- Recreates game instance with current chip counts
+- Moves players from broken tables if < 2 active
+- Logs recovery attempts
+
+### Player Bust Handling
+Busted players are now properly removed from games:
+- `checkForBustedPlayers()` calls `tableEntry.game.removePlayer()`
+- Updates `tournament_entries` with `finish_position` and `bust_level`
+- Updates `tournament_seats` with `busted: true`
+- Emits `tournament.playerBusted` event
+
+---
+
+## Visual & AI-Powered Testing Framework (2026-03)
+
+### Overview
+Comprehensive testing framework that enables AI agents to act as QA testers, automatically finding visual bugs, layout issues, and UI problems.
+
+### Test Categories
+
+**1. Visual Regression Testing**
+- Detects CSS/layout bugs like element overlaps
+- Uses browser MCP tools for automation
+- Takes screenshots for visual evidence
+
+**2. DOM Overlap Detection**
+- Programmatic detection of overlapping elements
+- Specifically designed to catch card/name overlaps at 9-player tables
+- Configurable overlap thresholds
+
+**3. WebSocket Real-time Tests**
+- Verifies UI updates correctly on WebSocket events
+- Tests: player joins, bets, folds, cards dealt, winner declared
+- Uses browser_snapshot with includeDiff for change detection
+
+**4. Responsive Viewport Tests**
+- Tests layout at various screen sizes
+- Desktop, tablet, and mobile viewports
+- Touch target size verification
+
+**5. Error State Tests**
+- Verifies error handling UI
+- Tests: 404/500, network offline, WebSocket disconnect, form validation
+
+**6. Performance/Load Tests**
+- Backend stress testing
+- Concurrent API requests, WebSocket connections
+- Concurrent game simulation
+
+**7. Network Resilience Tests**
+- Bot timeout handling
+- Slow response handling
+- Disconnection recovery
+
+### Usage
+
+```bash
+# Generate AI instructions for any test suite
+npm run test:visual -- ai "Game Table Visual"
+
+# Run load tests
+npm run test:load
+npm run test:load:ws
+npm run test:load:games
+
+# Run Storybook for component testing
+cd frontend && npm run storybook
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `tests/qa/visual/run-visual-tests.ts` | Main runner, generates AI instructions |
+| `tests/qa/visual/dom-overlap-detector.ts` | Overlap detection algorithms |
+| `tests/qa/visual/game-table-visual.test.ts` | Game table visual tests |
+| `tests/qa/performance/load-test.ts` | Load testing |
+| `frontend/src/components/game/Table.stories.tsx` | Storybook visual tests |
+
+### Storybook Stories
+
+Key test cases for visual regression:
+- `NinePlayers` - 9-player full table (overlap stress test)
+- `NinePlayersLongNames` - Maximum length names
+- `AllInMultiway` - Multiple all-ins
+- `MixedPlayerStates` - Folded, all-in, disconnected players
+
+---
+
+## QA Monster Framework (2026-03)
+
+The QA Monster is our comprehensive testing framework that finds bugs, UX issues, design inconsistencies, and raises opinions about the product.
+
+### Philosophy
+
+The Monster is not just a bug finder — it's an opinionated critic that:
+- Finds bugs (broken functionality)
+- Spots inconsistencies (visual, copy, behavior)
+- Questions UX decisions (too many clicks, confusing flows)
+- Raises opinions ("this feels wrong", "this could be better")
+
+### Development Workflow Integration
+
+**Every new feature MUST include QA Monster updates.**
+
+| Change Type | Monster Update |
+|-------------|----------------|
+| New page | Add to `PAGES` in `monster-config.ts` |
+| New flow | Add to `FLOWS` in `monster-config.ts` |
+| New form | Add validation edge cases |
+| New component | Add to `interactiveElements` |
+
+### Commands
+
+```bash
+# Full monster scan
+npm run qa:monster
+
+# Quick scan (before PR)
+npm run qa:monster:quick
+
+# Check coverage for a page
+npm run qa:coverage:check /your-page
+
+# See all coverage
+npm run qa:coverage
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `tests/qa/monster/monster-config.ts` | Pages, flows, viewports, checks |
+| `tests/qa/monster/generate-instructions.ts` | AI instruction generator |
+| `tests/qa/monster/check-coverage.ts` | Coverage checker |
+| `tests/qa/monster/CONTRIBUTING.md` | How to add to monster |
+| `docs/reports/QA-MONSTER-REPORT-V*.md` | Historical findings |
+
+### Finding Categories
+
+- **BUG**: Broken functionality (must fix)
+- **ISSUE**: Problematic behavior (should fix)
+- **CONCERN**: Suboptimal UX (consider fixing)
+- **OPINION**: Could be better (discuss)
+
+---
+
 ## Known Gaps / Future Work
 
 - **Scheduled tournament start** — `type:'scheduled'` exists but no timer fires at `scheduled_start_at`
@@ -918,5 +1120,8 @@ ANALYTICS_RETENTION_DAYS=90             # Days to keep analytics events
 - **Hand-for-hand bubble play** — not implemented for tournament bubble
 - **Dead button rule** — need to choose and implement consistently
 - **Client-provided seeds** — Players could provide their own client seed for extra transparency
+- **Duplicate results entries** — Race condition can cause same player to appear twice in results
+- **Game records not created** — Tournament games not persisted to `games` table (FK violations for hand_seeds)
+- **Missing finish positions** — Some eliminations don't record finish_position correctly
 
 For comprehensive edge case documentation, see `EDGE_CASES.md`.

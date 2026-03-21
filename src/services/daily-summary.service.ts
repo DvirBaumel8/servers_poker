@@ -9,7 +9,7 @@ import {
   DailySummaryData,
 } from "./platform-analytics.service";
 import { DailySummary } from "../entities/daily-summary.entity";
-import { RedisHealthService } from "./redis-health.service";
+import { RedisHealthService } from "./redis/redis-health.service";
 
 @Injectable()
 export class DailySummaryService implements OnModuleInit {

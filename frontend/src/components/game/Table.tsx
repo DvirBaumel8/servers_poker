@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { PlayerSeat } from "./PlayerSeat";
 import { CommunityCards } from "./CommunityCards";
 import { WinnerAnimation } from "./WinnerAnimation";
+import { PokerChipStack } from "../common/PokerChipStack";
 import type { GameState, HandResult } from "../../types";
 
 interface TableProps {
@@ -162,7 +163,7 @@ export function Table({
       <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
         {/* Game type / branding */}
         <div
-          className="absolute top-[18%] text-lg font-bold tracking-[0.3em] uppercase"
+          className="absolute top-[16%] text-lg font-bold tracking-[0.3em] uppercase"
           style={{
             color: "rgba(201,162,39,0.12)",
             textShadow: "0 0 20px rgba(201,162,39,0.05)",
@@ -172,7 +173,7 @@ export function Table({
         </div>
 
         {/* Community cards - centered in the middle of the table */}
-        <div className="absolute top-[38%]">
+        <div className="absolute top-[36%]">
           <CommunityCards cards={communityCards} stage={stage} />
         </div>
 
@@ -183,26 +184,15 @@ export function Table({
             animate={{ scale: 1 }}
             className="absolute top-[50%] flex flex-col items-center"
           >
-            <div className="flex items-center gap-1 mb-1">
-              <ChipStack size="sm" />
-            </div>
-            <div
-              className="px-5 py-1.5 rounded-full"
-              style={{
-                background: "rgba(0,0,0,0.7)",
-                backdropFilter: "blur(8px)",
-                border: "1px solid rgba(201,162,39,0.2)",
-                boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
-              }}
-            >
-              <span className="text-gray-400 text-xs mr-1.5">Pot</span>
-              <span className="font-bold text-sm" style={{ color: "#dbb842" }}>
-                {formatAmount(pot)}
-              </span>
+            <div className="rounded-[1.75rem] border border-white/8 bg-black/35 px-5 py-3 backdrop-blur-xl">
+              <div className="mb-1 text-center text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                Main pot
+              </div>
+              <PokerChipStack amount={pot} size="sm" />
             </div>
             {/* Hand info - directly below pot */}
             {handNumber > 0 && status !== "waiting" && (
-              <div className="mt-1 text-white/40 text-xs">
+              <div className="mt-2 text-white/40 text-xs">
                 Hand #{handNumber} • {formatStage(stage)}
               </div>
             )}
@@ -265,46 +255,21 @@ export function Table({
                   transform: "translate(-50%, -50%)",
                 }}
               >
-                <ChipStack size="xs" />
-                <span className="text-white text-sm font-semibold bg-black/40 px-2 py-0.5 rounded">
-                  {formatAmount(player.bet)}
-                </span>
+                <div className="rounded-2xl border border-white/8 bg-black/35 px-3 py-2 backdrop-blur-xl">
+                  <PokerChipStack
+                    amount={player.bet}
+                    size="xs"
+                    showValue={false}
+                  />
+                  <div className="mt-1 text-center text-xs font-semibold text-white">
+                    {formatAmount(player.bet)}
+                  </div>
+                </div>
               </motion.div>
             )}
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function ChipStack({ size = "sm" }: { size?: "xs" | "sm" | "md" }) {
-  const sizeClasses = {
-    xs: "w-4 h-4",
-    sm: "w-5 h-5",
-    md: "w-6 h-6",
-  };
-
-  return (
-    <div className="flex -space-x-1">
-      <div
-        className={clsx(
-          "rounded-full bg-gradient-to-b from-red-400 to-red-600 border border-red-300 shadow",
-          sizeClasses[size],
-        )}
-      />
-      <div
-        className={clsx(
-          "rounded-full bg-gradient-to-b from-blue-400 to-blue-600 border border-blue-300 shadow",
-          sizeClasses[size],
-        )}
-      />
-      <div
-        className={clsx(
-          "rounded-full bg-gradient-to-b from-green-400 to-green-600 border border-green-300 shadow",
-          sizeClasses[size],
-        )}
-      />
     </div>
   );
 }

@@ -17,6 +17,15 @@ import {
 import { analyticsApi, AdminStats } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTracking } from "../utils/analytics";
+import {
+  AlertBanner,
+  Button,
+  LoadingBlock,
+  PageHeader,
+  PageShell,
+  SegmentedTabs,
+  SurfaceCard,
+} from "../components/ui/primitives";
 
 function formatNumber(num: number): string {
   if (num >= 1_000_000) {
@@ -49,16 +58,26 @@ interface KPICardProps {
   color?: string;
 }
 
-function KPICard({ title, value, subtitle, trend, color = "accent" }: KPICardProps) {
+function KPICard({
+  title,
+  value,
+  subtitle,
+  trend,
+  color = "accent",
+}: KPICardProps) {
   return (
-    <div className="glass-panel p-6">
+    <SurfaceCard className="p-6">
       <div className="text-sm text-gray-400 mb-2">{title}</div>
-      <div className={`text-3xl font-bold text-${color === "accent" ? "accent" : "white"}`}>
+      <div
+        className={
+          color === "accent"
+            ? "gold-gradient-text text-3xl font-bold"
+            : "text-3xl font-bold text-white"
+        }
+      >
         {typeof value === "number" ? formatNumber(value) : value}
       </div>
-      {subtitle && (
-        <div className="text-sm text-gray-500 mt-1">{subtitle}</div>
-      )}
+      {subtitle && <div className="text-sm text-gray-500 mt-1">{subtitle}</div>}
       {trend !== undefined && (
         <div
           className={`text-sm mt-2 ${trend >= 0 ? "text-green-400" : "text-red-400"}`}
@@ -66,7 +85,7 @@ function KPICard({ title, value, subtitle, trend, color = "accent" }: KPICardPro
           {trend >= 0 ? "↑" : "↓"} {Math.abs(trend)}% from yesterday
         </div>
       )}
-    </div>
+    </SurfaceCard>
   );
 }
 
@@ -110,41 +129,28 @@ export function AdminAnalytics() {
 
   if (user?.role !== "admin") {
     return (
-      <div className="container mx-auto px-6 py-12">
-        <div className="glass-panel p-8 text-center">
+      <PageShell>
+        <SurfaceCard className="p-8 text-center">
           <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
           <p className="text-gray-400">
             You need admin privileges to view this page.
           </p>
-        </div>
-      </div>
+        </SurfaceCard>
+      </PageShell>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-6 py-12">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-surface-400 rounded w-48" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-surface-400 rounded-lg" />
-            ))}
-          </div>
-          <div className="h-80 bg-surface-400 rounded-lg" />
-        </div>
-      </div>
+      <LoadingBlock label="Loading platform analytics" className="page-shell" />
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-6 py-12">
-        <div className="glass-panel p-8 text-center border-red-500/20">
-          <h1 className="text-2xl font-bold text-white mb-4">Error</h1>
-          <p className="text-red-400">{error}</p>
-        </div>
-      </div>
+      <PageShell>
+        <AlertBanner title="Analytics load failed">{error}</AlertBanner>
+      </PageShell>
     );
   }
 
@@ -159,49 +165,44 @@ export function AdminAnalytics() {
   }));
 
   return (
-    <div className="container mx-auto px-6 py-8">
+    <PageShell className="space-y-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-8"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">
-              Platform Analytics
-            </h1>
-            <p className="text-gray-400 mt-1">
-              Real-time metrics and performance data
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <select
-              value={days}
-              onChange={(e) => setDays(parseInt(e.target.value))}
-              className="bg-surface-400 border border-white/10 rounded-lg px-4 py-2 text-white"
-            >
-              <option value={7}>Last 7 days</option>
-              <option value={14}>Last 14 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
-            </select>
-            <button
-              onClick={handleTriggerSummary}
-              disabled={isSendingSummary}
-              className="btn-primary px-4 py-2"
-            >
-              {isSendingSummary ? "Sending..." : "Send Daily Summary"}
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          eyebrow="Admin analytics"
+          title="Platform analytics"
+          description="Real-time metrics and performance data for the full poker platform."
+          actions={
+            <>
+              <SegmentedTabs
+                value={String(days)}
+                onChange={(value) => setDays(parseInt(value))}
+                items={[
+                  { value: "7", label: "7d" },
+                  { value: "14", label: "14d" },
+                  { value: "30", label: "30d" },
+                  { value: "90", label: "90d" },
+                ]}
+              />
+              <Button
+                onClick={handleTriggerSummary}
+                disabled={isSendingSummary}
+              >
+                {isSendingSummary ? "Sending..." : "Send Daily Summary"}
+              </Button>
+            </>
+          }
+        />
 
         {summaryMessage && (
-          <div
-            className={`p-4 rounded-lg ${summaryMessage.includes("success") ? "bg-green-500/10 border border-green-500/20 text-green-400" : "bg-red-500/10 border border-red-500/20 text-red-400"}`}
+          <AlertBanner
+            tone={summaryMessage.includes("success") ? "success" : "danger"}
           >
             {summaryMessage}
-          </div>
+          </AlertBanner>
         )}
 
         {/* KPI Cards */}
@@ -513,6 +514,6 @@ export function AdminAnalytics() {
           Last updated: {new Date(stats.generatedAt).toLocaleString()}
         </div>
       </motion.div>
-    </div>
+    </PageShell>
   );
 }

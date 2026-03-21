@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
+import { DataSource } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { UserRepository } from "../../repositories/user.repository";
 import { BotRepository } from "../../repositories/bot.repository";
@@ -25,15 +26,26 @@ import {
 import { JwtPayload } from "./strategies/jwt.strategy";
 import { EmailService } from "../../services/email.service";
 import { UrlValidatorService } from "../../common/validators/url-validator.service";
+import { getLikelyEmailSuggestion, normalizeEmail } from "./email-guard";
 
 interface RegisterResponse {
   message: string;
   email: string;
   requiresVerification: boolean;
+  verificationCode?: string;
 }
 
 const SALT_ROUNDS = 12;
 const _MAX_BOTS_PER_ACCOUNT = 10;
+
+// Account lockout configuration
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const FAILED_ATTEMPT_RESET_MS = 30 * 60 * 1000; // Reset counter after 30 minutes of no failures
+
+// API key configuration
+const API_KEY_EXPIRY_DAYS = 90; // API keys expire after 90 days
+const API_KEY_WARNING_DAYS = 14; // Warn when key expires in 14 days
 
 @Injectable()
 export class AuthService {
@@ -46,44 +58,67 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
     private readonly urlValidator: UrlValidatorService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async register(dto: RegisterDto): Promise<RegisterResponse> {
-    const existingUser = await this.userRepository.findByEmail(dto.email);
-    if (existingUser) {
-      if (existingUser.email_verified) {
-        throw new ConflictException("Email already registered");
-      }
-      // Update password and resend verification code for unverified user
-      const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-      await this.userRepository.update(existingUser.id, {
-        password_hash: passwordHash,
-        name: dto.name,
-      });
-      await this.sendVerificationCode(existingUser);
-      return {
-        message: "Verification code sent to your email",
-        email: dto.email,
-        requiresVerification: true,
-      };
+    const email = normalizeEmail(dto.email);
+    const suggestedEmail = getLikelyEmailSuggestion(email);
+    if (suggestedEmail) {
+      throw new BadRequestException(
+        `Please double-check your email address. Did you mean ${suggestedEmail}?`,
+      );
     }
 
+    // Pre-hash password before transaction to minimize lock time
     const { hash: apiKeyHash } = this.userRepository.generateApiKey();
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-
     const verificationCode = this.emailService.generateVerificationCode();
     const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    const user = await this.userRepository.create({
-      email: dto.email,
-      name: dto.name,
-      password_hash: passwordHash,
-      api_key_hash: apiKeyHash,
-      role: "user",
-      email_verified: false,
-      verification_code: verificationCode,
-      verification_code_expires_at: verificationExpires,
-    });
+    // Use transaction to prevent race condition (TOCTOU vulnerability)
+    // Also rely on database UNIQUE constraint as final safeguard
+    let user: User;
+    try {
+      user = await this.dataSource.transaction(async (manager) => {
+        // Check within transaction for atomicity
+        const existingUser = await this.userRepository.findByEmail(
+          email,
+          manager,
+        );
+        if (existingUser) {
+          throw new ConflictException(
+            "Email already registered. Please verify your email or resend the verification code.",
+          );
+        }
+
+        return await this.userRepository.create(
+          {
+            email,
+            name: dto.name,
+            password_hash: passwordHash,
+            api_key_hash: apiKeyHash,
+            role: "user",
+            email_verified: false,
+            verification_code: verificationCode,
+            verification_code_expires_at: verificationExpires,
+          },
+          manager,
+        );
+      });
+    } catch (error) {
+      // Catch database unique constraint violation (PostgreSQL error code 23505)
+      if (
+        error instanceof ConflictException ||
+        (error as any)?.code === "23505" ||
+        (error as any)?.message?.includes("duplicate key")
+      ) {
+        throw new ConflictException(
+          "Email already registered. Please verify your email or resend the verification code.",
+        );
+      }
+      throw error;
+    }
 
     await this.emailService.sendVerificationCode(user.email, verificationCode);
     this.logger.log(`Verification code sent to ${user.email}`);
@@ -92,11 +127,14 @@ export class AuthService {
       message: "Verification code sent to your email",
       email: user.email,
       requiresVerification: true,
+      ...(this.shouldExposeVerificationCode() ? { verificationCode } : {}),
     };
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponseDto> {
-    const user = await this.userRepository.findByEmail(dto.email);
+    const user = await this.userRepository.findByEmail(
+      normalizeEmail(dto.email),
+    );
     if (!user) {
       throw new BadRequestException("User not found");
     }
@@ -151,8 +189,10 @@ export class AuthService {
 
   async resendVerificationCode(
     dto: ResendVerificationDto,
-  ): Promise<{ message: string }> {
-    const user = await this.userRepository.findByEmail(dto.email);
+  ): Promise<{ message: string; verificationCode?: string }> {
+    const user = await this.userRepository.findByEmail(
+      normalizeEmail(dto.email),
+    );
     if (!user) {
       // Don't reveal if email exists
       return { message: "If the email exists, a verification code was sent" };
@@ -162,11 +202,14 @@ export class AuthService {
       throw new BadRequestException("Email already verified");
     }
 
-    await this.sendVerificationCode(user);
-    return { message: "Verification code sent to your email" };
+    const verificationCode = await this.sendVerificationCode(user);
+    return {
+      message: "Verification code sent to your email",
+      ...(this.shouldExposeVerificationCode() ? { verificationCode } : {}),
+    };
   }
 
-  private async sendVerificationCode(user: User): Promise<void> {
+  private async sendVerificationCode(user: User): Promise<string> {
     const verificationCode = this.emailService.generateVerificationCode();
     const verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -177,12 +220,38 @@ export class AuthService {
 
     await this.emailService.sendVerificationCode(user.email, verificationCode);
     this.logger.log(`Verification code resent to ${user.email}`);
+    return verificationCode;
   }
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
-    const user = await this.userRepository.findByEmail(dto.email);
+    const user = await this.userRepository.findByEmail(
+      normalizeEmail(dto.email),
+    );
     if (!user) {
       throw new UnauthorizedException("Invalid credentials");
+    }
+
+    // Check if account is locked
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      const remainingMs = new Date(user.locked_until).getTime() - Date.now();
+      const remainingMinutes = Math.ceil(remainingMs / 60000);
+      this.logger.warn(`Login attempt on locked account: ${user.email}`);
+      throw new UnauthorizedException(
+        `Account is temporarily locked. Try again in ${remainingMinutes} minute${remainingMinutes > 1 ? "s" : ""}`,
+      );
+    }
+
+    // Reset failed attempts if last failure was long ago
+    if (
+      user.last_failed_login_at &&
+      Date.now() - new Date(user.last_failed_login_at).getTime() >
+        FAILED_ATTEMPT_RESET_MS
+    ) {
+      await this.userRepository.update(user.id, {
+        failed_login_attempts: 0,
+        last_failed_login_at: null,
+      });
+      user.failed_login_attempts = 0;
     }
 
     // Verify password
@@ -191,6 +260,7 @@ export class AuthService {
       user.password_hash,
     );
     if (!isPasswordValid) {
+      await this.handleFailedLogin(user);
       throw new UnauthorizedException("Invalid credentials");
     }
 
@@ -204,7 +274,13 @@ export class AuthService {
       );
     }
 
-    await this.userRepository.update(user.id, { last_login_at: new Date() });
+    // Successful login - reset failed attempts and update last login
+    await this.userRepository.update(user.id, {
+      last_login_at: new Date(),
+      failed_login_attempts: 0,
+      locked_until: null,
+      last_failed_login_at: null,
+    });
 
     const tokens = this.generateTokens(user);
 
@@ -219,8 +295,28 @@ export class AuthService {
     };
   }
 
+  private async handleFailedLogin(user: User): Promise<void> {
+    const newFailedAttempts = (user.failed_login_attempts || 0) + 1;
+
+    const updateData: Partial<User> = {
+      failed_login_attempts: newFailedAttempts,
+      last_failed_login_at: new Date(),
+    };
+
+    if (newFailedAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+      updateData.locked_until = new Date(Date.now() + LOCKOUT_DURATION_MS);
+      this.logger.warn(
+        `Account locked due to ${newFailedAttempts} failed login attempts: ${user.email}`,
+      );
+    }
+
+    await this.userRepository.update(user.id, updateData);
+  }
+
   async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
-    const user = await this.userRepository.findByEmail(dto.email);
+    const user = await this.userRepository.findByEmail(
+      normalizeEmail(dto.email),
+    );
 
     // Always return same message to prevent email enumeration
     const successMessage =
@@ -245,7 +341,9 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    const user = await this.userRepository.findByEmail(dto.email);
+    const user = await this.userRepository.findByEmail(
+      normalizeEmail(dto.email),
+    );
     if (!user) {
       throw new BadRequestException("Invalid reset request");
     }
@@ -287,19 +385,15 @@ export class AuthService {
   async registerDeveloper(
     dto: RegisterDeveloperDto,
   ): Promise<RegisterDeveloperResponseDto> {
-    // 1. Validate email is not already registered
-    const existingUser = await this.userRepository.findByEmail(dto.email);
-    if (existingUser) {
-      throw new ConflictException("Email already registered");
+    const email = normalizeEmail(dto.email);
+    const suggestedEmail = getLikelyEmailSuggestion(email);
+    if (suggestedEmail) {
+      throw new BadRequestException(
+        `Please double-check your email address. Did you mean ${suggestedEmail}?`,
+      );
     }
 
-    // 2. Validate bot name is not taken
-    const existingBot = await this.botRepository.findByName(dto.botName);
-    if (existingBot) {
-      throw new ConflictException(`Bot name '${dto.botName}' already exists`);
-    }
-
-    // 3. Validate bot endpoint URL
+    // 1. Validate bot endpoint URL (do before transaction)
     const urlValidation = await this.urlValidator.validateWithHealthCheck(
       dto.botEndpoint,
       5000,
@@ -308,30 +402,88 @@ export class AuthService {
       throw new BadRequestException(urlValidation.error);
     }
 
-    // 4. Create user (skip email verification for developers)
+    // 2. Pre-hash password before transaction to minimize lock time
     const { raw: apiKey, hash: apiKeyHash } =
       this.userRepository.generateApiKey();
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
 
-    const user = await this.userRepository.create({
-      email: dto.email,
-      name: dto.name,
-      password_hash: passwordHash,
-      api_key_hash: apiKeyHash,
-      role: "user",
-      email_verified: true, // Skip verification for API registration
-    });
+    // 3. Use transaction to create user + bot atomically
+    let user: User;
+    let bot: any;
+    try {
+      const result = await this.dataSource.transaction(async (manager) => {
+        // Check email within transaction
+        const existingUser = await this.userRepository.findByEmail(
+          email,
+          manager,
+        );
+        if (existingUser) {
+          throw new ConflictException("Email already registered");
+        }
 
-    // 5. Create bot
-    const bot = await this.botRepository.create({
-      name: dto.botName,
-      endpoint: dto.botEndpoint,
-      description: dto.botDescription,
-      user_id: user.id,
-      active: true,
-    });
+        // Check bot name within transaction
+        const existingBot = await this.botRepository.findByName(
+          dto.botName,
+          manager,
+        );
+        if (existingBot) {
+          throw new ConflictException(
+            `Bot name '${dto.botName}' already exists`,
+          );
+        }
 
-    // 6. Generate JWT tokens
+        // Create user
+        const newUser = await this.userRepository.create(
+          {
+            email,
+            name: dto.name,
+            password_hash: passwordHash,
+            api_key_hash: apiKeyHash,
+            role: "user",
+            email_verified: true, // Skip verification for API registration
+          },
+          manager,
+        );
+
+        // Create bot
+        const newBot = await this.botRepository.create(
+          {
+            name: dto.botName,
+            endpoint: dto.botEndpoint,
+            description: dto.botDescription,
+            user_id: newUser.id,
+            active: true,
+          },
+          manager,
+        );
+
+        return { user: newUser, bot: newBot };
+      });
+      user = result.user;
+      bot = result.bot;
+    } catch (error) {
+      // Catch database unique constraint violations
+      if (
+        error instanceof ConflictException ||
+        (error as any)?.code === "23505"
+      ) {
+        if ((error as any)?.message?.includes("email")) {
+          throw new ConflictException("Email already registered");
+        }
+        if (
+          (error as any)?.message?.includes("bot") ||
+          (error as any)?.message?.includes("name")
+        ) {
+          throw new ConflictException(
+            `Bot name '${dto.botName}' already exists`,
+          );
+        }
+        throw error;
+      }
+      throw error;
+    }
+
+    // 4. Generate JWT tokens
     const tokens = this.generateTokens(user);
 
     this.logger.log(`Developer registered: ${user.email} with bot ${bot.name}`);
@@ -354,14 +506,95 @@ export class AuthService {
     };
   }
 
-  async validateApiKey(apiKey: string): Promise<User | null> {
-    return this.userRepository.findByApiKey(apiKey);
+  async validateApiKey(
+    apiKey: string,
+  ): Promise<{ user: User | null; expired?: boolean; expiresIn?: number }> {
+    const user = await this.userRepository.findByApiKey(apiKey);
+    if (!user) {
+      return { user: null };
+    }
+
+    // Check if API key has expired
+    if (
+      user.api_key_expires_at &&
+      new Date(user.api_key_expires_at) < new Date()
+    ) {
+      this.logger.warn(`Expired API key used for user: ${user.email}`);
+      return { user: null, expired: true };
+    }
+
+    // Update last used timestamp
+    await this.userRepository.update(user.id, {
+      api_key_last_used_at: new Date(),
+    });
+
+    // Calculate days until expiry
+    let expiresIn: number | undefined;
+    if (user.api_key_expires_at) {
+      expiresIn = Math.ceil(
+        (new Date(user.api_key_expires_at).getTime() - Date.now()) /
+          (1000 * 60 * 60 * 24),
+      );
+    }
+
+    return { user, expiresIn };
   }
 
-  async regenerateApiKey(userId: string): Promise<{ apiKey: string }> {
+  async regenerateApiKey(
+    userId: string,
+  ): Promise<{ apiKey: string; expiresAt: Date }> {
     const { raw, hash } = this.userRepository.generateApiKey();
-    await this.userRepository.update(userId, { api_key_hash: hash });
-    return { apiKey: raw };
+    const expiresAt = new Date(
+      Date.now() + API_KEY_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    await this.userRepository.update(userId, {
+      api_key_hash: hash,
+      api_key_created_at: new Date(),
+      api_key_expires_at: expiresAt,
+      api_key_last_used_at: null,
+    });
+
+    this.logger.log(
+      `API key regenerated for user ${userId}, expires: ${expiresAt.toISOString()}`,
+    );
+
+    return { apiKey: raw, expiresAt };
+  }
+
+  async getApiKeyStatus(userId: string): Promise<{
+    createdAt: Date | null;
+    expiresAt: Date | null;
+    lastUsedAt: Date | null;
+    daysUntilExpiry: number | null;
+    needsRotation: boolean;
+  }> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new BadRequestException("User not found");
+    }
+
+    let daysUntilExpiry: number | null = null;
+    let needsRotation = false;
+
+    if (user.api_key_expires_at) {
+      daysUntilExpiry = Math.ceil(
+        (new Date(user.api_key_expires_at).getTime() - Date.now()) /
+          (1000 * 60 * 60 * 24),
+      );
+      needsRotation = daysUntilExpiry <= API_KEY_WARNING_DAYS;
+    } else {
+      // Legacy key without expiry - needs rotation
+      needsRotation = true;
+    }
+
+    return {
+      createdAt: user.api_key_created_at,
+      expiresAt: user.api_key_expires_at,
+      lastUsedAt: user.api_key_last_used_at,
+      daysUntilExpiry,
+      needsRotation,
+    };
   }
 
   private generateTokens(user: User): {
@@ -407,5 +640,9 @@ export class AuthService {
       default:
         return 86400;
     }
+  }
+
+  private shouldExposeVerificationCode(): boolean {
+    return this.configService.get<string>("nodeEnv") !== "production";
   }
 }

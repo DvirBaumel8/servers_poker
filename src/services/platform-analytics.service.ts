@@ -222,14 +222,14 @@ export class PlatformAnalyticsService {
   }
 
   private liveGameManager:
-    | import("./live-game-manager.service").LiveGameManagerService
+    | import("./game/live-game-manager.service").LiveGameManagerService
     | null = null;
   private tournamentDirector:
     | import("../modules/tournaments/tournament-director.service").TournamentDirectorService
     | null = null;
 
   setLiveServices(
-    liveGameManager: import("./live-game-manager.service").LiveGameManagerService,
+    liveGameManager: import("./game/live-game-manager.service").LiveGameManagerService,
     tournamentDirector: import("../modules/tournaments/tournament-director.service").TournamentDirectorService,
   ): void {
     this.liveGameManager = liveGameManager;

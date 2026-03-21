@@ -1,11 +1,23 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, type ChangeEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { authApi } from "../api/auth";
+import { getEmailValidationMessage, normalizeEmail } from "../utils/email";
+import { normalizeRedirectPath } from "../utils/navigation";
+import {
+  AlertBanner,
+  Button,
+  PasswordField,
+  SurfaceCard,
+  TextField,
+} from "../components/ui/primitives";
 
 export function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = normalizeRedirectPath(searchParams.get("redirectTo"));
   const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -15,6 +27,14 @@ export function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    const normalizedEmail = normalizeEmail(email);
+    const emailValidationMessage = getEmailValidationMessage(normalizedEmail);
+
+    if (emailValidationMessage) {
+      setEmailTouched(true);
+      setError(emailValidationMessage);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -28,9 +48,19 @@ export function Register() {
 
     setIsLoading(true);
     try {
-      const response = await authApi.register({ email, username, password });
+      const response = await authApi.register({
+        email: normalizedEmail,
+        username,
+        password,
+      });
       if (response.requiresVerification) {
-        navigate("/verify-email", { state: { email } });
+        navigate("/verify-email", {
+          state: {
+            email: normalizedEmail,
+            devVerificationCode: response.verificationCode,
+            redirectTo,
+          },
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -40,6 +70,20 @@ export function Register() {
   };
 
   const clearError = () => setError(null);
+  const normalizedEmail = normalizeEmail(email);
+  const canRecoverExistingEmail =
+    !!normalizedEmail &&
+    !!error &&
+    error.toLowerCase().includes("email already registered");
+  const goToVerification = () => {
+    clearError();
+    navigate("/verify-email", {
+      state: {
+        email: normalizedEmail,
+        redirectTo,
+      },
+    });
+  };
 
   const displayError = error;
 
@@ -50,118 +94,104 @@ export function Register() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <div className="bg-gray-800/50 rounded-2xl p-8 border border-gray-700">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">
-              Create Account
+        <SurfaceCard className="space-y-8 p-8">
+          <div className="space-y-3 text-center">
+            <div className="eyebrow-label">Create workspace</div>
+            <h1 className="text-3xl font-display font-semibold text-white">
+              Join the arena
             </h1>
-            <p className="text-gray-400">Join the poker bot arena</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {displayError && (
-              <div
-                className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg cursor-pointer"
-                onClick={() => clearError()}
-              >
-                {displayError}
-              </div>
-            )}
-
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent"
-                placeholder="pokerpro99"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoading ? "Creating account..." : "Create Account"}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-gray-400">
-              Already have an account?{" "}
-              <Link
-                to="/login"
-                className="text-poker-gold hover:text-yellow-400 font-medium"
-              >
-                Sign in
-              </Link>
+            <p className="text-sm leading-6 text-slate-400">
+              Set up your account and start deploying bots into live poker
+              traffic.
             </p>
           </div>
-        </div>
+
+          <form noValidate onSubmit={handleSubmit} className="space-y-5">
+            {displayError && (
+              <AlertBanner
+                dismissible
+                onDismiss={clearError}
+                title="Registration failed"
+              >
+                <div className="space-y-3">
+                  <p>{displayError}</p>
+                  {canRecoverExistingEmail && (
+                    <button
+                      type="button"
+                      onClick={goToVerification}
+                      className="inline-flex items-center gap-2 font-medium text-accent underline decoration-accent/60 underline-offset-4 transition hover:text-accent-light hover:decoration-accent-light"
+                    >
+                      Go to verification page
+                    </button>
+                  )}
+                </div>
+              </AlertBanner>
+            )}
+
+            <TextField
+              label="Email"
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                setEmail(e.target.value);
+              }}
+              onBlur={() => setEmailTouched(true)}
+              required
+              placeholder="you@example.com"
+              error={
+                emailTouched ? (getEmailValidationMessage(email) ?? undefined) : undefined
+              }
+            />
+            <TextField
+              label="Display name"
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setUsername(e.target.value)
+              }
+              required
+              placeholder="Baumal"
+              hint="Shown in your workspace and across the product. This is not a unique login handle."
+            />
+            <PasswordField
+              label="Password"
+              id="password"
+              value={password}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setPassword(e.target.value)
+              }
+              required
+              minLength={8}
+              placeholder="••••••••"
+            />
+            <PasswordField
+              label="Confirm password"
+              id="confirmPassword"
+              value={confirmPassword}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setConfirmPassword(e.target.value)
+              }
+              required
+              placeholder="••••••••"
+            />
+
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading ? "Creating account..." : "Create Account"}
+            </Button>
+          </form>
+
+          <div className="space-y-2 text-center text-sm text-slate-400">
+            <p>Already have an account?</p>
+            <Link
+              to={`/login${redirectTo !== "/" ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ""}`}
+              className="inline-flex items-center gap-2 font-medium text-accent underline decoration-accent/60 underline-offset-4 transition hover:text-accent-light hover:decoration-accent-light"
+            >
+              Sign in
+            </Link>
+          </div>
+        </SurfaceCard>
       </motion.div>
     </div>
   );

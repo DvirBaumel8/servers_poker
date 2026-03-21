@@ -13,33 +13,33 @@ export function LeaderboardTable({
   return (
     <div
       className={clsx(
-        "bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 overflow-hidden",
+        "overflow-hidden rounded-3xl border border-white/8 bg-[linear-gradient(180deg,rgba(24,35,52,0.82),rgba(12,18,30,0.9))] shadow-panel",
         className,
       )}
     >
       <table className="w-full">
         <thead>
-          <tr className="bg-gray-900/50">
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+          <tr className="bg-black/10">
+            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
               Rank
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
               Bot
             </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">
+            <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
               Chips
             </th>
-            <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">
+            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
               Status
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-700">
+        <tbody className="divide-y divide-white/6">
           {entries.map((entry, index) => (
             <tr
               key={entry.botId}
               className={clsx(
-                "hover:bg-gray-700/50 transition-colors",
+                "transition-colors hover:bg-white/[0.03]",
                 entry.busted && "opacity-50",
               )}
             >
@@ -50,7 +50,7 @@ export function LeaderboardTable({
                     index === 0 && "text-yellow-400",
                     index === 1 && "text-gray-300",
                     index === 2 && "text-amber-600",
-                    index > 2 && "text-gray-400",
+                    index > 2 && "text-slate-400",
                   )}
                 >
                   #{entry.position}
@@ -66,9 +66,9 @@ export function LeaderboardTable({
               </td>
               <td className="px-4 py-3 text-center">
                 {entry.busted ? (
-                  <span className="text-red-400 text-sm">Busted</span>
+                  <span className="text-sm text-red-300">Busted</span>
                 ) : (
-                  <span className="text-green-400 text-sm">Active</span>
+                  <span className="text-sm text-emerald-300">Active</span>
                 )}
               </td>
             </tr>

@@ -189,10 +189,41 @@ describe("TournamentsService", () => {
       mockTournamentRepository.findById.mockResolvedValue({
         ...mockTournament,
         status: "running",
+        late_reg_ends_level: 4,
       });
 
+      // No currentLevel provided, should reject
       await expect(
         service.register("tourney-123", "bot-123", "user-123"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("should allow late registration when within late_reg_ends_level", async () => {
+      mockTournamentRepository.findById.mockResolvedValue({
+        ...mockTournament,
+        status: "running",
+        late_reg_ends_level: 4,
+      });
+      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockTournamentRepository.getEntries.mockResolvedValue([]);
+      mockTournamentRepository.createEntry.mockResolvedValue({});
+
+      // currentLevel 2 is within late_reg_ends_level 4
+      await service.register("tourney-123", "bot-123", "user-123", 2);
+
+      expect(mockTournamentRepository.createEntry).toHaveBeenCalled();
+    });
+
+    it("should reject late registration when past late_reg_ends_level", async () => {
+      mockTournamentRepository.findById.mockResolvedValue({
+        ...mockTournament,
+        status: "running",
+        late_reg_ends_level: 4,
+      });
+
+      // currentLevel 5 is past late_reg_ends_level 4
+      await expect(
+        service.register("tourney-123", "bot-123", "user-123", 5),
       ).rejects.toThrow(BadRequestException);
     });
 

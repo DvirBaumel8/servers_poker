@@ -1,13 +1,21 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { gamesApi } from "../api/games";
 import type { LeaderboardEntry } from "../types";
+import {
+  AlertBanner,
+  EmptyState,
+  LoadingBlock,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  SegmentedTabs,
+  SurfaceCard,
+} from "../components/ui/primitives";
 
 type TimeRange = "all" | "month" | "week";
 
 export function Leaderboard() {
-  const navigate = useNavigate();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,154 +47,149 @@ export function Leaderboard() {
     loadLeaderboard();
   }, [loadLeaderboard]);
 
+  const topNet = entries[0]?.totalNet ?? 0;
+  const topHands = entries[0]?.totalHands ?? 0;
+  const showLoadingState = loading;
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-            clipRule="evenodd"
+    <PageShell className="space-y-8">
+      <PageHeader
+        eyebrow="Leaderboard"
+        title="Platform performance rankings"
+        description="Track top-performing bots across all time, the current month, or the current week."
+        actions={
+          <SegmentedTabs
+            value={timeRange}
+            onChange={setTimeRange}
+            items={[
+              { value: "all", label: "All time" },
+              { value: "month", label: "This month" },
+              { value: "week", label: "This week" },
+            ]}
           />
-        </svg>
-        Back
-      </button>
-
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Leaderboard</h1>
-          <p className="text-gray-400 mt-1">
-            Top performing bots on the platform
-          </p>
-        </div>
-
-        <div className="flex gap-2">
-          {(["all", "month", "week"] as TimeRange[]).map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                timeRange === range
-                  ? "bg-poker-gold text-gray-900"
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              }`}
-            >
-              {range === "all"
-                ? "All Time"
-                : range === "month"
-                  ? "This Month"
-                  : "This Week"}
-            </button>
-          ))}
-        </div>
-      </div>
+        }
+      />
 
       {error && (
-        <div
-          className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 cursor-pointer"
-          onClick={() => setError(null)}
+        <AlertBanner
+          dismissible
+          onDismiss={() => setError(null)}
+          title="Leaderboard unavailable"
         >
           {error}
-        </div>
+        </AlertBanner>
       )}
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-poker-gold"></div>
-        </div>
-      ) : entries.length === 0 ? (
-        <div className="text-center py-12 bg-gray-800/50 rounded-xl border border-gray-700">
-          <div className="text-6xl mb-4">🏆</div>
-          <h3 className="text-xl font-bold text-white mb-2">No rankings yet</h3>
-          <p className="text-gray-400">
-            Play some games to start building the leaderboard!
-          </p>
-        </div>
+      {showLoadingState ? (
+        <LoadingBlock label="Loading leaderboard" />
       ) : (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden"
-        >
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-800/80">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Rank
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Bot
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Net Profit
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Games
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Wins
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Hands
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700">
-              {entries.map((entry, index) => (
-                <tr key={entry.botId} className="hover:bg-gray-700/50">
-                  <td className="px-6 py-4">
-                    <span
-                      className={`text-2xl font-bold ${
-                        index === 0
-                          ? "text-yellow-400"
-                          : index === 1
-                            ? "text-gray-300"
-                            : index === 2
-                              ? "text-amber-600"
-                              : "text-gray-500"
-                      }`}
-                    >
-                      #{index + 1}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-white font-bold">
-                      {entry.botName}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span
-                      className={`font-bold ${
-                        entry.totalNet >= 0 ? "text-green-400" : "text-red-400"
-                      }`}
-                    >
-                      {entry.totalNet >= 0 ? "+" : ""}
-                      {entry.totalNet.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right text-white">
-                    {entry.totalTournaments}
-                  </td>
-                  <td className="px-6 py-4 text-right text-poker-gold font-bold">
-                    {entry.tournamentWins}
-                  </td>
-                  <td className="px-6 py-4 text-right text-gray-400">
-                    {entry.totalHands.toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <MetricCard
+              label="Ranked bots"
+              value={entries.length}
+              hint="Bots with reported results"
+              accent
+            />
+            <MetricCard
+              label="Top net"
+              value={
+                topNet >= 0
+                  ? `+${topNet.toLocaleString()}`
+                  : topNet.toLocaleString()
+              }
+              hint="Current best leaderboard profit"
+            />
+            <MetricCard
+              label="Top sample size"
+              value={topHands.toLocaleString()}
+              hint="Hands played by current leader"
+            />
+          </div>
+          {entries.length === 0 ? (
+        <EmptyState
+          title="No leaderboard data yet"
+          description="As bots complete games and tournaments, rankings will appear here."
+        />
+          ) : (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <SurfaceCard className="overflow-hidden p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-black/10">
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Rank
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Bot
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Net profit
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Games
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Wins
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Hands
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/6">
+                  {entries.map((entry, index) => (
+                    <tr key={entry.botId} className="hover:bg-white/[0.03]">
+                      <td className="px-6 py-4">
+                        <span
+                          className={`text-2xl font-semibold ${
+                            index === 0
+                              ? "text-yellow-300"
+                              : index === 1
+                                ? "text-slate-300"
+                                : index === 2
+                                  ? "text-amber-500"
+                                  : "text-slate-500"
+                          }`}
+                        >
+                          #{index + 1}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-semibold text-white">
+                        {entry.botName}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span
+                          className={
+                            entry.totalNet >= 0
+                              ? "font-semibold text-emerald-300"
+                              : "font-semibold text-red-300"
+                          }
+                        >
+                          {entry.totalNet >= 0 ? "+" : ""}
+                          {entry.totalNet.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right text-white">
+                        {entry.totalTournaments}
+                      </td>
+                      <td className="px-6 py-4 text-right font-semibold text-accent">
+                        {entry.tournamentWins}
+                      </td>
+                      <td className="px-6 py-4 text-right text-slate-400">
+                        {entry.totalHands.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SurfaceCard>
         </motion.div>
+          )}
+        </>
       )}
-    </div>
+    </PageShell>
   );
 }

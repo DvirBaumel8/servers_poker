@@ -37,11 +37,13 @@ A No-Limit Texas Hold'em tournament platform where developers build bot servers 
 - **Testing:** Vitest
 
 ### Frontend
-- **Framework:** React 18 with TypeScript
+- **Framework:** React 19 with TypeScript
 - **State:** Zustand
 - **Styling:** Tailwind CSS
 - **Animations:** Framer Motion
 - **Build:** Vite
+- **Component docs:** Storybook
+- **Frontend tests:** Vitest + Testing Library
 
 ---
 
@@ -135,22 +137,25 @@ servers_poker/
 │       └── runner.ts                — CLI entry point
 ├── frontend/                          — React SPA (Vite + TypeScript)
 │   ├── src/
-│   │   ├── App.tsx                  — Main router with auth
+│   │   ├── App.tsx                  — Main router with shell split + route guards
 │   │   ├── main.tsx                 — React entry point
 │   │   ├── components/              — React components
-│   │   │   ├── game/                — Table, PlayerSeat, Card
-│   │   │   ├── common/              — ChipStack, Timer
+│   │   │   ├── game/                — Gameplay HUD, table, seats, result surfaces
+│   │   │   ├── common/              — PlayingCard, PokerChipStack, Timer
 │   │   │   ├── tournament/          — TournamentCard, LeaderboardTable
-│   │   │   └── layout/              — Layout with nav + auth
+│   │   │   ├── ui/                  — Shared FE primitives
+│   │   │   └── layout/              — Marketing, auth, product, and game shells
 │   │   ├── pages/                   — Route pages
-│   │   │   ├── Home.tsx             — Landing page
-│   │   │   ├── Tables.tsx           — Cash game tables list
-│   │   │   ├── GameView.tsx         — Live game view with WebSocket
-│   │   │   ├── Tournaments.tsx      — Tournament list
-│   │   │   ├── TournamentDetail.tsx — Single tournament
-│   │   │   ├── Bots.tsx             — Bot management with active panel
-│   │   │   ├── BotProfile.tsx       — Bot activity + auto-registration UI
-│   │   │   ├── Leaderboard.tsx      — Rankings
+│   │   │   ├── Home.tsx             — Marketing landing page
+│   │   │   ├── Tables.tsx           — Cash game lobby
+│   │   │   ├── GameView.tsx         — Live game shell with HUD + side activity
+│   │   │   ├── Tournaments.tsx      — Tournament lobby
+│   │   │   ├── TournamentDetail.tsx — Tournament workspace
+│   │   │   ├── Bots.tsx             — Bot directory + owned bot workspace
+│   │   │   ├── BotProfile.tsx       — Bot performance + subscriptions workspace
+│   │   │   ├── Leaderboard.tsx      — Rankings workspace
+│   │   │   ├── Profile.tsx          — Account + API key workspace
+│   │   │   ├── AdminAnalytics.tsx   — Admin analytics workspace
 │   │   │   ├── Login.tsx            — Authentication
 │   │   │   └── Register.tsx         — Registration
 │   │   ├── hooks/                   — Custom hooks
@@ -165,6 +170,7 @@ servers_poker/
 │   │   │   ├── games.ts             — Tables/state/history
 │   │   │   ├── bots.ts              — Bot CRUD
 │   │   │   └── tournaments.ts       — Tournament CRUD
+│   │   ├── test/                    — Frontend test setup utilities
 │   │   └── types/                   — TypeScript types
 │   └── public/                      — Static assets
 ├── tests/
@@ -199,6 +205,34 @@ servers_poker/
 ```
 
 ---
+
+## Frontend Runtime Architecture
+
+The redesigned frontend is organized around explicit shells:
+
+- `MarketingLayout`
+  - public landing experience
+- `AuthLayout`
+  - login, registration, verification, and password recovery
+- `Layout`
+  - main product workspace for lobbies, workspaces, profile, and admin analytics
+- `GameLayout`
+  - isolated gameplay surface for `/game/:tableId`
+
+The shared FE design system lives in:
+
+- `frontend/tailwind.config.js`
+- `frontend/src/index.css`
+- `frontend/src/components/ui/primitives.tsx`
+
+This system centralizes:
+
+- tokens for color, panel surfaces, lines, shadows, and status semantics
+- shared page scaffolding (`PageShell`, `PageHeader`, `SurfaceCard`)
+- shared interaction patterns (`Button`, `TextField`, `SegmentedTabs`)
+- shared state patterns (`LoadingBlock`, `EmptyState`, `AlertBanner`, `AppModal`, `ConfirmDialog`)
+
+See `docs/FRONTEND_UI_SYSTEM.md` for the FE-specific rules and contribution model.
 
 ## Core Components
 

@@ -1,10 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useCallback, type ChangeEvent } from "react";
+import { motion } from "framer-motion";
 import { gamesApi, type Table } from "../api/games";
 import { botsApi } from "../api/bots";
 import { useAuthStore } from "../stores/authStore";
 import type { Bot } from "../types";
+import {
+  AlertBanner,
+  AppModal,
+  Button,
+  EmptyState,
+  LoadingBlock,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  StatusPill,
+  SurfaceCard,
+  TextField,
+} from "../components/ui/primitives";
 
 interface CreateTableForm {
   name: string;
@@ -20,6 +32,7 @@ export function Tables() {
   const [myBots, setMyBots] = useState<Bot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accountWarning, setAccountWarning] = useState<string | null>(null);
 
   // Create table modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -43,12 +56,22 @@ export function Tables() {
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
+      setAccountWarning(null);
       const tablesData = await gamesApi.getTables();
       setTables(tablesData);
 
       if (token) {
-        const botsData = await botsApi.getMy(token);
-        setMyBots(botsData.filter((b) => b.active));
+        try {
+          const botsData = await botsApi.getMy(token);
+          setMyBots(botsData.filter((b) => b.active));
+        } catch (err) {
+          setMyBots([]);
+          setAccountWarning(
+            err instanceof Error
+              ? err.message
+              : "Unable to load your bot inventory",
+          );
+        }
       }
 
       setError(null);
@@ -117,405 +140,407 @@ export function Tables() {
     setShowJoinModal(true);
   };
 
+  const liveTableCount = tables.filter(
+    (table) => table.status === "running",
+  ).length;
+  const openSeats = tables.reduce(
+    (sum, table) => sum + Math.max(table.maxPlayers - table.currentPlayers, 0),
+    0,
+  );
+
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-poker-gold"></div>
-      </div>
-    );
+    return <LoadingBlock label="Loading live tables" className="page-shell" />;
   }
 
   return (
-    <div className="container mx-auto px-6 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-white">
-            Cash Tables
-          </h1>
-          <p className="text-gray-500 mt-2">
-            Watch live games or join with your bot
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={loadData} className="btn-secondary text-sm">
-            Refresh
-          </button>
-          {user && (
-            <button
-              onClick={() => {
-                setCreateError(null);
-                setShowCreateModal(true);
-              }}
-              className="btn-primary text-sm"
-            >
-              + Create Table
-            </button>
-          )}
-        </div>
+    <PageShell className="space-y-8">
+      <PageHeader
+        eyebrow="Live cash game lobby"
+        title="Production-grade table overview"
+        description="Monitor running tables, preview open seats, and deploy one of your bots directly into a live game."
+        actions={
+          <>
+            <Button variant="secondary" onClick={loadData}>
+              Refresh
+            </Button>
+            {user && (
+              <Button
+                onClick={() => {
+                  setCreateError(null);
+                  setShowCreateModal(true);
+                }}
+              >
+                Create table
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard
+          label="Live tables"
+          value={liveTableCount}
+          hint="Currently dealing hands"
+          accent
+        />
+        <MetricCard
+          label="Open seats"
+          value={openSeats}
+          hint="Immediate bot entry opportunities"
+        />
+        <MetricCard
+          label="Available bots"
+          value={user ? myBots.length : "—"}
+          hint={
+            user ? "Active bots eligible to join" : "Sign in to deploy a bot"
+          }
+        />
       </div>
 
       {error && (
-        <div
-          className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 cursor-pointer"
-          onClick={() => setError(null)}
+        <AlertBanner
+          dismissible
+          onDismiss={() => setError(null)}
+          title="Unable to load table data"
         >
           {error}
-        </div>
+        </AlertBanner>
+      )}
+
+      {accountWarning && (
+        <AlertBanner
+          dismissible
+          onDismiss={() => setAccountWarning(null)}
+          title="Account-only data unavailable"
+        >
+          Live tables loaded, but your private bot list could not be refreshed.
+          {` ${accountWarning}`}
+        </AlertBanner>
       )}
 
       {tables.length === 0 ? (
-        <div className="text-center py-12 bg-gray-800/50 rounded-xl border border-gray-700">
-          <div className="text-6xl mb-4">🎰</div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            No Active Tables
-          </h2>
-          <p className="text-gray-400 mb-4">
-            {user
-              ? "Create a table to start playing!"
-              : "No tables are currently running. Check back later!"}
-          </p>
-          {user && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-6 py-2 bg-poker-gold text-gray-900 rounded-lg font-medium hover:bg-yellow-400 transition-colors"
-            >
-              Create First Table
-            </button>
-          )}
-        </div>
+        <EmptyState
+          title="No live tables available"
+          description={
+            user
+              ? "Create the first live table and start routing bots into gameplay."
+              : "No tables are currently running. Return shortly or sign in to create one."
+          }
+          action={
+            user ? (
+              <Button
+                onClick={() => {
+                  setCreateError(null);
+                  setShowCreateModal(true);
+                }}
+              >
+                Create first table
+              </Button>
+            ) : (
+              <Button variant="secondary" asLink="/login">
+                Sign in to create a table
+              </Button>
+            )
+          }
+        />
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 xl:grid-cols-2">
           {tables.map((table, index) => (
             <motion.div
               key={table.id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.08 }}
-              className="table-card"
+              transition={{ delay: index * 0.05 }}
             >
-              <div className="flex justify-between items-start mb-5">
-                <h3 className="text-lg font-semibold text-white">
-                  {table.name}
-                </h3>
-                <span
-                  className={
-                    table.status === "running"
-                      ? "status-running"
-                      : table.status === "waiting"
-                        ? "status-waiting"
-                        : "status-finished"
-                  }
-                >
-                  {table.status === "running" && (
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5 animate-pulse" />
-                  )}
-                  {table.status}
-                </span>
-              </div>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Blinds</span>
-                  <span className="text-white font-medium">
-                    {table.smallBlind} / {table.bigBlind}
-                  </span>
+              <SurfaceCard className="space-y-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">
+                      {table.name}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Table watch mode with direct spectator access and bot
+                      deployment.
+                    </p>
+                  </div>
+                  <StatusPill
+                    label={table.status}
+                    tone={
+                      table.status === "running"
+                        ? "success"
+                        : table.status === "waiting"
+                          ? "warning"
+                          : "neutral"
+                    }
+                    pulse={table.status === "running"}
+                  />
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Players</span>
-                  <div className="flex items-center gap-2">
-                    <div className="flex -space-x-1">
-                      {Array.from({
-                        length: Math.min(table.currentPlayers, 5),
-                      }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-5 h-5 rounded-full bg-gradient-to-br from-accent/60 to-accent-dark/60 border border-surface-400"
-                        />
-                      ))}
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <SurfaceCard muted className="space-y-2">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Blinds
                     </div>
-                    <span className="text-white font-medium">
+                    <div className="text-2xl font-semibold text-white">
+                      {table.smallBlind} / {table.bigBlind}
+                    </div>
+                  </SurfaceCard>
+                  <SurfaceCard muted className="space-y-2">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Seats filled
+                    </div>
+                    <div className="text-2xl font-semibold text-white">
                       {table.currentPlayers}/{table.maxPlayers}
+                    </div>
+                  </SurfaceCard>
+                  <SurfaceCard muted className="space-y-2">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Availability
+                    </div>
+                    <div className="text-2xl font-semibold text-white">
+                      {Math.max(table.maxPlayers - table.currentPlayers, 0)}
+                    </div>
+                  </SurfaceCard>
+                </div>
+
+                <div className="rounded-3xl border border-white/6 bg-white/[0.03] p-4">
+                  <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-500">
+                    <span>Seat preview</span>
+                    <span>
+                      {table.currentPlayers > 0
+                        ? "Live occupancy"
+                        : "Awaiting players"}
                     </span>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from({ length: table.maxPlayers }).map((_, i) => {
+                      const filled = i < table.currentPlayers;
+                      return (
+                        <div
+                          key={i}
+                          className={
+                            filled
+                              ? "h-10 w-10 rounded-full border border-accent/20 bg-accent/15"
+                              : "h-10 w-10 rounded-full border border-dashed border-white/10 bg-white/[0.02]"
+                          }
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-5 pt-4 border-t border-white/5 flex gap-2">
-                <Link
-                  to={`/game/${table.id}`}
-                  className="btn-secondary flex-1 text-center text-sm py-2.5"
-                >
-                  Watch
-                </Link>
-                {user && table.currentPlayers < table.maxPlayers && (
-                  <button
-                    onClick={() => openJoinModal(table)}
-                    disabled={myBots.length === 0}
-                    className="btn-primary flex-1 text-sm py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                    title={
-                      myBots.length === 0
-                        ? "Create a bot first"
-                        : "Join with your bot"
-                    }
+                <div className="flex flex-wrap gap-3 border-t border-white/6 pt-4">
+                  <Button
+                    variant="secondary"
+                    asLink={`/game/${table.id}`}
+                    className="flex-1"
                   >
-                    Join
-                  </button>
-                )}
-              </div>
+                    Watch table
+                  </Button>
+                  {user && table.currentPlayers < table.maxPlayers && (
+                    <Button
+                      onClick={() => openJoinModal(table)}
+                      disabled={myBots.length === 0}
+                      className="flex-1"
+                    >
+                      Join with bot
+                    </Button>
+                  )}
+                </div>
+              </SurfaceCard>
             </motion.div>
           ))}
         </div>
       )}
 
-      {/* Create Table Modal */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowCreateModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700"
-              onClick={(e) => e.stopPropagation()}
+      <AppModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create cash table"
+        description="Configure the live table structure and open it to spectators and bot seats."
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="create-table-form"
+              disabled={createLoading}
             >
-              <h2 className="text-2xl font-bold text-white mb-6">
-                Create Table
-              </h2>
-
-              <form onSubmit={handleCreateTable} className="space-y-4">
-                {createError && (
-                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
-                    {createError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Table Name
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.name}
-                    onChange={(e) =>
-                      setCreateForm({ ...createForm, name: e.target.value })
-                    }
-                    required
-                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    placeholder="High Stakes Table"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Small Blind
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.small_blind}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          small_blind: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={1}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Big Blind
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.big_blind}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          big_blind: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={1}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Max Players
-                    </label>
-                    <select
-                      value={createForm.max_players}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          max_players: parseInt(e.target.value),
-                        })
-                      }
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    >
-                      {[2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                        <option key={n} value={n}>
-                          {n} players
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Starting Chips
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.starting_chips}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          starting_chips: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={100}
-                      step={100}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createLoading}
-                    className="flex-1 px-4 py-3 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
-                  >
-                    {createLoading ? "Creating..." : "Create Table"}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Join Table Modal */}
-      <AnimatePresence>
-        {showJoinModal && joiningTable && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowJoinModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700"
-              onClick={(e) => e.stopPropagation()}
+              {createLoading ? "Creating..." : "Create table"}
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="create-table-form"
+          onSubmit={handleCreateTable}
+          className="space-y-4"
+        >
+          {createError && (
+            <AlertBanner title="Create table failed">{createError}</AlertBanner>
+          )}
+          <TextField
+            label="Table name"
+            value={createForm.name}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setCreateForm({ ...createForm, name: e.target.value })
+            }
+            placeholder="High Stakes Arena"
+            required
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              label="Small blind"
+              type="number"
+              min={1}
+              value={createForm.small_blind}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  small_blind: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+            <TextField
+              label="Big blind"
+              type="number"
+              min={1}
+              value={createForm.big_blind}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  big_blind: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              label="Max players"
+              select
+              value={createForm.max_players}
+              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  max_players: parseInt(e.target.value),
+                })
+              }
             >
-              <h2 className="text-2xl font-bold text-white mb-2">Join Table</h2>
-              <p className="text-gray-400 mb-6">
-                Select a bot to join{" "}
-                <span className="text-white">{joiningTable.name}</span>
-              </p>
+              {[2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                <option key={n} value={n}>
+                  {n} seats
+                </option>
+              ))}
+            </TextField>
+            <TextField
+              label="Starting chips"
+              type="number"
+              min={100}
+              step={100}
+              value={createForm.starting_chips}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  starting_chips: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+          </div>
+        </form>
+      </AppModal>
 
-              <form onSubmit={handleJoinTable} className="space-y-4">
-                {joinError && (
-                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
-                    {joinError}
-                  </div>
-                )}
+      <AppModal
+        open={showJoinModal && !!joiningTable}
+        onClose={() => setShowJoinModal(false)}
+        title="Deploy a bot into the table"
+        description={
+          joiningTable
+            ? `Select which active bot should join ${joiningTable.name}.`
+            : ""
+        }
+        footer={
+          myBots.length > 0 ? (
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setShowJoinModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="join-table-form"
+                disabled={joinLoading || !selectedBotId}
+              >
+                {joinLoading ? "Joining..." : "Join table"}
+              </Button>
+            </div>
+          ) : undefined
+        }
+      >
+        <form
+          id="join-table-form"
+          onSubmit={handleJoinTable}
+          className="space-y-4"
+        >
+          {joinError && (
+            <AlertBanner title="Join failed">{joinError}</AlertBanner>
+          )}
+          {myBots.length === 0 ? (
+            <EmptyState
+              title="No active bots available"
+              description="Create and activate a bot before trying to join a live table."
+              action={
+                <Button variant="secondary" asLink="/bots">
+                  Go to bots
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              <TextField
+                label="Bot to deploy"
+                select
+                value={selectedBotId}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                  setSelectedBotId(e.target.value)
+                }
+                required
+              >
+                {myBots.map((bot) => (
+                  <option key={bot.id} value={bot.id}>
+                    {bot.name}
+                  </option>
+                ))}
+              </TextField>
 
-                {myBots.length === 0 ? (
-                  <div className="text-center py-4">
-                    <p className="text-gray-400 mb-4">
-                      You don't have any active bots. Create one first!
-                    </p>
-                    <Link
-                      to="/bots"
-                      className="text-poker-gold hover:text-yellow-400 font-medium"
-                    >
-                      Go to Bots →
-                    </Link>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Select Bot
-                      </label>
-                      <select
-                        value={selectedBotId}
-                        onChange={(e) => setSelectedBotId(e.target.value)}
-                        required
-                        className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                      >
-                        {myBots.map((bot) => (
-                          <option key={bot.id} value={bot.id}>
-                            {bot.name}
-                          </option>
-                        ))}
-                      </select>
+              {joiningTable && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <SurfaceCard muted>
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Blinds
                     </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 text-sm">
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-400">Blinds</span>
-                        <span className="text-white">
-                          {joiningTable.smallBlind} / {joiningTable.bigBlind}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Players</span>
-                        <span className="text-white">
-                          {joiningTable.currentPlayers} /{" "}
-                          {joiningTable.maxPlayers}
-                        </span>
-                      </div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {joiningTable.smallBlind} / {joiningTable.bigBlind}
                     </div>
-
-                    <div className="flex gap-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => setShowJoinModal(false)}
-                        className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={joinLoading || !selectedBotId}
-                        className="flex-1 px-4 py-3 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
-                      >
-                        {joinLoading ? "Joining..." : "Join Table"}
-                      </button>
+                  </SurfaceCard>
+                  <SurfaceCard muted>
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Current seats
                     </div>
-                  </>
-                )}
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {joiningTable.currentPlayers} / {joiningTable.maxPlayers}
+                    </div>
+                  </SurfaceCard>
+                </div>
+              )}
+            </>
+          )}
+        </form>
+      </AppModal>
+    </PageShell>
   );
 }

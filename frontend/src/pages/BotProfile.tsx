@@ -1,9 +1,23 @@
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useCallback, type ChangeEvent } from "react";
+import { useParams, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { botsApi } from "../api/bots";
 import { useAuthStore } from "../stores/authStore";
 import type { Bot, BotActivity, BotSubscription } from "../types";
+import {
+  AlertBanner,
+  AppModal,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  LoadingBlock,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  StatusPill,
+  SurfaceCard,
+  TextField,
+} from "../components/ui/primitives";
 
 interface BotProfileData {
   bot: Bot;
@@ -20,7 +34,6 @@ interface BotProfileData {
 
 export function BotProfile() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { user, token } = useAuthStore();
   const [profile, setProfile] = useState<BotProfileData | null>(null);
   const [activity, setActivity] = useState<BotActivity | null>(null);
@@ -29,6 +42,9 @@ export function BotProfile() {
   const [error, setError] = useState<string | null>(null);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [confirmDeleteSubId, setConfirmDeleteSubId] = useState<string | null>(
+    null,
+  );
   const [subscriptionForm, setSubscriptionForm] = useState({
     tournament_type_filter: "" as "" | "rolling" | "scheduled",
     min_buy_in: "",
@@ -80,7 +96,8 @@ export function BotProfile() {
       await botsApi.createSubscription(
         id,
         {
-          tournament_type_filter: subscriptionForm.tournament_type_filter || undefined,
+          tournament_type_filter:
+            subscriptionForm.tournament_type_filter || undefined,
           min_buy_in: subscriptionForm.min_buy_in
             ? parseInt(subscriptionForm.min_buy_in)
             : undefined,
@@ -127,7 +144,6 @@ export function BotProfile() {
 
   const handleDeleteSubscription = async (subId: string) => {
     if (!id || !token) return;
-    if (!confirm("Are you sure you want to delete this subscription?")) return;
 
     try {
       await botsApi.deleteSubscription(id, subId, token);
@@ -140,62 +156,75 @@ export function BotProfile() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-poker-gold"></div>
-      </div>
-    );
+    return <LoadingBlock label="Loading bot profile" className="page-shell" />;
   }
 
   if (error || !profile) {
     return (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">🤖</div>
-        <h3 className="text-xl font-bold text-white mb-2">Bot Not Found</h3>
-        <p className="text-gray-400 mb-4">{error || "Unable to load bot"}</p>
-        <button
-          onClick={() => navigate("/bots")}
-          className="px-6 py-2 bg-poker-gold text-gray-900 rounded-lg font-medium hover:bg-yellow-400 transition-colors"
-        >
-          Back to Bots
-        </button>
-      </div>
+      <PageShell>
+        <EmptyState
+          title="Bot not found"
+          description={error || "Unable to load this bot profile."}
+          action={
+            <Button variant="secondary" asLink="/bots">
+              Back to bots
+            </Button>
+          }
+        />
+      </PageShell>
     );
   }
 
   const { bot, stats, vpip, pfr, aggression } = profile;
 
   return (
-    <div>
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-            clipRule="evenodd"
+    <PageShell className="space-y-8">
+      <PageHeader
+        backHref="/bots"
+        backLabel="Back to bots"
+        eyebrow="Bot profile"
+        title={bot.name}
+        description={
+          bot.description ||
+          "Bot detail workspace with live activity and auto-registration rules."
+        }
+        actions={
+          <StatusPill
+            label={
+              activity?.isActive
+                ? "active now"
+                : bot.active
+                  ? "ready"
+                  : "paused"
+            }
+            tone={
+              activity?.isActive ? "success" : bot.active ? "info" : "neutral"
+            }
+            pulse={!!activity?.isActive}
           />
-        </svg>
-        Back
-      </button>
+        }
+      />
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      {error && (
+        <AlertBanner
+          dismissible
+          onDismiss={() => setError(null)}
+          title="Bot profile error"
+        >
+          {error}
+        </AlertBanner>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="lg:col-span-1"
         >
-          <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
+          <SurfaceCard className="space-y-6">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-poker-gold/20 rounded-full flex items-center justify-center">
-                <span className="text-3xl">🤖</span>
+              <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-accent/12 text-lg font-bold text-accent">
+                AI
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">{bot.name}</h1>
@@ -215,37 +244,18 @@ export function BotProfile() {
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-900/50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-white">
-                  {stats.totalHands}
-                </div>
-                <div className="text-xs text-gray-400">Hands Played</div>
-              </div>
-              <div className="bg-gray-900/50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-white">
-                  {stats.totalTournaments}
-                </div>
-                <div className="text-xs text-gray-400">Tournaments</div>
-              </div>
-              <div className="bg-gray-900/50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-white">
-                  {stats.tournamentWins}
-                </div>
-                <div className="text-xs text-gray-400">Wins</div>
-              </div>
-              <div className="bg-gray-900/50 rounded-lg p-4 text-center">
-                <div
-                  className={`text-2xl font-bold ${stats.totalNet >= 0 ? "text-green-400" : "text-red-400"}`}
-                >
-                  {stats.totalNet >= 0 ? "+" : ""}
-                  {stats.totalNet.toLocaleString()}
-                </div>
-                <div className="text-xs text-gray-400">Net Chips</div>
-              </div>
+              <MetricCard label="Hands" value={stats.totalHands} />
+              <MetricCard label="Tournaments" value={stats.totalTournaments} />
+              <MetricCard label="Wins" value={stats.tournamentWins} />
+              <MetricCard
+                label="Net chips"
+                value={`${stats.totalNet >= 0 ? "+" : ""}${stats.totalNet.toLocaleString()}`}
+                accent={stats.totalNet >= 0}
+              />
             </div>
 
-            <div className="mt-6 pt-6 border-t border-gray-700">
-              <h3 className="text-sm font-semibold text-gray-300 mb-4">
+            <div className="mt-2 border-t border-white/6 pt-6">
+              <h3 className="mb-4 text-sm font-semibold text-gray-300">
                 Playing Style
               </h3>
               <div className="space-y-3">
@@ -262,7 +272,7 @@ export function BotProfile() {
                 />
               </div>
             </div>
-          </div>
+          </SurfaceCard>
         </motion.div>
 
         <motion.div
@@ -272,30 +282,27 @@ export function BotProfile() {
           className="lg:col-span-2"
         >
           {isOwner && (
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
+            <SurfaceCard className="mb-6 space-y-4">
+              <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-white">
                   Auto-Registration Subscriptions
                 </h2>
-                <button
-                  onClick={() => setShowSubscriptionModal(true)}
-                  className="px-4 py-2 bg-poker-gold text-gray-900 text-sm font-medium rounded-lg hover:bg-yellow-400 transition-colors"
-                >
+                <Button onClick={() => setShowSubscriptionModal(true)}>
                   + Add Subscription
-                </button>
+                </Button>
               </div>
 
               {subscriptions.length === 0 ? (
-                <p className="text-gray-400 text-sm">
-                  No auto-registration subscriptions. Add one to automatically
-                  register this bot in tournaments.
-                </p>
+                <EmptyState
+                  title="No subscriptions"
+                  description="Add an auto-registration rule to let this bot enter tournaments automatically."
+                />
               ) : (
                 <div className="space-y-3">
                   {subscriptions.map((sub) => (
                     <div
                       key={sub.id}
-                      className="bg-gray-900/50 rounded-lg p-4 flex items-center justify-between"
+                      className="surface-card-muted flex items-center justify-between"
                     >
                       <div>
                         <div className="flex items-center gap-2">
@@ -327,34 +334,30 @@ export function BotProfile() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
+                        <Button
+                          variant="secondary"
                           onClick={() => handleToggleSubscription(sub)}
-                          className={`px-3 py-1 text-sm rounded-lg ${
-                            sub.status === "active"
-                              ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"
-                              : "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                          }`}
                         >
                           {sub.status === "active" ? "Pause" : "Resume"}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSubscription(sub.id)}
-                          className="px-3 py-1 text-sm rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => setConfirmDeleteSubId(sub.id)}
                         >
                           Delete
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </SurfaceCard>
           )}
 
           {activity?.isActive ? (
             <div className="space-y-6">
               {activity.activeGames.length > 0 && (
-                <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
+                <SurfaceCard className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                     <h2 className="text-lg font-bold text-white">
@@ -393,11 +396,11 @@ export function BotProfile() {
                       </Link>
                     ))}
                   </div>
-                </div>
+                </SurfaceCard>
               )}
 
               {activity.activeTournaments.length > 0 && (
-                <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
+                <SurfaceCard className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-2 h-2 bg-poker-gold rounded-full animate-pulse"></div>
                     <h2 className="text-lg font-bold text-white">
@@ -445,20 +448,14 @@ export function BotProfile() {
                       </Link>
                     ))}
                   </div>
-                </div>
+                </SurfaceCard>
               )}
             </div>
           ) : (
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-12 text-center">
-              <div className="text-5xl mb-4">💤</div>
-              <h3 className="text-xl font-bold text-white mb-2">
-                Bot is Currently Offline
-              </h3>
-              <p className="text-gray-400">
-                This bot is not participating in any active games or tournaments
-                right now.
-              </p>
-            </div>
+            <EmptyState
+              title="Bot currently offline"
+              description="This bot is not participating in any active games or tournaments right now."
+            />
           )}
         </motion.div>
       </div>
@@ -471,7 +468,19 @@ export function BotProfile() {
         form={subscriptionForm}
         setForm={setSubscriptionForm}
       />
-    </div>
+      <ConfirmDialog
+        open={!!confirmDeleteSubId}
+        title="Delete subscription"
+        description="This bot will stop auto-registering under the selected rule."
+        confirmLabel="Delete subscription"
+        onClose={() => setConfirmDeleteSubId(null)}
+        onConfirm={async () => {
+          if (!confirmDeleteSubId) return;
+          await handleDeleteSubscription(confirmDeleteSubId);
+          setConfirmDeleteSubId(null);
+        }}
+      />
+    </PageShell>
   );
 }
 
@@ -531,119 +540,76 @@ function SubscriptionModal({
     }>
   >;
 }) {
-  if (!show) return null;
-
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700"
-          onClick={(e) => e.stopPropagation()}
+    <AppModal
+      open={show}
+      onClose={onClose}
+      title="Add auto-registration"
+      description="Create a tournament matching rule for this bot."
+      footer={
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="subscription-form" disabled={loading}>
+            {loading ? "Creating..." : "Create"}
+          </Button>
+        </div>
+      }
+    >
+      <form id="subscription-form" onSubmit={onSubmit} className="space-y-4">
+        <TextField
+          label="Tournament type"
+          select
+          value={form.tournament_type_filter}
+          onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+            setForm({
+              ...form,
+              tournament_type_filter: e.target.value as
+                | ""
+                | "rolling"
+                | "scheduled",
+            })
+          }
         >
-          <h2 className="text-2xl font-bold text-white mb-6">
-            Add Auto-Registration
-          </h2>
+          <option value="">All Types</option>
+          <option value="rolling">Rolling</option>
+          <option value="scheduled">Scheduled</option>
+        </TextField>
 
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Tournament Type
-              </label>
-              <select
-                value={form.tournament_type_filter}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    tournament_type_filter: e.target.value as
-                      | ""
-                      | "rolling"
-                      | "scheduled",
-                  })
-                }
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-              >
-                <option value="">All Types</option>
-                <option value="rolling">Rolling</option>
-                <option value="scheduled">Scheduled</option>
-              </select>
-            </div>
+        <div className="grid grid-cols-2 gap-4">
+          <TextField
+            label="Min buy-in"
+            type="number"
+            value={form.min_buy_in}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setForm({ ...form, min_buy_in: e.target.value })
+            }
+            placeholder="0"
+          />
+          <TextField
+            label="Max buy-in"
+            type="number"
+            value={form.max_buy_in}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setForm({ ...form, max_buy_in: e.target.value })
+            }
+            placeholder="Unlimited"
+          />
+        </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Min Buy-in
-                </label>
-                <input
-                  type="number"
-                  value={form.min_buy_in}
-                  onChange={(e) =>
-                    setForm({ ...form, min_buy_in: e.target.value })
-                  }
-                  placeholder="0"
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Max Buy-in
-                </label>
-                <input
-                  type="number"
-                  value={form.max_buy_in}
-                  onChange={(e) =>
-                    setForm({ ...form, max_buy_in: e.target.value })
-                  }
-                  placeholder="Unlimited"
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Priority (1-100)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={form.priority}
-                onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Higher priority subscriptions are processed first
-              </p>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 px-4 py-3 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
-              >
-                {loading ? "Creating..." : "Create"}
-              </button>
-            </div>
-          </form>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        <TextField
+          label="Priority (1-100)"
+          type="number"
+          min="1"
+          max="100"
+          value={form.priority}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setForm({ ...form, priority: e.target.value })
+          }
+          hint="Higher priority subscriptions are processed first."
+        />
+      </form>
+    </AppModal>
   );
 }

@@ -42,6 +42,9 @@ describe("AuthService", () => {
   let mockUrlValidator: {
     validateWithHealthCheck: ReturnType<typeof vi.fn>;
   };
+  let mockDataSource: {
+    transaction: ReturnType<typeof vi.fn>;
+  };
 
   const mockUser = {
     id: "user-123",
@@ -93,6 +96,20 @@ describe("AuthService", () => {
       validateWithHealthCheck: vi.fn().mockResolvedValue({ valid: true }),
     };
 
+    mockDataSource = {
+      transaction: vi
+        .fn()
+        .mockImplementation(
+          async (
+            callback: (
+              manager: Record<string, never>,
+            ) => unknown | Promise<unknown>,
+          ) => {
+            return callback({});
+          },
+        ),
+    };
+
     service = new AuthService(
       mockUserRepository as never,
       mockBotRepository as never,
@@ -100,6 +117,7 @@ describe("AuthService", () => {
       mockConfigService as ConfigService,
       mockEmailService as never,
       mockUrlValidator as never,
+      mockDataSource as never,
     );
 
     (bcrypt.hash as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -140,19 +158,49 @@ describe("AuthService", () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it("should resend verification for unverified user", async () => {
+    it("should throw ConflictException for existing unverified email", async () => {
       const unverifiedUser = { ...mockUser, email_verified: false };
       mockUserRepository.findByEmail.mockResolvedValue(unverifiedUser);
-      mockUserRepository.update.mockResolvedValue(unverifiedUser);
 
-      const result = await service.register({
-        email: "test@example.com",
-        password: "newpassword",
-        name: "Test",
+      await expect(
+        service.register({
+          email: "test@example.com",
+          password: "newpassword",
+          name: "Test",
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("should use transaction for atomic check and insert (race condition fix)", async () => {
+      mockUserRepository.findByEmail.mockResolvedValue(null);
+      mockUserRepository.create.mockResolvedValue({
+        ...mockUser,
+        email: "new@example.com",
+        email_verified: false,
       });
 
-      expect(result.requiresVerification).toBe(true);
-      expect(mockUserRepository.update).toHaveBeenCalled();
+      await service.register({
+        email: "new@example.com",
+        password: "password123",
+        name: "New User",
+      });
+
+      expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("should handle database unique constraint violation", async () => {
+      mockDataSource.transaction.mockRejectedValue({
+        code: "23505",
+        message: "duplicate key value violates unique constraint",
+      });
+
+      await expect(
+        service.register({
+          email: "duplicate@example.com",
+          password: "password123",
+          name: "Duplicate",
+        }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

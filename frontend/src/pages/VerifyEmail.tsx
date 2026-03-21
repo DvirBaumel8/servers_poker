@@ -3,17 +3,24 @@ import { motion } from "framer-motion";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { useAuthStore } from "../stores/authStore";
+import { AlertBanner, SurfaceCard } from "../components/ui/primitives";
+import { normalizeRedirectPath } from "../utils/navigation";
 
 export function VerifyEmail() {
   const navigate = useNavigate();
   const location = useLocation();
   const email = location.state?.email || "";
+  const initialDevVerificationCode = location.state?.devVerificationCode || null;
+  const redirectTo = normalizeRedirectPath(location.state?.redirectTo);
 
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [devVerificationCode, setDevVerificationCode] = useState<string | null>(
+    initialDevVerificationCode,
+  );
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const { setAuth } = useAuthStore();
@@ -73,7 +80,7 @@ export function VerifyEmail() {
       });
 
       setAuth(response.user, response.access_token);
-      navigate("/", { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
       setCode(["", "", "", "", "", ""]);
@@ -89,8 +96,9 @@ export function VerifyEmail() {
     setSuccess(null);
 
     try {
-      await authApi.resendVerification(email);
+      const response = await authApi.resendVerification(email);
       setSuccess("Verification code sent!");
+      setDevVerificationCode(response.verificationCode || null);
       setCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } catch (err) {
@@ -107,34 +115,49 @@ export function VerifyEmail() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-8">
-          <div className="text-center mb-8">
-            <div className="text-5xl mb-4">📧</div>
-            <h1 className="text-2xl font-bold text-white mb-2">
-              Verify Your Email
+        <SurfaceCard className="space-y-8 p-8">
+          <div className="space-y-3 text-center">
+            <div className="eyebrow-label">Email verification</div>
+            <h1 className="text-3xl font-display font-semibold text-white">
+              Verify your email
             </h1>
-            <p className="text-gray-400">
+            <p className="text-sm leading-6 text-slate-400">
               We sent a 6-digit code to{" "}
-              <span className="text-poker-gold">{email}</span>
+              <span className="text-accent">{email}</span>
             </p>
           </div>
 
           {error && (
-            <div
-              className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 text-center cursor-pointer"
-              onClick={() => setError(null)}
+            <AlertBanner
+              dismissible
+              onDismiss={() => setError(null)}
+              title="Verification failed"
             >
               {error}
-            </div>
+            </AlertBanner>
           )}
 
           {success && (
-            <div
-              className="bg-green-500/10 border border-green-500 text-green-400 px-4 py-3 rounded-lg mb-6 text-center cursor-pointer"
-              onClick={() => setSuccess(null)}
+            <AlertBanner
+              tone="success"
+              dismissible
+              onDismiss={() => setSuccess(null)}
+              title="Code sent"
             >
               {success}
-            </div>
+            </AlertBanner>
+          )}
+
+          <AlertBanner tone="info" title="Local development note">
+            If SMTP is not configured, the backend logs the verification code
+            instead of sending an email.
+          </AlertBanner>
+
+          {devVerificationCode && (
+            <AlertBanner tone="success" title="Development verification code">
+              Use <span className="font-semibold text-white">{devVerificationCode}</span>{" "}
+              to continue locally.
+            </AlertBanner>
           )}
 
           <div className="flex justify-center gap-3 mb-8" onPaste={handlePaste}>
@@ -151,7 +174,7 @@ export function VerifyEmail() {
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 disabled={loading}
-                className="w-12 h-14 text-center text-2xl font-bold bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent disabled:opacity-50 transition-all"
+                className="h-14 w-12 rounded-2xl border border-white/8 bg-surface-400 text-center text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-50 transition-all"
               />
             ))}
           </div>
@@ -163,28 +186,29 @@ export function VerifyEmail() {
           )}
 
           <div className="text-center">
-            <p className="text-gray-400 mb-4">Didn't receive the code?</p>
+            <p className="mb-4 text-slate-400">Didn&apos;t receive the code?</p>
             <button
+              type="button"
               onClick={handleResend}
               disabled={resending || loading}
-              className="text-poker-gold hover:text-yellow-400 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-2 font-medium text-accent underline decoration-accent/60 underline-offset-4 transition hover:text-accent-light hover:decoration-accent-light disabled:cursor-not-allowed disabled:opacity-50"
             >
               {resending ? "Sending..." : "Resend Code"}
             </button>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-gray-700 text-center">
-            <p className="text-gray-400 text-sm">
-              Wrong email?{" "}
+          <div className="mt-8 border-t border-white/8 pt-6 text-center">
+            <div className="space-y-2 text-sm text-slate-400">
+              <p>Wrong email?</p>
               <Link
                 to="/register"
-                className="text-poker-gold hover:text-yellow-400 font-medium"
+                className="inline-flex items-center gap-2 font-medium text-accent underline decoration-accent/60 underline-offset-4 transition hover:text-accent-light hover:decoration-accent-light"
               >
                 Go back to registration
               </Link>
-            </p>
+            </div>
           </div>
-        </div>
+        </SurfaceCard>
       </motion.div>
     </div>
   );

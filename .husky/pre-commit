@@ -1,1 +1,19 @@
 npx lint-staged
+
+# QA Monster: Check if new pages have coverage
+# Only runs if frontend routes are modified
+if git diff --cached --name-only | grep -qE '(pages/|routes).*\.(tsx?|jsx?)$'; then
+  echo "🦖 QA Monster: Checking new page coverage..."
+  
+  # Extract potential new routes from staged files
+  for file in $(git diff --cached --name-only | grep -E '(pages/|routes).*\.(tsx?|jsx?)$'); do
+    if [ -f "$file" ]; then
+      echo "   Checking: $file"
+    fi
+  done
+  
+  echo ""
+  echo "💡 Reminder: If you added a new page, run:"
+  echo "   npm run qa:coverage:check /your-route"
+  echo ""
+fi

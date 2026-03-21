@@ -1,9 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, EntityManager, In } from "typeorm";
+import { Repository, EntityManager, In, IsNull } from "typeorm";
 import { Tournament, TournamentStatus } from "../entities/tournament.entity";
 import { TournamentEntry } from "../entities/tournament-entry.entity";
-import { TournamentTable } from "../entities/tournament-table.entity";
+import {
+  TournamentTable,
+  TableStatus,
+} from "../entities/tournament-table.entity";
 import { TournamentSeat } from "../entities/tournament-seat.entity";
 import { TournamentBlindLevel } from "../entities/tournament-blind-level.entity";
 import { BaseRepository } from "./base.repository";
@@ -80,7 +83,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
       ? manager.getRepository(TournamentEntry)
       : this.entryRepository;
     return repo.find({
-      where: { tournament_id: tournamentId, finish_position: undefined },
+      where: { tournament_id: tournamentId, finish_position: IsNull() },
       relations: ["bot"],
     });
   }
@@ -126,6 +129,28 @@ export class TournamentRepository extends BaseRepository<Tournament> {
       : this.tableRepository;
     const table = repo.create(data);
     return repo.save(table);
+  }
+
+  async updateTableGame(
+    tableId: string,
+    gameId: string | null,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager
+      ? manager.getRepository(TournamentTable)
+      : this.tableRepository;
+    await repo.update(tableId, { game_id: gameId });
+  }
+
+  async updateTableStatus(
+    tableId: string,
+    status: TableStatus,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager
+      ? manager.getRepository(TournamentTable)
+      : this.tableRepository;
+    await repo.update(tableId, { status });
   }
 
   async getTables(
@@ -198,6 +223,28 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     const repo = manager
       ? manager.getRepository(TournamentBlindLevel)
       : this.blindLevelRepository;
+    const existing = await repo.findOne({
+      where: {
+        tournament_id: data.tournament_id,
+        level: data.level,
+      },
+    });
+
+    if (existing) {
+      const startedAt = new Date();
+      await repo.update(existing.id, {
+        small_blind: data.small_blind,
+        big_blind: data.big_blind,
+        ante: data.ante,
+        started_at: startedAt,
+      });
+      return {
+        ...existing,
+        ...data,
+        started_at: startedAt,
+      } as TournamentBlindLevel;
+    }
+
     const level = repo.create({ ...data, started_at: new Date() });
     return repo.save(level);
   }
@@ -205,6 +252,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
   async incrementLevelHands(
     tournamentId: string,
     level: number,
+    amount: number = 1,
     manager?: EntityManager,
   ): Promise<void> {
     const repo = manager
@@ -213,7 +261,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     await repo.increment(
       { tournament_id: tournamentId, level },
       "hands_played",
-      1,
+      amount,
     );
   }
 

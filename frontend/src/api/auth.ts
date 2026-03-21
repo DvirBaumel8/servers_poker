@@ -33,6 +33,7 @@ export interface RegisterResponse {
   message: string;
   email: string;
   requiresVerification: boolean;
+  verificationCode?: string;
 }
 
 function transformUser(raw: UserApiResponse): User {
@@ -74,10 +75,15 @@ export const authApi = {
     };
   },
 
-  resendVerification: async (email: string): Promise<{ message: string }> => {
-    return api.post<{ message: string }>("/auth/resend-verification", {
+  resendVerification: async (
+    email: string,
+  ): Promise<{ message: string; verificationCode?: string }> => {
+    return api.post<{ message: string; verificationCode?: string }>(
+      "/auth/resend-verification",
+      {
       email,
-    });
+      },
+    );
   },
 
   forgotPassword: async (email: string): Promise<{ message: string }> => {

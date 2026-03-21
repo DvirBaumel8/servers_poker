@@ -7,6 +7,7 @@ import {
   Query,
   NotFoundException,
   UseGuards,
+  ForbiddenException,
 } from "@nestjs/common";
 import { GamesService } from "./games.service";
 import { TablesService } from "./tables.service";
@@ -57,9 +58,20 @@ export class GamesController {
     return this.gamesService.getLeaderboard(limit ? parseInt(limit, 10) : 20);
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get("hands/:handId")
-  async getHand(@Param("handId") handId: string) {
+  async getHand(@Param("handId") handId: string, @CurrentUser() user: User) {
+    const hasAccess = await this.gamesService.userHasAccessToHand(
+      handId,
+      user.id,
+      user.role === "admin",
+    );
+    if (!hasAccess) {
+      throw new ForbiddenException(
+        "You can only view hands where your bots participated",
+      );
+    }
+
     const hand = await this.gamesService.getHand(handId);
     if (!hand) {
       throw new NotFoundException(`Hand ${handId} not found`);
@@ -67,19 +79,34 @@ export class GamesController {
     return hand;
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get("table/:tableId")
   async findByTableId(@Param("tableId") tableId: string) {
     return this.gamesService.findByTableId(tableId);
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get("table/:tableId/history")
   async getTableHistory(
     @Param("tableId") tableId: string,
+    @CurrentUser() user: User,
     @Query("limit") limit?: string,
     @Query("offset") offset?: string,
   ) {
+    const games = await this.gamesService.findByTableId(tableId);
+    if (games.length > 0) {
+      const hasAccess = await this.gamesService.userHasAccessToGame(
+        games[0].id,
+        user.id,
+        user.role === "admin",
+      );
+      if (!hasAccess) {
+        throw new ForbiddenException(
+          "You can only view history for tables where your bots participated",
+        );
+      }
+    }
+
     return this.gamesService.getTableHistory(
       tableId,
       limit ? parseInt(limit, 10) : 50,
@@ -93,7 +120,7 @@ export class GamesController {
     return this.tablesService.create(dto);
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get("tables/:id")
   async getTable(@Param("id") id: string) {
     const table = await this.tablesService.findById(id);
@@ -103,7 +130,7 @@ export class GamesController {
     return table;
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get(":id")
   async findOne(@Param("id") id: string) {
     const game = await this.gamesService.findById(id);
@@ -129,13 +156,25 @@ export class GamesController {
     return this.tablesService.joinTable(tableId, dto, user.id);
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get(":id/hands")
   async getHandHistory(
     @Param("id") id: string,
+    @CurrentUser() user: User,
     @Query("limit") limit?: string,
     @Query("offset") offset?: string,
   ) {
+    const hasAccess = await this.gamesService.userHasAccessToGame(
+      id,
+      user.id,
+      user.role === "admin",
+    );
+    if (!hasAccess) {
+      throw new ForbiddenException(
+        "You can only view hand history for games where your bots participated",
+      );
+    }
+
     return this.gamesService.getHandHistory(
       id,
       limit ? parseInt(limit, 10) : 50,
@@ -196,10 +235,25 @@ export class GamesController {
   /**
    * Get all hand seeds for a specific game.
    * These seeds can be used to verify each hand was fair.
+   * Requires user to have a bot that participated in the game.
    */
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get(":gameId/seeds")
-  async getGameHandSeeds(@Param("gameId") gameId: string) {
+  async getGameHandSeeds(
+    @Param("gameId") gameId: string,
+    @CurrentUser() user: User,
+  ) {
+    const hasAccess = await this.gamesService.userHasAccessToGame(
+      gameId,
+      user.id,
+      user.role === "admin",
+    );
+    if (!hasAccess) {
+      throw new ForbiddenException(
+        "You can only view seeds for games where your bots participated",
+      );
+    }
+
     const seeds = await this.handSeedRepository.findByGame(gameId);
     return seeds.map((seed) => ({
       handNumber: seed.hand_number,
@@ -216,13 +270,26 @@ export class GamesController {
 
   /**
    * Get a specific hand's seed data for verification.
+   * Requires user to have a bot that participated in the game.
    */
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get(":gameId/seeds/:handNumber")
   async getHandSeed(
     @Param("gameId") gameId: string,
     @Param("handNumber") handNumber: string,
+    @CurrentUser() user: User,
   ) {
+    const hasAccess = await this.gamesService.userHasAccessToGame(
+      gameId,
+      user.id,
+      user.role === "admin",
+    );
+    if (!hasAccess) {
+      throw new ForbiddenException(
+        "You can only view seeds for games where your bots participated",
+      );
+    }
+
     const seed = await this.handSeedRepository.findByGameAndHand(
       gameId,
       parseInt(handNumber, 10),

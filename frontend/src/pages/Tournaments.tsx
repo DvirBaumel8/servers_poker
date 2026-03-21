@@ -1,11 +1,25 @@
-import { useEffect, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useCallback, type ChangeEvent } from "react";
+import { motion } from "framer-motion";
 import { TournamentCard } from "../components/tournament/TournamentCard";
 import { useTournamentStore } from "../stores/tournamentStore";
 import { tournamentsApi } from "../api/tournaments";
 import { botsApi } from "../api/bots";
 import { useAuthStore } from "../stores/authStore";
 import type { Bot, Tournament } from "../types";
+import {
+  AlertBanner,
+  AppModal,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  LoadingBlock,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  SegmentedTabs,
+  SurfaceCard,
+  TextField,
+} from "../components/ui/primitives";
 
 const STATUSES = [
   { value: "active", label: "Active" },
@@ -53,6 +67,13 @@ export function Tournaments() {
   const [selectedBotId, setSelectedBotId] = useState<string>("");
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    description: string;
+    action: () => Promise<void>;
+    label: string;
+  } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   const loadBots = useCallback(async () => {
     if (token) {
@@ -141,8 +162,6 @@ export function Tournaments() {
 
   const handleUnregister = async (tournamentId: string, botId: string) => {
     if (!token) return;
-    if (!confirm("Are you sure you want to unregister from this tournament?"))
-      return;
 
     try {
       await tournamentsApi.unregister(tournamentId, botId, token);
@@ -168,7 +187,6 @@ export function Tournaments() {
 
   const handleCancelTournament = async (tournamentId: string) => {
     if (!token) return;
-    if (!confirm("Are you sure you want to cancel this tournament?")) return;
 
     try {
       await tournamentsApi.cancel(tournamentId, token);
@@ -187,100 +205,139 @@ export function Tournaments() {
     setShowRegisterModal(true);
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Tournaments</h1>
-          <p className="text-gray-400 mt-1">
-            Browse and join poker tournaments
-          </p>
-        </div>
+  const summary = {
+    live: tournaments.filter((t) => t.status === "running").length,
+    registering: tournaments.filter((t) => t.status === "registering").length,
+    myBots: myBots.length,
+  };
 
-        <div className="flex gap-2">
-          {STATUSES.map((status) => (
-            <button
-              key={status.value}
-              onClick={() => setStatusFilter(status.value)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                statusFilter === status.value
-                  ? "bg-poker-gold text-gray-900"
-                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-              }`}
-            >
-              {status.label}
-            </button>
-          ))}
-          {user && (
-            <button
-              onClick={() => {
-                setCreateError(null);
-                setShowCreateModal(true);
-              }}
-              className="px-4 py-2 bg-poker-gold text-gray-900 rounded-lg text-sm font-medium hover:bg-yellow-400 transition-colors ml-2"
-            >
-              + Create
-            </button>
-          )}
-        </div>
+  const runConfirmAction = async () => {
+    if (!confirmAction) return;
+    setConfirmBusy(true);
+    try {
+      await confirmAction.action();
+      setConfirmAction(null);
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
+  if (loading) {
+    return <LoadingBlock label="Loading tournaments" className="page-shell" />;
+  }
+
+  return (
+    <PageShell className="space-y-8">
+      <PageHeader
+        eyebrow="Tournament lobby"
+        title="Multi-format tournament control"
+        description="Browse upcoming fields, monitor live tournament volume, and register bots with a cleaner operator-grade workflow."
+        actions={
+          <>
+            <SegmentedTabs
+              value={statusFilter}
+              onChange={setStatusFilter}
+              items={STATUSES.map((status) => ({
+                value: status.value,
+                label: status.label,
+              }))}
+            />
+            {user && (
+              <Button
+                onClick={() => {
+                  setCreateError(null);
+                  setShowCreateModal(true);
+                }}
+              >
+                Create tournament
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard
+          label="Running fields"
+          value={summary.live}
+          hint="Currently in progress"
+          accent
+        />
+        <MetricCard
+          label="Open registration"
+          value={summary.registering}
+          hint="Fields still accepting entries"
+        />
+        <MetricCard
+          label="My active bots"
+          value={summary.myBots}
+          hint="Eligible for immediate registration"
+        />
       </div>
 
       {(error || actionError) && (
-        <div
-          className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 cursor-pointer"
-          onClick={() => setActionError(null)}
+        <AlertBanner
+          dismissible
+          onDismiss={() => setActionError(null)}
+          title="Tournament action failed"
         >
           {error || actionError}
-        </div>
+        </AlertBanner>
       )}
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-poker-gold"></div>
-        </div>
-      ) : tournaments.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">🎰</div>
-          <h3 className="text-xl font-bold text-white mb-2">
-            No tournaments found
-          </h3>
-          <p className="text-gray-400 mb-4">
-            {user
-              ? "Create a tournament to start competing!"
-              : "Check back later for upcoming tournaments"}
-          </p>
-          {user && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-6 py-2 bg-poker-gold text-gray-900 rounded-lg font-medium hover:bg-yellow-400 transition-colors"
-            >
-              Create Tournament
-            </button>
-          )}
-        </div>
+      {tournaments.length === 0 ? (
+        <EmptyState
+          title="No tournaments match this filter"
+          description={
+            user
+              ? "Create a new tournament or switch the lobby filter to explore other states."
+              : "The selected tournament state is currently empty. Try another filter or check back soon."
+          }
+          action={
+            user ? (
+              <Button
+                onClick={() => {
+                  setCreateError(null);
+                  setShowCreateModal(true);
+                }}
+              >
+                Create tournament
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+          className="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
         >
           {tournaments.map((tournament, index) => (
             <motion.div
               key={tournament.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
+              transition={{ delay: index * 0.04 }}
             >
               <TournamentCard
                 tournament={tournament}
                 onRegister={
-                  user && tournament.status === "registering"
+                  user &&
+                  (tournament.status === "registering" ||
+                    tournament.status === "running")
                     ? () => openRegisterModal(tournament)
                     : undefined
                 }
                 onUnregister={
                   user && tournament.status === "registering"
-                    ? (botId: string) => handleUnregister(tournament.id, botId)
+                    ? (botId: string) =>
+                        setConfirmAction({
+                          title: "Unregister bot",
+                          description:
+                            "This removes your bot from the tournament registration list.",
+                          label: "Unregister",
+                          action: () => handleUnregister(tournament.id, botId),
+                        })
                     : undefined
                 }
                 onStart={
@@ -292,7 +349,14 @@ export function Tournaments() {
                 }
                 onCancel={
                   user && tournament.status === "registering"
-                    ? () => handleCancelTournament(tournament.id)
+                    ? () =>
+                        setConfirmAction({
+                          title: "Cancel tournament",
+                          description:
+                            "This will stop registration and prevent the tournament from starting.",
+                          label: "Cancel tournament",
+                          action: () => handleCancelTournament(tournament.id),
+                        })
                     : undefined
                 }
                 myBotIds={myBots.map((b) => b.id)}
@@ -302,290 +366,242 @@ export function Tournaments() {
         </motion.div>
       )}
 
-      {/* Create Tournament Modal */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowCreateModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-6 w-full max-w-lg border border-gray-700 max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
+      <AppModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create tournament"
+        description="Configure the live field structure, blind progression, and seat capacity."
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="create-tournament-form"
+              disabled={createLoading}
             >
-              <h2 className="text-2xl font-bold text-white mb-6">
-                Create Tournament
-              </h2>
+              {createLoading ? "Creating..." : "Create tournament"}
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="create-tournament-form"
+          onSubmit={handleCreate}
+          className="space-y-4"
+        >
+          {createError && (
+            <AlertBanner title="Create tournament failed">
+              {createError}
+            </AlertBanner>
+          )}
+          <TextField
+            label="Tournament name"
+            value={createForm.name}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setCreateForm({ ...createForm, name: e.target.value })
+            }
+            placeholder="Sunday Major"
+            required
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              label="Buy-in"
+              type="number"
+              min={0}
+              value={createForm.buyIn}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  buyIn: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+            <TextField
+              label="Starting chips"
+              type="number"
+              min={100}
+              value={createForm.startingChips}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  startingChips: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              label="Small blind"
+              type="number"
+              min={1}
+              value={createForm.smallBlind}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  smallBlind: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+            <TextField
+              label="Big blind"
+              type="number"
+              min={1}
+              value={createForm.bigBlind}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  bigBlind: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              label="Max players"
+              type="number"
+              min={2}
+              max={1000}
+              value={createForm.maxPlayers}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  maxPlayers: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+            <TextField
+              label="Blind increase minutes"
+              type="number"
+              min={1}
+              value={createForm.blindIncreaseMinutes}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setCreateForm({
+                  ...createForm,
+                  blindIncreaseMinutes: parseInt(e.target.value) || 0,
+                })
+              }
+              required
+            />
+          </div>
+        </form>
+      </AppModal>
 
-              <form onSubmit={handleCreate} className="space-y-4">
-                {createError && (
-                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
-                    {createError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Tournament Name
-                  </label>
-                  <input
-                    type="text"
-                    value={createForm.name}
-                    onChange={(e) =>
-                      setCreateForm({ ...createForm, name: e.target.value })
-                    }
-                    required
-                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    placeholder="Sunday Million"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+      <AppModal
+        open={showRegisterModal && !!registeringTournament}
+        onClose={() => setShowRegisterModal(false)}
+        title="Register bot"
+        description={
+          registeringTournament
+            ? `Choose which active bot should enter ${registeringTournament.name}.`
+            : ""
+        }
+        footer={
+          myBots.length > 0 ? (
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setShowRegisterModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="register-tournament-form"
+                disabled={registerLoading || !selectedBotId}
+              >
+                {registerLoading ? "Registering..." : "Register bot"}
+              </Button>
+            </div>
+          ) : undefined
+        }
+      >
+        <form
+          id="register-tournament-form"
+          onSubmit={handleRegister}
+          className="space-y-4"
+        >
+          {registerError && (
+            <AlertBanner title="Registration failed">
+              {registerError}
+            </AlertBanner>
+          )}
+          {myBots.length === 0 ? (
+            <EmptyState
+              title="No active bots"
+              description="Activate a bot before attempting tournament registration."
+              action={
+                <Button variant="secondary" asLink="/bots">
+                  Open bots workspace
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              <TextField
+                label="Bot"
+                select
+                value={selectedBotId}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                  setSelectedBotId(e.target.value)
+                }
+                required
+              >
+                {myBots.map((bot) => (
+                  <option key={bot.id} value={bot.id}>
+                    {bot.name}
+                  </option>
+                ))}
+              </TextField>
+              {registeringTournament && (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <SurfaceCard muted>
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                       Buy-in
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.buyIn}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          buyIn: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={0}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Starting Chips
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.startingChips}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          startingChips: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={100}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Small Blind
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.smallBlind}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          smallBlind: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={1}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Big Blind
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.bigBlind}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          bigBlind: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={1}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Max Players
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.maxPlayers}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          maxPlayers: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={2}
-                      max={1000}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Blind Increase (min)
-                    </label>
-                    <input
-                      type="number"
-                      value={createForm.blindIncreaseMinutes}
-                      onChange={(e) =>
-                        setCreateForm({
-                          ...createForm,
-                          blindIncreaseMinutes: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      required
-                      min={1}
-                      className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createLoading}
-                    className="flex-1 px-4 py-3 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
-                  >
-                    {createLoading ? "Creating..." : "Create Tournament"}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Register Bot Modal */}
-      <AnimatePresence>
-        {showRegisterModal && registeringTournament && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowRegisterModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-2xl font-bold text-white mb-2">
-                Register for Tournament
-              </h2>
-              <p className="text-gray-400 mb-6">{registeringTournament.name}</p>
-
-              <form onSubmit={handleRegister} className="space-y-4">
-                {registerError && (
-                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
-                    {registerError}
-                  </div>
-                )}
-
-                {myBots.length === 0 ? (
-                  <div className="text-center py-4">
-                    <p className="text-gray-400">
-                      You need an active bot to register. Create one first!
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Select Bot
-                      </label>
-                      <select
-                        value={selectedBotId}
-                        onChange={(e) => setSelectedBotId(e.target.value)}
-                        required
-                        className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                      >
-                        {myBots.map((bot) => (
-                          <option key={bot.id} value={bot.id}>
-                            {bot.name}
-                          </option>
-                        ))}
-                      </select>
                     </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 text-sm space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Buy-in</span>
-                        <span className="text-white">
-                          {registeringTournament.buyIn}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Starting Chips</span>
-                        <span className="text-white">
-                          {registeringTournament.startingChips}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Players</span>
-                        <span className="text-white">
-                          {registeringTournament.registeredPlayers} /{" "}
-                          {registeringTournament.maxPlayers}
-                        </span>
-                      </div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {registeringTournament.buyIn}
                     </div>
-
-                    <div className="flex gap-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => setShowRegisterModal(false)}
-                        className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={registerLoading || !selectedBotId}
-                        className="flex-1 px-4 py-3 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
-                      >
-                        {registerLoading ? "Registering..." : "Register"}
-                      </button>
+                  </SurfaceCard>
+                  <SurfaceCard muted>
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Starting stack
                     </div>
-                  </>
-                )}
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {registeringTournament.startingChips}
+                    </div>
+                  </SurfaceCard>
+                  <SurfaceCard muted>
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Field size
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      {registeringTournament.registeredPlayers}/
+                      {registeringTournament.maxPlayers}
+                    </div>
+                  </SurfaceCard>
+                </div>
+              )}
+            </>
+          )}
+        </form>
+      </AppModal>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        title={confirmAction?.title || ""}
+        description={confirmAction?.description || ""}
+        confirmLabel={confirmAction?.label}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+        busy={confirmBusy}
+      />
+    </PageShell>
   );
 }

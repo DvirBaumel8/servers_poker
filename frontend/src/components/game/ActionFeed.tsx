@@ -18,7 +18,10 @@ export function ActionFeed({ actions, maxVisible = 4 }: ActionFeedProps) {
   const visibleActions = actions.slice(-maxVisible);
 
   return (
-    <div className="fixed right-4 top-20 w-64 space-y-2 z-40">
+    <div className="fixed right-4 top-24 z-40 hidden w-72 space-y-2 xl:block">
+      <div className="mb-2 rounded-2xl border border-white/8 bg-black/30 px-4 py-2 text-[11px] uppercase tracking-[0.22em] text-slate-500 backdrop-blur-md">
+        Table activity
+      </div>
       <AnimatePresence mode="popLayout">
         {visibleActions.map((action) => (
           <ActionItem key={action.id} action={action} />
@@ -45,12 +48,16 @@ function ActionItem({ action }: { action: ActionEvent }) {
       initial={{ opacity: 0, x: 50, scale: 0.8 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: 50, scale: 0.8 }}
-      className="bg-black/70 backdrop-blur-md rounded-lg border border-white/10 p-3 shadow-lg"
+      className="rounded-2xl border border-white/8 bg-black/45 p-3 shadow-panel backdrop-blur-md"
     >
-      <div className="flex items-center gap-2">
-        <span className="text-lg">{actionConfig.icon}</span>
+      <div className="flex items-center gap-3">
+        <span
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 ${actionConfig.surface}`}
+        >
+          {actionConfig.icon}
+        </span>
         <div className="flex-1 min-w-0">
-          <div className="text-white text-sm font-medium truncate">
+          <div className="truncate text-sm font-medium text-white">
             {action.playerName}
           </div>
           <div className={`text-xs font-semibold ${actionConfig.color}`}>
@@ -62,18 +69,59 @@ function ActionItem({ action }: { action: ActionEvent }) {
   );
 }
 
-function getActionConfig(action: string): { icon: string; color: string } {
-  const configs: Record<string, { icon: string; color: string }> = {
-    fold: { icon: "🃏", color: "text-gray-400" },
-    check: { icon: "✓", color: "text-blue-400" },
-    call: { icon: "📞", color: "text-green-400" },
-    bet: { icon: "💰", color: "text-yellow-400" },
-    raise: { icon: "⬆️", color: "text-orange-400" },
-    all_in: { icon: "🔥", color: "text-red-400" },
-    allin: { icon: "🔥", color: "text-red-400" },
+function getActionConfig(action: string): {
+  icon: string;
+  color: string;
+  surface: string;
+} {
+  const configs: Record<
+    string,
+    { icon: string; color: string; surface: string }
+  > = {
+    fold: {
+      icon: "F",
+      color: "text-slate-300",
+      surface: "bg-white/[0.04] text-slate-300",
+    },
+    check: {
+      icon: "C",
+      color: "text-blue-300",
+      surface: "bg-info-muted text-info",
+    },
+    call: {
+      icon: "CL",
+      color: "text-emerald-300",
+      surface: "bg-success-muted text-success",
+    },
+    bet: {
+      icon: "B",
+      color: "text-yellow-200",
+      surface: "bg-warning-muted text-warning",
+    },
+    raise: {
+      icon: "R",
+      color: "text-orange-300",
+      surface: "bg-orange-500/15 text-orange-300",
+    },
+    all_in: {
+      icon: "AI",
+      color: "text-red-300",
+      surface: "bg-danger-muted text-danger",
+    },
+    allin: {
+      icon: "AI",
+      color: "text-red-300",
+      surface: "bg-danger-muted text-danger",
+    },
   };
 
-  return configs[action.toLowerCase()] || { icon: "•", color: "text-white" };
+  return (
+    configs[action.toLowerCase()] || {
+      icon: "•",
+      color: "text-white",
+      surface: "bg-white/[0.04] text-white",
+    }
+  );
 }
 
 function formatAction(action: string, amount?: number): string {

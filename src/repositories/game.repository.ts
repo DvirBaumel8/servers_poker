@@ -296,4 +296,14 @@ export class GameRepository extends BaseRepository<Game> {
 
     return result;
   }
+
+  async getGamePlayers(
+    gameId: string,
+    manager?: EntityManager,
+  ): Promise<GamePlayer[]> {
+    const repo = manager
+      ? manager.getRepository(GamePlayer)
+      : this.gamePlayerRepository;
+    return repo.find({ where: { game_id: gameId } });
+  }
 }

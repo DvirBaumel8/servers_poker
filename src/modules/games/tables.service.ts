@@ -5,14 +5,17 @@ import {
   ForbiddenException,
   ConflictException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { TableRepository } from "../../repositories/table.repository";
 import { BotRepository } from "../../repositories/bot.repository";
 import { GameRepository } from "../../repositories/game.repository";
 import { Table, TableStatus } from "../../entities/table.entity";
-import { LiveGameManagerService } from "../../services/live-game-manager.service";
-import { GameWorkerManagerService } from "../../services/game-worker-manager.service";
+import { LiveGameManagerService } from "../../services/game/live-game-manager.service";
+import { GameWorkerManagerService } from "../../services/game/game-worker-manager.service";
+import { TournamentDirectorService } from "../tournaments/tournament-director.service";
 import {
   CreateTableDto,
   JoinTableDto,
@@ -32,6 +35,8 @@ export class TablesService {
     private readonly liveGameManager: LiveGameManagerService,
     private readonly gameWorkerManager: GameWorkerManagerService,
     private readonly dataSource: DataSource,
+    @Inject(forwardRef(() => TournamentDirectorService))
+    private readonly tournamentDirector: TournamentDirectorService,
   ) {
     this.useWorkerThreads = this.gameWorkerManager.isEnabled();
     if (this.useWorkerThreads) {
@@ -326,6 +331,7 @@ export class TablesService {
     let state: any = null;
     let gameDbId: string | undefined;
 
+    // First try cash game managers
     if (this.useWorkerThreads) {
       state = this.gameWorkerManager.getGameState(table.id);
       const games = this.gameWorkerManager.getAllGames();
@@ -335,6 +341,14 @@ export class TablesService {
       const liveGame = this.liveGameManager.getGame(table.id);
       state = this.liveGameManager.getGameState(table.id);
       gameDbId = liveGame?.gameDbId;
+    }
+
+    // If no state found, check if this table is part of an active tournament
+    if (!state || !state.players?.length) {
+      const tournamentState = this.getTournamentTableState(table.id);
+      if (tournamentState) {
+        state = tournamentState;
+      }
     }
 
     return {
@@ -355,5 +369,26 @@ export class TablesService {
         })) || [],
       gameId: gameDbId,
     };
+  }
+
+  /**
+   * Try to get table state from any active tournament.
+   * Tournament tables are managed separately from cash game tables.
+   */
+  private getTournamentTableState(tableId: string): any {
+    const activeTournaments = this.tournamentDirector.getActiveTournaments();
+
+    for (const tournamentId of activeTournaments) {
+      const tState = this.tournamentDirector.getTournamentState(tournamentId);
+      if (!tState?.tables) continue;
+
+      const tableEntry = tState.tables.find((t: any) => t.tableId === tableId);
+
+      if (tableEntry?.gameState) {
+        return tableEntry.gameState;
+      }
+    }
+
+    return null;
   }
 }
