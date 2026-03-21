@@ -6,6 +6,9 @@
 
 const { Client } = require('pg');
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const client = new Client({
   host: process.env.DB_HOST || 'localhost',
@@ -26,7 +29,11 @@ function hashPassword(password) {
 }
 
 function hashApiKey(key) {
-  return crypto.createHash('sha256').update(key).digest('hex');
+  const hashSecret =
+    process.env.API_KEY_HMAC_SECRET || 'development-api-key-hash-secret';
+  return crypto
+    .pbkdf2Sync(key, hashSecret, 210000, 32, 'sha256')
+    .toString('hex');
 }
 
 const PERSONALITIES = [
@@ -145,7 +152,14 @@ async function main() {
       remainingBots: bots.slice(20)
     };
     
-    require('fs').writeFileSync('/tmp/tournament-state.json', JSON.stringify(state, null, 2));
+    const stateDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'tournament-state-'),
+    );
+    const statePath = path.join(stateDir, 'tournament-state.json');
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2), {
+      mode: 0o600,
+      flag: 'wx',
+    });
     
     // Output summary
     console.log('\n' + '='.repeat(60));
@@ -158,7 +172,7 @@ async function main() {
     console.log(`\n  Admin Email: ${adminEmail}`);
     console.log(`  Admin API Key: ${adminApiKey}`);
     console.log(`\n  Frontend URL: http://localhost:3001/tournaments`);
-    console.log(`\n  State saved to: /tmp/tournament-state.json`);
+    console.log(`\n  State saved to: ${statePath}`);
     
     console.log('\n' + '='.repeat(60));
     console.log('  📝 REMAINING BOTS FOR LATE REGISTRATION:');

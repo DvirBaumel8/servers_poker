@@ -4,9 +4,9 @@ import {
   PokerGameService,
   GameConfig,
 } from "../../src/game/poker-game.service";
-import { PotManager } from "../../src/betting";
-import { createDeck, shuffle, cardToString } from "../../src/deck";
-import { bestHand, determineWinners } from "../../src/handEvaluator";
+import { PotManager } from "../../src/domain/betting";
+import { createDeck, shuffle, cardToString } from "../../src/domain/deck";
+import { bestHand, determineWinners } from "../../src/domain/handEvaluator";
 
 describe("Game Simulation - Complete Hand Flows", () => {
   let game: PokerGameService;

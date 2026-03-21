@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   BotResilienceService,
   GameContext,
-  FallbackStrategy,
-} from "../../../src/services/bot-resilience.service";
+} from "../../../src/services/bot/bot-resilience.service";
 import { ConfigService } from "@nestjs/config";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 

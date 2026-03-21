@@ -8,7 +8,8 @@ import * as crypto from "crypto";
 
 @Injectable()
 export class UserRepository extends BaseRepository<User> {
-  private readonly hmacSecret: string;
+  private readonly apiKeyHashSecret: string;
+  private static readonly API_KEY_HASH_ITERATIONS = 210000;
 
   constructor(
     @InjectRepository(User)
@@ -16,8 +17,7 @@ export class UserRepository extends BaseRepository<User> {
     private readonly configService: ConfigService,
   ) {
     super();
-    // HMAC secret for API key hashing - provides keyed hashing for security
-    this.hmacSecret = this.configService.get<string>(
+    this.apiKeyHashSecret = this.configService.get<string>(
       "API_KEY_HMAC_SECRET",
       crypto.randomBytes(32).toString("hex"),
     );
@@ -48,14 +48,19 @@ export class UserRepository extends BaseRepository<User> {
   }
 
   /**
-   * Hash an API key using HMAC-SHA256 for secure storage.
-   * HMAC provides keyed hashing which is more secure than plain SHA256.
+   * Hash API keys deterministically so they can be looked up by value
+   * without storing the raw key in the database.
    */
   hashApiKey(rawKey: string): string {
     return crypto
-      .createHmac("sha256", this.hmacSecret)
-      .update(rawKey)
-      .digest("hex");
+      .pbkdf2Sync(
+        rawKey,
+        this.apiKeyHashSecret,
+        UserRepository.API_KEY_HASH_ITERATIONS,
+        32,
+        "sha256",
+      )
+      .toString("hex");
   }
 
   generateApiKey(): { raw: string; hash: string } {

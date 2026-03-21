@@ -5,7 +5,7 @@ import {
   shuffleWithOrder,
   cardToString,
   RANK_VALUES,
-} from "../../src/deck";
+} from "../../src/domain/deck";
 
 describe("Deck", () => {
   describe("createDeck", () => {

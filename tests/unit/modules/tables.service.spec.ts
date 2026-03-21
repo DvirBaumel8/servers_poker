@@ -42,6 +42,10 @@ describe("TablesService", () => {
   let mockDataSource: {
     transaction: ReturnType<typeof vi.fn>;
   };
+  let mockTournamentDirector: {
+    getActiveTournaments: ReturnType<typeof vi.fn>;
+    getTournamentState: ReturnType<typeof vi.fn>;
+  };
 
   const mockTable = {
     id: "table-123",
@@ -103,6 +107,11 @@ describe("TablesService", () => {
       transaction: vi.fn(),
     };
 
+    mockTournamentDirector = {
+      getActiveTournaments: vi.fn().mockReturnValue([]),
+      getTournamentState: vi.fn(),
+    };
+
     service = new TablesService(
       mockTableRepository as never,
       mockBotRepository as never,
@@ -110,6 +119,7 @@ describe("TablesService", () => {
       mockLiveGameManager as never,
       mockGameWorkerManager as never,
       mockDataSource as never,
+      mockTournamentDirector as never,
     );
   });
 

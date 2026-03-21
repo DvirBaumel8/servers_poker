@@ -529,7 +529,10 @@ describe("AuthService", () => {
 
       const result = await service.validateApiKey("valid-api-key");
 
-      expect(result).toEqual(mockUser);
+      expect(result).toEqual({
+        user: mockUser,
+        expiresIn: undefined,
+      });
     });
 
     it("should return null for invalid API key", async () => {
@@ -537,7 +540,7 @@ describe("AuthService", () => {
 
       const result = await service.validateApiKey("invalid-api-key");
 
-      expect(result).toBeNull();
+      expect(result).toEqual({ user: null });
     });
   });
 

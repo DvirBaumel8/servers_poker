@@ -21,7 +21,8 @@ export class ApiKeyRotationService {
   private readonly logger = new Logger(ApiKeyRotationService.name);
   private readonly keyPrefix = "pk_";
   private readonly legacyKeyGracePeriodMs: number;
-  private readonly hmacSecret: string;
+  private readonly apiKeyHashSecret: string;
+  private static readonly API_KEY_HASH_ITERATIONS = 210000;
 
   // In-memory cache of legacy keys during grace period
   private readonly legacyKeys = new Map<
@@ -38,11 +39,9 @@ export class ApiKeyRotationService {
       86400000, // 24 hours default
     );
 
-    // HMAC secret for API key hashing - provides keyed hashing
-    // In production, this should be set via environment variable
-    this.hmacSecret = this.configService.get<string>(
+    this.apiKeyHashSecret = this.configService.get<string>(
       "API_KEY_HMAC_SECRET",
-      crypto.randomBytes(32).toString("hex"), // Generate random if not set
+      crypto.randomBytes(32).toString("hex"),
     );
 
     // Cleanup expired legacy keys periodically
@@ -61,15 +60,19 @@ export class ApiKeyRotationService {
   }
 
   /**
-   * Generates a secure hash of an API key for storage using HMAC-SHA256.
-   * HMAC provides keyed hashing which is more secure than plain SHA256
-   * and satisfies security scanning requirements.
+   * Hash API keys deterministically so they can be re-derived during
+   * validation without keeping the raw key at rest.
    */
   hashApiKey(apiKey: string): string {
     return crypto
-      .createHmac("sha256", this.hmacSecret)
-      .update(apiKey)
-      .digest("hex");
+      .pbkdf2Sync(
+        apiKey,
+        this.apiKeyHashSecret,
+        ApiKeyRotationService.API_KEY_HASH_ITERATIONS,
+        32,
+        "sha256",
+      )
+      .toString("hex");
   }
 
   /**

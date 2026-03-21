@@ -340,8 +340,7 @@ describe("DailySummaryService", () => {
 
       expect(mockEmailService.sendEmail).toHaveBeenCalledWith(
         expect.objectContaining({
-          text: expect.stringContaining("User Activity"),
-          text: expect.stringContaining("New Registrations"),
+          text: expect.stringMatching(/User Activity[\s\S]*New Registrations/),
         }),
       );
     });
@@ -351,8 +350,7 @@ describe("DailySummaryService", () => {
 
       expect(mockEmailService.sendEmail).toHaveBeenCalledWith(
         expect.objectContaining({
-          text: expect.stringContaining("Top Performing Bots"),
-          text: expect.stringContaining("WinnerBot"),
+          text: expect.stringMatching(/Top Performing Bots[\s\S]*WinnerBot/),
         }),
       );
     });

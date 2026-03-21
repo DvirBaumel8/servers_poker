@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { BotAutoRegistrationService } from "../../../src/services/bot-auto-registration.service";
+import { BotAutoRegistrationService } from "../../../src/services/bot/bot-auto-registration.service";
 
 describe("BotAutoRegistrationService", () => {
   let service: BotAutoRegistrationService;

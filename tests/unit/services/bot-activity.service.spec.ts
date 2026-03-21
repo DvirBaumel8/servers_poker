@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { BotActivityService } from "../../../src/services/bot-activity.service";
+import { BotActivityService } from "../../../src/services/bot/bot-activity.service";
 
 describe("BotActivityService", () => {
   let service: BotActivityService;

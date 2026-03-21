@@ -4,7 +4,7 @@ import {
   CallHandler,
   RequestTimeoutException,
 } from "@nestjs/common";
-import { of, throwError, delay, firstValueFrom, lastValueFrom } from "rxjs";
+import { of, throwError, delay, firstValueFrom } from "rxjs";
 import { LoggingInterceptor } from "../../../src/common/interceptors/logging.interceptor";
 import { TimeoutInterceptor } from "../../../src/common/interceptors/timeout.interceptor";
 

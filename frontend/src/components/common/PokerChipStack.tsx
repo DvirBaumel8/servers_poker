@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
-import PokerChip from "react-pokerchip";
 
 interface PokerChipStackProps {
   amount: number;
@@ -27,6 +26,80 @@ const SIZES = {
   md: 40,
   lg: 56,
 };
+
+function PokerChip({
+  value,
+  color,
+  lineColor,
+  size,
+  onClick,
+}: {
+  value: number;
+  color: string;
+  lineColor: string;
+  size: number;
+  onClick?: () => void;
+}) {
+  const innerSize = size * 0.68;
+  const edgeWidth = Math.max(2, Math.round(size * 0.08));
+  const accentWidth = Math.max(1, Math.round(size * 0.045));
+  const fontSize = Math.max(7, Math.round(size * 0.16));
+  const label = formatChipLabel(value);
+
+  return (
+    <div
+      onClick={onClick}
+      className={clsx(
+        "relative grid place-items-center rounded-full shadow-[0_6px_16px_rgba(0,0,0,0.35)]",
+        onClick && "cursor-pointer",
+      )}
+      style={{
+        width: size,
+        height: size,
+        background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.28), transparent 35%), ${color}`,
+        border: `${edgeWidth}px solid ${lineColor}`,
+      }}
+      aria-label={`Poker chip ${label}`}
+    >
+      <div
+        className="absolute rounded-full border"
+        style={{
+          inset: edgeWidth + accentWidth,
+          borderColor: lineColor,
+          borderWidth: accentWidth,
+        }}
+      />
+      {Array.from({ length: 8 }).map((_, index) => {
+        const angle = index * 45;
+        return (
+          <div
+            key={angle}
+            className="absolute rounded-full"
+            style={{
+              width: edgeWidth * 1.2,
+              height: size * 0.18,
+              backgroundColor: "#ffffffcc",
+              transform: `rotate(${angle}deg) translateY(${-(size / 2) + edgeWidth * 1.9}px)`,
+              transformOrigin: "center center",
+            }}
+          />
+        );
+      })}
+      <div
+        className="relative grid place-items-center rounded-full border font-black text-black/80"
+        style={{
+          width: innerSize,
+          height: innerSize,
+          backgroundColor: "#ffffffd9",
+          borderColor: `${lineColor}66`,
+          fontSize,
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
 
 export function PokerChipStack({
   amount,
@@ -160,4 +233,11 @@ function formatAmount(amount: number): string {
   if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
   if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;
   return amount.toLocaleString();
+}
+
+function formatChipLabel(value: number): string {
+  if (value >= 1000) {
+    return `${value / 1000}K`;
+  }
+  return value.toString();
 }

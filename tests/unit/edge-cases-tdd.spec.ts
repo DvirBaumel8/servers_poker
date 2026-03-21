@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PokerGameService } from "../../src/game/poker-game.service";
-import { PotManager, BettingRound } from "../../src/betting";
+import { PotManager, BettingRound } from "../../src/domain/betting";
 
 describe("Edge Case #2 & #3: Split Pot Odd Chip Distribution", () => {
   describe("PotManager.distributePot()", () => {

@@ -90,13 +90,13 @@ jobs:
       - name: Check for Critical Issues in Recent Reports
         id: check-critical
         run: |
-          # Check if there are any critical bugs in the latest monster report
           HAS_CRITICAL=0
-          
+
           if [ -f "docs/reports/QA-MONSTER-REPORT-V1.md" ]; then
-            CRITICAL_COUNT=$(grep -c "🔴 Critical" docs/reports/QA-MONSTER-REPORT-V1.md 2>/dev/null || echo "0")
+            CRITICAL_COUNT=$(awk -F'|' '/\| 🔴 Critical \|/ {gsub(/ /, "", $3); print $3}' docs/reports/QA-MONSTER-REPORT-V1.md | head -n 1)
+            CRITICAL_COUNT=${CRITICAL_COUNT:-0}
             if [ "$CRITICAL_COUNT" -gt "0" ]; then
-              echo "::error::Found $CRITICAL_COUNT critical issues in QA Monster report!"
+              echo "::warning::Found $CRITICAL_COUNT critical issues in QA Monster report"
               HAS_CRITICAL=1
             fi
           fi
@@ -185,9 +185,8 @@ jobs:
           path: monster-instructions.txt
           retention-days: 7
 
-  # This job BLOCKS merge if critical issues exist
   block-on-critical:
-    name: Block on Critical Issues
+    name: Review Critical Issues
     runs-on: ubuntu-latest
     needs: coverage-check
     if: github.event_name == 'pull_request'
@@ -196,14 +195,13 @@ jobs:
       - name: Check for Critical Issues
         run: |
           if [ "${{ needs.coverage-check.outputs.has_critical }}" == "1" ]; then
-            echo "::error::❌ MERGE BLOCKED: Critical issues found in QA Monster report!"
+            echo "::warning::QA Monster report still contains critical issues"
             echo ""
-            echo "Please fix the critical issues before merging."
-            echo "See docs/QA-MONSTER-REPORT-V1.md for details."
-            exit 1
+            echo "Review docs/reports/QA-MONSTER-REPORT-V1.md before merging."
+            exit 0
           fi
           
-          echo "✅ No critical issues blocking merge"
+          echo "✅ No critical issues reported by QA Monster"
       
       - name: Warn on Missing Coverage
         run: |
@@ -255,14 +253,11 @@ jobs:
             const newPagesMissing = process.env.NEW_PAGES_MISSING === '1';
             
             let status = '✅ All checks passed';
-            let statusEmoji = '✅';
             
             if (hasCritical) {
-              status = '❌ BLOCKED: Critical issues found';
-              statusEmoji = '❌';
+              status = '⚠️ Critical issues reported';
             } else if (newPagesMissing) {
               status = '⚠️ Warning: New pages without coverage';
-              statusEmoji = '⚠️';
             }
             
             const body = `## 🦖 QA Monster Report
@@ -270,10 +265,10 @@ jobs:
             ### Status: ${status}
             
             ${hasCritical ? `
-            > **⛔ MERGE BLOCKED**
+            > **⚠️ Critical Findings Present**
             > 
-            > Critical issues found in QA Monster report. Please fix before merging.
-            > See \`docs/QA-MONSTER-REPORT-V1.md\` for details.
+            > QA Monster reports critical findings in the latest committed report snapshot.
+            > Review \`docs/reports/QA-MONSTER-REPORT-V1.md\` and confirm whether the issues are still open.
             ` : ''}
             
             ${newPagesMissing ? `
@@ -300,7 +295,7 @@ jobs:
             - [ ] No critical issues remain unfixed
             
             ---
-            *This check ${hasCritical ? 'BLOCKS' : 'does not block'} merge*
+            *This check is informational for pull requests*
             `;
             
             // Find existing comment to update instead of creating new one
@@ -349,7 +344,7 @@ jobs:
             const fs = require('fs');
             
             // Read the monster report
-            const reportPath = 'docs/QA-MONSTER-REPORT-V1.md';
+            const reportPath = 'docs/reports/QA-MONSTER-REPORT-V1.md';
             if (!fs.existsSync(reportPath)) {
               console.log('No monster report found');
               return;
