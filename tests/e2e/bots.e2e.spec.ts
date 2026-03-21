@@ -6,6 +6,7 @@ import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { JwtService } from "@nestjs/jwt";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { ServicesModule } from "../../src/services/services.module";
@@ -14,12 +15,14 @@ import { appConfig } from "../../src/config";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { v4 as uuidv4 } from "uuid";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 describe("Bots E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
+  let jwtService: JwtService;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -69,6 +72,7 @@ describe("Bots E2E Tests", () => {
 
     await app.init();
     dataSource = moduleFixture.get(DataSource);
+    jwtService = moduleFixture.get(JwtService);
   });
 
   afterAll(async () => {
@@ -81,34 +85,28 @@ describe("Bots E2E Tests", () => {
   async function createTestUser() {
     const id = uid();
     const email = `botowner-${id}@example.com`;
-    const password = "SecurePassword123!";
+    const name = `BotOwner-${id}`;
+    const userId = uuidv4();
+    const passwordHash =
+      "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC";
+    const apiKeyHash = uuidv4().replace(/-/g, "");
 
-    // Step 1: Register
-    await request(app.getHttpServer())
-      .post("/api/v1/auth/register")
-      .send({
-        email,
-        name: `BotOwner-${id}`,
-        password,
-      });
-
-    // Step 2: Get verification code from database
-    const userRecord = await dataSource.query(
-      `SELECT id, verification_code FROM users WHERE email = $1`,
-      [email],
+    // Create user directly in DB
+    await dataSource.query(
+      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())`,
+      [userId, email, name, passwordHash, apiKeyHash],
     );
 
-    // Step 3: Verify email
-    const verifyResponse = await request(app.getHttpServer())
-      .post("/api/v1/auth/verify-email")
-      .send({
-        email,
-        code: userRecord[0].verification_code,
-      });
+    // Generate JWT token
+    const accessToken = jwtService.sign(
+      { sub: userId, email },
+      { expiresIn: "1h" },
+    );
 
     return {
-      accessToken: verifyResponse.body.accessToken,
-      userId: verifyResponse.body.user.id,
+      accessToken,
+      userId,
       id,
     };
   }
