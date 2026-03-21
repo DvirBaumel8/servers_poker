@@ -2,6 +2,68 @@
 
 This document describes the testing strategy and how to run tests for the Poker Platform.
 
+## Frontend Testing
+
+The frontend now has a dedicated UI-focused test setup under `frontend/`.
+
+### Frontend Test Stack
+
+- `Vitest` for FE test running
+- `@testing-library/react` for rendering and interaction
+- `@testing-library/jest-dom` for DOM assertions
+- `jsdom` for browser-like test environment
+
+### Frontend Test Files
+
+Examples of FE test coverage now live in:
+
+- `frontend/src/App.test.tsx` — route-to-shell mapping and access guards
+- `frontend/src/components/ui/primitives.test.tsx` — shared primitives and interaction patterns
+- `frontend/src/pages/Home.test.tsx` — marketing page rendering + stat loading
+- `frontend/src/pages/Tables.test.tsx` — lobby rendering
+- `frontend/src/pages/Tournaments.test.tsx` — tournament lobby rendering
+- `frontend/src/pages/Bots.test.tsx` — bot workspace rendering and switching
+
+### Frontend Test Setup
+
+Core FE test configuration lives in:
+
+- `frontend/vitest.config.ts`
+- `frontend/src/test/setup.ts`
+- `frontend/src/test/test-utils.tsx`
+
+### Run Frontend Tests
+
+```bash
+cd frontend
+
+# Watch mode
+npm test
+
+# Single run
+npm run test:run
+
+# Existing API contract checks against a running backend
+npm run test:contracts
+```
+
+### Frontend Test Scope
+
+Use frontend tests for:
+
+- shell routing and access control
+- primitive interaction contracts
+- loading, empty, error, and modal states
+- critical page rendering for redesigned surfaces
+
+Do not use frontend unit tests as a substitute for:
+
+- backend API correctness
+- websocket protocol validation
+- full-system database flows
+
+Those remain covered by backend unit/integration/e2e testing.
+
 ## Test Structure
 
 ```
@@ -100,6 +162,8 @@ Requires a PostgreSQL database:
 ```bash
 npm run test:all
 ```
+
+For frontend UI tests, use the frontend-local commands above instead of root-level backend test scripts.
 
 ### With Coverage
 
@@ -379,15 +443,24 @@ jobs:
         run: npm run test:e2e
 ```
 
-## Test Coverage Goals
+## Test Coverage
 
-| Category | Target Coverage |
-|----------|----------------|
-| Game Logic (handEvaluator, betting, pot) | 95%+ |
-| Services | 80%+ |
-| Controllers | 70%+ |
-| Repositories | 60%+ |
-| DTOs/Entities | N/A (excluded) |
+Current coverage thresholds (enforced in CI) for **unit-testable code**:
+- **Statements**: 80%
+- **Branches**: 70%
+- **Functions**: 85%
+- **Lines**: 80%
+
+### Files Excluded from Unit Test Coverage
+
+The following are excluded because they're better suited for integration/E2E tests:
+
+- **Controllers/Gateways/Entities/DTOs** - NestJS boilerplate, thin wrappers
+- **Migrations/Workers/Simulation** - Database schema, worker threads, scripts
+- **Repositories/Redis services** - External system dependencies
+- **Passport strategies/Pipes** - Framework integration
+- **Persistence/Manager services** - Complex external dependencies
+- **Tournament director** - Complex state machine requiring integration tests
 
 Run coverage report:
 ```bash
@@ -395,3 +468,13 @@ npm run test:cov
 ```
 
 Coverage HTML report is generated at `coverage/index.html`.
+
+## CI/CD Integration
+
+Tests run automatically on every PR via GitHub Actions:
+
+- **Unit Tests**: Run with coverage reporting
+- **E2E Tests**: Run with PostgreSQL service container
+- **Coverage Report**: Posted as PR comment
+
+See `.github/workflows/ci.yml` for the full configuration.

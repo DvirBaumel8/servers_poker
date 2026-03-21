@@ -1,0 +1,34 @@
+---
+description: Code style and formatting conventions
+globs:
+  - "src/**/*.ts"
+  - "frontend/src/**/*.{ts,tsx}"
+---
+
+# Code Style
+
+## Formatting
+
+- Prettier is the single source of truth for formatting
+- Config is in `.prettierrc` at project root
+- Run `npm run format` to auto-fix, `npm run format:check` in CI
+
+## Linting
+
+- ESLint handles both code quality and formatting (via eslint-plugin-prettier)
+- `npm run lint` auto-fixes, `npm run lint:check` for CI (no auto-fix)
+- Bug-catching rules are enabled: no-self-compare, eqeqeq, no-eval, etc.
+
+## Pre-commit Hooks
+
+- Husky runs lint-staged on every commit
+- Staged `.ts` files are auto-linted and formatted
+- Commits will be blocked if ESLint errors are found
+
+## NestJS Conventions
+
+- Controllers handle HTTP concerns only (validation, response shaping)
+- Services contain business logic
+- Repositories handle database access
+- Use dependency injection, not direct imports of services
+- DTOs use class-validator decorators for input validation

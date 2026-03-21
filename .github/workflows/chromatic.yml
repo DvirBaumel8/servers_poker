@@ -1,0 +1,62 @@
+name: Chromatic
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'frontend/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  chromatic:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    # Skip if CHROMATIC_PROJECT_TOKEN is not set
+    if: ${{ vars.CHROMATIC_ENABLED == 'true' || github.repository_owner != 'DvirBaumel8' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build Storybook
+        run: npm run build-storybook
+        working-directory: frontend
+
+      - name: Run Chromatic
+        uses: chromaui/action@latest
+        with:
+          workingDir: frontend
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          exitZeroOnChanges: false
+          exitOnceUploaded: true
+          onlyChanged: true
+          autoAcceptChanges: main
+
+  # Placeholder job that always passes when Chromatic is skipped
+  chromatic-skip:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    if: ${{ vars.CHROMATIC_ENABLED != 'true' && github.repository_owner == 'DvirBaumel8' }}
+    steps:
+      - name: Chromatic not configured
+        run: |
+          echo "Chromatic visual regression tests are disabled."
+          echo "To enable: Set CHROMATIC_ENABLED=true repository variable and add CHROMATIC_PROJECT_TOKEN secret."
+          echo "Get your token at https://www.chromatic.com"

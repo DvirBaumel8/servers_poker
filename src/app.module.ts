@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { EventEmitterModule } from "@nestjs/event-emitter";
+import { ScheduleModule } from "@nestjs/schedule";
 import { APP_FILTER, APP_INTERCEPTOR, APP_GUARD } from "@nestjs/core";
 
 import { appConfig, getDatabaseConfig } from "./config";
@@ -13,12 +14,15 @@ import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor
 import { AuditLog } from "./entities/audit-log.entity";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
+import { IpBlockGuard } from "./common/guards/ip-block.guard";
 
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
 import { BotsModule } from "./modules/bots/bots.module";
 import { GamesModule } from "./modules/games/games.module";
 import { TournamentsModule } from "./modules/tournaments/tournaments.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { PreviewModule } from "./modules/preview/preview.module";
 import { ServicesModule } from "./services/services.module";
 import { SecurityModule } from "./common/security";
 
@@ -45,6 +49,7 @@ import { SecurityModule } from "./common/security";
       inject: [ConfigService],
     }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forFeature([AuditLog]),
     SecurityModule,
     ServicesModule,
@@ -53,6 +58,8 @@ import { SecurityModule } from "./common/security";
     BotsModule,
     GamesModule,
     TournamentsModule,
+    AnalyticsModule,
+    PreviewModule,
   ],
   providers: [
     {
@@ -70,6 +77,10 @@ import { SecurityModule } from "./common/security";
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditLogInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: IpBlockGuard,
     },
     {
       provide: APP_GUARD,

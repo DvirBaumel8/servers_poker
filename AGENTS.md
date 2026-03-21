@@ -1,5 +1,14 @@
 ## Cursor Cloud specific instructions
 
+### Git Workflow (IMPORTANT)
+
+- **ALWAYS use rebase, NEVER merge commits**
+- Before creating/updating a PR: `git fetch origin && git rebase origin/main`
+- When merging PRs on GitHub: Use "Squash and merge" (preferred) or "Rebase and merge"
+- **NEVER use "Create a merge commit"**
+- All changes to `main` must go through Pull Requests
+- Keep git history linear and clean
+
 ### Architecture
 
 This is a NestJS (TypeScript) poker tournament platform with a React (Vite) frontend. See `package.json` scripts for standard commands; `docs/` for detailed documentation.
@@ -68,3 +77,37 @@ node dist/src/main.js
 ### Email verification in dev mode
 
 The `EmailService` logs verification codes to stdout instead of sending emails. Look for `[DEV MODE] Email to ...` in the backend logs for codes.
+
+### QA Monster Framework (IMPORTANT)
+
+**Every feature, refactor, or significant UI change MUST include QA Monster updates.**
+
+The QA Monster is our comprehensive testing framework that finds bugs, UX issues, and design inconsistencies. When developing:
+
+1. **Before starting**: Check `tests/qa/monster/monster-config.ts` for existing coverage
+2. **During development**: Consider edge cases, error states, mobile viewports
+3. **Before PR**: Update monster config with new flows/pages
+
+**What to update:**
+
+| Change Type | Update Location |
+|-------------|-----------------|
+| New page/route | Add to `PAGES` array in `monster-config.ts` |
+| New user flow | Add to `FLOWS` array in `monster-config.ts` |
+| New form/inputs | Add edge cases and validation scenarios |
+| New component | Add to page's `interactiveElements` |
+| New API endpoint | Add error scenarios |
+
+**Quick commands:**
+```bash
+npm run qa:monster          # Full scan
+npm run qa:monster:quick    # Quick scan (before PR)
+npm run qa:monster:page X   # Test specific page
+```
+
+**Key files:**
+- `tests/qa/monster/monster-config.ts` — Pages, flows, viewports, checks
+- `tests/qa/monster/CONTRIBUTING.md` — Full guide for updating monster
+- `docs/reports/QA-MONSTER-REPORT-V*.md` — Findings history
+
+See `tests/qa/monster/CONTRIBUTING.md` for detailed examples.

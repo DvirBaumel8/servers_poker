@@ -1,5 +1,12 @@
 import { api } from "./client";
-import type { Bot, LeaderboardEntry } from "../types";
+import type {
+  Bot,
+  LeaderboardEntry,
+  BotActivity,
+  ActiveBotsResponse,
+  BotSubscription,
+  SubscriptionStats,
+} from "../types";
 
 interface BotApiResponse {
   id: string;
@@ -85,4 +92,90 @@ export const botsApi = {
     }>(`/bots/${id}/profile`),
 
   getLeaderboard: () => api.get<LeaderboardEntry[]>("/analytics/leaderboard"),
+
+  getActivity: (id: string): Promise<BotActivity> =>
+    api.get<BotActivity>(`/bots/${id}/activity`),
+
+  getMyActivity: (token: string): Promise<ActiveBotsResponse> =>
+    api.get<ActiveBotsResponse>("/bots/my/activity", token),
+
+  getActiveBots: (): Promise<ActiveBotsResponse> =>
+    api.get<ActiveBotsResponse>("/bots/active"),
+
+  getSubscriptions: (
+    botId: string,
+    token: string,
+  ): Promise<BotSubscription[]> =>
+    api.get<BotSubscription[]>(`/bots/${botId}/subscriptions`, token),
+
+  getSubscriptionStats: (
+    botId: string,
+    token: string,
+  ): Promise<SubscriptionStats> =>
+    api.get<SubscriptionStats>(`/bots/${botId}/subscriptions/stats`, token),
+
+  createSubscription: (
+    botId: string,
+    data: {
+      tournament_id?: string;
+      tournament_type_filter?: "rolling" | "scheduled";
+      min_buy_in?: number;
+      max_buy_in?: number;
+      priority?: number;
+      expires_at?: string;
+    },
+    token: string,
+  ): Promise<BotSubscription> =>
+    api.post<BotSubscription>(`/bots/${botId}/subscriptions`, data, token),
+
+  updateSubscription: (
+    botId: string,
+    subscriptionId: string,
+    data: {
+      tournament_type_filter?: "rolling" | "scheduled" | null;
+      min_buy_in?: number | null;
+      max_buy_in?: number | null;
+      priority?: number;
+      status?: "active" | "paused";
+      expires_at?: string | null;
+    },
+    token: string,
+  ): Promise<BotSubscription> =>
+    api.put<BotSubscription>(
+      `/bots/${botId}/subscriptions/${subscriptionId}`,
+      data,
+      token,
+    ),
+
+  deleteSubscription: (
+    botId: string,
+    subscriptionId: string,
+    token: string,
+  ): Promise<{ success: boolean }> =>
+    api.delete<{ success: boolean }>(
+      `/bots/${botId}/subscriptions/${subscriptionId}`,
+      token,
+    ),
+
+  pauseSubscription: (
+    botId: string,
+    subscriptionId: string,
+    token: string,
+  ): Promise<BotSubscription> =>
+    api.post<BotSubscription>(
+      `/bots/${botId}/subscriptions/${subscriptionId}/pause`,
+      undefined,
+      token,
+    ),
+
+  resumeSubscription: (
+    botId: string,
+    subscriptionId: string,
+    token: string,
+  ): Promise<BotSubscription> =>
+    api.post<BotSubscription>(
+      `/bots/${botId}/subscriptions/${subscriptionId}/resume`,
+      undefined,
+      token,
+    ),
 };

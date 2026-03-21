@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { PotManager } from "../../src/betting";
+import { PotManager } from "../../src/domain/betting";
 
 interface TestPlayer {
   id: string;

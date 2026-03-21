@@ -1,0 +1,49 @@
+---
+description: Testing conventions and requirements
+globs:
+  - "tests/**/*.ts"
+  - "src/**/*.spec.ts"
+---
+
+# Testing Rules
+
+## Coverage Requirements
+
+The project enforces minimum coverage thresholds on **unit-testable code**:
+- **Statements**: 80%
+- **Branches**: 70%
+- **Functions**: 85%
+- **Lines**: 80%
+
+Files excluded from coverage (better suited for integration/E2E tests):
+- Controllers, Gateways, Entities, DTOs, Modules
+- Migrations, Workers, Simulation scripts
+- Database repositories, Redis services
+- Passport strategies, Validation pipes
+- Services that require external systems (bot-caller, persistence, recovery)
+
+These thresholds are defined in `vitest.config.ts` and enforced in CI.
+Run `npm run test:cov` to check coverage locally.
+
+## Test Organization
+
+- `tests/unit/` — Pure logic tests (poker engine, hand evaluation, pot calculations)
+- `tests/integration/` — Tests with NestJS test module and database interactions
+- `tests/e2e/` — Full API endpoint tests (require running PostgreSQL)
+
+## Writing Tests
+
+- Use descriptive test names: `should calculate side pot when player is all-in`
+- Group related tests with `describe()` blocks
+- Use `beforeEach` / `afterEach` for setup/teardown, not `beforeAll` for mutable state
+- Mock external dependencies (HTTP calls to bots, email service)
+- Test both happy paths and error cases
+
+## Running Tests
+
+```bash
+npm run test          # Unit + integration (excludes e2e)
+npm run test:unit     # Unit tests only
+npm run test:cov      # With coverage report + threshold enforcement
+npm run test:e2e      # E2E tests (requires PostgreSQL)
+```

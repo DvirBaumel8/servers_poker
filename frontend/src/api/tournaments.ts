@@ -23,6 +23,21 @@ interface TournamentApiResponse {
   finished_at?: string;
 }
 
+interface TournamentResultApiResponse {
+  bot_id: string;
+  bot_name: string;
+  finish_position: number;
+  payout: number;
+}
+
+interface TournamentLeaderboardApiResponse {
+  position: number;
+  bot_id: string;
+  bot_name: string;
+  chips: number;
+  busted: boolean;
+}
+
 function transformTournament(raw: TournamentApiResponse): Tournament {
   return {
     id: raw.id,
@@ -62,17 +77,29 @@ export const tournamentsApi = {
   },
 
   getResults: (id: string) =>
-    api.get<
-      Array<{
-        botId: string;
-        botName: string;
-        finishPosition: number;
-        payout: number;
-      }>
-    >(`/tournaments/${id}/results`),
+    api
+      .get<TournamentResultApiResponse[]>(`/tournaments/${id}/results`)
+      .then((results) =>
+        results.map((result) => ({
+          botId: result.bot_id,
+          botName: result.bot_name,
+          finishPosition: result.finish_position,
+          payout: result.payout,
+        })),
+      ),
 
   getLeaderboard: (id: string) =>
-    api.get<TournamentEntry[]>(`/tournaments/${id}/leaderboard`),
+    api
+      .get<TournamentLeaderboardApiResponse[]>(`/tournaments/${id}/leaderboard`)
+      .then((leaderboard): TournamentEntry[] =>
+        leaderboard.map((entry) => ({
+          position: entry.position,
+          botId: entry.bot_id,
+          botName: entry.bot_name,
+          chips: entry.chips,
+          busted: entry.busted,
+        })),
+      ),
 
   create: (data: Partial<Tournament>, token: string) =>
     api.post<Tournament>("/tournaments", data, token),

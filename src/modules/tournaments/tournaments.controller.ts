@@ -14,9 +14,9 @@ import { TournamentsService } from "./tournaments.service";
 import { TournamentDirectorService } from "./tournament-director.service";
 import { CreateTournamentDto, RegisterBotDto } from "./dto/tournament.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { User } from "../../entities/user.entity";
-import { Public } from "../../common/decorators/public.decorator";
 import { TournamentStatus } from "../../entities/tournament.entity";
 
 @Controller("tournaments")
@@ -39,7 +39,17 @@ export class TournamentsController {
     if (!tournament) {
       throw new NotFoundException(`Tournament ${id} not found`);
     }
-    return tournament;
+    const state = this.tournamentDirector.getTournamentState(id);
+    if (!state) {
+      return tournament;
+    }
+
+    return {
+      ...tournament,
+      current_level: state.level,
+      small_blind: state.blinds.small,
+      big_blind: state.blinds.big,
+    };
   }
 
   @Public()
@@ -70,8 +80,17 @@ export class TournamentsController {
     @Body() dto: RegisterBotDto,
     @CurrentUser() user: User,
   ) {
-    await this.tournamentsService.register(id, dto.bot_id, user.id);
-    return { success: true };
+    // Get current level for late registration check
+    const state = this.tournamentDirector.getTournamentState(id);
+    const currentLevel = state?.level;
+
+    await this.tournamentsService.register(
+      id,
+      dto.bot_id,
+      user.id,
+      currentLevel,
+    );
+    return { success: true, lateRegistration: currentLevel !== undefined };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -125,7 +144,7 @@ export class TournamentsController {
     return state;
   }
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Get("active")
   async getActiveTournaments() {
     return {

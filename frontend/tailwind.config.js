@@ -17,23 +17,49 @@ export default {
         },
         surface: {
           DEFAULT: "#111827",
-          50: "#1e293b",
-          100: "#1a2332",
-          200: "#151d2b",
-          300: "#0f1724",
-          400: "#0a0e17",
+          50: "#192334",
+          100: "#141d2c",
+          200: "#0f1723",
+          300: "#0b1019",
+          400: "#070b12",
+        },
+        panel: {
+          DEFAULT: "#101826",
+          muted: "#162133",
+          strong: "#1a2740",
+        },
+        line: {
+          DEFAULT: "rgba(255,255,255,0.10)",
+          muted: "rgba(255,255,255,0.06)",
+          strong: "rgba(255,255,255,0.18)",
         },
         accent: {
-          DEFAULT: "#c9a227",
-          light: "#dbb842",
-          dark: "#a8871d",
-          muted: "rgba(201, 162, 39, 0.15)",
+          DEFAULT: "#d2b15f",
+          light: "#ebcb77",
+          dark: "#a68538",
+          muted: "rgba(210, 177, 95, 0.16)",
         },
         brand: {
           emerald: "#10b981",
           sapphire: "#3b82f6",
           ruby: "#ef4444",
           amethyst: "#8b5cf6",
+        },
+        success: {
+          DEFAULT: "#36d399",
+          muted: "rgba(54,211,153,0.16)",
+        },
+        warning: {
+          DEFAULT: "#f7c948",
+          muted: "rgba(247,201,72,0.16)",
+        },
+        danger: {
+          DEFAULT: "#f87171",
+          muted: "rgba(248,113,113,0.16)",
+        },
+        info: {
+          DEFAULT: "#60a5fa",
+          muted: "rgba(96,165,250,0.16)",
         },
       },
       fontFamily: {
@@ -44,20 +70,26 @@ export default {
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "hero-pattern":
-          "linear-gradient(135deg, #0a0e17 0%, #111827 50%, #0d1f35 100%)",
+          "radial-gradient(circle at top, rgba(210,177,95,0.10), transparent 28%), linear-gradient(180deg, #070b12 0%, #0a1220 48%, #0d1828 100%)",
         "felt-gradient":
           "radial-gradient(ellipse at center, #1b5e45 0%, #0d3b2e 40%, #0a2e23 100%)",
+        "shell-gradient":
+          "linear-gradient(180deg, rgba(7,11,18,0.98) 0%, rgba(10,18,32,0.96) 40%, rgba(9,15,27,1) 100%)",
+        "panel-gradient":
+          "linear-gradient(180deg, rgba(24,35,52,0.92) 0%, rgba(13,20,32,0.92) 100%)",
         "card-shine":
           "linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(0,0,0,0.1) 100%)",
       },
       boxShadow: {
-        glow: "0 0 20px rgba(201, 162, 39, 0.3)",
-        "glow-sm": "0 0 10px rgba(201, 162, 39, 0.2)",
-        "glow-lg": "0 0 40px rgba(201, 162, 39, 0.4)",
+        glow: "0 0 20px rgba(210, 177, 95, 0.3)",
+        "glow-sm": "0 0 10px rgba(210, 177, 95, 0.2)",
+        "glow-lg": "0 0 40px rgba(210, 177, 95, 0.35)",
         "inner-glow": "inset 0 0 30px rgba(0,0,0,0.3)",
-        card: "0 4px 6px -1px rgba(0,0,0,0.3), 0 2px 4px -2px rgba(0,0,0,0.2)",
+        card: "0 14px 32px rgba(0,0,0,0.34), 0 2px 6px rgba(0,0,0,0.22)",
         "card-hover":
-          "0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.3)",
+          "0 22px 44px rgba(0,0,0,0.42), 0 10px 20px rgba(0,0,0,0.24)",
+        panel:
+          "0 18px 44px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.04)",
         table: "0 0 80px rgba(0,0,0,0.5), inset 0 0 60px rgba(0,0,0,0.2)",
       },
       animation: {

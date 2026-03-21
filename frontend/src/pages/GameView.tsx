@@ -3,15 +3,20 @@ import { motion } from "framer-motion";
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Table } from "../components/game/Table";
 import { ActionFeed, useActionFeed } from "../components/game/ActionFeed";
+import { HandResultToast } from "../components/game/HandResultToast";
 import { useWebSocket } from "../hooks/useWebSocket";
+import { useAuthStore } from "../stores/authStore";
+import { gamesApi } from "../api/games";
 import clsx from "clsx";
 import type { HandResult } from "../types";
+import { Button, MetricCard, StatusPill } from "../components/ui/primitives";
 
 const DEFAULT_TURN_TIMEOUT_MS = 10000;
 
 export function GameView() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
   const { actions, addAction, clearActions } = useActionFeed();
   const [activeHandResult, setActiveHandResult] = useState<HandResult | null>(
     null,
@@ -20,6 +25,10 @@ export function GameView() {
     Record<string, { type: string; amount?: number; timestamp: number }>
   >({});
   const [turnStartTime, setTurnStartTime] = useState<number | undefined>();
+  const [preflightStatus, setPreflightStatus] = useState<
+    "checking" | "ready" | "missing" | "failed"
+  >("checking");
+  const [preflightError, setPreflightError] = useState<string | null>(null);
   const lastActivePlayerId = useRef<string | null>(null);
 
   const handlePlayerAction = useCallback(
@@ -49,9 +58,49 @@ export function GameView() {
 
   const { connected, error, gameState, gameFinished, lastHandResult } =
     useWebSocket(tableId, {
+      autoConnect: preflightStatus === "ready",
+      token: token || undefined,
       onPlayerAction: handlePlayerAction,
       onHandStarted: handleHandStarted,
     });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!tableId || !token) {
+      setPreflightStatus("checking");
+      setPreflightError(null);
+      return;
+    }
+
+    setPreflightStatus("checking");
+    setPreflightError(null);
+
+    gamesApi
+      .getGameState(tableId, token)
+      .then(() => {
+        if (!cancelled) {
+          setPreflightStatus("ready");
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+
+        const message =
+          err instanceof Error ? err.message : "Unable to load table";
+        if (/table not found/i.test(message) || /http 404/i.test(message)) {
+          setPreflightStatus("missing");
+          return;
+        }
+
+        setPreflightStatus("failed");
+        setPreflightError(message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tableId, token]);
 
   // Show hand result when it comes in
   useEffect(() => {
@@ -86,131 +135,141 @@ export function GameView() {
     );
   }, [gameState]);
 
-  if (error) {
+  if (preflightStatus === "missing") {
     return (
-      <div
-        className="flex items-center justify-center min-h-screen"
-        style={{
-          background:
-            "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)",
-        }}
-      >
-        <div className="text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            Connection Error
+      <div className="app-shell flex min-h-screen items-center justify-center px-6">
+        <div className="surface-card max-w-lg text-center">
+          <div className="eyebrow-label">Game unavailable</div>
+          <h2 className="mt-3 text-3xl font-display font-semibold text-white">
+            Table not found
           </h2>
-          <p className="text-gray-400">{error}</p>
-          <button
-            onClick={() => navigate("/tables")}
-            className="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-colors"
-          >
-            Back to Tables
-          </button>
+          <p className="mt-3 text-sm leading-6 text-slate-400">
+            This game may have finished, the link may be invalid, or the table
+            may no longer exist.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button variant="secondary" onClick={() => navigate("/tables")}>
+              Back to tables
+            </Button>
+            <Button onClick={() => navigate("/")}>Go home</Button>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!connected || !gameState) {
+  if (preflightStatus === "failed" || error) {
     return (
-      <div
-        className="flex items-center justify-center min-h-screen"
-        style={{
-          background:
-            "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)",
-        }}
-      >
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500/30 border-t-green-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white">Loading table...</h2>
+      <div className="app-shell flex min-h-screen items-center justify-center px-6">
+        <div className="surface-card max-w-lg text-center">
+          <div className="eyebrow-label">Game connection error</div>
+          <h2 className="mt-3 text-3xl font-display font-semibold text-white">
+            Unable to open the table stream
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-slate-400">
+            {preflightError || error}
+          </p>
+          <div className="mt-6">
+            <Button variant="secondary" onClick={() => navigate("/tables")}>
+              Back to tables
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (preflightStatus !== "ready" || !connected || !gameState) {
+    return (
+      <div className="app-shell flex min-h-screen items-center justify-center">
+        <div className="flex items-center gap-4 rounded-3xl border border-white/8 bg-black/20 px-5 py-4 backdrop-blur-xl">
+          <div className="h-12 w-12 animate-spin rounded-full border-2 border-accent/20 border-t-accent" />
+          <div>
+            <div className="text-sm uppercase tracking-[0.2em] text-slate-500">
+              Game shell
+            </div>
+            <h2 className="text-lg font-semibold text-white">
+              Loading live table...
+            </h2>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background:
-          "linear-gradient(180deg, #0a1628 0%, #0d1f35 50%, #0a1628 100%)",
-      }}
-    >
+    <div className="min-h-screen bg-shell-gradient">
       {/* Action feed */}
       <ActionFeed actions={actions} />
+      <HandResultToast
+        result={activeHandResult}
+        onDismiss={handleHandResultComplete}
+        playerNames={playerNames}
+      />
 
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <button
-          onClick={() => navigate("/tables")}
-          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          <span className="text-sm">Back to Tables</span>
-        </button>
-
-        <div className="flex items-center gap-4">
-          <StatusBadge status={gameState.status} />
-          {gameFinished && (
-            <div className="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
-              <span>🏆</span>
-              Winner: {gameFinished.winnerName || "Unknown"}
+      <div className="page-shell flex flex-col gap-6 py-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="ghost" onClick={() => navigate("/tables")}>
+              Back to tables
+            </Button>
+            <div>
+              <div className="eyebrow-label">Live table view</div>
+              <h1 className="text-2xl font-display font-semibold text-white">
+                Table #{tableId?.slice(0, 8)}
+              </h1>
             </div>
-          )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusBadge status={gameState.status} />
+            {gameFinished && (
+              <StatusPill
+                label={`Winner ${gameFinished.winnerName || "Unknown"}`}
+                tone="success"
+              />
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Main table area - with bottom padding to avoid fixed bar overlap */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-center px-4 pt-2 pb-24"
-        style={{ minHeight: "calc(100vh - 60px)" }}
-      >
-        <Table
-          gameState={gameState}
-          playerActions={playerActions}
-          turnStartTime={turnStartTime}
-          turnTimeoutMs={DEFAULT_TURN_TIMEOUT_MS}
-          handResult={activeHandResult}
-          onHandResultComplete={handleHandResultComplete}
-          playerNames={playerNames}
-        />
-      </motion.div>
+        <div className="grid gap-4 xl:grid-cols-[1fr_19rem]">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-[2rem] border border-white/6 bg-black/10 p-3 shadow-panel"
+          >
+            <Table
+              gameState={gameState}
+              playerActions={playerActions}
+              turnStartTime={turnStartTime}
+              turnTimeoutMs={DEFAULT_TURN_TIMEOUT_MS}
+              handResult={activeHandResult}
+              onHandResultComplete={handleHandResultComplete}
+              playerNames={playerNames}
+            />
+          </motion.div>
 
-      {/* Bottom info bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-black/50 px-4 py-3 z-50">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-center gap-6 bg-black/70 backdrop-blur-md rounded-xl px-6 py-3 border border-white/10">
-            <InfoItem
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <MetricCard
               label="Blinds"
               value={`${formatAmount(gameState.blinds?.small || 0)}/${formatAmount(gameState.blinds?.big || 0)}`}
+              hint="Current blind level"
             />
-            <Divider />
-            <InfoItem
+            <MetricCard
               label="Pot"
               value={formatAmount(gameState.pot)}
-              highlight
+              hint="Main pot"
+              accent
             />
-            <Divider />
-            <InfoItem label="Hand" value={`#${gameState.handNumber}`} />
-            <Divider />
-            <InfoItem
+            <MetricCard
+              label="Hand"
+              value={`#${gameState.handNumber}`}
+              hint="Active hand number"
+            />
+            <MetricCard
               label="Players"
               value={`${gameState.players.filter((p) => !p.folded && !p.disconnected).length}/${gameState.players.length}`}
+              hint="Players still active this hand"
             />
           </div>
         </div>
@@ -225,33 +284,33 @@ function StatusBadge({ status }: { status: string }) {
     { bg: string; text: string; dot: string; label: string }
   > = {
     waiting: {
-      bg: "bg-yellow-500/10",
-      text: "text-yellow-400",
-      dot: "bg-yellow-400",
+      bg: "bg-warning-muted border border-warning/20",
+      text: "text-warning",
+      dot: "bg-warning",
       label: "Waiting",
     },
     playing: {
-      bg: "bg-green-500/10",
-      text: "text-green-400",
-      dot: "bg-green-400",
+      bg: "bg-success-muted border border-success/20",
+      text: "text-success",
+      dot: "bg-success",
       label: "Live",
     },
     running: {
-      bg: "bg-green-500/10",
-      text: "text-green-400",
-      dot: "bg-green-400",
+      bg: "bg-success-muted border border-success/20",
+      text: "text-success",
+      dot: "bg-success",
       label: "Live",
     },
     finished: {
-      bg: "bg-gray-500/10",
-      text: "text-gray-400",
-      dot: "bg-gray-400",
+      bg: "bg-white/[0.05] border border-white/10",
+      text: "text-slate-300",
+      dot: "bg-slate-400",
       label: "Finished",
     },
     paused: {
-      bg: "bg-blue-500/10",
-      text: "text-blue-400",
-      dot: "bg-blue-400",
+      bg: "bg-info-muted border border-info/20",
+      text: "text-info",
+      dot: "bg-info",
       label: "Paused",
     },
   };
@@ -261,7 +320,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={clsx(
-        "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium",
+        "flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium",
         bg,
         text,
       )}
@@ -270,36 +329,6 @@ function StatusBadge({ status }: { status: string }) {
       {label}
     </span>
   );
-}
-
-function InfoItem({
-  label,
-  value,
-  highlight = false,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div className="text-center">
-      <div className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">
-        {label}
-      </div>
-      <div
-        className={clsx(
-          "font-bold text-lg",
-          highlight ? "text-yellow-400" : "text-white",
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function Divider() {
-  return <div className="w-px h-8 bg-gray-700" />;
 }
 
 function formatAmount(amount: number): string {

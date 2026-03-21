@@ -1,0 +1,470 @@
+name: QA Monster
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'src/**'
+      - 'tests/**'
+    # Only run on PR open and when ready for review, NOT on every commit
+    types: [opened, ready_for_review, synchronize]
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Scan type'
+        required: true
+        default: 'quick'
+        type: choice
+        options:
+          - quick
+          - full
+
+  # Nightly full scan
+  schedule:
+    - cron: '0 2 * * *'  # 2 AM UTC daily
+
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: qa-monster-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  coverage-check:
+    name: Coverage Check
+    runs-on: ubuntu-latest
+    # Skip if PR is draft
+    if: github.event.pull_request.draft == false
+    outputs:
+      has_critical: ${{ steps.check-critical.outputs.has_critical }}
+      new_pages_missing: ${{ steps.check-new-pages.outputs.missing }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for diff
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Check Monster Coverage
+        id: coverage
+        run: |
+          echo "## QA Monster Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          npm run qa:coverage 2>&1 | tee coverage.txt
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat coverage.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      
+      - name: Check for New Pages Without Coverage
+        id: check-new-pages
+        run: |
+          MISSING_COVERAGE=0
+          
+          # Find new/modified page files
+          for file in $(git diff --name-only origin/main...HEAD | grep -E 'pages/.*\.(tsx?|jsx?)$' || true); do
+            if [ -f "$file" ]; then
+              # Extract route from filename
+              ROUTE=$(echo "$file" | sed 's|frontend/src/pages||' | sed 's|\.tsx\?||' | sed 's|/index||')
+              echo "Checking coverage for: $ROUTE"
+              
+              # Check if route exists in monster config
+              if ! grep -q "path:.*$ROUTE" tests/qa/monster/monster-config.ts 2>/dev/null; then
+                echo "::warning::⚠️ New page without monster coverage: $ROUTE"
+                MISSING_COVERAGE=1
+              fi
+            fi
+          done
+          
+          echo "missing=$MISSING_COVERAGE" >> $GITHUB_OUTPUT
+      
+      - name: Check for Critical Issues in Recent Reports
+        id: check-critical
+        run: |
+          HAS_CRITICAL=0
+
+          if [ -f "docs/reports/QA-MONSTER-REPORT-V1.md" ]; then
+            CRITICAL_COUNT=$(awk -F'|' '/\| 🔴 Critical \|/ {gsub(/ /, "", $3); print $3}' docs/reports/QA-MONSTER-REPORT-V1.md | head -n 1)
+            CRITICAL_COUNT=${CRITICAL_COUNT:-0}
+            if [ "$CRITICAL_COUNT" -gt "0" ]; then
+              echo "::warning::Found $CRITICAL_COUNT critical issues in QA Monster report"
+              HAS_CRITICAL=1
+            fi
+          fi
+          
+          echo "has_critical=$HAS_CRITICAL" >> $GITHUB_OUTPUT
+
+  monster-scan:
+    name: Monster Scan
+    runs-on: ubuntu-latest
+    needs: coverage-check
+    if: github.event_name == 'schedule' || github.event.inputs.scan_type == 'full'
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: poker
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd frontend && npm ci
+      
+      - name: Build Backend
+        run: npm run build
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: poker
+      
+      - name: Build Frontend
+        run: npm run build:frontend
+      
+      - name: Start Services
+        run: |
+          # Start backend
+          node dist/src/main.js &
+          sleep 5
+          
+          # Start frontend
+          cd frontend && npm run preview -- --port 3001 &
+          sleep 5
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: poker
+          NODE_ENV: test
+      
+      - name: Generate Monster Instructions
+        run: |
+          npm run qa:monster > monster-instructions.txt
+          echo "## QA Monster Full Scan Instructions Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Instructions saved to monster-instructions.txt" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Pages: $(grep -c 'path:' tests/qa/monster/monster-config.ts || echo 0)" >> $GITHUB_STEP_SUMMARY
+          echo "Flows: $(grep -c 'name:.*Flow' tests/qa/monster/monster-config.ts || echo 0)" >> $GITHUB_STEP_SUMMARY
+          echo "Viewports: $(grep -c 'width:' tests/qa/monster/monster-config.ts || echo 0)" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload Monster Instructions
+        uses: actions/upload-artifact@v4
+        with:
+          name: monster-instructions
+          path: monster-instructions.txt
+          retention-days: 7
+
+  block-on-critical:
+    name: Review Critical Issues
+    runs-on: ubuntu-latest
+    needs: coverage-check
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Check for Critical Issues
+        run: |
+          if [ "${{ needs.coverage-check.outputs.has_critical }}" == "1" ]; then
+            echo "::warning::QA Monster report still contains critical issues"
+            echo ""
+            echo "Review docs/reports/QA-MONSTER-REPORT-V1.md before merging."
+            exit 0
+          fi
+          
+          echo "✅ No critical issues reported by QA Monster"
+      
+      - name: Warn on Missing Coverage
+        run: |
+          if [ "${{ needs.coverage-check.outputs.new_pages_missing }}" == "1" ]; then
+            echo "::warning::⚠️ New pages detected without monster coverage"
+            echo "Consider adding coverage before merging."
+            echo "Run: npm run qa:coverage:check /your-page"
+          fi
+
+  pr-comment:
+    name: PR Comment
+    runs-on: ubuntu-latest
+    needs: [coverage-check, block-on-critical]
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Generate Coverage Report
+        id: coverage
+        run: |
+          npm run qa:coverage 2>&1 > coverage.txt || true
+          {
+            echo 'coverage<<EOF'
+            cat coverage.txt
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+      
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        env:
+          HAS_CRITICAL: ${{ needs.coverage-check.outputs.has_critical }}
+          NEW_PAGES_MISSING: ${{ needs.coverage-check.outputs.new_pages_missing }}
+        with:
+          script: |
+            const coverage = `${{ steps.coverage.outputs.coverage }}`;
+            const hasCritical = process.env.HAS_CRITICAL === '1';
+            const newPagesMissing = process.env.NEW_PAGES_MISSING === '1';
+            
+            let status = '✅ All checks passed';
+            
+            if (hasCritical) {
+              status = '⚠️ Critical issues reported';
+            } else if (newPagesMissing) {
+              status = '⚠️ Warning: New pages without coverage';
+            }
+            
+            const body = `## 🦖 QA Monster Report
+            
+            ### Status: ${status}
+            
+            ${hasCritical ? `
+            > **⚠️ Critical Findings Present**
+            > 
+            > QA Monster reports critical findings in the latest committed report snapshot.
+            > Review \`docs/reports/QA-MONSTER-REPORT-V1.md\` and confirm whether the issues are still open.
+            ` : ''}
+            
+            ${newPagesMissing ? `
+            > **⚠️ Coverage Warning**
+            > 
+            > New pages detected without monster coverage.
+            > Run \`npm run qa:coverage:check /your-page\` to see what's missing.
+            ` : ''}
+            
+            <details>
+            <summary>Coverage Report</summary>
+            
+            \`\`\`
+            ${coverage}
+            \`\`\`
+            
+            </details>
+            
+            ### Before Merging Checklist
+            
+            - [ ] I ran \`npm run qa:monster:quick\` locally
+            - [ ] New pages/flows are added to monster config
+            - [ ] Edge cases are documented
+            - [ ] No critical issues remain unfixed
+            
+            ---
+            *This check is informational for pull requests*
+            `;
+            
+            // Find existing comment to update instead of creating new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(c => 
+              c.user.type === 'Bot' && c.body.includes('QA Monster')
+            );
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+
+  # Create GitHub issues for high severity findings (runs on nightly scan)
+  create-issues:
+    name: Create Issues for Findings
+    runs-on: ubuntu-latest
+    needs: monster-scan
+    if: github.event_name == 'schedule'
+    permissions:
+      issues: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Parse Monster Report and Create Issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Read the monster report
+            const reportPath = 'docs/reports/QA-MONSTER-REPORT-V1.md';
+            if (!fs.existsSync(reportPath)) {
+              console.log('No monster report found');
+              return;
+            }
+            
+            const report = fs.readFileSync(reportPath, 'utf8');
+            
+            // Get existing issues with qa-monster label
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'qa-monster',
+              state: 'open'
+            });
+            
+            const existingTitles = existingIssues.map(i => i.title);
+            
+            // Parse issues from report (simple regex for MON-* IDs)
+            const issuePattern = /### (MON-\w+-\d+): (.+)\n\n\*\*Severity:\*\* (🔴|🟠|🟡|🟢) (\w+)/g;
+            let match;
+            let createdCount = 0;
+            
+            while ((match = issuePattern.exec(report)) !== null) {
+              const [_, id, title, emoji, severity] = match;
+              const issueTitle = `[QA-Monster] ${id}: ${title}`;
+              
+              // Skip if issue already exists
+              if (existingTitles.some(t => t.includes(id))) {
+                console.log(`Issue already exists: ${id}`);
+                continue;
+              }
+              
+              // Only create issues for critical and high severity
+              if (severity !== 'Critical' && severity !== 'High') {
+                console.log(`Skipping ${severity} issue: ${id}`);
+                continue;
+              }
+              
+              // Extract the full issue content from report
+              const issueStart = report.indexOf(`### ${id}`);
+              const issueEnd = report.indexOf('###', issueStart + 1);
+              const issueContent = report.substring(issueStart, issueEnd > 0 ? issueEnd : issueStart + 2000);
+              
+              const labels = ['qa-monster', `qa-monster:${severity.toLowerCase()}`];
+              if (severity === 'Critical') {
+                labels.push('priority:critical');
+              }
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: `## QA Monster Finding\n\n${issueContent}\n\n---\n*Auto-created by QA Monster nightly scan*`,
+                labels: labels
+              });
+              
+              console.log(`Created issue: ${issueTitle}`);
+              createdCount++;
+              
+              // Rate limit: don't create too many at once
+              if (createdCount >= 5) {
+                console.log('Created 5 issues, stopping to avoid spam');
+                break;
+              }
+            }
+            
+            console.log(`Created ${createdCount} new issues`);
+
+  # Weekly stale issue check (runs on Monday)
+  stale-check:
+    name: Check Stale Issues
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '0 2 * * 1'
+    permissions:
+      issues: write
+    
+    steps:
+      - name: Check for Stale QA Monster Issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const twoWeeksAgo = new Date();
+            twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+            
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'qa-monster',
+              state: 'open',
+              sort: 'created',
+              direction: 'asc'
+            });
+            
+            let staleCount = 0;
+            
+            for (const issue of issues) {
+              const createdAt = new Date(issue.created_at);
+              
+              if (createdAt < twoWeeksAgo) {
+                // Add stale label if not already present
+                const hasStale = issue.labels.some(l => l.name === 'stale');
+                
+                if (!hasStale) {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: ['stale']
+                  });
+                  
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `⏰ **This QA Monster issue is over 2 weeks old.**\n\nPlease update with progress or close if no longer relevant.\n\ncc @${issue.assignee?.login || 'team'}`
+                  });
+                  
+                  staleCount++;
+                }
+              }
+            }
+            
+            console.log(`Marked ${staleCount} issues as stale`);

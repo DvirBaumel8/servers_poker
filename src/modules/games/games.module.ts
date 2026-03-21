@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { JwtModule } from "@nestjs/jwt";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -6,6 +6,7 @@ import { GamesController } from "./games.controller";
 import { GamesService } from "./games.service";
 import { TablesService } from "./tables.service";
 import { GamesGateway } from "./games.gateway";
+import { TournamentsModule } from "../tournaments/tournaments.module";
 import { Game } from "../../entities/game.entity";
 import { GamePlayer } from "../../entities/game-player.entity";
 import { Hand } from "../../entities/hand.entity";
@@ -40,6 +41,7 @@ import { BotRepository } from "../../repositories/bot.repository";
       }),
       inject: [ConfigService],
     }),
+    forwardRef(() => TournamentsModule),
   ],
   controllers: [GamesController],
   providers: [

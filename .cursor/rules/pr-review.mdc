@@ -1,0 +1,62 @@
+---
+description: Rules for reviewing pull requests in the Poker Engine codebase
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+---
+
+# PR Review Rules
+
+## Code Quality Checklist
+
+When reviewing pull requests, check the following:
+
+### TypeScript & Type Safety
+- No use of `any` without justification in a comment
+- All new public functions have explicit return types
+- No type assertions (`as`) without a comment explaining why it's safe
+- New interfaces/types are placed in appropriate `dto/` or `entities/` files
+
+### Error Handling
+- All async operations have proper error handling (try/catch or .catch())
+- NestJS endpoints use appropriate HTTP status codes
+- Bot communication errors are handled gracefully (timeouts, retries)
+- Database operations use transactions where multi-step writes occur
+
+### Security
+- No secrets or credentials hardcoded (use ConfigService / env vars)
+- User input is validated using class-validator decorators on DTOs
+- SQL queries use parameterized inputs (no string concatenation)
+- JWT tokens are properly validated in protected routes
+- Rate limiting is applied to public endpoints
+
+### Testing
+- New features include unit tests at minimum
+- Critical game logic changes include integration tests
+- Test files follow the naming convention: `*.spec.ts` or `*.test.ts`
+- Tests are placed in the correct directory: `tests/unit/`, `tests/integration/`, or `tests/e2e/`
+- Coverage thresholds are met (see `vitest.config.ts` for current thresholds)
+
+### Game Engine Integrity
+- Poker hand evaluation logic changes must have comprehensive edge-case tests
+- Betting round changes must account for all-in scenarios and side pots
+- Tournament state changes must handle concurrent table operations
+- Card shuffling must use the provably-fair seed system
+
+### Database & Migrations
+- New entities have corresponding migration files
+- Migration timestamps must be greater than all existing migrations
+- Migrations include both `up()` and `down()` methods
+- Schema changes are backwards-compatible or have a migration plan
+
+### Performance
+- No N+1 query patterns in repository methods
+- Large result sets use pagination
+- WebSocket events are not emitted more frequently than necessary
+- Game state snapshots are appropriately sized
+
+### Code Style
+- ESLint passes without errors (`npm run lint:check`)
+- Prettier formatting is applied (`npm run format:check`)
+- No commented-out code blocks merged
+- Imports are organized (NestJS decorators, then external, then internal)

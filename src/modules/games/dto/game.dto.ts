@@ -79,6 +79,8 @@ export class TableResponseDto {
     disconnected: boolean;
   }>;
   gameId?: string;
+  tournamentId?: string;
+  tableNumber?: number;
 }
 
 export class JoinTableResponseDto {

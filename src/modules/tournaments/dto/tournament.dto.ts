@@ -79,6 +79,9 @@ export class TournamentResponseDto {
   status: string;
   buy_in: number;
   starting_chips: number;
+  small_blind?: number;
+  big_blind?: number;
+  current_level?: number;
   min_players: number;
   max_players: number;
   players_per_table: number;

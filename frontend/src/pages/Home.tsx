@@ -1,237 +1,313 @@
-import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { analyticsApi, PlatformStats } from "../api";
+import { usePageTracking } from "../utils/analytics";
+import { Button, MetricCard, SurfaceCard } from "../components/ui/primitives";
 
-const FEATURES = [
+const FEATURE_BLOCKS = [
   {
-    icon: "🤖",
-    title: "Build Your Bot",
-    desc: "Create intelligent poker bots with our simple HTTP API. One endpoint, infinite strategies.",
-    color: "from-blue-500/20 to-blue-600/5",
-    border: "border-blue-500/20",
+    title: "Live bot arena",
+    description:
+      "Spectate real-time cash tables and tournaments with premium gameplay presentation, status signals, and event-driven updates.",
   },
   {
-    icon: "🏆",
-    title: "Compete Live",
-    desc: "Enter rolling and scheduled tournaments. Watch your bots battle in real-time.",
-    color: "from-accent/20 to-accent/5",
-    border: "border-accent/20",
+    title: "One bot workspace",
+    description:
+      "Create bots, validate endpoints, register for tournaments, and monitor activity from a single operator-style product shell.",
   },
   {
-    icon: "📊",
-    title: "Analyze & Improve",
-    desc: "Detailed hand histories, win rates, and provably fair verification for every hand.",
-    color: "from-emerald-500/20 to-emerald-600/5",
-    border: "border-emerald-500/20",
+    title: "Strategy analytics",
+    description:
+      "Measure performance through tournament results, hands played, live metrics, and platform-wide analytics surfaces.",
   },
-];
-
-const STATS = [
-  { value: "1M+", label: "Hands Dealt" },
-  { value: "500+", label: "Active Bots" },
-  { value: "100+", label: "Tournaments" },
-  { value: "99.9%", label: "Uptime" },
 ];
 
 const STEPS = [
   {
     step: "01",
-    title: "Create a Bot Server",
-    desc: "Build an HTTP server that responds to POST /action with your poker decision.",
+    title: "Implement an action endpoint",
+    description:
+      "Run an HTTP service that accepts state and returns a legal poker decision.",
     code: "return { type: 'raise', amount: 100 };",
   },
   {
     step: "02",
-    title: "Register & Connect",
-    desc: "Sign up, register your bot endpoint, and join a table or tournament.",
-    code: 'curl -X POST /api/v1/bots -d \'{"name":"MyBot"}\'',
+    title: "Register and validate the bot",
+    description:
+      "Connect your endpoint, run validation, and activate your bot for live competition.",
+    code: 'POST /api/v1/bots { "name": "RiverPilot" }',
   },
   {
     step: "03",
-    title: "Watch & Win",
-    desc: "Spectate your bot playing live. Analyze results and refine your strategy.",
+    title: "Deploy into live traffic",
+    description:
+      "Enter tournaments, watch the table, and iterate based on live and historical performance.",
     code: "GET /api/v1/games/:id/state",
   },
 ];
 
-export function Home() {
-  return (
-    <div className="relative">
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-hero-pattern" />
-        <div className="absolute inset-0 overflow-hidden">
-          <div
-            className="absolute -top-1/2 -right-1/4 w-[800px] h-[800px] rounded-full opacity-[0.03]"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(201,162,39,1) 0%, transparent 70%)",
-            }}
-          />
-          <div
-            className="absolute -bottom-1/2 -left-1/4 w-[600px] h-[600px] rounded-full opacity-[0.02]"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(16,185,129,1) 0%, transparent 70%)",
-            }}
-          />
-        </div>
+function formatNumber(num: number): string {
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M+`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K+`;
+  return num.toString();
+}
 
-        <div className="relative container mx-auto px-6 pt-20 pb-24">
+export function Home() {
+  usePageTracking();
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    analyticsApi
+      .getPlatformStats()
+      .then(setStats)
+      .catch(() => undefined)
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const statCards = [
+    {
+      label: "Hands dealt",
+      value: stats ? formatNumber(stats.lifetime.totalHandsDealt) : "—",
+      hint: "Validated across lifetime gameplay",
+    },
+    {
+      label: "Registered bots",
+      value: stats ? formatNumber(stats.lifetime.totalBots) : "—",
+      hint: "Competitive field across all accounts",
+    },
+    {
+      label: "Tournaments",
+      value: stats ? formatNumber(stats.lifetime.totalTournaments) : "—",
+      hint: "Rolling and scheduled formats",
+    },
+    {
+      label: "Live tables",
+      value: stats ? stats.live.activeGames : "—",
+      hint: "Currently streaming in the arena",
+    },
+  ];
+
+  return (
+    <div className="overflow-hidden">
+      <section className="border-b border-white/6">
+        <div className="page-shell grid gap-12 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-24">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7 }}
-            className="max-w-3xl mx-auto text-center"
+            className="space-y-8"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 mb-8">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-xs font-medium text-accent">
-                Live Games Running Now
-              </span>
+            <div className="space-y-4">
+              <div className="eyebrow-label">
+                A premium bot-vs-bot poker platform
+              </div>
+              <h1 className="max-w-4xl text-5xl font-display font-semibold leading-tight text-white md:text-6xl">
+                The production workspace for{" "}
+                <span className="gold-gradient-text">
+                  No-Limit Hold&apos;em automation
+                </span>
+                .
+              </h1>
+              <p className="max-w-2xl text-lg leading-8 text-slate-300">
+                Build bots, ship them into live tournaments, monitor active
+                tables, and review performance inside a product designed for
+                serious poker operators.
+              </p>
             </div>
 
-            <h1 className="text-5xl md:text-6xl font-display font-bold text-white mb-6 leading-tight">
-              Where Bots Play{" "}
-              <span className="gold-gradient-text">No-Limit Hold'em</span>
-            </h1>
-
-            <p className="text-lg text-gray-400 mb-10 max-w-xl mx-auto leading-relaxed">
-              Build an HTTP bot, register it, and watch it compete against other
-              developers' bots in real-time poker tournaments.
-            </p>
-
-            <div className="flex items-center justify-center gap-4">
-              <Link
-                to="/register"
-                className="btn-primary text-base px-8 py-3.5"
+            <div className="flex flex-wrap items-center gap-3">
+              <Button asLink="/register" className="px-7 py-3.5 text-base">
+                Create workspace
+              </Button>
+              <Button
+                variant="secondary"
+                asLink="/tables"
+                className="px-7 py-3.5 text-base"
               >
-                Start Building
-              </Link>
-              <Link
-                to="/tables"
-                className="btn-secondary text-base px-8 py-3.5"
-              >
-                Watch Live
-              </Link>
+                Watch live tables
+              </Button>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              {FEATURE_BLOCKS.map((feature) => (
+                <SurfaceCard key={feature.title} muted className="space-y-3">
+                  <div className="text-sm font-semibold text-white">
+                    {feature.title}
+                  </div>
+                  <p className="text-sm leading-6 text-slate-400">
+                    {feature.description}
+                  </p>
+                </SurfaceCard>
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="glass-panel relative overflow-hidden p-6"
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(210,177,95,0.12),transparent_32%)]" />
+            <div className="relative space-y-5">
+              <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-slate-500">
+                    Live arena
+                  </div>
+                  <div className="mt-1 text-xl font-semibold text-white">
+                    Prime tournament hour
+                  </div>
+                </div>
+                <div className="status-running">Running</div>
+              </div>
+              <div className="rounded-[2rem] border border-amber-700/20 bg-felt-gradient p-5 shadow-table">
+                <div className="rounded-[2rem] border border-white/6 bg-black/10 p-4">
+                  <div className="mb-6 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-amber-100/55">
+                    <span>Final table stream</span>
+                    <span>Level 18</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                    {[
+                      ["Players", "9 / 9"],
+                      ["Pot", "14.2K"],
+                      ["Blinds", "1K / 2K"],
+                      ["Active bot", "RiverPilot"],
+                      ["Action", "Raise"],
+                      ["Clock", "08.4s"],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-2xl bg-black/25 px-3 py-4 text-slate-200"
+                      >
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                          {label}
+                        </div>
+                        <div className="mt-2 text-lg font-semibold text-white">
+                          {value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <SurfaceCard muted>
+                  <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Current focus
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-white">
+                    Tournament operations
+                  </div>
+                  <div className="mt-1 text-sm text-slate-400">
+                    Late registration, stack visibility, and live state
+                    tracking.
+                  </div>
+                </SurfaceCard>
+                <SurfaceCard muted>
+                  <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Workflow
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-white">
+                    Bot lifecycle
+                  </div>
+                  <div className="mt-1 text-sm text-slate-400">
+                    Register, validate, activate, observe, and iterate faster.
+                  </div>
+                </SurfaceCard>
+              </div>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Stats Bar */}
-      <section className="relative border-y border-white/5 bg-surface-300/50">
-        <div className="container mx-auto px-6 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {STATS.map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 * i }}
-                className="text-center"
-              >
-                <div className="text-2xl md:text-3xl font-bold gold-gradient-text">
-                  {stat.value}
-                </div>
-                <div className="text-sm text-gray-500 mt-1">{stat.label}</div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="container mx-auto px-6 py-20">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="text-center mb-14"
-        >
-          <h2 className="text-3xl font-display font-bold text-white mb-3">
-            How It Works
-          </h2>
-          <p className="text-gray-500 max-w-md mx-auto">
-            Three steps from zero to competing in live poker tournaments.
-          </p>
-        </motion.div>
-
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {FEATURES.map((feat, i) => (
+      <section className="page-shell py-10">
+        <div className="grid gap-4 md:grid-cols-4">
+          {statCards.map((stat, index) => (
             <motion.div
-              key={feat.title}
-              initial={{ opacity: 0, y: 20 }}
+              key={stat.label}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 * i + 0.4 }}
-              className={`glass-panel p-8 border ${feat.border} hover:border-accent/30 transition-all duration-300 group`}
+              transition={{ delay: 0.08 * index }}
             >
-              <div
-                className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feat.color} flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform`}
-              >
-                {feat.icon}
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">
-                {feat.title}
-              </h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                {feat.desc}
-              </p>
+              <MetricCard
+                label={stat.label}
+                value={
+                  isLoading ? (
+                    <span className="inline-block h-9 w-24 animate-pulse rounded-xl bg-white/6" />
+                  ) : (
+                    stat.value
+                  )
+                }
+                hint={stat.hint}
+                accent
+              />
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* Steps */}
-      <section className="container mx-auto px-6 pb-20">
-        <div className="max-w-4xl mx-auto">
-          <div className="space-y-6">
-            {STEPS.map((step, i) => (
-              <motion.div
-                key={step.step}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.15 * i + 0.6 }}
-                className="glass-panel p-6 flex items-start gap-6 group hover:border-accent/20 transition-all duration-300"
-              >
-                <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <span className="text-sm font-bold text-accent">
-                    {step.step}
-                  </span>
+      <section className="page-shell py-10">
+        <div className="mb-10 max-w-2xl space-y-3">
+          <div className="eyebrow-label">How the platform works</div>
+          <h2 className="section-title">
+            From API endpoint to live poker seat in three moves.
+          </h2>
+          <p className="section-subtitle">
+            The workflow is deliberately short: connect a bot, deploy it, and
+            watch the results through real product surfaces instead of a toy
+            demo.
+          </p>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-3">
+          {STEPS.map((step, index) => (
+            <motion.div
+              key={step.step}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 * index }}
+            >
+              <SurfaceCard className="h-full space-y-6">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-sm font-bold text-accent">
+                  {step.step}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-white font-semibold mb-1">
+                <div className="space-y-3">
+                  <h3 className="text-xl font-semibold text-white">
                     {step.title}
-                  </h4>
-                  <p className="text-sm text-gray-400 mb-3">{step.desc}</p>
-                  <code className="text-xs font-mono text-accent/80 bg-surface-400 px-3 py-1.5 rounded-lg border border-white/5 inline-block">
-                    {step.code}
-                  </code>
+                  </h3>
+                  <p className="text-sm leading-6 text-slate-400">
+                    {step.description}
+                  </p>
                 </div>
-              </motion.div>
-            ))}
-          </div>
+                <code className="block rounded-2xl border border-white/8 bg-surface-400 px-4 py-3 font-mono text-xs text-accent/90">
+                  {step.code}
+                </code>
+              </SurfaceCard>
+            </motion.div>
+          ))}
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="container mx-auto px-6 pb-20">
-        <div className="max-w-3xl mx-auto glass-panel p-12 text-center border-accent/10">
-          <h2 className="text-3xl font-display font-bold text-white mb-4">
-            Ready to Build Your Bot?
-          </h2>
-          <p className="text-gray-400 mb-8 max-w-md mx-auto">
-            Join the arena in under 5 minutes. All you need is an HTTP server
-            that returns a JSON action.
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <Link to="/register" className="btn-primary text-base px-8 py-3.5">
-              Create Account
-            </Link>
-            <Link to="/bots" className="btn-secondary text-base px-8 py-3.5">
-              View Bots
-            </Link>
+      <section className="page-shell pb-16 pt-8">
+        <SurfaceCard className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
+            <div className="eyebrow-label">Ready to launch</div>
+            <h2 className="text-3xl font-display font-semibold text-white">
+              Turn the bot arena into your live test bench.
+            </h2>
+            <p className="max-w-2xl text-sm leading-6 text-slate-400">
+              Set up the account, register a bot, and move directly into live
+              tables, tournaments, and analytics without switching tools.
+            </p>
           </div>
-        </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button asLink="/register">Create account</Button>
+            <Button variant="secondary" asLink="/tournaments">
+              Explore tournaments
+            </Button>
+          </div>
+        </SurfaceCard>
       </section>
     </div>
   );

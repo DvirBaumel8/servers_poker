@@ -152,6 +152,51 @@ Server restarts no longer lose active games:
 - `orphaned` → recovery failed, game abandoned
 - Old snapshots cleaned up after 7 days
 
+### Redis State Synchronization (Horizontal Scaling)
+Multi-instance deployment with shared game state:
+
+**Architecture:**
+- Single executor model: one instance owns each game's execution loop
+- Other instances sync state via Redis and broadcast to their WebSocket clients
+- Ownership uses distributed locking (Redis SET NX EX pattern)
+- On owner failure, another instance can acquire ownership and recover
+
+**Key Services:**
+- `RedisService` — Core Redis client wrapper (ioredis)
+- `RedisPubSubService` — Dedicated pub/sub connections
+- `GameOwnershipService` — Distributed locking for games/tournaments
+- `RedisGameStateService` — State persistence (Hash per game)
+- `RedisEventBusService` — Cross-instance event distribution
+
+**Redis Key Patterns:**
+- `poker:game:ownership:{tableId}` → instance ID (with TTL)
+- `poker:game:state:{tableId}` → Hash with snapshot, metadata
+- `poker:tournament:ownership:{tournamentId}` → instance ID
+- `poker:tournament:state:{tournamentId}` → Hash with tournament state
+- `poker:events:{eventType}` → Pub/sub channels
+
+**Timing:**
+- Ownership TTL: 10 seconds
+- Ownership renewal: every 3 seconds
+- State TTL: 24 hours (cleanup of orphaned games)
+
+**Configuration:**
+```bash
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=           # optional
+REDIS_DB=0
+REDIS_KEY_PREFIX=poker:
+INSTANCE_ID=              # auto-generated UUID if not set
+GAME_OWNERSHIP_TTL_MS=10000
+GAME_OWNERSHIP_RENEWAL_MS=3000
+```
+
+**Backward Compatibility:**
+- Works without Redis (falls back to in-memory mode)
+- Redis services are optional injections
+- `LiveGameManagerService.setRedisServices()` enables Redis mode at runtime
+
 ### Database Migrations
 TypeORM migrations manage schema changes:
 - `npm run migration:run` — Execute pending migrations
@@ -578,6 +623,35 @@ Built-in functions reduce implementation complexity:
 
 ## Testing Strategy
 
+### Simulation Test Framework
+
+Integration tests that run real games through the actual backend services.
+
+**Tiers:**
+| Tier | Players | Duration | Run When |
+|------|---------|----------|----------|
+| Basic | 2 | ~30s | Every commit |
+| Single-Table | 9 | ~2-5min | Daily/PR |
+| Multi-Table | 30 | ~10-15min | Weekly/Release |
+
+**Commands:**
+```bash
+npm run sim:basic    # Fast check
+npm run sim:single   # Tournament mechanics
+npm run sim:multi    # Full lifecycle
+npm run sim:all      # Complete suite
+npm run sim:ci       # CI mode (basic only, fail fast)
+```
+
+**Location:** `tests/qa/simulations/`
+
+**Key Assertions:**
+- Chip conservation: Total chips remain constant
+- State consistency: DB matches in-memory
+- Event propagation: Tournament tracks eliminations
+- Error handling: Graceful recovery
+- Completion: Proper end state reached
+
 ### Three-Tier Test Structure
 
 **Unit Tests** (`tests/unit/`):
@@ -677,14 +751,377 @@ The platform implements a provably fair deck shuffling system using HMAC-SHA256 
 
 ---
 
+## Bot Activity Dashboard & Auto-Registration
+
+### Bot Activity Tracking
+Real-time visibility into bot participation across games and tournaments:
+
+**API Endpoints:**
+- `GET /bots/:id/activity` — Get activity for a specific bot
+- `GET /bots/my/activity` — Get activity for all user's bots (authenticated)
+- `GET /bots/active` — Get all currently active bots (public)
+
+**Activity Data Includes:**
+- Active games: table ID, game status, hand number, chips, position
+- Active tournaments: tournament name/status, chips, position in standings
+- Tournament registration status
+- Last activity timestamp
+
+**WebSocket Events:**
+- `subscribeBotActivity` — Subscribe to real-time updates for a specific bot
+- `subscribeActiveBots` — Subscribe to all active bots updates
+- `botActivity` — Emitted when bot activity changes
+
+**Service Architecture:**
+- `BotActivityService` — Aggregates activity from `LiveGameManagerService` and tournament repositories
+- Polls live game state and tournament seats for real-time data
+- Efficient: only queries for requested bots, caches results
+
+### Auto-Registration Subscriptions
+Bots can be configured to automatically register for tournaments:
+
+**Entity: `BotSubscription`**
+```typescript
+{
+  bot_id: string;              // Bot to auto-register
+  tournament_id?: string;      // Specific tournament (or null for filters)
+  tournament_type_filter?: "rolling" | "scheduled";
+  min_buy_in?: number;
+  max_buy_in?: number;
+  priority: number;            // 1-100, higher = processed first
+  status: "active" | "paused" | "expired";
+  expires_at?: Date;
+}
+```
+
+**API Endpoints:**
+- `GET /bots/:botId/subscriptions` — List all subscriptions
+- `POST /bots/:botId/subscriptions` — Create new subscription
+- `PUT /bots/:botId/subscriptions/:id` — Update subscription
+- `DELETE /bots/:botId/subscriptions/:id` — Delete subscription
+- `POST /bots/:botId/subscriptions/:id/pause` — Pause subscription
+- `POST /bots/:botId/subscriptions/:id/resume` — Resume subscription
+- `GET /bots/:botId/subscriptions/stats` — Get subscription statistics
+
+**Auto-Registration Service:**
+- `BotAutoRegistrationService` — Background service that processes subscriptions
+- Listens for `tournament.created` and `tournament.statusChanged` events
+- Runs scheduled job every minute to process pending registrations
+- Respects tournament rules (max players, one bot per user)
+- Tracks successful/failed registration attempts per subscription
+- Cleans up expired subscriptions automatically
+
+**Matching Logic:**
+1. When tournament opens for registration:
+   - Find subscriptions with matching `tournament_id`
+   - Find subscriptions with matching filters (type, buy-in range)
+   - Process in priority order (highest first)
+2. For each matching subscription:
+   - Verify bot is active
+   - Verify tournament has space
+   - Verify user doesn't have another bot in tournament
+   - Register bot if all checks pass
+
+**Frontend Integration:**
+- Bot profile page shows active games/tournaments in real-time
+- Subscription management UI in bot profile
+- "Active Now" panel on Bots page shows currently playing bots
+- Navbar badge shows count of active bots
+
+---
+
+## Platform Analytics & Reporting
+
+### Overview
+Comprehensive analytics system for tracking platform health, user engagement, and bot performance. Designed to provide investor-ready metrics and daily operational reports.
+
+### Key Components
+
+**PlatformAnalyticsService:**
+- Aggregates metrics from multiple data sources (users, bots, games, tournaments)
+- Caches frequently accessed counts (hand count cached for 1 minute)
+- Provides lifetime, daily, live, and health statistics
+- Calculates top performers by net chip gains
+
+**DailySummaryService:**
+- Scheduled via `@nestjs/schedule` cron jobs
+- Runs at configurable hour (default 8 AM UTC)
+- Generates both HTML and plain text email content
+- Tracks sent summaries in `daily_summaries` table for audit
+- Supports manual trigger via admin endpoint
+
+**Frontend Event Tracking:**
+- Automatic page view tracking on route changes
+- User action tracking (bot creation, tournament joins, etc.)
+- Session-based tracking with UUID session IDs
+- IP hashing for privacy (SHA-256, truncated)
+- Batched event sending (every 5 seconds or 10 events)
+
+### Data Flow
+
+```
+Frontend Events → POST /analytics/events → analytics_events table
+                                               ↓
+                           AnalyticsController aggregates
+                                               ↓
+Admin Dashboard ← GET /admin/stats ← PlatformAnalyticsService
+Home Page ← GET /platform/stats ←      (queries across entities)
+                                               ↓
+                           DailySummaryService
+                                               ↓
+                      @Cron(EVERY_DAY_AT_8AM)
+                                               ↓
+                           Email recipients
+```
+
+### Entities
+
+**PlatformMetrics:**
+- One row per day (date is unique key)
+- Stores: total_users, new_users, active_users, total_bots, new_bots, active_bots
+- Stores: games_played, hands_dealt, tournaments_completed
+- Stores: total_chip_volume, avg_bot_response_ms, bot_timeout_count, bot_error_count
+- Stores: peak_concurrent_games
+
+**AnalyticsEvent:**
+- Tracks frontend user interactions
+- Fields: user_id (nullable), event_type, event_data (JSONB), session_id
+- Fields: ip_hash, user_agent, page_url, referrer
+- Indexed on: user_id, event_type, session_id, created_at
+
+**DailySummary:**
+- Records of sent daily email summaries
+- Fields: summary_date, status, recipients, metrics_snapshot (JSONB)
+- Fields: sent_at, error_message, retry_count
+
+### API Endpoints
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /analytics/platform/stats` | Public | Real-time platform statistics |
+| `GET /analytics/admin/stats` | Admin | Detailed stats with history and top performers |
+| `POST /analytics/events` | Public | Record frontend analytics events |
+| `POST /analytics/admin/trigger-summary` | Admin | Manually send daily summary |
+| `POST /analytics/admin/save-metrics` | Admin | Force save daily metrics snapshot |
+| `GET /analytics/events/summary` | Admin | Event counts by type |
+| `GET /analytics/metrics/history` | Admin | Historical metrics for charts |
+
+### Configuration
+
+```bash
+DAILY_SUMMARY_ENABLED=true              # Enable scheduled daily summaries
+DAILY_SUMMARY_RECIPIENTS=a@x.com,b@x.com  # Comma-separated recipient list
+DAILY_SUMMARY_HOUR=8                    # Hour (UTC) to send summary
+ANALYTICS_RETENTION_DAYS=90             # Days to keep analytics events
+```
+
+### Frontend Integration
+
+**Home Page (`/`):**
+- Fetches real stats from `/analytics/platform/stats`
+- Shows: total hands, total bots, total tournaments, live games
+- Loading state with skeleton placeholders
+
+**Admin Dashboard (`/admin/analytics`):**
+- Requires admin role (redirects non-admins)
+- KPI cards with lifetime and daily metrics
+- Line/Area charts for trends (Recharts)
+- Bar chart for games over time
+- Top performers leaderboard
+- Performance metrics (response time, errors)
+- Manual summary trigger button
+
+**Event Tracking (`utils/analytics.ts`):**
+- Singleton `Analytics` class with batched sending
+- Automatic session management
+- Helper methods: `trackPageView`, `trackBotCreated`, `trackTournamentJoined`, etc.
+- `usePageTracking()` hook for route change tracking
+
+---
+
+## Tournament Director Improvements (2026-03)
+
+### Late Registration Support
+Tournament registration now works during running tournaments if within `late_reg_ends_level`:
+- `TournamentsService.register()` accepts optional `currentLevel` parameter
+- Controller fetches current level from `TournamentDirectorService.getTournamentState()`
+- Registration allowed if `currentLevel <= tournament.late_reg_ends_level`
+- Returns `lateRegistration: true` in response when late reg used
+
+### Proper Table Creation
+Tables are now correctly created in the database before seating players:
+- `TournamentDirectorService.createTable()` calls `tournamentRepository.createTable()` first
+- Creates `tournament_tables` record with proper UUID
+- Then creates `tournament_seats` records (satisfies FK constraint)
+- Uses `crypto.randomUUID()` for all IDs (fits varchar(36))
+
+### Leaderboard Synchronization
+Tournament leaderboard now reflects live chip counts:
+- Seats created when players added to tables via `tournamentRepository.seatBot()`
+- Chips synced periodically via `syncChipsToDatabase()` in game loop
+- Busted players marked via `tournamentRepository.bustSeat()`
+
+### Game Error Recovery
+Tournament director now recovers from game errors:
+- `checkAndRecoverErroredGames()` runs in game loop
+- Detects tables in "error" status
+- Recreates game instance with current chip counts
+- Moves players from broken tables if < 2 active
+- Logs recovery attempts
+
+### Player Bust Handling
+Busted players are now properly removed from games:
+- `checkForBustedPlayers()` calls `tableEntry.game.removePlayer()`
+- Updates `tournament_entries` with `finish_position` and `bust_level`
+- Updates `tournament_seats` with `busted: true`
+- Emits `tournament.playerBusted` event
+
+---
+
+## Visual & AI-Powered Testing Framework (2026-03)
+
+### Overview
+Comprehensive testing framework that enables AI agents to act as QA testers, automatically finding visual bugs, layout issues, and UI problems.
+
+### Test Categories
+
+**1. Visual Regression Testing**
+- Detects CSS/layout bugs like element overlaps
+- Uses browser MCP tools for automation
+- Takes screenshots for visual evidence
+
+**2. DOM Overlap Detection**
+- Programmatic detection of overlapping elements
+- Specifically designed to catch card/name overlaps at 9-player tables
+- Configurable overlap thresholds
+
+**3. WebSocket Real-time Tests**
+- Verifies UI updates correctly on WebSocket events
+- Tests: player joins, bets, folds, cards dealt, winner declared
+- Uses browser_snapshot with includeDiff for change detection
+
+**4. Responsive Viewport Tests**
+- Tests layout at various screen sizes
+- Desktop, tablet, and mobile viewports
+- Touch target size verification
+
+**5. Error State Tests**
+- Verifies error handling UI
+- Tests: 404/500, network offline, WebSocket disconnect, form validation
+
+**6. Performance/Load Tests**
+- Backend stress testing
+- Concurrent API requests, WebSocket connections
+- Concurrent game simulation
+
+**7. Network Resilience Tests**
+- Bot timeout handling
+- Slow response handling
+- Disconnection recovery
+
+### Usage
+
+```bash
+# Generate AI instructions for any test suite
+npm run test:visual -- ai "Game Table Visual"
+
+# Run load tests
+npm run test:load
+npm run test:load:ws
+npm run test:load:games
+
+# Run Storybook for component testing
+cd frontend && npm run storybook
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `tests/qa/visual/run-visual-tests.ts` | Main runner, generates AI instructions |
+| `tests/qa/visual/dom-overlap-detector.ts` | Overlap detection algorithms |
+| `tests/qa/visual/game-table-visual.test.ts` | Game table visual tests |
+| `tests/qa/performance/load-test.ts` | Load testing |
+| `frontend/src/components/game/Table.stories.tsx` | Storybook visual tests |
+
+### Storybook Stories
+
+Key test cases for visual regression:
+- `NinePlayers` - 9-player full table (overlap stress test)
+- `NinePlayersLongNames` - Maximum length names
+- `AllInMultiway` - Multiple all-ins
+- `MixedPlayerStates` - Folded, all-in, disconnected players
+
+---
+
+## QA Monster Framework (2026-03)
+
+The QA Monster is our comprehensive testing framework that finds bugs, UX issues, design inconsistencies, and raises opinions about the product.
+
+### Philosophy
+
+The Monster is not just a bug finder — it's an opinionated critic that:
+- Finds bugs (broken functionality)
+- Spots inconsistencies (visual, copy, behavior)
+- Questions UX decisions (too many clicks, confusing flows)
+- Raises opinions ("this feels wrong", "this could be better")
+
+### Development Workflow Integration
+
+**Every new feature MUST include QA Monster updates.**
+
+| Change Type | Monster Update |
+|-------------|----------------|
+| New page | Add to `PAGES` in `monster-config.ts` |
+| New flow | Add to `FLOWS` in `monster-config.ts` |
+| New form | Add validation edge cases |
+| New component | Add to `interactiveElements` |
+
+### Commands
+
+```bash
+# Full monster scan
+npm run qa:monster
+
+# Quick scan (before PR)
+npm run qa:monster:quick
+
+# Check coverage for a page
+npm run qa:coverage:check /your-page
+
+# See all coverage
+npm run qa:coverage
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `tests/qa/monster/monster-config.ts` | Pages, flows, viewports, checks |
+| `tests/qa/monster/generate-instructions.ts` | AI instruction generator |
+| `tests/qa/monster/check-coverage.ts` | Coverage checker |
+| `tests/qa/monster/CONTRIBUTING.md` | How to add to monster |
+| `docs/reports/QA-MONSTER-REPORT-V*.md` | Historical findings |
+
+### Finding Categories
+
+- **BUG**: Broken functionality (must fix)
+- **ISSUE**: Problematic behavior (should fix)
+- **CONCERN**: Suboptimal UX (consider fixing)
+- **OPINION**: Could be better (discuss)
+
+---
+
 ## Known Gaps / Future Work
 
 - **Scheduled tournament start** — `type:'scheduled'` exists but no timer fires at `scheduled_start_at`
 - **Tournament reset** — finished tournaments can't be restarted without manual DB changes
-- **Redis for session state** — currently in-memory, need Redis for horizontal scaling
 - **WebSocket authentication** — JWT validation on connection implemented, need refresh handling
 - **Hand-for-hand bubble play** — not implemented for tournament bubble
 - **Dead button rule** — need to choose and implement consistently
 - **Client-provided seeds** — Players could provide their own client seed for extra transparency
+- **Duplicate results entries** — Race condition can cause same player to appear twice in results
+- **Game records not created** — Tournament games not persisted to `games` table (FK violations for hand_seeds)
+- **Missing finish positions** — Some eliminations don't record finish_position correctly
 
 For comprehensive edge case documentation, see `EDGE_CASES.md`.

@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
-import type { Player } from "../../types";
+import { MiniPlayingCard } from "../common/PlayingCard";
+import type { Player, Card } from "../../types";
 
 interface PlayerSeatProps {
   player: Player;
@@ -188,11 +189,13 @@ export function PlayerSeat({
       {/* Hole cards */}
       <div className="flex gap-0.5 mt-1.5 -mb-0.5">
         {showCards && player.holeCards && player.holeCards.length > 0 ? (
-          player.holeCards.map((card, i) => <MiniCard key={i} card={card} />)
+          player.holeCards.map((card, i) => (
+            <MiniPlayingCard key={i} card={card as Card} />
+          ))
         ) : (
           <>
-            <MiniCardBack />
-            <MiniCardBack />
+            <MiniPlayingCard hidden />
+            <MiniPlayingCard hidden />
           </>
         )}
       </div>
@@ -301,86 +304,6 @@ function ActionBadge({ action, amount }: { action: string; amount?: number }) {
     >
       {action.toUpperCase()}
       {showAmount && ` ${formatChips(amount)}`}
-    </div>
-  );
-}
-
-function MiniCard({ card }: { card: { rank: string; suit: string } | string }) {
-  let rank: string;
-  let suit: string;
-  if (typeof card === "string") {
-    const chars = [...card];
-    suit = chars.pop() || "?";
-    rank = chars.join("");
-  } else {
-    rank = card.rank || "?";
-    suit = card.suit || "?";
-  }
-
-  const suitSymbols: Record<string, string> = {
-    hearts: "♥",
-    diamonds: "♦",
-    clubs: "♣",
-    spades: "♠",
-    "♥": "♥",
-    "♦": "♦",
-    "♣": "♣",
-    "♠": "♠",
-  };
-  const suitColors: Record<string, string> = {
-    hearts: "#dc2626",
-    diamonds: "#2563eb",
-    clubs: "#16a34a",
-    spades: "#1e293b",
-    "♥": "#dc2626",
-    "♦": "#2563eb",
-    "♣": "#16a34a",
-    "♠": "#1e293b",
-  };
-  const sym = suitSymbols[suit] || suit;
-  const col = suitColors[suit] || "#1e293b";
-
-  return (
-    <div
-      className="w-7 h-10 rounded-sm flex flex-col items-center justify-center"
-      style={{
-        background: "linear-gradient(160deg, #fff 0%, #f3f4f6 100%)",
-        border: "1px solid #d1d5db",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-      }}
-    >
-      <span
-        className="font-black text-[9px] leading-none"
-        style={{ color: col }}
-      >
-        {rank}
-      </span>
-      <span className="text-[10px] leading-none" style={{ color: col }}>
-        {sym}
-      </span>
-    </div>
-  );
-}
-
-function MiniCardBack() {
-  return (
-    <div
-      className="w-7 h-10 rounded-sm flex items-center justify-center"
-      style={{
-        background:
-          "linear-gradient(135deg, #1e3a5f 0%, #0f2440 50%, #1e3a5f 100%)",
-        border: "1.5px solid rgba(201,162,39,0.3)",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
-      }}
-    >
-      <div
-        className="w-3.5 h-5 rounded-sm"
-        style={{
-          border: "1px solid rgba(201,162,39,0.15)",
-          background:
-            "repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(201,162,39,0.04) 2px, rgba(201,162,39,0.04) 4px)",
-        }}
-      />
     </div>
   );
 }

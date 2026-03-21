@@ -87,13 +87,27 @@ export class TournamentsService {
     tournamentId: string,
     botId: string,
     userId: string,
+    currentLevel?: number,
   ): Promise<void> {
     const tournament = await this.tournamentRepository.findById(tournamentId);
     if (!tournament) {
       throw new NotFoundException(`Tournament ${tournamentId} not found`);
     }
 
-    if (tournament.status !== "registering") {
+    // Check registration eligibility
+    const isRegistering = tournament.status === "registering";
+    const isRunning = tournament.status === "running";
+    const lateRegAllowed =
+      isRunning &&
+      currentLevel !== undefined &&
+      currentLevel <= tournament.late_reg_ends_level;
+
+    if (!isRegistering && !lateRegAllowed) {
+      if (isRunning && currentLevel !== undefined) {
+        throw new BadRequestException(
+          `Late registration closed after level ${tournament.late_reg_ends_level} (current: ${currentLevel})`,
+        );
+      }
       throw new BadRequestException(
         "Tournament is not accepting registrations",
       );

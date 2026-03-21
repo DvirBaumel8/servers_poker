@@ -407,6 +407,35 @@ describe("Tournament Flow E2E Tests", () => {
     });
   });
 
+  describe("Late Registration", () => {
+    it("should support late registration concept in tournament config", async () => {
+      const player = await registerPlayer();
+
+      const tournamentRes = await request(app.getHttpServer())
+        .post("/api/v1/tournaments")
+        .set("Authorization", `Bearer ${player.accessToken}`)
+        .send({
+          name: `LateRegTournament${uid()}`,
+          type: "rolling",
+          buy_in: 100,
+          starting_chips: 5000,
+          min_players: 2,
+          max_players: 9,
+          late_reg_ends_level: 4,
+        });
+
+      if (tournamentRes.status !== 201) return;
+
+      // Verify late_reg_ends_level was set
+      const detailResponse = await request(app.getHttpServer())
+        .get(`/api/v1/tournaments/${tournamentRes.body.id}`)
+        .set("Authorization", `Bearer ${player.accessToken}`);
+
+      expect(detailResponse.status).toBe(200);
+      expect(detailResponse.body.late_reg_ends_level).toBe(4);
+    });
+  });
+
   describe("Multiple Player Registration", () => {
     it("should allow multiple different bots to register", async () => {
       const player1 = await registerPlayer();

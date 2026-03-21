@@ -17,7 +17,11 @@ const dataSource = new DataSource({
 });
 
 function hashApiKey(key: string): string {
-  return crypto.createHash("sha256").update(key).digest("hex");
+  const hashSecret =
+    process.env.API_KEY_HMAC_SECRET || "development-api-key-hash-secret";
+  return crypto
+    .pbkdf2Sync(key, hashSecret, 210000, 32, "sha256")
+    .toString("hex");
 }
 
 async function seed() {

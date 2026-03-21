@@ -22,11 +22,26 @@ const AUDITED_ROUTES = new Set([
   "POST /api/v1/tournaments",
 ]);
 
+const SENSITIVE_DATA_PATTERNS = [
+  /\/games\/[^/]+\/hands/, // Hand history access
+  /\/games\/[^/]+\/seeds/, // Game seeds access
+  /\/games\/hands\//, // Individual hand access
+  /\/table\/[^/]+\/history/, // Table history access
+  /\/games\/leaderboard/, // Leaderboard access
+  /\/tournaments\/[^/]+\/leaderboard/, // Tournament leaderboard
+  /\/tournaments\/[^/]+\/results/, // Tournament results
+];
+
 function shouldAudit(method: string, path: string): boolean {
   const key = `${method} ${path}`;
   for (const route of AUDITED_ROUTES) {
     if (key.startsWith(route)) return true;
   }
+
+  for (const pattern of SENSITIVE_DATA_PATTERNS) {
+    if (pattern.test(path)) return true;
+  }
+
   return false;
 }
 
@@ -35,6 +50,15 @@ function mapAction(method: string, path: string): AuditAction {
   if (method === "POST") return "create";
   if (method === "PUT" || method === "PATCH") return "update";
   if (method === "DELETE") return "delete";
+  if (
+    path.includes("/hands") ||
+    path.includes("/seeds") ||
+    path.includes("/history") ||
+    path.includes("/leaderboard") ||
+    path.includes("/results")
+  ) {
+    return "read";
+  }
   return "read";
 }
 

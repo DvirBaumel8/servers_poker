@@ -114,7 +114,7 @@ describe("Auth E2E Tests", () => {
         .expect(409);
     });
 
-    it("should allow re-registration for unverified users", async () => {
+    it("should prevent duplicate email registration for unverified users", async () => {
       const testEmail = `unverified-${uid()}@example.com`;
       // First registration (unverified)
       await request(app.getHttpServer())
@@ -126,17 +126,15 @@ describe("Auth E2E Tests", () => {
         })
         .expect(201);
 
-      // Second registration should succeed (resends verification)
-      const response = await request(app.getHttpServer())
+      // Second registration should fail
+      await request(app.getHttpServer())
         .post("/api/v1/auth/register")
         .send({
           email: testEmail,
           name: `User2-${uid()}`,
           password: "NewPassword123!",
         })
-        .expect(201);
-
-      expect(response.body.message).toContain("Verification code sent");
+        .expect(409);
     });
 
     it("should hash passwords (not store plaintext)", async () => {

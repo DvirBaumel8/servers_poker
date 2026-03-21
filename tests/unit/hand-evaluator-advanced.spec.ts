@@ -4,7 +4,7 @@ import {
   determineWinners,
   compareHands,
   HAND_RANKS,
-} from "../../src/handEvaluator";
+} from "../../src/domain/handEvaluator";
 
 function card(rank: string, suit: string) {
   const values: Record<string, number> = {

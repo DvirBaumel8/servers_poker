@@ -16,9 +16,9 @@ import {
   PlayerConfig,
   isWorkerCommand,
 } from "./messages";
-import { createDeck, shuffle, cardToString } from "../deck";
-import { determineWinners, bestHand } from "../handEvaluator";
-import { PotManager, BettingRound } from "../betting";
+import { createDeck, shuffle, cardToString } from "../domain/deck";
+import { determineWinners, bestHand } from "../domain/handEvaluator";
+import { PotManager, BettingRound } from "../domain/betting";
 
 // ============================================================================
 // Worker Logger (sends logs to main thread)

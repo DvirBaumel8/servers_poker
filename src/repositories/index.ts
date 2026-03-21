@@ -9,3 +9,4 @@ export {
   BotProfile,
 } from "./analytics.repository";
 export { GameStateRepository } from "./game-state.repository";
+export { BotSubscriptionRepository } from "./bot-subscription.repository";

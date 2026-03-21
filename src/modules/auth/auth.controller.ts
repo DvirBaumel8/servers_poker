@@ -42,6 +42,7 @@ export class AuthController {
     message: string;
     email: string;
     requiresVerification: boolean;
+    verificationCode?: string;
   }> {
     return this.authService.register(dto);
   }
@@ -61,19 +62,29 @@ export class AuthController {
     return this.authService.registerDeveloper(dto);
   }
 
+  /**
+   * Verify email with 6-digit code.
+   * Rate limited: 10 attempts per IP per 15 minutes.
+   */
   @Public()
   @Post("verify-email")
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 900000, limit: 10 } }) // 10 per 15 minutes
   async verifyEmail(@Body() dto: VerifyEmailDto): Promise<AuthResponseDto> {
     return this.authService.verifyEmail(dto);
   }
 
+  /**
+   * Resend verification code.
+   * Rate limited: 3 requests per IP per 15 minutes.
+   */
   @Public()
   @Post("resend-verification")
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 900000, limit: 3 } }) // 3 per 15 minutes
   async resendVerification(
     @Body() dto: ResendVerificationDto,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; verificationCode?: string }> {
     return this.authService.resendVerificationCode(dto);
   }
 
@@ -91,9 +102,14 @@ export class AuthController {
     return this.authService.forgotPassword(dto);
   }
 
+  /**
+   * Reset password with code.
+   * Rate limited: 5 attempts per IP per 15 minutes.
+   */
   @Public()
   @Post("reset-password")
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 900000, limit: 5 } }) // 5 per 15 minutes
   async resetPassword(
     @Body() dto: ResetPasswordDto,
   ): Promise<{ message: string }> {

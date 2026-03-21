@@ -9,12 +9,18 @@ import {
 import { Logger } from "@nestjs/common";
 import { Server, Socket } from "socket.io";
 import { OnEvent } from "@nestjs/event-emitter";
-import { BotCallerService } from "./bot-caller.service";
+import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
+import { BotCallerService } from "./bot/bot-caller.service";
 import {
   BotHealthSchedulerService,
   HealthCheckRound,
   HealthCheckResult,
-} from "./bot-health-scheduler.service";
+} from "./bot/bot-health-scheduler.service";
+
+interface AuthenticatedSocket extends Socket {
+  userId?: string;
+}
 
 export interface BotMetricsSnapshot {
   timestamp: Date;
@@ -42,7 +48,11 @@ export interface BotMetricDetail {
 @WebSocketGateway({
   namespace: "/metrics",
   cors: {
-    origin: "*",
+    origin: process.env.CORS_ORIGINS?.split(",") || [
+      "http://localhost:3001",
+      "http://localhost:3002",
+    ],
+    credentials: true,
   },
 })
 export class BotMetricsGateway
@@ -57,19 +67,62 @@ export class BotMetricsGateway
   constructor(
     private readonly botCaller: BotCallerService,
     private readonly healthScheduler: BotHealthSchedulerService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   afterInit() {
     this.logger.log("Bot Metrics Gateway initialized");
   }
 
-  handleConnection(client: Socket) {
-    this.connectedClients++;
-    this.logger.debug(
-      `Client connected: ${client.id} (total: ${this.connectedClients})`,
-    );
+  handleConnection(client: AuthenticatedSocket) {
+    try {
+      const token = this.extractToken(client);
+      if (!token) {
+        this.logger.warn(
+          `Metrics connection rejected for client ${client.id}: No authentication token`,
+        );
+        client.emit("error", {
+          code: "UNAUTHORIZED",
+          message: "Authentication required.",
+        });
+        client.disconnect(true);
+        return;
+      }
 
-    this.sendCurrentSnapshot(client);
+      const payload = this.jwtService.verify(token, {
+        secret: this.configService.get<string>("JWT_SECRET"),
+      });
+      client.userId = payload.sub;
+
+      this.connectedClients++;
+      this.logger.debug(
+        `Client connected: ${client.id} (user: ${client.userId}, total: ${this.connectedClients})`,
+      );
+
+      this.sendCurrentSnapshot(client);
+    } catch {
+      this.logger.warn(
+        `Metrics connection rejected for client ${client.id}: Invalid token`,
+      );
+      client.emit("error", {
+        code: "UNAUTHORIZED",
+        message: "Invalid or expired authentication token.",
+      });
+      client.disconnect(true);
+    }
+  }
+
+  private extractToken(client: Socket): string | null {
+    const authHeader = client.handshake.auth?.token;
+    if (authHeader) return authHeader;
+
+    const headerToken = client.handshake.headers?.authorization;
+    if (headerToken?.startsWith("Bearer ")) {
+      return headerToken.slice(7);
+    }
+
+    return client.handshake.query?.token as string | null;
   }
 
   handleDisconnect(client: Socket) {

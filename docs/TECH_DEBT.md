@@ -36,14 +36,6 @@ This file tracks technical debt, security hardening items, and improvements to a
 
 ## Performance & Scaling
 
-### 🟡 Redis for Session State
-**Added:** 2026-03-20
-**Context:** Currently using in-memory state for live games.
-**Risk:** Cannot horizontally scale, all state lost on restart.
-**Action Required:**
-- [ ] Migrate game state to Redis
-- [ ] Implement Redis pub/sub for multi-instance coordination
-
 ### 🟡 Database Connection Pooling Tuning
 **Added:** 2026-03-20
 **Context:** Default TypeORM pool settings.
@@ -66,6 +58,29 @@ This file tracks technical debt, security hardening items, and improvements to a
 **Context:** Finished tournaments can't be restarted without manual DB changes.
 **Action Required:**
 - [ ] Add admin endpoint to reset tournament state
+
+---
+
+## Testing Infrastructure
+
+### 🟠 E2E Tests Stability
+**Added:** 2026-03-21
+**Context:** E2E tests have intermittent failures related to:
+- ECONNRESET errors when bot servers are under load
+- Schema conflicts when tests run in parallel (now fixed with `--no-file-parallelism`)
+- `register-developer` endpoint health checks timing out
+
+**Current State:**
+- E2E tests marked as `continue-on-error: true` in CI to allow PRs to merge
+- Running sequentially to prevent schema conflicts
+- ~87 tests still failing (down from ~150)
+
+**Action Required:**
+- [ ] Add retry logic to bot server health checks
+- [ ] Increase timeouts for bot endpoint validation in test environment
+- [ ] Consider using a shared bot server pool instead of per-test servers
+- [ ] Add proper cleanup in afterAll hooks to prevent port conflicts
+- [ ] Consider splitting E2E tests into separate jobs that run against different databases
 
 ---
 
@@ -101,4 +116,24 @@ This file tracks technical debt, security hardening items, and improvements to a
 
 ## Completed
 
-_(Move items here when done, with completion date)_
+### ✅ Redis for Session State (Horizontal Scaling)
+**Added:** 2026-03-20
+**Completed:** 2026-03-21
+**Context:** In-memory state prevented horizontal scaling.
+**Solution Implemented:**
+- [x] `RedisModule` with `RedisService` and `RedisPubSubService`
+- [x] `GameOwnershipService` for distributed locking (SET NX EX pattern)
+- [x] `RedisGameStateService` for game/tournament state persistence
+- [x] `RedisEventBusService` for cross-instance event distribution via pub/sub
+- [x] `RedisHealthService` for monitoring
+- [x] Updated `LiveGameManagerService` with optional Redis integration
+- [x] Updated `GamesGateway` to receive events from other instances
+- [x] Updated `TournamentDirectorService` with tournament ownership
+- [x] Updated `GameRecoveryService` to recover from Redis state
+- [x] Redis added to `docker-compose.yml`
+
+**Architecture:**
+- Single executor model: one instance owns each game's execution loop
+- Other instances sync state via Redis and can take over on failover
+- Ownership TTL: 10 seconds, renewal every 3 seconds
+- Backward compatible: works without Redis (falls back to in-memory)

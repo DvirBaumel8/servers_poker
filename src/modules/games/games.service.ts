@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { GameRepository } from "../../repositories/game.repository";
+import { BotRepository } from "../../repositories/bot.repository";
 import { Game } from "../../entities/game.entity";
 import { Hand } from "../../entities/hand.entity";
 import { HandHistoryDto, LeaderboardEntryDto } from "./dto/game.dto";
@@ -8,7 +9,10 @@ import { HandHistoryDto, LeaderboardEntryDto } from "./dto/game.dto";
 export class GamesService {
   private readonly logger = new Logger(GamesService.name);
 
-  constructor(private readonly gameRepository: GameRepository) {}
+  constructor(
+    private readonly gameRepository: GameRepository,
+    private readonly botRepository: BotRepository,
+  ) {}
 
   async findById(id: string): Promise<Game | null> {
     return this.gameRepository.findById(id);
@@ -71,6 +75,49 @@ export class GamesService {
 
   async getLeaderboard(limit: number = 20): Promise<LeaderboardEntryDto[]> {
     return this.gameRepository.getLeaderboard(limit);
+  }
+
+  /**
+   * Check if a user has access to a game's data.
+   * Admins have full access; regular users can only access games where their bots participated.
+   */
+  async userHasAccessToGame(
+    gameId: string,
+    userId: string,
+    isAdmin: boolean,
+  ): Promise<boolean> {
+    if (isAdmin) return true;
+
+    const userBots = await this.botRepository.findByUserId(userId);
+    if (userBots.length === 0) return false;
+
+    const userBotIds = new Set(userBots.map((b) => b.id));
+
+    const game = await this.gameRepository.findById(gameId);
+    if (!game) return false;
+
+    const gamePlayers = await this.gameRepository.getGamePlayers(gameId);
+    return gamePlayers.some((p) => userBotIds.has(p.bot_id));
+  }
+
+  /**
+   * Check if a user has access to a specific hand.
+   */
+  async userHasAccessToHand(
+    handId: string,
+    userId: string,
+    isAdmin: boolean,
+  ): Promise<boolean> {
+    if (isAdmin) return true;
+
+    const hand = await this.gameRepository.getHandWithDetails(handId);
+    if (!hand) return false;
+
+    const userBots = await this.botRepository.findByUserId(userId);
+    if (userBots.length === 0) return false;
+
+    const userBotIds = new Set(userBots.map((b) => b.id));
+    return (hand.players || []).some((p) => userBotIds.has(p.bot_id));
   }
 
   private toHandHistoryDto(hand: Hand): HandHistoryDto {

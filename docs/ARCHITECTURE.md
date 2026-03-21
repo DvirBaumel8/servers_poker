@@ -31,16 +31,19 @@ A No-Limit Texas Hold'em tournament platform where developers build bot servers 
 - **Runtime:** Node.js 22+
 - **Framework:** NestJS
 - **Database:** PostgreSQL with TypeORM
+- **Cache/State:** Redis (optional, for horizontal scaling)
 - **Authentication:** JWT (users), API Key (bots)
 - **WebSocket:** Socket.IO via @nestjs/websockets
 - **Testing:** Vitest
 
 ### Frontend
-- **Framework:** React 18 with TypeScript
+- **Framework:** React 19 with TypeScript
 - **State:** Zustand
 - **Styling:** Tailwind CSS
 - **Animations:** Framer Motion
 - **Build:** Vite
+- **Component docs:** Storybook
+- **Frontend tests:** Vitest + Testing Library
 
 ---
 
@@ -87,14 +90,20 @@ servers_poker/
 │   │   ├── tournaments/             — Tournament lifecycle (incl. TournamentDirectorService)
 │   │   └── games/                   — Tables, game joining, WebSocket
 │   ├── services/
-│   │   ├── live-game-manager.service.ts — In-memory game state management
+│   │   ├── live-game-manager.service.ts — Game state management (supports Redis sync)
 │   │   ├── game-worker-manager.service.ts — Worker thread game isolation
 │   │   ├── game-state-persistence.service.ts — Periodic state persistence to DB
 │   │   ├── game-recovery.service.ts — Auto-recovery on server restart
+│   │   ├── game-ownership.service.ts — Distributed locking for multi-instance
+│   │   ├── redis-game-state.service.ts — Redis state persistence
+│   │   ├── redis-event-bus.service.ts — Cross-instance event pub/sub
+│   │   ├── redis-health.service.ts  — Redis health monitoring
 │   │   ├── bot-caller.service.ts    — Resilient bot API calls
 │   │   ├── bot-resilience.service.ts — Fallback strategies
 │   │   ├── bot-health-scheduler.service.ts — Periodic health checks
 │   │   ├── bot-metrics.gateway.ts   — Real-time bot monitoring
+│   │   ├── bot-activity.service.ts  — Real-time bot activity tracking
+│   │   ├── bot-auto-registration.service.ts — Auto-register bots in tournaments
 │   │   ├── provably-fair.service.ts — HMAC commit-reveal deck shuffling
 │   │   └── hand-seed-persistence.service.ts — Persist seeds to database
 │   ├── workers/
@@ -111,6 +120,10 @@ servers_poker/
 │   │   ├── decorators/              — Custom decorators
 │   │   ├── pipes/                   — Validation pipes
 │   │   ├── validators/              — Custom validators
+│   │   ├── redis/                   — Redis client infrastructure
+│   │   │   ├── redis.module.ts      — NestJS module
+│   │   │   ├── redis.service.ts     — Core Redis client wrapper
+│   │   │   └── redis-pubsub.service.ts — Pub/sub connections
 │   │   └── security/                — Security services
 │   │       ├── hmac-signing.service.ts — HMAC-SHA256 payload signing
 │   │       ├── api-key-rotation.service.ts — Key rotation with grace period
@@ -124,21 +137,25 @@ servers_poker/
 │       └── runner.ts                — CLI entry point
 ├── frontend/                          — React SPA (Vite + TypeScript)
 │   ├── src/
-│   │   ├── App.tsx                  — Main router with auth
+│   │   ├── App.tsx                  — Main router with shell split + route guards
 │   │   ├── main.tsx                 — React entry point
 │   │   ├── components/              — React components
-│   │   │   ├── game/                — Table, PlayerSeat, Card
-│   │   │   ├── common/              — ChipStack, Timer
+│   │   │   ├── game/                — Gameplay HUD, table, seats, result surfaces
+│   │   │   ├── common/              — PlayingCard, PokerChipStack, Timer
 │   │   │   ├── tournament/          — TournamentCard, LeaderboardTable
-│   │   │   └── layout/              — Layout with nav + auth
+│   │   │   ├── ui/                  — Shared FE primitives
+│   │   │   └── layout/              — Marketing, auth, product, and game shells
 │   │   ├── pages/                   — Route pages
-│   │   │   ├── Home.tsx             — Landing page
-│   │   │   ├── Tables.tsx           — Cash game tables list
-│   │   │   ├── GameView.tsx         — Live game view with WebSocket
-│   │   │   ├── Tournaments.tsx      — Tournament list
-│   │   │   ├── TournamentDetail.tsx — Single tournament
-│   │   │   ├── Bots.tsx             — Bot management
-│   │   │   ├── Leaderboard.tsx      — Rankings
+│   │   │   ├── Home.tsx             — Marketing landing page
+│   │   │   ├── Tables.tsx           — Cash game lobby
+│   │   │   ├── GameView.tsx         — Live game shell with HUD + side activity
+│   │   │   ├── Tournaments.tsx      — Tournament lobby
+│   │   │   ├── TournamentDetail.tsx — Tournament workspace
+│   │   │   ├── Bots.tsx             — Bot directory + owned bot workspace
+│   │   │   ├── BotProfile.tsx       — Bot performance + subscriptions workspace
+│   │   │   ├── Leaderboard.tsx      — Rankings workspace
+│   │   │   ├── Profile.tsx          — Account + API key workspace
+│   │   │   ├── AdminAnalytics.tsx   — Admin analytics workspace
 │   │   │   ├── Login.tsx            — Authentication
 │   │   │   └── Register.tsx         — Registration
 │   │   ├── hooks/                   — Custom hooks
@@ -153,6 +170,7 @@ servers_poker/
 │   │   │   ├── games.ts             — Tables/state/history
 │   │   │   ├── bots.ts              — Bot CRUD
 │   │   │   └── tournaments.ts       — Tournament CRUD
+│   │   ├── test/                    — Frontend test setup utilities
 │   │   └── types/                   — TypeScript types
 │   └── public/                      — Static assets
 ├── tests/
@@ -187,6 +205,34 @@ servers_poker/
 ```
 
 ---
+
+## Frontend Runtime Architecture
+
+The redesigned frontend is organized around explicit shells:
+
+- `MarketingLayout`
+  - public landing experience
+- `AuthLayout`
+  - login, registration, verification, and password recovery
+- `Layout`
+  - main product workspace for lobbies, workspaces, profile, and admin analytics
+- `GameLayout`
+  - isolated gameplay surface for `/game/:tableId`
+
+The shared FE design system lives in:
+
+- `frontend/tailwind.config.js`
+- `frontend/src/index.css`
+- `frontend/src/components/ui/primitives.tsx`
+
+This system centralizes:
+
+- tokens for color, panel surfaces, lines, shadows, and status semantics
+- shared page scaffolding (`PageShell`, `PageHeader`, `SurfaceCard`)
+- shared interaction patterns (`Button`, `TextField`, `SegmentedTabs`)
+- shared state patterns (`LoadingBlock`, `EmptyState`, `AlertBanner`, `AppModal`, `ConfirmDialog`)
+
+See `docs/FRONTEND_UI_SYSTEM.md` for the FE-specific rules and contribution model.
 
 ## Core Components
 
@@ -471,6 +517,75 @@ The platform implements a cryptographically verifiable deck shuffling system usi
 - Server cannot change shuffle after commitment (hash binding)
 - Players can independently verify without trusting server
 - All seeds persisted for post-game audit
+
+### Analytics & Reporting (`src/modules/analytics/`, `src/services/`)
+
+Platform-wide analytics and daily reporting for investor metrics.
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         Analytics Architecture                              │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│  ┌──────────────────────┐    ┌──────────────────────┐                     │
+│  │ Frontend (React)     │    │ Email Recipients     │                     │
+│  │ - Home page stats    │    │ - Daily summaries    │                     │
+│  │ - Admin dashboard    │    │ - Admin alerts       │                     │
+│  │ - Event tracking     │    └──────────────────────┘                     │
+│  └──────────┬───────────┘               ▲                                  │
+│             │                           │                                  │
+│             ▼                           │                                  │
+│  ┌──────────────────────────────────────┴───────────────────────────────┐ │
+│  │                      AnalyticsController                              │ │
+│  │  GET  /platform/stats         — Public platform statistics           │ │
+│  │  GET  /admin/stats            — Admin-only detailed stats + history  │ │
+│  │  POST /events                 — Record frontend events               │ │
+│  │  POST /admin/trigger-summary  — Manual daily summary trigger         │ │
+│  │  GET  /events/summary         — Event type counts                    │ │
+│  │  GET  /metrics/history        — Historical metrics                   │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│                              │                                             │
+│                              ▼                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │                    PlatformAnalyticsService                           │ │
+│  │  - getLifetimeStats()     — Total users, bots, hands, tournaments    │ │
+│  │  - getTodayStats()        — Daily metrics (new users, active bots)   │ │
+│  │  - getLiveStats()         — Real-time (active games, hands/min)      │ │
+│  │  - getHealthStats()       — Performance (response times, errors)     │ │
+│  │  - getTopPerformers()     — Leaderboard by net chips                 │ │
+│  │  - saveDailyMetrics()     — Persist daily snapshot                   │ │
+│  │  - getMetricsHistory()    — Trend data for charts                    │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│                              │                                             │
+│                              ▼                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │                      DailySummaryService                              │ │
+│  │  @Cron(EVERY_DAY_AT_8AM)  — Scheduled email trigger                  │ │
+│  │  @Cron(EVERY_DAY_AT_MIDNIGHT) — Save daily metrics snapshot          │ │
+│  │  sendDailySummary()       — Generate and send HTML/text emails       │ │
+│  │  triggerManualSummary()   — Admin-triggered immediate send           │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Entities
+- **PlatformMetrics** — Daily snapshots of platform statistics for trend analysis
+- **AnalyticsEvent** — Frontend event tracking (page views, user actions)
+- **DailySummary** — Records of sent daily email summaries
+
+#### Configuration
+```bash
+DAILY_SUMMARY_ENABLED=true              # Enable daily email summaries
+DAILY_SUMMARY_RECIPIENTS=admin@co.com   # Comma-separated recipient list
+DAILY_SUMMARY_HOUR=8                    # Hour (UTC) to send summary
+ANALYTICS_RETENTION_DAYS=90             # Event retention period
+```
+
+#### Frontend Integration
+- **Home Page** — Real platform stats (not hardcoded)
+- **Admin Dashboard** (`/admin/analytics`) — Charts, KPIs, top performers
+- **Event Tracking** — Automatic page views, user action tracking
 
 ### Simulation Engine (`src/simulation/`)
 

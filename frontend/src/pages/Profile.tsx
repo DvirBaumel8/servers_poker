@@ -5,6 +5,18 @@ import { useAuthStore } from "../stores/authStore";
 import { authApi } from "../api/auth";
 import { botsApi } from "../api/bots";
 import type { Bot } from "../types";
+import {
+  AlertBanner,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  LoadingBlock,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  StatusPill,
+  SurfaceCard,
+} from "../components/ui/primitives";
 
 export function Profile() {
   const navigate = useNavigate();
@@ -12,10 +24,10 @@ export function Profile() {
   const [myBots, setMyBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!token) {
@@ -41,12 +53,6 @@ export function Profile() {
 
   const handleRegenerateApiKey = async () => {
     if (!token) return;
-    if (
-      !confirm(
-        "Are you sure? This will invalidate your current API key and all bots using it.",
-      )
-    )
-      return;
 
     setRegenerating(true);
     try {
@@ -68,219 +74,235 @@ export function Profile() {
 
   if (!token) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-white mb-4">Not logged in</h2>
-        <Link
-          to="/login"
-          className="text-poker-gold hover:text-yellow-400 font-medium"
-        >
-          Go to Login →
-        </Link>
-      </div>
+      <PageShell>
+        <EmptyState
+          title="Authentication required"
+          description="Sign in to manage your profile, API key, and owned bots."
+          action={
+            <Button variant="secondary" asLink="/login">
+              Go to login
+            </Button>
+          }
+        />
+      </PageShell>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-poker-gold"></div>
-      </div>
+      <LoadingBlock label="Loading profile workspace" className="page-shell" />
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Profile</h1>
-        <p className="text-gray-400 mt-1">Manage your account and API access</p>
-      </div>
-
-      {error && (
-        <div
-          className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 cursor-pointer"
-          onClick={() => setError(null)}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* User Info Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gray-800/50 rounded-xl border border-gray-700 p-6 mb-6"
-      >
-        <h2 className="text-xl font-bold text-white mb-4">
-          Account Information
-        </h2>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Username</label>
-            <p className="text-white text-lg font-medium">{user?.username}</p>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
-            <p className="text-white text-lg">{user?.email}</p>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Role</label>
-            <span
-              className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                user?.role === "admin"
-                  ? "bg-purple-500/20 text-purple-400"
-                  : "bg-blue-500/20 text-blue-400"
-              }`}
-            >
-              {user?.role?.toUpperCase()}
-            </span>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
-              Member Since
-            </label>
-            <p className="text-white">
-              {user?.createdAt
-                ? new Date(user.createdAt).toLocaleDateString()
-                : "N/A"}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 pt-6 border-t border-gray-700">
-          <button
+    <PageShell className="space-y-8">
+      <PageHeader
+        eyebrow="Profile workspace"
+        title="Account, credentials, and bot ownership"
+        description="Manage identity, API access, and the bots currently assigned to your account."
+        actions={
+          <Button
+            variant="ghost"
             onClick={() => {
               logout();
               navigate("/");
             }}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-colors"
           >
             Logout
-          </button>
-        </div>
+          </Button>
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <MetricCard
+          label="Owned bots"
+          value={myBots.length}
+          hint="Bots in your account"
+          accent
+        />
+        <MetricCard
+          label="Role"
+          value={user?.role?.toUpperCase() || "USER"}
+          hint="Workspace access level"
+        />
+        <MetricCard
+          label="Email"
+          value={user?.email || "N/A"}
+          hint="Primary account contact"
+        />
+        <MetricCard
+          label="Member since"
+          value={
+            user?.createdAt
+              ? new Date(user.createdAt).toLocaleDateString()
+              : "N/A"
+          }
+          hint="Account creation date"
+        />
+      </div>
+
+      {error && (
+        <AlertBanner
+          dismissible
+          onDismiss={() => setError(null)}
+          title="Profile error"
+        >
+          {error}
+        </AlertBanner>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <SurfaceCard className="space-y-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-accent-light to-accent text-xl font-bold text-surface-400">
+                {user?.username?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold text-white">
+                  {user?.username}
+                </h2>
+                <p className="text-sm text-slate-400">{user?.email}</p>
+              </div>
+            </div>
+            <StatusPill
+              label={user?.role === "admin" ? "admin access" : "member"}
+              tone={user?.role === "admin" ? "info" : "neutral"}
+            />
+          </div>
+        </SurfaceCard>
       </motion.div>
 
-      {/* API Key Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-gray-800/50 rounded-xl border border-gray-700 p-6 mb-6"
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">API Key</h2>
-          <button
-            onClick={handleRegenerateApiKey}
-            disabled={regenerating}
-            className="px-4 py-2 bg-poker-gold text-gray-900 rounded-lg font-medium hover:bg-yellow-400 disabled:opacity-50 transition-colors"
-          >
-            {regenerating ? "Regenerating..." : "Regenerate Key"}
-          </button>
-        </div>
+        <SurfaceCard className="space-y-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-white">
+                API key access
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Use this key to authenticate your external bots with the
+                platform.
+              </p>
+            </div>
+            <Button
+              onClick={() => setConfirmRegenerate(true)}
+              disabled={regenerating}
+            >
+              {regenerating ? "Regenerating..." : "Regenerate key"}
+            </Button>
+          </div>
 
-        <p className="text-gray-400 text-sm mb-4">
-          Use this API key to authenticate your bots with our platform. Keep it
-          secret!
-        </p>
-
-        {apiKey ? (
-          <div className="bg-gray-900 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <code className="text-green-400 font-mono text-sm break-all">
-                {showApiKey ? apiKey : "••••••••••••••••••••••••••••••••"}
-              </code>
-              <div className="flex gap-2 ml-4">
-                <button
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="px-3 py-1 bg-gray-700 text-white text-sm rounded hover:bg-gray-600 transition-colors"
-                >
-                  {showApiKey ? "Hide" : "Show"}
-                </button>
-                <button
-                  onClick={() => copyToClipboard(apiKey)}
-                  className="px-3 py-1 bg-gray-700 text-white text-sm rounded hover:bg-gray-600 transition-colors"
-                >
-                  Copy
-                </button>
+          {apiKey ? (
+            <div className="rounded-3xl border border-white/8 bg-surface-400 px-4 py-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <code className="break-all font-mono text-sm text-emerald-300">
+                  {showApiKey ? apiKey : "••••••••••••••••••••••••••••••••"}
+                </code>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? "Hide" : "Show"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => copyToClipboard(apiKey)}
+                  >
+                    Copy
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="bg-gray-900/50 rounded-lg p-4 text-gray-400 text-sm">
-            Click "Regenerate Key" to generate a new API key. Your current key
-            will be invalidated.
-          </div>
-        )}
+          ) : (
+            <SurfaceCard muted>
+              <p className="text-sm text-slate-400">
+                Generate a new API key when you are ready to connect a bot
+                endpoint.
+              </p>
+            </SurfaceCard>
+          )}
 
-        <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-          <p className="text-yellow-400 text-sm">
-            <strong>Warning:</strong> Regenerating your API key will immediately
-            invalidate the old key. All bots using the old key will stop
-            working.
-          </p>
-        </div>
+          <AlertBanner tone="warning" title="Key rotation warning">
+            Regenerating your key immediately invalidates the current credential
+            for every bot using it.
+          </AlertBanner>
+        </SurfaceCard>
       </motion.div>
 
-      {/* My Bots Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-gray-800/50 rounded-xl border border-gray-700 p-6"
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">My Bots</h2>
-          <Link
-            to="/bots"
-            className="text-poker-gold hover:text-yellow-400 text-sm font-medium"
-          >
-            Manage Bots →
-          </Link>
-        </div>
+        <SurfaceCard className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-white">Owned bots</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Quick access to the bots registered under your account.
+              </p>
+            </div>
+            <Button variant="secondary" asLink="/bots">
+              Manage bots
+            </Button>
+          </div>
 
-        {myBots.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="text-4xl mb-3">🤖</div>
-            <p className="text-gray-400 mb-4">
-              You haven't created any bots yet
-            </p>
-            <Link
-              to="/bots"
-              className="inline-block px-4 py-2 bg-poker-gold text-gray-900 rounded-lg font-medium hover:bg-yellow-400 transition-colors"
-            >
-              Create Your First Bot
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {myBots.map((bot) => (
-              <div
-                key={bot.id}
-                className="flex items-center justify-between p-4 bg-gray-900/50 rounded-lg"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`w-3 h-3 rounded-full ${
-                      bot.active ? "bg-green-500" : "bg-gray-500"
-                    }`}
-                  />
-                  <div>
-                    <p className="text-white font-medium">{bot.name}</p>
-                    <p className="text-gray-400 text-sm truncate max-w-xs">
-                      {bot.endpoint}
-                    </p>
+          {myBots.length === 0 ? (
+            <EmptyState
+              title="No bots registered"
+              description="Create your first bot to start validating endpoints and joining live games."
+              action={<Button asLink="/bots">Open bot workspace</Button>}
+            />
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {myBots.map((bot) => (
+                <Link
+                  key={bot.id}
+                  to={`/bots/${bot.id}`}
+                  className="surface-card-muted block transition-colors hover:border-accent/20"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate font-semibold text-white">
+                        {bot.name}
+                      </h3>
+                      <p className="truncate text-sm text-slate-500">
+                        {bot.endpoint}
+                      </p>
+                    </div>
+                    <StatusPill
+                      label={bot.active ? "active" : "paused"}
+                      tone={bot.active ? "success" : "neutral"}
+                    />
                   </div>
-                </div>
-                <div className="text-right text-sm">
-                  <p className="text-gray-400">
-                    Score: {bot.lastValidationScore ?? "N/A"}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </SurfaceCard>
       </motion.div>
-    </div>
+
+      <ConfirmDialog
+        open={confirmRegenerate}
+        title="Regenerate API key"
+        description="Your current API key will stop working immediately for all connected bots."
+        confirmLabel="Regenerate key"
+        onClose={() => setConfirmRegenerate(false)}
+        onConfirm={async () => {
+          await handleRegenerateApiKey();
+          setConfirmRegenerate(false);
+        }}
+        busy={regenerating}
+      />
+    </PageShell>
   );
 }

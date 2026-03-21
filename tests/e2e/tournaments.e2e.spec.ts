@@ -6,6 +6,7 @@ import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { JwtService } from "@nestjs/jwt";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { GamesModule } from "../../src/modules/games/games.module";
@@ -16,6 +17,7 @@ import { appConfig } from "../../src/config";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { v4 as uuidv4 } from "uuid";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -37,22 +39,35 @@ interface TestContext {
 describe("Tournaments E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
+  let jwtService: JwtService;
 
   async function createTestUser(
     emailPrefix = "tournamentowner",
   ): Promise<TestUser> {
     const id = uid();
-    const response = await request(app.getHttpServer())
-      .post("/api/v1/auth/register")
-      .send({
-        email: `${emailPrefix}-${id}@example.com`,
-        name: `TournamentOwner-${id}`,
-        password: "SecurePassword123!",
-      });
+    const email = `${emailPrefix}-${id}@example.com`;
+    const name = `TournamentOwner-${id}`;
+    const userId = uuidv4();
+    const passwordHash =
+      "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC";
+    const apiKeyHash = uuidv4().replace(/-/g, "");
+
+    // Create user directly in DB
+    await dataSource.query(
+      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())`,
+      [userId, email, name, passwordHash, apiKeyHash],
+    );
+
+    // Generate JWT token
+    const accessToken = jwtService.sign(
+      { sub: userId, email },
+      { expiresIn: "1h" },
+    );
 
     return {
-      accessToken: response.body.accessToken,
-      userId: response.body.user.id,
+      accessToken,
+      userId,
     };
   }
 
@@ -159,6 +174,7 @@ describe("Tournaments E2E Tests", () => {
 
     await app.init();
     dataSource = moduleFixture.get(DataSource);
+    jwtService = moduleFixture.get(JwtService);
   });
 
   afterAll(async () => {

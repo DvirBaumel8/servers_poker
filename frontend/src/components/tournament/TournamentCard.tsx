@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import clsx from "clsx";
 import type { Tournament } from "../../types";
+import { Button, StatusPill, SurfaceCard } from "../ui/primitives";
 
 interface TournamentCardProps {
   tournament: Tournament;
@@ -13,14 +13,6 @@ interface TournamentCardProps {
   onCancel?: () => void;
   myBotIds?: string[];
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  registering: "bg-green-500",
-  running: "bg-blue-500",
-  final_table: "bg-purple-500",
-  finished: "bg-gray-500",
-  cancelled: "bg-red-500",
-};
 
 function formatTimeRemaining(ms: number): string {
   if (ms <= 0) return "Closed";
@@ -89,138 +81,138 @@ export function TournamentCard({
   }, [tournament.startedAt, tournament.status, tournament.lateRegEndsLevel]);
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      className={clsx(
-        "bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700",
-        "p-6 hover:border-poker-gold transition-colors",
-        className,
-      )}
-    >
-      <Link to={`/tournaments/${tournament.id}`}>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-bold text-white">{tournament.name}</h3>
-            <span className="text-sm text-gray-400 capitalize">
-              {tournament.type}
-            </span>
-          </div>
-          <span
-            className={clsx(
-              "px-3 py-1 rounded-full text-xs font-medium text-white",
-              STATUS_COLORS[tournament.status],
-            )}
-          >
-            {tournament.status.replace("_", " ").toUpperCase()}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="text-gray-400">Buy-in</span>
-            <p className="text-poker-gold font-bold">
-              {tournament.buyIn.toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-400">Prize Pool</span>
-            <p className="text-green-400 font-bold">
-              {prizePool.toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-400">Players</span>
-            <p className="text-white font-medium">
-              {tournament.entriesCount || tournament.registeredPlayers} /{" "}
-              {tournament.maxPlayers}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-400">
-              {tournament.status === "running" ? "Level" : "Late Reg"}
-            </span>
-            <p className="text-white font-medium">
-              {tournament.status === "running" && tournament.currentLevel
-                ? `${tournament.currentLevel} / ${tournament.lateRegEndsLevel}`
-                : `Until Lvl ${tournament.lateRegEndsLevel}`}
-            </p>
-          </div>
-        </div>
-
-        {isLateRegOpen && timeRemaining !== null && timeRemaining > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-700">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400 text-sm">Late Registration</span>
-              <div className="flex items-center gap-2">
-                <span className="text-yellow-400 font-mono font-bold animate-pulse">
-                  {formatTimeRemaining(timeRemaining)}
-                </span>
-                <span className="text-xs text-gray-500">remaining</span>
-              </div>
+    <motion.div whileHover={{ scale: 1.02 }} className={className}>
+      <SurfaceCard className="h-full space-y-5">
+        <Link to={`/tournaments/${tournament.id}`} className="block space-y-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-semibold text-white">
+                {tournament.name}
+              </h3>
+              <span className="mt-1 block text-sm capitalize text-slate-400">
+                {tournament.type} tournament
+              </span>
             </div>
+            <StatusPill
+              label={tournament.status.replace("_", " ")}
+              tone={
+                tournament.status === "registering"
+                  ? "success"
+                  : tournament.status === "running"
+                    ? "info"
+                    : tournament.status === "cancelled"
+                      ? "danger"
+                      : "neutral"
+              }
+              pulse={tournament.status === "running"}
+            />
           </div>
-        )}
 
-        {tournament.scheduledStartAt && tournament.status === "registering" && (
-          <div className="mt-4 pt-4 border-t border-gray-700">
-            <span className="text-gray-400 text-sm">Starts</span>
-            <p className="text-white">
-              {new Date(tournament.scheduledStartAt).toLocaleString()}
-            </p>
+          <div className="grid grid-cols-2 gap-3">
+            <SurfaceCard muted>
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                Buy-in
+              </div>
+              <div className="mt-2 text-xl font-semibold text-white">
+                {tournament.buyIn.toLocaleString()}
+              </div>
+            </SurfaceCard>
+            <SurfaceCard muted>
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                Prize pool
+              </div>
+              <div className="mt-2 text-xl font-semibold text-emerald-300">
+                {prizePool.toLocaleString()}
+              </div>
+            </SurfaceCard>
+            <SurfaceCard muted>
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                Field
+              </div>
+              <div className="mt-2 text-xl font-semibold text-white">
+                {tournament.entriesCount || tournament.registeredPlayers} /{" "}
+                {tournament.maxPlayers}
+              </div>
+            </SurfaceCard>
+            <SurfaceCard muted>
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                {tournament.status === "running" ? "Level" : "Late reg"}
+              </div>
+              <div className="mt-2 text-xl font-semibold text-white">
+                {tournament.status === "running" && tournament.currentLevel
+                  ? `${tournament.currentLevel} / ${tournament.lateRegEndsLevel}`
+                  : `Until Lvl ${tournament.lateRegEndsLevel}`}
+              </div>
+            </SurfaceCard>
           </div>
-        )}
-      </Link>
 
-      {(canRegister || myRegisteredBotId || onStart || onCancel) && (
-        <div className="mt-4 pt-4 border-t border-gray-700 flex gap-2">
-          {canRegister && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                onRegister();
-              }}
-              className="flex-1 px-4 py-2 bg-poker-gold text-gray-900 text-sm font-medium rounded-lg hover:bg-yellow-400 transition-colors"
-            >
-              {isLateRegOpen ? "Late Register" : "Register"}
-            </button>
+          {isLateRegOpen && timeRemaining !== null && timeRemaining > 0 && (
+            <div className="rounded-2xl border border-warning/20 bg-warning-muted px-4 py-3 text-sm text-yellow-100">
+              Late registration closes in{" "}
+              <span className="font-mono font-semibold text-warning">
+                {formatTimeRemaining(timeRemaining)}
+              </span>
+            </div>
           )}
-          {myRegisteredBotId &&
-            onUnregister &&
+
+          {tournament.scheduledStartAt &&
             tournament.status === "registering" && (
-              <button
+              <div className="text-sm text-slate-400">
+                Starts {new Date(tournament.scheduledStartAt).toLocaleString()}
+              </div>
+            )}
+        </Link>
+
+        {(canRegister || myRegisteredBotId || onStart || onCancel) && (
+          <div className="flex flex-wrap gap-2 border-t border-white/6 pt-4">
+            {canRegister && (
+              <Button
                 onClick={(e) => {
                   e.preventDefault();
-                  onUnregister(myRegisteredBotId);
+                  onRegister();
                 }}
-                className="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-500 transition-colors"
               >
-                Unregister
-              </button>
+                {isLateRegOpen ? "Late Register" : "Register"}
+              </Button>
             )}
-          {onStart && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                onStart();
-              }}
-              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-500 transition-colors"
-            >
-              Start
-            </button>
-          )}
-          {onCancel && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                onCancel();
-              }}
-              className="px-4 py-2 bg-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      )}
+            {myRegisteredBotId &&
+              onUnregister &&
+              tournament.status === "registering" && (
+                <Button
+                  variant="danger"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onUnregister(myRegisteredBotId);
+                  }}
+                >
+                  Unregister
+                </Button>
+              )}
+            {onStart && (
+              <Button
+                onClick={(e) => {
+                  e.preventDefault();
+                  onStart();
+                }}
+                variant="secondary"
+              >
+                Start
+              </Button>
+            )}
+            {onCancel && (
+              <Button
+                onClick={(e) => {
+                  e.preventDefault();
+                  onCancel();
+                }}
+                variant="ghost"
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+        )}
+      </SurfaceCard>
     </motion.div>
   );
 }

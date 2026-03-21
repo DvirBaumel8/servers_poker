@@ -1,9 +1,24 @@
-import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useCallback, type ChangeEvent } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { botsApi } from "../api/bots";
 import { useAuthStore } from "../stores/authStore";
-import type { Bot } from "../types";
+import type { Bot, BotActivity } from "../types";
+import {
+  AlertBanner,
+  AppModal,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  LoadingBlock,
+  MetricCard,
+  PageHeader,
+  PageShell,
+  SegmentedTabs,
+  StatusPill,
+  SurfaceCard,
+  TextField,
+} from "../components/ui/primitives";
 
 interface BotFormData {
   name: string;
@@ -23,12 +38,13 @@ interface ValidationResult {
 }
 
 export function Bots() {
-  const navigate = useNavigate();
   const { user, token } = useAuthStore();
   const [bots, setBots] = useState<Bot[]>([]);
   const [myBots, setMyBots] = useState<Bot[]>([]);
+  const [activeBots, setActiveBots] = useState<BotActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accountWarning, setAccountWarning] = useState<string | null>(null);
   const [showMyBots, setShowMyBots] = useState(false);
 
   // Modal states
@@ -48,17 +64,36 @@ export function Bots() {
   const [validationResults, setValidationResults] = useState<
     Record<string, ValidationResult>
   >({});
+  const [confirmDeleteBotId, setConfirmDeleteBotId] = useState<string | null>(
+    null,
+  );
 
   const loadBots = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await botsApi.getAll();
+      setAccountWarning(null);
+      const [data, activeData] = await Promise.all([
+        botsApi.getAll(),
+        botsApi.getActiveBots(),
+      ]);
       setBots(data);
+      setActiveBots(activeData.bots);
 
       if (token) {
-        const myData = await botsApi.getMy(token);
-        setMyBots(myData);
+        try {
+          const myData = await botsApi.getMy(token);
+          setMyBots(myData);
+        } catch (err) {
+          setMyBots([]);
+          setAccountWarning(
+            err instanceof Error
+              ? err.message
+              : "Unable to load your private bot inventory",
+          );
+        }
       }
+
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load bots");
     } finally {
@@ -114,7 +149,6 @@ export function Bots() {
 
   const handleDelete = async (botId: string) => {
     if (!token) return;
-    if (!confirm("Are you sure you want to deactivate this bot?")) return;
 
     try {
       await botsApi.deactivate(botId, token);
@@ -160,391 +194,407 @@ export function Bots() {
   };
 
   const displayedBots = showMyBots ? myBots : bots;
+  const totalLiveGames = activeBots.reduce(
+    (sum, activity) => sum + activity.activeGames.length,
+    0,
+  );
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-poker-gold"></div>
-      </div>
+      <LoadingBlock label="Loading bot workspace" className="page-shell" />
     );
   }
 
   return (
-    <div>
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-            clipRule="evenodd"
-          />
-        </svg>
-        Back
-      </button>
-
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Bots</h1>
-          <p className="text-gray-400 mt-1">
-            {showMyBots
-              ? "Your registered bots"
-              : "Active poker bots on the platform"}
-          </p>
-        </div>
-
-        <div className="flex gap-3">
-          {user && (
+    <PageShell className="space-y-8">
+      <PageHeader
+        eyebrow="Bot workspace"
+        title={showMyBots ? "Your bot operations" : "Platform bot directory"}
+        description={
+          showMyBots
+            ? "Manage owned bots, validate endpoints, activate or deactivate them, and monitor recent performance."
+            : "Explore active competitors across the platform and jump into live bot profiles."
+        }
+        actions={
+          user ? (
             <>
-              <button
-                onClick={() => setShowMyBots(!showMyBots)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  showMyBots
-                    ? "bg-poker-gold text-gray-900"
-                    : "bg-gray-700 text-white hover:bg-gray-600"
-                }`}
-              >
-                {showMyBots ? "All Bots" : "My Bots"}
-              </button>
-              <button
+              <SegmentedTabs
+                value={showMyBots ? "mine" : "all"}
+                onChange={(value) => setShowMyBots(value === "mine")}
+                items={[
+                  { value: "all", label: "All bots" },
+                  { value: "mine", label: "My bots" },
+                ]}
+              />
+              <Button
                 onClick={() => {
                   setFormData({ name: "", endpoint: "", description: "" });
                   setFormError(null);
                   setShowCreateModal(true);
                 }}
-                className="px-4 py-2 bg-poker-gold text-gray-900 rounded-lg text-sm font-medium hover:bg-yellow-400 transition-colors"
               >
-                + Create Bot
-              </button>
+                Create bot
+              </Button>
             </>
-          )}
-        </div>
+          ) : undefined
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <MetricCard
+          label="Visible bots"
+          value={displayedBots.length}
+          hint="Current listing scope"
+          accent
+        />
+        <MetricCard
+          label="Active right now"
+          value={activeBots.length}
+          hint="Bots in live games or tournaments"
+        />
+        <MetricCard
+          label="Live games"
+          value={totalLiveGames}
+          hint="Games being played by tracked bots"
+        />
+        <MetricCard
+          label="My bots"
+          value={user ? myBots.length : "—"}
+          hint="Owned bot inventory"
+        />
       </div>
 
       {error && (
-        <div
-          className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 cursor-pointer"
-          onClick={() => setError(null)}
+        <AlertBanner
+          dismissible
+          onDismiss={() => setError(null)}
+          title="Bot workspace error"
         >
           {error}
-        </div>
+        </AlertBanner>
+      )}
+
+      {accountWarning && (
+        <AlertBanner
+          dismissible
+          onDismiss={() => setAccountWarning(null)}
+          title="Account-only bot data unavailable"
+        >
+          The public directory loaded, but your private bot inventory could not
+          be refreshed. {accountWarning}
+        </AlertBanner>
+      )}
+
+      {activeBots.length > 0 && !showMyBots && (
+        <SurfaceCard className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="eyebrow-label">Live bot activity</div>
+              <h2 className="mt-2 text-2xl font-semibold text-white">
+                Bots currently in action
+              </h2>
+            </div>
+            <StatusPill
+              label={`${activeBots.length} active`}
+              tone="success"
+              pulse
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {activeBots.slice(0, 8).map((activity) => (
+              <Link
+                key={activity.botId}
+                to={`/bots/${activity.botId}`}
+                className="surface-card-muted block transition-colors hover:border-accent/20"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+                      AI
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-white">
+                        {activity.botName}
+                      </div>
+                      <div className="text-xs text-slate-500">Live routing</div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-slate-400">
+                    {activity.activeGames.length > 0 && (
+                      <div>
+                        {activity.activeGames.length} live game
+                        {activity.activeGames.length !== 1 ? "s" : ""}
+                      </div>
+                    )}
+                    {activity.activeTournaments.length > 0 && (
+                      <div>
+                        {activity.activeTournaments.length} tournament seat
+                        {activity.activeTournaments.length !== 1 ? "s" : ""}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </SurfaceCard>
       )}
 
       {displayedBots.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">🤖</div>
-          <h3 className="text-xl font-bold text-white mb-2">
-            {showMyBots ? "You don't have any bots yet" : "No bots yet"}
-          </h3>
-          <p className="text-gray-400 mb-4">
-            {showMyBots
-              ? "Create your first bot to start competing"
-              : "Register your first bot to get started"}
-          </p>
-          {user && showMyBots && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-6 py-2 bg-poker-gold text-gray-900 rounded-lg font-medium hover:bg-yellow-400 transition-colors"
-            >
-              Create Your First Bot
-            </button>
-          )}
-        </div>
+        <EmptyState
+          title={
+            showMyBots ? "No bots in your workspace yet" : "No bots available"
+          }
+          description={
+            showMyBots
+              ? "Create the first bot to begin validation, registration, and tournament participation."
+              : "The platform has no bots to show right now."
+          }
+          action={
+            user && showMyBots ? (
+              <Button
+                onClick={() => {
+                  setFormData({ name: "", endpoint: "", description: "" });
+                  setFormError(null);
+                  setShowCreateModal(true);
+                }}
+              >
+                Create your first bot
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+          className="grid gap-6 md:grid-cols-2 xl:grid-cols-3"
         >
           {displayedBots.map((bot, index) => {
             const isOwner = user && bot.userId === user.id;
             const validation = validationResults[bot.id];
+            const botActivity = activeBots.find((a) => a.botId === bot.id);
 
             return (
               <motion.div
                 key={bot.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-gray-800/50 rounded-xl border border-gray-700 p-6"
+                transition={{ delay: index * 0.04 }}
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold text-white truncate">
-                      {bot.name}
-                    </h3>
-                    <span className="text-sm text-gray-400 truncate block">
-                      {bot.endpoint}
-                    </span>
-                  </div>
-                  <span
-                    className={`w-3 h-3 rounded-full flex-shrink-0 ml-2 ${
-                      bot.active ? "bg-green-500" : "bg-gray-500"
-                    }`}
-                    title={bot.active ? "Active" : "Inactive"}
-                  />
-                </div>
-
-                {bot.description && (
-                  <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                    {bot.description}
-                  </p>
-                )}
-
-                <div className="flex items-center justify-between text-sm mb-4">
-                  <span className="text-gray-400">
-                    Score: {bot.lastValidationScore ?? "N/A"}
-                  </span>
-                  <span className="text-gray-400">
-                    {new Date(bot.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-
-                {validation && (
-                  <div
-                    className={`mb-4 p-3 rounded-lg text-sm ${
-                      validation.valid
-                        ? "bg-green-500/10 border border-green-500 text-green-400"
-                        : "bg-red-500/10 border border-red-500 text-red-400"
-                    }`}
-                  >
-                    <div className="font-medium mb-1">
-                      {validation.valid
-                        ? "✓ Validation Passed"
-                        : "✗ Validation Failed"}
-                    </div>
-                    <div className="text-xs">
-                      Score: {validation.score} | Response:{" "}
-                      {validation.details.responseTimeMs}ms
-                    </div>
-                    {validation.details.errors.length > 0 && (
-                      <div className="text-xs mt-1">
-                        {validation.details.errors.slice(0, 2).join(", ")}
+                <SurfaceCard className="h-full space-y-5">
+                  <Link to={`/bots/${bot.id}`} className="block">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-xl font-semibold text-white">
+                          {bot.name}
+                        </h3>
+                        <p className="mt-1 truncate text-sm text-slate-500">
+                          {bot.endpoint}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                )}
+                      <StatusPill
+                        label={bot.active ? "active" : "paused"}
+                        tone={bot.active ? "success" : "neutral"}
+                        pulse={!!botActivity?.isActive}
+                      />
+                    </div>
+                  </Link>
 
-                {isOwner && (
-                  <div className="flex gap-2 pt-4 border-t border-gray-700">
-                    <button
-                      onClick={() => handleValidate(bot.id)}
-                      disabled={validatingBotId === bot.id}
-                      className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
-                    >
-                      {validatingBotId === bot.id
-                        ? "Validating..."
-                        : "Validate"}
-                    </button>
-                    <button
-                      onClick={() => openEditModal(bot)}
-                      className="px-3 py-2 bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
-                    >
-                      Edit
-                    </button>
-                    {!bot.active ? (
-                      <button
-                        onClick={() => handleActivate(bot.id)}
-                        className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-500 transition-colors"
-                      >
-                        Activate
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleDelete(bot.id)}
-                        className="px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-500 transition-colors"
-                      >
-                        Deactivate
-                      </button>
-                    )}
+                  {bot.description && (
+                    <p className="line-clamp-2 text-sm leading-6 text-slate-400">
+                      {bot.description}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <SurfaceCard muted>
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                        Validation
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-white">
+                        {bot.lastValidationScore ?? "N/A"}
+                      </div>
+                    </SurfaceCard>
+                    <SurfaceCard muted>
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                        Created
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-white">
+                        {new Date(bot.createdAt).toLocaleDateString()}
+                      </div>
+                    </SurfaceCard>
                   </div>
-                )}
+
+                  {validation && (
+                    <AlertBanner
+                      tone={validation.valid ? "success" : "danger"}
+                      title={
+                        validation.valid
+                          ? "Validation passed"
+                          : "Validation failed"
+                      }
+                    >
+                      Score {validation.score}. Response time{" "}
+                      {validation.details.responseTimeMs}ms.
+                      {validation.details.errors.length > 0 && (
+                        <span>
+                          {" "}
+                          Errors:{" "}
+                          {validation.details.errors.slice(0, 2).join(", ")}
+                        </span>
+                      )}
+                    </AlertBanner>
+                  )}
+
+                  {isOwner && (
+                    <div className="flex flex-wrap gap-2 border-t border-white/6 pt-4">
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleValidate(bot.id)}
+                        disabled={validatingBotId === bot.id}
+                      >
+                        {validatingBotId === bot.id
+                          ? "Validating..."
+                          : "Validate"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => openEditModal(bot)}
+                      >
+                        Edit
+                      </Button>
+                      {!bot.active ? (
+                        <Button
+                          variant="primary"
+                          onClick={() => handleActivate(bot.id)}
+                        >
+                          Activate
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="danger"
+                          onClick={() => setConfirmDeleteBotId(bot.id)}
+                        >
+                          Deactivate
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </SurfaceCard>
               </motion.div>
             );
           })}
         </motion.div>
       )}
 
-      {/* Create Bot Modal */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowCreateModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-2xl font-bold text-white mb-6">Create Bot</h2>
+      <AppModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create bot"
+        description="Register a live HTTP endpoint and start validating it against platform rules."
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-bot-form" disabled={formLoading}>
+              {formLoading ? "Creating..." : "Create bot"}
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="create-bot-form"
+          onSubmit={handleCreate}
+          className="space-y-4"
+        >
+          {formError && (
+            <AlertBanner title="Create bot failed">{formError}</AlertBanner>
+          )}
+          <TextField
+            label="Bot name"
+            value={formData.name}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setFormData({ ...formData, name: e.target.value })
+            }
+            placeholder="RiverPilot"
+            required
+          />
+          <TextField
+            label="Endpoint URL"
+            type="url"
+            value={formData.endpoint}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setFormData({ ...formData, endpoint: e.target.value })
+            }
+            placeholder="https://bot.example.com/action"
+            required
+          />
+          <TextField
+            label="Description"
+            multiline
+            value={formData.description}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+              setFormData({ ...formData, description: e.target.value })
+            }
+            placeholder="Describe the bot's style, constraints, or deployment notes."
+          />
+        </form>
+      </AppModal>
 
-              <form onSubmit={handleCreate} className="space-y-4">
-                {formError && (
-                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
-                    {formError}
-                  </div>
-                )}
+      <AppModal
+        open={showEditModal && !!editingBot}
+        onClose={() => setShowEditModal(false)}
+        title={editingBot ? `Edit ${editingBot.name}` : "Edit bot"}
+        description="Update endpoint configuration and operational notes."
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowEditModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="edit-bot-form" disabled={formLoading}>
+              {formLoading ? "Saving..." : "Save changes"}
+            </Button>
+          </div>
+        }
+      >
+        <form id="edit-bot-form" onSubmit={handleEdit} className="space-y-4">
+          {formError && (
+            <AlertBanner title="Save failed">{formError}</AlertBanner>
+          )}
+          <TextField
+            label="Endpoint URL"
+            type="url"
+            value={formData.endpoint}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setFormData({ ...formData, endpoint: e.target.value })
+            }
+            required
+          />
+          <TextField
+            label="Description"
+            multiline
+            value={formData.description}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+              setFormData({ ...formData, description: e.target.value })
+            }
+          />
+        </form>
+      </AppModal>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Bot Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    required
-                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    placeholder="MyPokerBot"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Endpoint URL
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.endpoint}
-                    onChange={(e) =>
-                      setFormData({ ...formData, endpoint: e.target.value })
-                    }
-                    required
-                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                    placeholder="https://my-bot.example.com/action"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Description (optional)
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold resize-none"
-                    placeholder="A brief description of your bot's strategy"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={formLoading}
-                    className="flex-1 px-4 py-3 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
-                  >
-                    {formLoading ? "Creating..." : "Create Bot"}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Edit Bot Modal */}
-      <AnimatePresence>
-        {showEditModal && editingBot && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowEditModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-2xl font-bold text-white mb-6">
-                Edit {editingBot.name}
-              </h2>
-
-              <form onSubmit={handleEdit} className="space-y-4">
-                {formError && (
-                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
-                    {formError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Endpoint URL
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.endpoint}
-                    onChange={(e) =>
-                      setFormData({ ...formData, endpoint: e.target.value })
-                    }
-                    required
-                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold resize-none"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowEditModal(false)}
-                    className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={formLoading}
-                    className="flex-1 px-4 py-3 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 disabled:opacity-50 transition-colors"
-                  >
-                    {formLoading ? "Saving..." : "Save Changes"}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      <ConfirmDialog
+        open={!!confirmDeleteBotId}
+        title="Deactivate bot"
+        description="This will remove the bot from active use until you reactivate it."
+        confirmLabel="Deactivate bot"
+        onClose={() => setConfirmDeleteBotId(null)}
+        onConfirm={async () => {
+          if (!confirmDeleteBotId) return;
+          await handleDelete(confirmDeleteBotId);
+          setConfirmDeleteBotId(null);
+        }}
+      />
+    </PageShell>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PokerGameService } from "../../src/game/poker-game.service";
-import { PotManager, BettingRound } from "../../src/betting";
+import { PotManager, BettingRound } from "../../src/domain/betting";
 
 describe("Critical Edge Cases", () => {
   describe.concurrent("Odd Chip Distribution in Split Pots", () => {

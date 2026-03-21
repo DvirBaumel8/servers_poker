@@ -1,25 +1,42 @@
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
+import { getEmailValidationMessage, normalizeEmail } from "../utils/email";
+import {
+  AlertBanner,
+  Button,
+  SurfaceCard,
+  TextField,
+} from "../components/ui/primitives";
 
 export function ForgotPassword() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedEmail = normalizeEmail(email);
+    const emailValidationMessage = getEmailValidationMessage(normalizedEmail);
+
+    if (emailValidationMessage) {
+      setEmailTouched(true);
+      setError(emailValidationMessage);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      await authApi.forgotPassword(email);
+      await authApi.forgotPassword(normalizedEmail);
       setSuccess(true);
       setTimeout(() => {
-        navigate("/reset-password", { state: { email } });
+        navigate("/reset-password", { state: { email: normalizedEmail } });
       }, 2000);
     } catch (err) {
       setError(
@@ -37,76 +54,82 @@ export function ForgotPassword() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-8">
-          <div className="text-center mb-8">
-            <div className="text-5xl mb-4">🔐</div>
-            <h1 className="text-2xl font-bold text-white mb-2">
-              Forgot Password?
+        <SurfaceCard className="space-y-8 p-8">
+          <div className="space-y-3 text-center">
+            <div className="eyebrow-label">Password recovery</div>
+            <h1 className="text-3xl font-display font-semibold text-white">
+              Forgot password?
             </h1>
-            <p className="text-gray-400">
-              Enter your email and we'll send you a reset code
+            <p className="text-sm leading-6 text-slate-400">
+              Enter your email and we&apos;ll send a reset code if an account
+              exists.
             </p>
           </div>
 
           {error && (
-            <div
-              className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-6 text-center cursor-pointer"
-              onClick={() => setError(null)}
+            <AlertBanner
+              dismissible
+              onDismiss={() => setError(null)}
+              title="Reset request failed"
             >
               {error}
-            </div>
+            </AlertBanner>
           )}
 
           {success ? (
             <div className="text-center">
-              <div className="bg-green-500/10 border border-green-500 text-green-400 px-4 py-3 rounded-lg mb-6">
+              <AlertBanner tone="success" title="Reset code sent">
                 If an account exists with this email, a reset code has been
                 sent.
-              </div>
-              <p className="text-gray-400">Redirecting to reset page...</p>
+              </AlertBanner>
+              <AlertBanner
+                tone="info"
+                className="mt-4 text-left"
+                title="Local development note"
+              >
+                If SMTP is not configured, the backend logs the reset code
+                instead of sending an email.
+              </AlertBanner>
+              <p className="mt-4 text-gray-400">Redirecting to reset page...</p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-300 mb-2"
-                >
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:border-transparent"
-                  placeholder="you@example.com"
-                />
-              </div>
+            <form noValidate onSubmit={handleSubmit} className="space-y-6">
+              <TextField
+                label="Email address"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  setEmail(e.target.value);
+                }}
+                onBlur={() => setEmailTouched(true)}
+                required
+                placeholder="you@example.com"
+                error={
+                  emailTouched
+                    ? (getEmailValidationMessage(email) ?? undefined)
+                    : undefined
+                }
+              />
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 px-4 bg-poker-gold text-gray-900 font-semibold rounded-lg hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-poker-gold focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
+              <Button type="submit" disabled={loading} className="w-full">
                 {loading ? "Sending..." : "Send Reset Code"}
-              </button>
+              </Button>
             </form>
           )}
 
-          <div className="mt-8 pt-6 border-t border-gray-700 text-center">
-            <p className="text-gray-400 text-sm">
+          <div className="border-t border-white/8 pt-6 text-center text-sm text-slate-400">
+            <p>
               Remember your password?{" "}
               <Link
                 to="/login"
-                className="text-poker-gold hover:text-yellow-400 font-medium"
+                className="font-medium text-accent hover:text-accent-light"
               >
                 Back to login
               </Link>
             </p>
           </div>
-        </div>
+        </SurfaceCard>
       </motion.div>
     </div>
   );

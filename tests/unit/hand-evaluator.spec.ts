@@ -3,7 +3,7 @@ import {
   bestHand,
   determineWinners,
   HAND_RANKS,
-} from "../../src/handEvaluator";
+} from "../../src/domain/handEvaluator";
 
 interface Card {
   value: number;

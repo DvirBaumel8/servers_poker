@@ -30,3 +30,7 @@ export {
   SnapshotStatus,
 } from "./game-state-snapshot.entity";
 export { HandSeed } from "./hand-seed.entity";
+export { BotSubscription, SubscriptionStatus } from "./bot-subscription.entity";
+export { PlatformMetrics } from "./platform-metrics.entity";
+export { AnalyticsEvent, AnalyticsEventType } from "./analytics-event.entity";
+export { DailySummary, SummaryStatus } from "./daily-summary.entity";

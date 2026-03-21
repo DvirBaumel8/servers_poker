@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigService } from "@nestjs/config";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { GameWorkerManagerService } from "../../../src/services/game-worker-manager.service";
+import { GameWorkerManagerService } from "../../../src/services/game/game-worker-manager.service";
 
 describe("GameWorkerManagerService", () => {
   let service: GameWorkerManagerService;

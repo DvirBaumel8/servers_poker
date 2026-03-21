@@ -7,6 +7,7 @@ import { EventEmitterModule } from "@nestjs/event-emitter";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { io, Socket } from "socket.io-client";
+import { JwtService } from "@nestjs/jwt";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { GamesModule } from "../../src/modules/games/games.module";
@@ -17,12 +18,14 @@ import { APP_GUARD } from "@nestjs/core";
 import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { sleep } from "../utils/test-helpers";
+import { v4 as uuidv4 } from "uuid";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 describe("WebSocket E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
+  let jwtService: JwtService;
   let serverUrl: string;
   let clientSocket: Socket | null = null;
 
@@ -81,6 +84,7 @@ describe("WebSocket E2E Tests", () => {
     serverUrl = `http://localhost:${port}`;
 
     dataSource = moduleFixture.get(DataSource);
+    jwtService = moduleFixture.get(JwtService);
   });
 
   afterAll(async () => {
@@ -102,16 +106,29 @@ describe("WebSocket E2E Tests", () => {
 
   async function createTestUser() {
     const id = uid();
-    const response = await request(app.getHttpServer())
-      .post("/api/v1/auth/register")
-      .send({
-        email: `wstest-${id}@example.com`,
-        name: `WSTest-${id}`,
-        password: "SecurePassword123!",
-      });
+    const email = `wstest-${id}@example.com`;
+    const name = `WSTest-${id}`;
+    const userId = uuidv4();
+    const passwordHash =
+      "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC"; // "SecurePassword123!"
+    const apiKeyHash = uuidv4().replace(/-/g, "");
+
+    // Create user directly in DB (faster and no concurrency issues)
+    await dataSource.query(
+      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())`,
+      [userId, email, name, passwordHash, apiKeyHash],
+    );
+
+    // Generate JWT token
+    const accessToken = jwtService.sign(
+      { sub: userId, email },
+      { expiresIn: "1h" },
+    );
+
     return {
-      accessToken: response.body.accessToken,
-      userId: response.body.user.id,
+      accessToken,
+      userId,
     };
   }
 

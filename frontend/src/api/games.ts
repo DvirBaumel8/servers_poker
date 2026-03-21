@@ -66,8 +66,8 @@ export const gamesApi = {
     token: string,
   ) => api.post<Table>("/games/tables", data, token),
 
-  getGameState: (tableId: string) =>
-    api.get<GameState>(`/games/${tableId}/state`),
+  getGameState: (tableId: string, token?: string) =>
+    api.get<GameState>(`/games/${tableId}/state`, token),
 
   joinTable: (tableId: string, botId: string, token: string) =>
     api.post<{ success: boolean; message: string }>(

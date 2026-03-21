@@ -21,6 +21,8 @@ export class ApiKeyRotationService {
   private readonly logger = new Logger(ApiKeyRotationService.name);
   private readonly keyPrefix = "pk_";
   private readonly legacyKeyGracePeriodMs: number;
+  private readonly apiKeyHashSecret: string;
+  private static readonly API_KEY_HASH_ITERATIONS = 210000;
 
   // In-memory cache of legacy keys during grace period
   private readonly legacyKeys = new Map<
@@ -35,6 +37,11 @@ export class ApiKeyRotationService {
     this.legacyKeyGracePeriodMs = this.configService.get<number>(
       "API_KEY_GRACE_PERIOD_MS",
       86400000, // 24 hours default
+    );
+
+    this.apiKeyHashSecret = this.configService.get<string>(
+      "API_KEY_HMAC_SECRET",
+      crypto.randomBytes(32).toString("hex"),
     );
 
     // Cleanup expired legacy keys periodically
@@ -53,10 +60,19 @@ export class ApiKeyRotationService {
   }
 
   /**
-   * Generates a hash of an API key for storage
+   * Hash API keys deterministically so they can be re-derived during
+   * validation without keeping the raw key at rest.
    */
   hashApiKey(apiKey: string): string {
-    return crypto.createHash("sha256").update(apiKey).digest("hex");
+    return crypto
+      .pbkdf2Sync(
+        apiKey,
+        this.apiKeyHashSecret,
+        ApiKeyRotationService.API_KEY_HASH_ITERATIONS,
+        32,
+        "sha256",
+      )
+      .toString("hex");
   }
 
   /**

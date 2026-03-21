@@ -164,7 +164,8 @@ export class PokerGameService {
       return;
     }
 
-    const startingChips = this.config.startingChips || player.chips;
+    // Ensure chips is always a number (bigint from DB comes as string)
+    const startingChips = Number(this.config.startingChips || player.chips);
     const newPlayer: Player = {
       ...player,
       chips: startingChips,
