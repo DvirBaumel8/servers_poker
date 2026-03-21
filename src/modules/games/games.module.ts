@@ -13,6 +13,7 @@ import { Hand } from "../../entities/hand.entity";
 import { HandPlayer } from "../../entities/hand-player.entity";
 import { Action } from "../../entities/action.entity";
 import { Table } from "../../entities/table.entity";
+import { TableSeat } from "../../entities/table-seat.entity";
 import { Bot } from "../../entities/bot.entity";
 import { GameRepository } from "../../repositories/game.repository";
 import { TableRepository } from "../../repositories/table.repository";
@@ -27,6 +28,7 @@ import { BotRepository } from "../../repositories/bot.repository";
       HandPlayer,
       Action,
       Table,
+      TableSeat,
       Bot,
     ]),
     JwtModule.registerAsync({

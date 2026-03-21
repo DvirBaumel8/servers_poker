@@ -45,6 +45,8 @@
     "qa:monster:security": "npx ts-node tests/qa/monster/run-complete.ts security",
     "qa:monster:a11y": "npx ts-node tests/qa/monster/run-complete.ts a11y",
     "qa:monster:perf": "npx ts-node tests/qa/monster/run-complete.ts performance",
+    "qa:monster:sim": "npx ts-node tests/qa-monster/robust-simulation.ts",
+    "qa:monster:live-tournament": "npx ts-node tests/qa-monster/live-tournament-test.ts",
     "qa:inventory": "npx ts-node tests/qa/monster/complete-inventory.ts",
     "qa:coverage": "npx ts-node tests/qa/monster/check-coverage.ts --all",
     "qa:coverage:check": "npx ts-node tests/qa/monster/check-coverage.ts",

@@ -14,6 +14,7 @@ import { TournamentsService } from "./tournaments.service";
 import { TournamentDirectorService } from "./tournament-director.service";
 import { CreateTournamentDto, RegisterBotDto } from "./dto/tournament.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { User } from "../../entities/user.entity";
 import { TournamentStatus } from "../../entities/tournament.entity";
@@ -25,13 +26,13 @@ export class TournamentsController {
     private readonly tournamentDirector: TournamentDirectorService,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Get()
   async findAll(@Query("status") status?: TournamentStatus) {
     return this.tournamentsService.findAll(status);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Get(":id")
   async findOne(@Param("id") id: string) {
     const tournament = await this.tournamentsService.findById(id);
@@ -51,13 +52,13 @@ export class TournamentsController {
     };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Get(":id/results")
   async getResults(@Param("id") id: string) {
     return this.tournamentsService.getResults(id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Get(":id/leaderboard")
   async getLeaderboard(@Param("id") id: string) {
     return this.tournamentsService.getLeaderboard(id);
@@ -123,7 +124,7 @@ export class TournamentsController {
     return { success: true };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Get(":id/state")
   async getState(@Param("id") id: string) {
     const state = this.tournamentDirector.getTournamentState(id);

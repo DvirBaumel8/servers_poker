@@ -5,7 +5,6 @@ import { Layout } from "./components/layout/Layout";
 import { MarketingLayout } from "./components/layout/MarketingLayout";
 import { AuthLayout } from "./components/layout/AuthLayout";
 import { GameLayout } from "./components/layout/GameLayout";
-import { AuthGate } from "./components/auth/AuthGate";
 import { PublicGate } from "./components/auth/PublicGate";
 import { Home } from "./pages/Home";
 import { Tournaments } from "./pages/Tournaments";

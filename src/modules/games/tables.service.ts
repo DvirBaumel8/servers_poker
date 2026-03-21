@@ -83,8 +83,63 @@ export class TablesService {
   }
 
   async findAllWithState(): Promise<TableResponseDto[]> {
-    const tables = await this.tableRepository.findAll();
-    return tables.map((t) => this.toTableResponseDto(t));
+    // Get database tables
+    const dbTables = await this.tableRepository.findAll();
+    const result: TableResponseDto[] = dbTables.map((t) =>
+      this.toTableResponseDto(t),
+    );
+
+    // Also include tournament tables that may not be in the database
+    const tournamentTables = this.getTournamentTables();
+    for (const tt of tournamentTables) {
+      // Only add if not already in result (by ID)
+      if (!result.find((r) => r.id === tt.id)) {
+        result.push(tt);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Get all active tournament tables with their current state.
+   */
+  private getTournamentTables(): TableResponseDto[] {
+    const result: TableResponseDto[] = [];
+    const activeTournaments = this.tournamentDirector.getActiveTournaments();
+
+    for (const tournamentId of activeTournaments) {
+      const tState = this.tournamentDirector.getTournamentState(tournamentId);
+      if (!tState?.tables) continue;
+
+      for (const table of tState.tables) {
+        const gameState = table.gameState;
+        if (!gameState) continue;
+
+        result.push({
+          id: table.tableId,
+          name: `Tournament Table ${table.tableNumber}`,
+          status: gameState.status === "finished" ? "finished" : "running",
+          config: {
+            small_blind: gameState.smallBlind || 25,
+            big_blind: gameState.bigBlind || 50,
+            starting_chips: 5000,
+            max_players: 9,
+          },
+          players:
+            gameState.players?.map((p: any) => ({
+              name: p.name,
+              chips: p.chips,
+              disconnected: p.disconnected || false,
+            })) || [],
+          gameId: gameState.gameId,
+          tournamentId,
+          tableNumber: table.tableNumber,
+        });
+      }
+    }
+
+    return result;
   }
 
   async findByStatus(status: TableStatus): Promise<Table[]> {
