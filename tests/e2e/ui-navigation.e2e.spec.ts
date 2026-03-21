@@ -21,6 +21,7 @@ import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.g
 import request from "supertest";
 import * as http from "http";
 import { DataSource } from "typeorm";
+import { v4 as uuidv4 } from "uuid";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { GamesModule } from "../../src/modules/games/games.module";
@@ -173,6 +174,31 @@ describe("UI Navigation & API Contract E2E Tests", () => {
     return { ...response.body, botServer };
   }
 
+  async function createTableDirect(
+    options: {
+      name?: string;
+      smallBlind?: number;
+      bigBlind?: number;
+      startingChips?: number;
+      maxPlayers?: number;
+    } = {},
+  ): Promise<{ id: string; name: string }> {
+    const tableId = uuidv4();
+    const name = options.name || `Table-${uid()}`;
+    const smallBlind = options.smallBlind ?? 10;
+    const bigBlind = options.bigBlind ?? 20;
+    const startingChips = options.startingChips ?? 1000;
+    const maxPlayers = options.maxPlayers ?? 6;
+
+    await dataSource.query(
+      `INSERT INTO tables (id, name, small_blind, big_blind, starting_chips, max_players, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'waiting', NOW(), NOW())`,
+      [tableId, name, smallBlind, bigBlind, startingChips, maxPlayers],
+    );
+
+    return { id: tableId, name };
+  }
+
   describe("Home Page APIs", () => {
     it("should return leaderboard data for home page", async () => {
       const response = await request(app.getHttpServer()).get(
@@ -199,34 +225,24 @@ describe("UI Navigation & API Contract E2E Tests", () => {
 
   describe("Tables Page APIs", () => {
     it("should list all available tables", async () => {
-      const user = await registerDeveloper(createTestUser("tables"));
-      const tableId = uid();
+      const tableIdSuffix = uid();
 
-      await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${user.accessToken}`)
-        .send({
-          name: `Test Table 1-${tableId}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 6,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
+      // Create tables directly in DB (table creation requires admin)
+      await createTableDirect({
+        name: `Test Table 1-${tableIdSuffix}`,
+        smallBlind: 10,
+        bigBlind: 20,
+        startingChips: 1000,
+        maxPlayers: 6,
+      });
 
-      await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${user.accessToken}`)
-        .send({
-          name: `Test Table 2-${tableId}`,
-          small_blind: 25,
-          big_blind: 50,
-          starting_chips: 2000,
-          max_players: 9,
-          turn_timeout_ms: 10000,
-        })
-        .expect(201);
+      await createTableDirect({
+        name: `Test Table 2-${tableIdSuffix}`,
+        smallBlind: 25,
+        bigBlind: 50,
+        startingChips: 2000,
+        maxPlayers: 9,
+      });
 
       const response = await request(app.getHttpServer())
         .get("/api/v1/games")
@@ -237,22 +253,17 @@ describe("UI Navigation & API Contract E2E Tests", () => {
 
     it("should return table details with player info", async () => {
       const user1 = await registerDeveloper(createTestUser("detail1"));
-      const user2 = await registerDeveloper(createTestUser("detail2"));
 
-      const tableResponse = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${user1.accessToken}`)
-        .send({
-          name: `Detail Test Table-${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 6,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
+      // Create table directly in DB (table creation requires admin)
+      const table = await createTableDirect({
+        name: `Detail Test Table-${uid()}`,
+        smallBlind: 10,
+        bigBlind: 20,
+        startingChips: 1000,
+        maxPlayers: 6,
+      });
 
-      const tableId = tableResponse.body.id;
+      const tableId = table.id;
 
       await request(app.getHttpServer())
         .post(`/api/v1/games/${tableId}/join`)
@@ -509,20 +520,16 @@ describe("UI Navigation & API Contract E2E Tests", () => {
       const user1 = await registerDeveloper(createTestUser("state1"));
       const user2 = await registerDeveloper(createTestUser("state2"));
 
-      const tableResponse = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${user1.accessToken}`)
-        .send({
-          name: `State Test Table-${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
+      // Create table directly in DB (table creation requires admin)
+      const table = await createTableDirect({
+        name: `State Test Table-${uid()}`,
+        smallBlind: 10,
+        bigBlind: 20,
+        startingChips: 1000,
+        maxPlayers: 2,
+      });
 
-      const tableId = tableResponse.body.id;
+      const tableId = table.id;
 
       await request(app.getHttpServer())
         .post(`/api/v1/games/${tableId}/join`)
@@ -551,24 +558,16 @@ describe("UI Navigation & API Contract E2E Tests", () => {
       const user1 = await registerDeveloper(createTestUser("history1"));
       const user2 = await registerDeveloper(createTestUser("history2"));
 
-      const tableResponse = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${user1.accessToken}`)
-        .send({
-          name: `History Test Table-${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 5000,
-        });
+      // Create table directly in DB (table creation requires admin)
+      const table = await createTableDirect({
+        name: `History Test Table-${uid()}`,
+        smallBlind: 10,
+        bigBlind: 20,
+        startingChips: 1000,
+        maxPlayers: 2,
+      });
 
-      if (tableResponse.status !== 201) {
-        expect(tableResponse.status).toBe(201);
-        return;
-      }
-
-      const tableId = tableResponse.body.id;
+      const tableId = table.id;
 
       const join1 = await request(app.getHttpServer())
         .post(`/api/v1/games/${tableId}/join`)

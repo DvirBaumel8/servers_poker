@@ -21,6 +21,7 @@ import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.g
 import request from "supertest";
 import * as http from "http";
 import { DataSource } from "typeorm";
+import { v4 as uuidv4 } from "uuid";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { GamesModule } from "../../src/modules/games/games.module";
@@ -227,7 +228,7 @@ describe("Game Mechanics E2E Tests", () => {
   }
 
   async function createTable(
-    token: string,
+    _token: string,
     options: {
       smallBlind?: number;
       bigBlind?: number;
@@ -236,20 +237,20 @@ describe("Game Mechanics E2E Tests", () => {
     } = {},
   ): Promise<string> {
     const id = uid();
-    const response = await request(app.getHttpServer())
-      .post("/api/v1/games/tables")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        name: `MechanicsTable${id}`,
-        small_blind: options.smallBlind || 10,
-        big_blind: options.bigBlind || 20,
-        starting_chips: options.startingChips || 1000,
-        max_players: options.maxPlayers || 2,
-        turn_timeout_ms: 5000,
-      })
-      .expect(201);
+    const tableId = uuidv4();
+    const name = `MechanicsTable${id}`;
+    const smallBlind = options.smallBlind ?? 10;
+    const bigBlind = options.bigBlind ?? 20;
+    const startingChips = options.startingChips ?? 1000;
+    const maxPlayers = options.maxPlayers ?? 2;
 
-    return response.body.id;
+    await dataSource.query(
+      `INSERT INTO tables (id, name, small_blind, big_blind, starting_chips, max_players, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'waiting', NOW(), NOW())`,
+      [tableId, name, smallBlind, bigBlind, startingChips, maxPlayers],
+    );
+
+    return tableId;
   }
 
   async function joinTable(

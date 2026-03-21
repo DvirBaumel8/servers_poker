@@ -339,13 +339,13 @@ describe("WebSocket Real-time E2E Tests", () => {
 
       // Join with both players to trigger events
       await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
+        .post(`/api/v1/games/${table.id}/join`)
         .set("Authorization", `Bearer ${player1.accessToken}`)
         .send({ bot_id: player1.bot.id })
         .expect(201);
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
+        .post(`/api/v1/games/${table.id}/join`)
         .set("Authorization", `Bearer ${player2.accessToken}`)
         .send({ bot_id: player2.bot.id })
         .expect(201);
@@ -365,28 +365,17 @@ describe("WebSocket Real-time E2E Tests", () => {
 
       await new Promise<void>((resolve) => socket.on("connect", resolve));
 
-      // Create table
-      const tableRes = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${player.accessToken}`)
-        .send({
-          name: `UnsubTable${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
+      // Create table (table creation requires admin)
+      const table = await createTable();
 
       socket.on("gameState", () => eventCount++);
 
       // Subscribe
-      socket.emit("subscribeToTable", { tableId: tableRes.body.id });
+      socket.emit("subscribeToTable", { tableId: table.id });
       await new Promise((r) => setTimeout(r, 500));
 
       // Unsubscribe
-      socket.emit("unsubscribeFromTable", { tableId: tableRes.body.id });
+      socket.emit("unsubscribeFromTable", { tableId: table.id });
       await new Promise((r) => setTimeout(r, 500));
 
       const countAfterUnsub = eventCount;
