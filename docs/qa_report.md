@@ -1,15 +1,15 @@
 # 🧪 Complete QA Report
 
-**Generated:** 3/22/2026, 1:29:39 AM
-**Total Duration:** 12.3s
-**Time Saved (parallel):** 7.8s (39% faster)
+**Generated:** 3/22/2026, 1:42:07 AM
+**Total Duration:** 95.3s
+**Time Saved (parallel):** 9.0s (9% faster)
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Total Suites | 2 |
-| Passed | 2 |
+| Total Suites | 5 |
+| Passed | 5 |
 | Failed | 0 |
 | Success Rate | 100.0% |
 
@@ -20,14 +20,29 @@
 
 | Suite | Status | Duration |
 |-------|--------|----------|
-| Monsters (Fast) | ✅ Pass | 7.8s |
+| Monsters (Fast) | ✅ Pass | 7.6s |
+| Monsters (All 21) | ✅ Pass | 19.7s |
 
 
 ### Unit
 
 | Suite | Status | Duration |
 |-------|--------|----------|
-| Unit Tests | ✅ Pass | 12.3s |
+| Unit Tests | ✅ Pass | 11.6s |
+
+
+### Integration
+
+| Suite | Status | Duration |
+|-------|--------|----------|
+| Integration Tests | ✅ Pass | 1.4s |
+
+
+### Simulation
+
+| Suite | Status | Duration |
+|-------|--------|----------|
+| Basic Simulation | ✅ Pass | 64.0s |
 
 
 ## Failed Suites
@@ -38,10 +53,10 @@
 
 | Metric | Value |
 |--------|-------|
-| Sequential Time (est.) | 20.1s |
-| Actual Time | 12.3s |
-| Time Saved | 7.8s |
-| Speedup | 1.6x |
+| Sequential Time (est.) | 104.3s |
+| Actual Time | 95.3s |
+| Time Saved | 9.0s |
+| Speedup | 1.1x |
 
 ---
 *Run `npm run qa:all` to regenerate this report.*

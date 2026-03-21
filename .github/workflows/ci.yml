@@ -239,11 +239,13 @@ jobs:
         run: npm run monsters:simulation 2>&1 | tee simulation-report.txt
         continue-on-error: true
         env:
-          TEST_DB_HOST: localhost
-          TEST_DB_PORT: 5432
-          TEST_DB_USERNAME: postgres
-          TEST_DB_PASSWORD: postgres
-          TEST_DB_NAME: poker_test
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: poker
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
           CI: true
 
       - name: Upload Monster Report

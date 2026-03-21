@@ -4,53 +4,53 @@
 
 | Monster | Issues Found | Runs | Success Rate | Avg Duration | Last Run Issues |
 |---------|--------------|------|--------------|--------------|-----------------|
-| Quick Check | 308 | 34 | 94% | 9.4s | 0 |
-| Invariant Monster | 260 | 21 | 90% | 22.1s | 0 |
-| Game Flow | 116 | 8 | 100% | 22.0s | 0 |
-| Browser QA | 56 | 8 | 100% | 64.0s | 1 |
-| Superhero Monster | 17 | 8 | 100% | 65.5s | 0 |
-| Layout Lint | 0 | 34 | 94% | 6.3s | 0 |
-| CSS Lint | 0 | 34 | 94% | 6.3s | 0 |
-| Fast Quality | 0 | 34 | 94% | 7.6s | 0 |
-| Fast Browser | 0 | 34 | 94% | 7.6s | 0 |
-| Live UI Monster | 0 | 21 | 90% | 18.6s | 0 |
-| Design Critic | 0 | 21 | 90% | 18.9s | 0 |
-| Guardian Monster | 0 | 21 | 90% | 19.3s | 0 |
-| Code Quality | 0 | 21 | 86% | 19.2s | 0 |
-| Visual Monster | 0 | 21 | 90% | 19.8s | 0 |
-| Chaos Monster | 0 | 8 | 100% | 8.3s | 0 |
-| E2E Monster | 0 | 8 | 100% | 8.0s | 0 |
-| Contract Monster | 0 | 21 | 90% | 20.7s | 0 |
-| Browser Monster | 0 | 8 | 100% | 9.1s | 0 |
-| API Monster | 0 | 21 | 90% | 21.6s | 0 |
-| Product Quality | 0 | 21 | 71% | 24.8s | 0 |
-| Tournament Flow | 0 | 8 | 100% | 37.0s | 0 |
+| Quick Check | 309 | 37 | 95% | 9.4s | 1 |
+| Invariant Monster | 260 | 22 | 91% | 21.5s | 0 |
+| Game Flow | 116 | 9 | 100% | 20.4s | 0 |
+| Browser QA | 57 | 9 | 100% | 58.7s | 1 |
+| Superhero Monster | 17 | 9 | 100% | 60.3s | 0 |
+| Layout Lint | 0 | 37 | 95% | 6.1s | 0 |
+| CSS Lint | 0 | 37 | 95% | 6.1s | 0 |
+| Fast Quality | 0 | 37 | 95% | 7.4s | 0 |
+| Fast Browser | 0 | 37 | 95% | 7.4s | 0 |
+| Live UI Monster | 0 | 22 | 91% | 18.1s | 0 |
+| Design Critic | 0 | 22 | 91% | 18.4s | 0 |
+| Guardian Monster | 0 | 22 | 91% | 18.8s | 0 |
+| Code Quality | 0 | 22 | 86% | 18.7s | 0 |
+| Visual Monster | 0 | 22 | 91% | 19.2s | 0 |
+| Chaos Monster | 0 | 9 | 100% | 8.4s | 0 |
+| E2E Monster | 0 | 9 | 100% | 8.2s | 0 |
+| Contract Monster | 0 | 22 | 91% | 20.2s | 0 |
+| Browser Monster | 0 | 9 | 100% | 9.2s | 0 |
+| API Monster | 0 | 22 | 91% | 21.1s | 0 |
+| Product Quality | 0 | 22 | 73% | 24.2s | 0 |
+| Tournament Flow | 0 | 9 | 100% | 33.8s | 0 |
 
 ## Summary
 
-- **Total Issues Found:** 757
-- **Total Monster Runs:** 415
+- **Total Issues Found:** 759
+- **Total Monster Runs:** 446
 - **Active Monsters:** 5/21 (finding issues)
 
 ## Monsters Needing Attention
 
 These monsters have found 0 issues - they may need tuning:
 
-- **Layout Lint** (34 runs, 94% success)
-- **CSS Lint** (34 runs, 94% success)
-- **Fast Quality** (34 runs, 94% success)
-- **Fast Browser** (34 runs, 94% success)
-- **Live UI Monster** (21 runs, 90% success)
-- **Design Critic** (21 runs, 90% success)
-- **Guardian Monster** (21 runs, 90% success)
-- **Code Quality** (21 runs, 86% success)
-- **Visual Monster** (21 runs, 90% success)
-- **Chaos Monster** (8 runs, 100% success)
-- **E2E Monster** (8 runs, 100% success)
-- **Contract Monster** (21 runs, 90% success)
-- **Browser Monster** (8 runs, 100% success)
-- **API Monster** (21 runs, 90% success)
-- **Product Quality** (21 runs, 71% success)
-- **Tournament Flow** (8 runs, 100% success)
+- **Layout Lint** (37 runs, 95% success)
+- **CSS Lint** (37 runs, 95% success)
+- **Fast Quality** (37 runs, 95% success)
+- **Fast Browser** (37 runs, 95% success)
+- **Live UI Monster** (22 runs, 91% success)
+- **Design Critic** (22 runs, 91% success)
+- **Guardian Monster** (22 runs, 91% success)
+- **Code Quality** (22 runs, 86% success)
+- **Visual Monster** (22 runs, 91% success)
+- **Chaos Monster** (9 runs, 100% success)
+- **E2E Monster** (9 runs, 100% success)
+- **Contract Monster** (22 runs, 91% success)
+- **Browser Monster** (9 runs, 100% success)
+- **API Monster** (22 runs, 91% success)
+- **Product Quality** (22 runs, 73% success)
+- **Tournament Flow** (9 runs, 100% success)
 
-*Last Updated: 3/22/2026, 1:39:03 AM*
+*Last Updated: 3/22/2026, 1:41:03 AM*

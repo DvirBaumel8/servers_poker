@@ -1,6 +1,6 @@
 # 🗂️ Monster Issues Report
 
-**Last Updated:** 3/22/2026, 1:39:03 AM
+**Last Updated:** 3/22/2026, 1:41:03 AM
 **Database Version:** 1
 
 ## Summary
@@ -8,8 +8,8 @@
 | Metric | Count |
 |--------|-------|
 | Total Issues Found | 2 |
-| Open Issues | 0 |
-| Resolved Issues | 2 |
+| Open Issues | 1 |
+| Resolved Issues | 1 |
 
 ### By Severity (Open Only)
 
@@ -18,7 +18,7 @@
 | 🔴 Critical | 0 |
 | 🟠 High | 0 |
 | 🟡 Medium | 0 |
-| 🟢 Low | 0 |
+| 🟢 Low | 1 |
 
 ### By Source Monster
 
@@ -48,13 +48,12 @@
 
 ## 🟢 Low Priority Issues
 
-*No low priority issues!*
+- Interactive issue: small-touch-targets
 
 ---
 
 ## Recently Resolved
 
-- ✅ **Interactive issue: small-touch-targets** — Resolved 3/22/2026
 - ✅ **Interactive issue: bad-cursor** — Resolved 3/22/2026
 
 ---

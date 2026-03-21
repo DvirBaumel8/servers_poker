@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-03-21T23:25:34.977Z",
+  "lastUpdated": "2026-03-21T23:40:56.962Z",
   "issues": [
     {
       "id": "ISS-6155B890",
@@ -28,10 +28,10 @@
       "title": "Interactive issue: small-touch-targets",
       "description": "Count: 10",
       "location": "/tournaments",
-      "status": "resolved",
+      "status": "open",
       "firstSeen": "2026-03-21T23:20:09.212Z",
-      "lastSeen": "2026-03-21T23:24:26.124Z",
-      "occurrences": 4,
+      "lastSeen": "2026-03-21T23:40:56.961Z",
+      "occurrences": 6,
       "resolvedAt": "2026-03-21T23:25:34.977Z",
       "resolvedBy": "agent",
       "resolution": "Added min-h-[44px] to all button classes in index.css and SegmentedTabs in primitives.tsx to meet WCAG touch target requirements"
