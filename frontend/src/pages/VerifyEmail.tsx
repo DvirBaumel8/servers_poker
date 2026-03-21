@@ -10,7 +10,8 @@ export function VerifyEmail() {
   const navigate = useNavigate();
   const location = useLocation();
   const email = location.state?.email || "";
-  const initialDevVerificationCode = location.state?.devVerificationCode || null;
+  const initialDevVerificationCode =
+    location.state?.devVerificationCode || null;
   const redirectTo = normalizeRedirectPath(location.state?.redirectTo);
 
   const [code, setCode] = useState(["", "", "", "", "", ""]);
@@ -155,7 +156,10 @@ export function VerifyEmail() {
 
           {devVerificationCode && (
             <AlertBanner tone="success" title="Development verification code">
-              Use <span className="font-semibold text-white">{devVerificationCode}</span>{" "}
+              Use{" "}
+              <span className="font-semibold text-white">
+                {devVerificationCode}
+              </span>{" "}
               to continue locally.
             </AlertBanner>
           )}

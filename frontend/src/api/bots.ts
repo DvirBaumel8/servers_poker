@@ -102,7 +102,10 @@ export const botsApi = {
   getActiveBots: (): Promise<ActiveBotsResponse> =>
     api.get<ActiveBotsResponse>("/bots/active"),
 
-  getSubscriptions: (botId: string, token: string): Promise<BotSubscription[]> =>
+  getSubscriptions: (
+    botId: string,
+    token: string,
+  ): Promise<BotSubscription[]> =>
     api.get<BotSubscription[]>(`/bots/${botId}/subscriptions`, token),
 
   getSubscriptionStats: (

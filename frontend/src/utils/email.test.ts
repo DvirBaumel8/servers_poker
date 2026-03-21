@@ -26,7 +26,9 @@ describe("email helpers", () => {
   });
 
   it("returns calm validation messages", () => {
-    expect(getEmailValidationMessage("dvir")).toBe("Enter a valid email address.");
+    expect(getEmailValidationMessage("dvir")).toBe(
+      "Enter a valid email address.",
+    );
     expect(getEmailValidationMessage("dvirbaumel9@gmail.co")).toBe(
       "Please double-check your email. Did you mean dvirbaumel9@gmail.com?",
     );

@@ -69,7 +69,11 @@ export function Layout() {
               type="button"
               onClick={() => setMobileMenuOpen((open) => !open)}
               className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-white transition hover:bg-white/[0.06] lg:hidden"
-              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-label={
+                mobileMenuOpen
+                  ? "Close navigation menu"
+                  : "Open navigation menu"
+              }
               aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
@@ -165,7 +169,8 @@ export function Layout() {
               <nav className="grid gap-2">
                 {NAV_ITEMS.map((item) => {
                   const isActive = location.pathname.startsWith(item.path);
-                  const showBadge = item.path === "/bots" && activeBotsCount > 0;
+                  const showBadge =
+                    item.path === "/bots" && activeBotsCount > 0;
 
                   return (
                     <Link
@@ -204,10 +209,18 @@ export function Layout() {
               <div className="flex flex-wrap gap-2 pt-1">
                 {user ? (
                   <>
-                    <Button variant="ghost" asLink="/profile" className="flex-1">
+                    <Button
+                      variant="ghost"
+                      asLink="/profile"
+                      className="flex-1"
+                    >
                       Profile
                     </Button>
-                    <Button variant="ghost" onClick={handleLogout} className="flex-1">
+                    <Button
+                      variant="ghost"
+                      onClick={handleLogout}
+                      className="flex-1"
+                    >
                       Logout
                     </Button>
                   </>

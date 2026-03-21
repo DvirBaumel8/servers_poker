@@ -1,8 +1,16 @@
 import { useAuthStore } from "../stores/authStore";
 
 export function useAuth() {
-  const { user, token, isLoading, error, login, logout, fetchUser, clearError } =
-    useAuthStore();
+  const {
+    user,
+    token,
+    isLoading,
+    error,
+    login,
+    logout,
+    fetchUser,
+    clearError,
+  } = useAuthStore();
 
   return {
     user,

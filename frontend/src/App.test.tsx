@@ -16,7 +16,9 @@ vi.mock("./stores/authStore", () => ({
 
 vi.mock("./pages/Home", () => ({ Home: () => <div>Home route</div> }));
 vi.mock("./pages/Login", () => ({ Login: () => <div>Login route</div> }));
-vi.mock("./pages/Register", () => ({ Register: () => <div>Register route</div> }));
+vi.mock("./pages/Register", () => ({
+  Register: () => <div>Register route</div>,
+}));
 vi.mock("./pages/VerifyEmail", () => ({
   VerifyEmail: () => <div>Verify route</div>,
 }));

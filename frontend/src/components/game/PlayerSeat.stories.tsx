@@ -4,7 +4,7 @@ import type { Player, Card } from "../../types";
 
 /**
  * Visual regression stories for the PlayerSeat component.
- * 
+ *
  * Tests various player states and visual configurations.
  */
 
@@ -48,7 +48,7 @@ const basePlayer: Player = {
 
 /**
  * Default Player State
- * 
+ *
  * Normal player waiting for their turn.
  */
 export const Default: Story = {
@@ -60,7 +60,7 @@ export const Default: Story = {
 
 /**
  * Active Player
- * 
+ *
  * Player whose turn it is - should show highlight and timer.
  */
 export const Active: Story = {
@@ -75,7 +75,7 @@ export const Active: Story = {
 
 /**
  * Dealer Position
- * 
+ *
  * Player with dealer button.
  */
 export const Dealer: Story = {
@@ -88,7 +88,7 @@ export const Dealer: Story = {
 
 /**
  * Active Dealer
- * 
+ *
  * Dealer whose turn it is.
  */
 export const ActiveDealer: Story = {
@@ -104,7 +104,7 @@ export const ActiveDealer: Story = {
 
 /**
  * Folded Player
- * 
+ *
  * Player who has folded - should be dimmed.
  */
 export const Folded: Story = {
@@ -116,7 +116,7 @@ export const Folded: Story = {
 
 /**
  * All-In Player
- * 
+ *
  * Player who is all-in - should show ALL IN badge.
  */
 export const AllIn: Story = {
@@ -128,7 +128,7 @@ export const AllIn: Story = {
 
 /**
  * Disconnected Player
- * 
+ *
  * Player who has disconnected - should be grayed out.
  */
 export const Disconnected: Story = {
@@ -140,7 +140,7 @@ export const Disconnected: Story = {
 
 /**
  * With Hole Cards Shown
- * 
+ *
  * Player's cards visible (showdown or hero).
  */
 export const WithHoleCards: Story = {
@@ -159,7 +159,7 @@ export const WithHoleCards: Story = {
 
 /**
  * With Hidden Cards
- * 
+ *
  * Player's cards face down (normal view).
  */
 export const WithHiddenCards: Story = {
@@ -172,7 +172,7 @@ export const WithHiddenCards: Story = {
 
 /**
  * Low Chips
- * 
+ *
  * Player with very few chips.
  */
 export const LowChips: Story = {
@@ -184,7 +184,7 @@ export const LowChips: Story = {
 
 /**
  * High Chips
- * 
+ *
  * Player with many chips (test formatting).
  */
 export const HighChips: Story = {
@@ -203,18 +203,22 @@ export const HighChips: Story = {
 
 /**
  * Long Name
- * 
+ *
  * Player with very long name (test truncation).
  */
 export const LongName: Story = {
   args: {
-    player: { ...basePlayer, name: "ThisIsAnExtremelyLongPlayerNameThatShouldBeTruncated" },
+    player: {
+      ...basePlayer,
+      name: "ThisIsAnExtremelyLongPlayerNameThatShouldBeTruncated",
+    },
     seatIndex: 0,
   },
   parameters: {
     docs: {
       description: {
-        story: "⚠️ TRUNCATION TEST: Name should be truncated cleanly without breaking layout.",
+        story:
+          "⚠️ TRUNCATION TEST: Name should be truncated cleanly without breaking layout.",
       },
     },
   },
@@ -222,7 +226,7 @@ export const LongName: Story = {
 
 /**
  * Short Name
- * 
+ *
  * Player with single character name.
  */
 export const ShortName: Story = {
@@ -234,7 +238,7 @@ export const ShortName: Story = {
 
 /**
  * With Bet Action
- * 
+ *
  * Player who just bet.
  */
 export const WithBetAction: Story = {
@@ -280,7 +284,7 @@ export const WithCheckAction: Story = {
 
 /**
  * Different Seat Colors
- * 
+ *
  * Test different seat index avatar colors.
  */
 export const SeatColors: Story = {
@@ -306,7 +310,7 @@ export const SeatColors: Story = {
 
 /**
  * Timer Almost Out
- * 
+ *
  * Active player with timer nearly expired.
  */
 export const TimerAlmostOut: Story = {
@@ -328,7 +332,7 @@ export const TimerAlmostOut: Story = {
 
 /**
  * All States Combined
- * 
+ *
  * Multiple players in different states for comparison.
  */
 export const AllStatesCombined: Story = {
@@ -349,10 +353,7 @@ export const AllStatesCombined: Story = {
           turnStartTime={Date.now()}
           turnTimeoutMs={30000}
         />
-        <PlayerSeat
-          player={{ ...basePlayer, folded: true }}
-          seatIndex={1}
-        />
+        <PlayerSeat player={{ ...basePlayer, folded: true }} seatIndex={1} />
         <PlayerSeat
           player={{ ...basePlayer, allIn: true, chips: 0 }}
           seatIndex={2}
@@ -361,11 +362,7 @@ export const AllStatesCombined: Story = {
           player={{ ...basePlayer, disconnected: true }}
           seatIndex={3}
         />
-        <PlayerSeat
-          player={basePlayer}
-          isDealer={true}
-          seatIndex={4}
-        />
+        <PlayerSeat player={basePlayer} isDealer={true} seatIndex={4} />
       </div>
     </div>
   ),

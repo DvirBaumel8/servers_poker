@@ -91,15 +91,14 @@ export const tournamentsApi = {
   getLeaderboard: (id: string) =>
     api
       .get<TournamentLeaderboardApiResponse[]>(`/tournaments/${id}/leaderboard`)
-      .then(
-        (leaderboard): TournamentEntry[] =>
-          leaderboard.map((entry) => ({
-            position: entry.position,
-            botId: entry.bot_id,
-            botName: entry.bot_name,
-            chips: entry.chips,
-            busted: entry.busted,
-          })),
+      .then((leaderboard): TournamentEntry[] =>
+        leaderboard.map((entry) => ({
+          position: entry.position,
+          botId: entry.bot_id,
+          botName: entry.bot_name,
+          chips: entry.chips,
+          busted: entry.busted,
+        })),
       ),
 
   create: (data: Partial<Tournament>, token: string) =>

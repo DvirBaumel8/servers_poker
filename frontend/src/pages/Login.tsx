@@ -99,7 +99,9 @@ export function Login() {
               required
               placeholder="you@example.com"
               error={
-                emailTouched ? (getEmailValidationMessage(email) ?? undefined) : undefined
+                emailTouched
+                  ? (getEmailValidationMessage(email) ?? undefined)
+                  : undefined
               }
             />
 

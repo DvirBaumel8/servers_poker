@@ -128,7 +128,10 @@ export function PokerChipStack({
   }
 
   if (chips.length === 0 && amount > 0) {
-    chips.push({ ...CHIP_DENOMINATIONS[CHIP_DENOMINATIONS.length - 1], count: 1 });
+    chips.push({
+      ...CHIP_DENOMINATIONS[CHIP_DENOMINATIONS.length - 1],
+      count: 1,
+    });
   }
 
   const totalChips = chips.reduce((sum, c) => sum + c.count, 0);

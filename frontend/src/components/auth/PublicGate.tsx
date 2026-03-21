@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { useAuthStore } from "../../stores/authStore";
@@ -29,14 +29,23 @@ export function PublicGate({ children, showBanner = true }: PublicGateProps) {
       {children}
       <AnimatePresence>
         {!token && showBanner && !dismissed && (
-          <SignInBanner redirectTo={redirectTo} onDismiss={() => setDismissed(true)} />
+          <SignInBanner
+            redirectTo={redirectTo}
+            onDismiss={() => setDismissed(true)}
+          />
         )}
       </AnimatePresence>
     </>
   );
 }
 
-function SignInBanner({ redirectTo, onDismiss }: { redirectTo: string; onDismiss: () => void }) {
+function SignInBanner({
+  redirectTo,
+  onDismiss,
+}: {
+  redirectTo: string;
+  onDismiss: () => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 50 }}
@@ -57,15 +66,12 @@ function SignInBanner({ redirectTo, onDismiss }: { redirectTo: string; onDismiss
         <div className="flex gap-2 shrink-0">
           <Button
             variant="ghost"
-            size="sm"
             onClick={onDismiss}
             className="text-slate-400 hover:text-white"
           >
             <XIcon className="h-4 w-4" />
           </Button>
-          <Button asLink={`/login?redirectTo=${redirectTo}`} size="sm">
-            Sign In
-          </Button>
+          <Button asLink={`/login?redirectTo=${redirectTo}`}>Sign In</Button>
         </div>
       </SurfaceCard>
     </motion.div>
@@ -74,8 +80,18 @@ function SignInBanner({ redirectTo, onDismiss }: { redirectTo: string; onDismiss
 
 function XIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 18L18 6M6 6l12 12"
+      />
     </svg>
   );
 }

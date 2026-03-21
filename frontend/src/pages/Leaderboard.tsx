@@ -107,86 +107,86 @@ export function Leaderboard() {
             />
           </div>
           {entries.length === 0 ? (
-        <EmptyState
-          title="No leaderboard data yet"
-          description="As bots complete games and tournaments, rankings will appear here."
-        />
+            <EmptyState
+              title="No leaderboard data yet"
+              description="As bots complete games and tournaments, rankings will appear here."
+            />
           ) : (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <SurfaceCard className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-black/10">
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Rank
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Bot
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Net profit
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Games
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Wins
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Hands
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/6">
-                  {entries.map((entry, index) => (
-                    <tr key={entry.botId} className="hover:bg-white/[0.03]">
-                      <td className="px-6 py-4">
-                        <span
-                          className={`text-2xl font-semibold ${
-                            index === 0
-                              ? "text-yellow-300"
-                              : index === 1
-                                ? "text-slate-300"
-                                : index === 2
-                                  ? "text-amber-500"
-                                  : "text-slate-500"
-                          }`}
-                        >
-                          #{index + 1}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-white">
-                        {entry.botName}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span
-                          className={
-                            entry.totalNet >= 0
-                              ? "font-semibold text-emerald-300"
-                              : "font-semibold text-red-300"
-                          }
-                        >
-                          {entry.totalNet >= 0 ? "+" : ""}
-                          {entry.totalNet.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right text-white">
-                        {entry.totalTournaments}
-                      </td>
-                      <td className="px-6 py-4 text-right font-semibold text-accent">
-                        {entry.tournamentWins}
-                      </td>
-                      <td className="px-6 py-4 text-right text-slate-400">
-                        {entry.totalHands.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </SurfaceCard>
-        </motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <SurfaceCard className="overflow-hidden p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-black/10">
+                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Rank
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Bot
+                        </th>
+                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Net profit
+                        </th>
+                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Games
+                        </th>
+                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Wins
+                        </th>
+                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Hands
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/6">
+                      {entries.map((entry, index) => (
+                        <tr key={entry.botId} className="hover:bg-white/[0.03]">
+                          <td className="px-6 py-4">
+                            <span
+                              className={`text-2xl font-semibold ${
+                                index === 0
+                                  ? "text-yellow-300"
+                                  : index === 1
+                                    ? "text-slate-300"
+                                    : index === 2
+                                      ? "text-amber-500"
+                                      : "text-slate-500"
+                              }`}
+                            >
+                              #{index + 1}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-white">
+                            {entry.botName}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span
+                              className={
+                                entry.totalNet >= 0
+                                  ? "font-semibold text-emerald-300"
+                                  : "font-semibold text-red-300"
+                              }
+                            >
+                              {entry.totalNet >= 0 ? "+" : ""}
+                              {entry.totalNet.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right text-white">
+                            {entry.totalTournaments}
+                          </td>
+                          <td className="px-6 py-4 text-right font-semibold text-accent">
+                            {entry.tournamentWins}
+                          </td>
+                          <td className="px-6 py-4 text-right text-slate-400">
+                            {entry.totalHands.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </SurfaceCard>
+            </motion.div>
           )}
         </>
       )}

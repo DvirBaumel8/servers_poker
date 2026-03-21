@@ -1,4 +1,6 @@
-import { v4 as uuidv4 } from "uuid";
+function uuidv4(): string {
+  return crypto.randomUUID();
+}
 
 type AnalyticsEventType =
   | "page_view"
@@ -42,12 +44,13 @@ class Analytics {
       return uuidv4();
     }
 
-    let sessionId = sessionStorage.getItem(SESSION_KEY);
-    if (!sessionId) {
-      sessionId = uuidv4();
-      sessionStorage.setItem(SESSION_KEY, sessionId);
+    const existing = sessionStorage.getItem(SESSION_KEY);
+    if (existing) {
+      return existing;
     }
-    return sessionId;
+    const newId = uuidv4();
+    sessionStorage.setItem(SESSION_KEY, newId);
+    return newId;
   }
 
   private startFlushInterval(): void {
@@ -70,7 +73,8 @@ class Analytics {
       event_type: eventType,
       event_data: eventData,
       session_id: this.sessionId,
-      page_url: typeof window !== "undefined" ? window.location.pathname : undefined,
+      page_url:
+        typeof window !== "undefined" ? window.location.pathname : undefined,
       referrer: typeof document !== "undefined" ? document.referrer : undefined,
     };
 
@@ -83,7 +87,9 @@ class Analytics {
 
   trackPageView(pageName?: string): void {
     this.track("page_view", {
-      page: pageName || (typeof window !== "undefined" ? window.location.pathname : "unknown"),
+      page:
+        pageName ||
+        (typeof window !== "undefined" ? window.location.pathname : "unknown"),
       title: typeof document !== "undefined" ? document.title : undefined,
     });
   }

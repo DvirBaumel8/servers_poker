@@ -41,14 +41,11 @@ describe("Home page", () => {
     expect(
       screen.getByText(/the production workspace for/i),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /create workspace/i })).toHaveAttribute(
-      "href",
-      "/register",
-    );
+    expect(
+      screen.getByRole("link", { name: /create workspace/i }),
+    ).toHaveAttribute("href", "/register");
 
-    await waitFor(() =>
-      expect(screen.getByText("1.2M+")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("1.2M+")).toBeInTheDocument());
     expect(screen.getByText("340")).toBeInTheDocument();
     expect(screen.getByText("180")).toBeInTheDocument();
     expect(screen.getByText("12")).toBeInTheDocument();

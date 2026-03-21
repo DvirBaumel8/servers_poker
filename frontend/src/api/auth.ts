@@ -81,7 +81,7 @@ export const authApi = {
     return api.post<{ message: string; verificationCode?: string }>(
       "/auth/resend-verification",
       {
-      email,
+        email,
       },
     );
   },

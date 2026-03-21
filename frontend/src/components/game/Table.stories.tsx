@@ -4,7 +4,7 @@ import type { GameState, Player, Card } from "../../types";
 
 /**
  * Visual regression stories for the Poker Table component.
- * 
+ *
  * These stories test various player counts and game states
  * to catch visual issues like element overlaps.
  */
@@ -16,7 +16,8 @@ const meta: Meta<typeof Table> = {
     layout: "centered",
     docs: {
       description: {
-        component: "The main poker table component showing players, cards, and pot.",
+        component:
+          "The main poker table component showing players, cards, and pot.",
       },
     },
   },
@@ -34,7 +35,12 @@ export default meta;
 type Story = StoryObj<typeof Table>;
 
 // Helper to create mock players
-function createPlayer(id: string, name: string, chips: number, options: Partial<Player> = {}): Player {
+function createPlayer(
+  id: string,
+  name: string,
+  chips: number,
+  options: Partial<Player> = {},
+): Player {
   return {
     id,
     name,
@@ -49,8 +55,12 @@ function createPlayer(id: string, name: string, chips: number, options: Partial<
 }
 
 // Helper to create mock game state
-function createGameState(players: Player[], overrides: Partial<GameState> = {}): GameState {
+function createGameState(
+  players: Player[],
+  overrides: Partial<GameState> = {},
+): GameState {
   return {
+    id: "test-id",
     tableId: "test-table",
     gameId: "test-game",
     status: "running",
@@ -65,21 +75,26 @@ function createGameState(players: Player[], overrides: Partial<GameState> = {}):
     players,
     dealerPosition: 0,
     currentPlayerId: players[1]?.id || "",
-    smallBlind: 1,
-    bigBlind: 2,
+    currentBet: 0,
+    blinds: { small: 1, big: 2, ante: 0 },
     ...overrides,
   };
 }
 
 /**
  * 2 Players - Heads Up
- * 
+ *
  * Basic heads-up configuration. Players at top and bottom positions.
  */
 export const TwoPlayers: Story = {
   args: {
     gameState: createGameState([
-      createPlayer("p1", "Hero Player", 1000, { holeCards: [{ suit: "spades", rank: "A" }, { suit: "hearts", rank: "K" }] as Card[] }),
+      createPlayer("p1", "Hero Player", 1000, {
+        holeCards: [
+          { suit: "spades", rank: "A" },
+          { suit: "hearts", rank: "K" },
+        ] as Card[],
+      }),
       createPlayer("p2", "Opponent", 980),
     ]),
   },
@@ -87,7 +102,7 @@ export const TwoPlayers: Story = {
 
 /**
  * 6 Players - 6-Max Table
- * 
+ *
  * Standard 6-max configuration.
  */
 export const SixPlayers: Story = {
@@ -105,7 +120,7 @@ export const SixPlayers: Story = {
 
 /**
  * 9 Players - Full Ring
- * 
+ *
  * CRITICAL: This is where overlap bugs are most likely.
  * Pay attention to cards overlapping adjacent player names.
  */
@@ -126,7 +141,8 @@ export const NinePlayers: Story = {
   parameters: {
     docs: {
       description: {
-        story: "⚠️ VISUAL OVERLAP TEST: Check that no player cards overlap other player names.",
+        story:
+          "⚠️ VISUAL OVERLAP TEST: Check that no player cards overlap other player names.",
       },
     },
   },
@@ -134,7 +150,7 @@ export const NinePlayers: Story = {
 
 /**
  * 9 Players with Maximum Name Length
- * 
+ *
  * Stress test with very long names to find truncation/overlap issues.
  */
 export const NinePlayersLongNames: Story = {
@@ -155,7 +171,8 @@ export const NinePlayersLongNames: Story = {
   parameters: {
     docs: {
       description: {
-        story: "Stress test with maximum length names. Check truncation works correctly.",
+        story:
+          "Stress test with maximum length names. Check truncation works correctly.",
       },
     },
   },
@@ -163,7 +180,7 @@ export const NinePlayersLongNames: Story = {
 
 /**
  * Pre-Flop Stage
- * 
+ *
  * No community cards visible yet.
  */
 export const PreFlop: Story = {
@@ -177,25 +194,31 @@ export const PreFlop: Story = {
         stage: "pre-flop",
         communityCards: [],
         pot: 3,
-      }
+      },
     ),
   },
 };
 
 /**
  * Showdown Stage
- * 
+ *
  * All cards revealed, checking winner display.
  */
 export const Showdown: Story = {
   args: {
     gameState: createGameState(
       [
-        createPlayer("p1", "Winner", 1500, { 
-          holeCards: [{ suit: "spades", rank: "A" }, { suit: "hearts", rank: "A" }] as Card[]
+        createPlayer("p1", "Winner", 1500, {
+          holeCards: [
+            { suit: "spades", rank: "A" },
+            { suit: "hearts", rank: "A" },
+          ] as Card[],
         }),
-        createPlayer("p2", "Runner Up", 500, { 
-          holeCards: [{ suit: "clubs", rank: "K" }, { suit: "diamonds", rank: "K" }] as Card[]
+        createPlayer("p2", "Runner Up", 500, {
+          holeCards: [
+            { suit: "clubs", rank: "K" },
+            { suit: "diamonds", rank: "K" },
+          ] as Card[],
         }),
       ],
       {
@@ -208,14 +231,14 @@ export const Showdown: Story = {
           { suit: "hearts", rank: "2" },
         ] as Card[],
         pot: 2000,
-      }
+      },
     ),
   },
 };
 
 /**
  * All-In Situation
- * 
+ *
  * Multiple players all-in with large pot.
  */
 export const AllInMultiway: Story = {
@@ -237,14 +260,14 @@ export const AllInMultiway: Story = {
           { suit: "clubs", rank: "Q" },
           { suit: "spades", rank: "J" },
         ] as Card[],
-      }
+      },
     ),
   },
 };
 
 /**
  * Mixed States
- * 
+ *
  * Players in various states: folded, all-in, active, disconnected.
  */
 export const MixedPlayerStates: Story = {
@@ -262,7 +285,7 @@ export const MixedPlayerStates: Story = {
 
 /**
  * Large Pot Display
- * 
+ *
  * Test pot number formatting with large amounts.
  */
 export const LargePot: Story = {
@@ -274,7 +297,7 @@ export const LargePot: Story = {
       ],
       {
         pot: 250000,
-      }
+      },
     ),
   },
   parameters: {
@@ -288,27 +311,24 @@ export const LargePot: Story = {
 
 /**
  * Waiting for Players
- * 
+ *
  * Initial state before game starts.
  */
 export const WaitingForPlayers: Story = {
   args: {
-    gameState: createGameState(
-      [createPlayer("p1", "OnlyPlayer", 1000)],
-      {
-        status: "waiting",
-        stage: "waiting",
-        pot: 0,
-        communityCards: [],
-        handNumber: 0,
-      }
-    ),
+    gameState: createGameState([createPlayer("p1", "OnlyPlayer", 1000)], {
+      status: "waiting",
+      stage: "pre-flop",
+      pot: 0,
+      communityCards: [],
+      handNumber: 0,
+    }),
   },
 };
 
 /**
  * With Action Badges
- * 
+ *
  * Players with recent action badges visible.
  */
 export const WithActionBadges: Story = {

@@ -59,7 +59,9 @@ describe("Tournaments page", () => {
   });
 
   it("renders tournament lobby summary and cards", async () => {
-    getMyBots.mockResolvedValue([{ id: "bot-1", name: "RiverPilot", active: true }]);
+    getMyBots.mockResolvedValue([
+      { id: "bot-1", name: "RiverPilot", active: true },
+    ]);
 
     render(
       <MemoryRouter>
@@ -68,12 +70,16 @@ describe("Tournaments page", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText(/multi-format tournament control/i)).toBeInTheDocument(),
+      expect(
+        screen.getByText(/multi-format tournament control/i),
+      ).toBeInTheDocument(),
     );
 
     expect(tournamentState.fetchTournaments).toHaveBeenCalledWith("active");
     expect(screen.getByText(/sunday major/i)).toBeInTheDocument();
     expect(screen.getByText(/running fields/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /create tournament/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /create tournament/i }),
+    ).toBeInTheDocument();
   });
 });

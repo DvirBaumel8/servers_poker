@@ -319,7 +319,9 @@ export function PasswordField({
 
   return (
     <label className={clsx("block space-y-2", className)}>
-      {label && <span className="text-sm font-medium text-slate-200">{label}</span>}
+      {label && (
+        <span className="text-sm font-medium text-slate-200">{label}</span>
+      )}
       <div className="relative">
         <input
           {...props}
@@ -330,9 +332,7 @@ export function PasswordField({
           type="button"
           onClick={() => setVisible((current) => !current)}
           aria-label={
-            visible
-              ? `Hide ${accessibleLabel}`
-              : `Show ${accessibleLabel}`
+            visible ? `Hide ${accessibleLabel}` : `Show ${accessibleLabel}`
           }
           className="absolute inset-y-1.5 right-1.5 inline-flex items-center justify-center rounded-xl px-3 text-slate-400 transition hover:bg-white/[0.04] hover:text-white focus:outline-none focus:ring-2 focus:ring-accent/20"
         >

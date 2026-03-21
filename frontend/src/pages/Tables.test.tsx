@@ -54,7 +54,9 @@ describe("Tables page", () => {
         maxPlayers: 6,
       },
     ]);
-    getMyBots.mockResolvedValue([{ id: "bot-1", name: "RiverPilot", active: true }]);
+    getMyBots.mockResolvedValue([
+      { id: "bot-1", name: "RiverPilot", active: true },
+    ]);
 
     render(
       <MemoryRouter>
@@ -63,16 +65,17 @@ describe("Tables page", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText(/production-grade table overview/i)).toBeInTheDocument(),
+      expect(
+        screen.getByText(/production-grade table overview/i),
+      ).toBeInTheDocument(),
     );
 
     expect(screen.getByText(/high stakes arena/i)).toBeInTheDocument();
     expect(screen.getByText(/night turbo/i)).toBeInTheDocument();
     expect(screen.getAllByText(/open seats/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: /watch table/i })[0]).toHaveAttribute(
-      "href",
-      "/game/table-1",
-    );
+    expect(
+      screen.getAllByRole("link", { name: /watch table/i })[0],
+    ).toHaveAttribute("href", "/game/table-1");
   });
 
   it("keeps public table data visible when private bot inventory fails", async () => {
@@ -102,6 +105,8 @@ describe("Tables page", () => {
     expect(
       screen.getByText(/account-only data unavailable/i),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/unable to load table data/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/unable to load table data/i),
+    ).not.toBeInTheDocument();
   });
 });
