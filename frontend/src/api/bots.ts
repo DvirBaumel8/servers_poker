@@ -60,7 +60,12 @@ export const botsApi = {
   },
 
   create: (
-    data: { name: string; endpoint: string; description?: string; skip_validation?: boolean },
+    data: {
+      name: string;
+      endpoint: string;
+      description?: string;
+      skip_validation?: boolean;
+    },
     token: string,
   ) => api.post<Bot>("/bots", data, token),
 

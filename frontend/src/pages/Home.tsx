@@ -130,7 +130,11 @@ export function Home() {
 
             <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURE_BLOCKS.map((feature) => (
-                <SurfaceCard key={feature.title} muted className="space-y-2 sm:space-y-3">
+                <SurfaceCard
+                  key={feature.title}
+                  muted
+                  className="space-y-2 sm:space-y-3"
+                >
                   <div className="text-sm font-semibold text-white">
                     {feature.title}
                   </div>

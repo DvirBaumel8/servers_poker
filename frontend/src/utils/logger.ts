@@ -66,15 +66,27 @@ class Logger {
     // Example: Sentry.captureException(entry.error, { extra: entry.data });
   }
 
-  debug(message: string, context?: string, data?: Record<string, unknown>): void {
+  debug(
+    message: string,
+    context?: string,
+    data?: Record<string, unknown>,
+  ): void {
     this.log("debug", message, context, undefined, data);
   }
 
-  info(message: string, context?: string, data?: Record<string, unknown>): void {
+  info(
+    message: string,
+    context?: string,
+    data?: Record<string, unknown>,
+  ): void {
     this.log("info", message, context, undefined, data);
   }
 
-  warn(message: string, context?: string, data?: Record<string, unknown>): void {
+  warn(
+    message: string,
+    context?: string,
+    data?: Record<string, unknown>,
+  ): void {
     this.log("warn", message, context, undefined, data);
   }
 

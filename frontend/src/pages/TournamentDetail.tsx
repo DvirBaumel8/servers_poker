@@ -3,7 +3,10 @@ import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { useTournamentStore } from "../stores/tournamentStore";
-import { TOURNAMENT_DETAIL_POLL_MS, TOURNAMENT_COUNTDOWN_MS } from "../utils/timing";
+import {
+  TOURNAMENT_DETAIL_POLL_MS,
+  TOURNAMENT_COUNTDOWN_MS,
+} from "../utils/timing";
 import {
   LoadingBlock,
   MetricCard,
@@ -251,9 +254,7 @@ export function TournamentDetail() {
                   </div>
 
                   <div className="bg-subtle-dark/50 rounded-lg p-4">
-                    <span className="text-muted text-sm">
-                      Starting Chips
-                    </span>
+                    <span className="text-muted text-sm">Starting Chips</span>
                     <p className="text-xl font-bold text-white mt-1">
                       {tournament.startingChips.toLocaleString()}
                     </p>
@@ -288,18 +289,14 @@ export function TournamentDetail() {
                   </div>
 
                   <div className="bg-subtle-dark/50 rounded-lg p-4">
-                    <span className="text-muted text-sm">
-                      Total Prize Pool
-                    </span>
+                    <span className="text-muted text-sm">Total Prize Pool</span>
                     <p className="text-xl font-bold text-green-400 mt-1">
                       {prizePool.toLocaleString()}
                     </p>
                   </div>
 
                   <div className="bg-subtle-dark/50 rounded-lg p-4">
-                    <span className="text-muted text-sm">
-                      1st Place Prize
-                    </span>
+                    <span className="text-muted text-sm">1st Place Prize</span>
                     <p className="text-xl font-bold text-poker-gold mt-1">
                       {payouts[0]?.amount.toLocaleString() || 0}
                     </p>

@@ -157,7 +157,9 @@ export const tournamentsApi = {
 
   // Admin endpoints
   createTournament: (data: CreateTournamentRequest, token: string) =>
-    api.post<TournamentApiResponse>("/tournaments", data, token).then(transformTournament),
+    api
+      .post<TournamentApiResponse>("/tournaments", data, token)
+      .then(transformTournament),
 
   updateSchedule: (
     id: string,
@@ -181,7 +183,7 @@ export const tournamentsApi = {
     ),
 
   getUpcomingScheduled: () =>
-    api.get<TournamentApiResponse[]>("/tournaments/scheduled/upcoming").then(
-      (raw) => raw.map(transformTournament),
-    ),
+    api
+      .get<TournamentApiResponse[]>("/tournaments/scheduled/upcoming")
+      .then((raw) => raw.map(transformTournament)),
 };

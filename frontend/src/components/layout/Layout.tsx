@@ -72,7 +72,9 @@ export function Layout() {
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             <Link to="/" className="group flex items-center gap-2 sm:gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-light to-accent shadow-glow-sm sm:h-11 sm:w-11 sm:rounded-2xl">
-                <span className="text-base font-bold text-surface-400 sm:text-lg">♠</span>
+                <span className="text-base font-bold text-surface-400 sm:text-lg">
+                  ♠
+                </span>
               </div>
               <div className="min-w-0">
                 <div className="text-base font-semibold tracking-tight text-white sm:text-lg">

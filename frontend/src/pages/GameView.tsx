@@ -32,7 +32,7 @@ export function GameView() {
   const [preflightError, setPreflightError] = useState<string | null>(null);
   const lastActivePlayerId = useRef<string | null>(null);
   const [tournamentInfo, setTournamentInfo] = useState<Tournament | null>(null);
-  
+
   // Track player names in a ref to avoid stale closure issues
   const playerNamesRef = useRef<Record<string, string>>({});
 
@@ -228,7 +228,16 @@ export function GameView() {
         {/* Compact header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate(tournamentInfo ? `/tournaments/${tournamentInfo.id}` : "/tables")}>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                navigate(
+                  tournamentInfo
+                    ? `/tournaments/${tournamentInfo.id}`
+                    : "/tables",
+                )
+              }
+            >
               {tournamentInfo ? "Back to tournament" : "Back to tables"}
             </Button>
             <div>
@@ -246,7 +255,9 @@ export function GameView() {
               <>
                 <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs">
                   <span className="text-slate-400">Level </span>
-                  <span className="font-semibold text-white">{tournamentInfo.currentLevel || 1}</span>
+                  <span className="font-semibold text-white">
+                    {tournamentInfo.currentLevel || 1}
+                  </span>
                 </div>
               </>
             )}
@@ -281,8 +292,12 @@ export function GameView() {
             <div className="bg-gradient-to-br from-amber-500/90 to-yellow-600/90 backdrop-blur-xl rounded-3xl px-12 py-8 shadow-2xl border-2 border-yellow-300/50">
               <div className="text-center">
                 <div className="text-2xl mb-2">🏆</div>
-                <div className="text-amber-100 text-sm uppercase tracking-widest mb-1">Winner</div>
-                <div className="text-white text-3xl font-bold">{gameFinished.winnerName || "Unknown"}</div>
+                <div className="text-amber-100 text-sm uppercase tracking-widest mb-1">
+                  Winner
+                </div>
+                <div className="text-white text-3xl font-bold">
+                  {gameFinished.winnerName || "Unknown"}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -344,4 +359,3 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
-

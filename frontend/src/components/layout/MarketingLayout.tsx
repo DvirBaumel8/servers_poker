@@ -6,7 +6,7 @@ import { useAuthStore } from "../../stores/authStore";
 export function MarketingLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
-  const { user, token, logout } = useAuthStore();
+  const { token, logout } = useAuthStore();
   const isAuthenticated = !!token;
 
   const handleLogout = () => {
@@ -20,7 +20,9 @@ export function MarketingLayout() {
         <div className="page-shell flex items-center justify-between py-3 sm:py-4">
           <Link to="/" className="flex items-center gap-2 sm:gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-light to-accent shadow-glow-sm sm:h-11 sm:w-11 sm:rounded-2xl">
-              <span className="text-base font-bold text-surface-400 sm:text-lg">♠</span>
+              <span className="text-base font-bold text-surface-400 sm:text-lg">
+                ♠
+              </span>
             </div>
             <div className="min-w-0">
               <div className="text-base font-semibold text-white sm:text-lg">
@@ -68,16 +70,28 @@ export function MarketingLayout() {
             <div className="flex flex-col gap-2">
               {isAuthenticated ? (
                 <>
-                  <Button variant="ghost" asLink="/tables" className="w-full justify-center">
+                  <Button
+                    variant="ghost"
+                    asLink="/tables"
+                    className="w-full justify-center"
+                  >
                     Go to Workspace
                   </Button>
-                  <Button variant="ghost" onClick={handleLogout} className="w-full justify-center">
+                  <Button
+                    variant="ghost"
+                    onClick={handleLogout}
+                    className="w-full justify-center"
+                  >
                     Logout
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" asLink="/login" className="w-full justify-center">
+                  <Button
+                    variant="ghost"
+                    asLink="/login"
+                    className="w-full justify-center"
+                  >
                     Sign In
                   </Button>
                   <Button asLink="/register" className="w-full justify-center">
@@ -98,7 +112,13 @@ export function MarketingLayout() {
 
 function MenuIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-5 w-5"
+    >
       <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
     </svg>
   );
@@ -106,7 +126,13 @@ function MenuIcon() {
 
 function CloseIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-5 w-5"
+    >
       <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
     </svg>
   );

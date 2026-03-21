@@ -498,7 +498,10 @@ function StatBar({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-medium text-muted-light" title={description}>
+        <span
+          className="text-sm font-medium text-muted-light"
+          title={description}
+        >
           {label}
         </span>
         <span className="text-sm text-white">{value.toFixed(1)}%</span>

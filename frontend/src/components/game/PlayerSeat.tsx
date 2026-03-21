@@ -32,13 +32,40 @@ const AVATAR_COLORS = [
   { bg: "from-yellow-400 to-amber-600", ring: "ring-yellow-400/50" },
 ];
 
-const BOT_TYPE_STYLES: Record<string, { bg: string; ring: string; icon: string }> = {
-  random: { bg: "from-gray-500 to-slate-600", ring: "ring-gray-400/50", icon: "🎲" },
-  smart: { bg: "from-blue-500 to-indigo-600", ring: "ring-blue-400/50", icon: "🧠" },
-  folder: { bg: "from-red-400 to-rose-600", ring: "ring-red-400/50", icon: "📁" },
-  aggressive: { bg: "from-orange-500 to-red-600", ring: "ring-orange-400/50", icon: "🔥" },
-  tight: { bg: "from-cyan-500 to-blue-600", ring: "ring-cyan-400/50", icon: "🎯" },
-  caller: { bg: "from-green-500 to-emerald-600", ring: "ring-green-400/50", icon: "📞" },
+const BOT_TYPE_STYLES: Record<
+  string,
+  { bg: string; ring: string; icon: string }
+> = {
+  random: {
+    bg: "from-gray-500 to-slate-600",
+    ring: "ring-gray-400/50",
+    icon: "🎲",
+  },
+  smart: {
+    bg: "from-blue-500 to-indigo-600",
+    ring: "ring-blue-400/50",
+    icon: "🧠",
+  },
+  folder: {
+    bg: "from-red-400 to-rose-600",
+    ring: "ring-red-400/50",
+    icon: "📁",
+  },
+  aggressive: {
+    bg: "from-orange-500 to-red-600",
+    ring: "ring-orange-400/50",
+    icon: "🔥",
+  },
+  tight: {
+    bg: "from-cyan-500 to-blue-600",
+    ring: "ring-cyan-400/50",
+    icon: "🎯",
+  },
+  caller: {
+    bg: "from-green-500 to-emerald-600",
+    ring: "ring-green-400/50",
+    icon: "📞",
+  },
 };
 
 function getBotTypeFromName(name: string): string | null {
@@ -68,8 +95,10 @@ export const PlayerSeat = memo(function PlayerSeat({
   const isDisconnected = player.disconnected;
   const botType = getBotTypeFromName(player.name || "");
   const botTypeStyle = botType ? BOT_TYPE_STYLES[botType] : null;
-  const colors = botTypeStyle || AVATAR_COLORS[seatIndex % AVATAR_COLORS.length];
-  const initial = botTypeStyle?.icon || (player.name || "B").charAt(0).toUpperCase();
+  const colors =
+    botTypeStyle || AVATAR_COLORS[seatIndex % AVATAR_COLORS.length];
+  const initial =
+    botTypeStyle?.icon || (player.name || "B").charAt(0).toUpperCase();
 
   const actionToShow = lastAction || player.lastAction;
   const isRecentAction =
@@ -172,7 +201,7 @@ export const PlayerSeat = memo(function PlayerSeat({
             animate={{ scale: 1 }}
             className={clsx(
               "absolute -bottom-0.5 z-20 w-6 h-6 rounded-full flex items-center justify-center",
-              isFolded ? "-left-0.5" : "-right-0.5"
+              isFolded ? "-left-0.5" : "-right-0.5",
             )}
             style={{
               background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
@@ -215,7 +244,12 @@ export const PlayerSeat = memo(function PlayerSeat({
       <div className="flex gap-1 mt-2">
         {showCards && player.holeCards && player.holeCards.length > 0 ? (
           player.holeCards.map((card, i) => (
-            <PlayingCard key={i} card={card as Card} size="sm" animate={false} />
+            <PlayingCard
+              key={i}
+              card={card as Card}
+              size="sm"
+              animate={false}
+            />
           ))
         ) : (
           <>
@@ -262,7 +296,8 @@ export const PlayerSeat = memo(function PlayerSeat({
               background: "linear-gradient(135deg, #dc2626, #b91c1c)",
               color: "white",
               border: "2px solid #fca5a5",
-              boxShadow: "0 0 16px rgba(220,38,38,0.6), 0 2px 8px rgba(0,0,0,0.3)",
+              boxShadow:
+                "0 0 16px rgba(220,38,38,0.6), 0 2px 8px rgba(0,0,0,0.3)",
             }}
           >
             ALL IN
@@ -293,7 +328,7 @@ export const PlayerSeat = memo(function PlayerSeat({
           className={clsx(
             "mt-1 z-30",
             seatIndex >= 2 && seatIndex <= 3 && "translate-x-2",
-            seatIndex >= 6 && seatIndex <= 7 && "-translate-x-2"
+            seatIndex >= 6 && seatIndex <= 7 && "-translate-x-2",
           )}
         >
           <ActionBadge

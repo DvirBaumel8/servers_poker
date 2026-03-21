@@ -80,9 +80,7 @@ export function HandResultToast({
                     <div className="text-white font-semibold">
                       {getPlayerName(winner.botId)}
                     </div>
-                    <div className="text-muted text-sm">
-                      {winner.handName}
-                    </div>
+                    <div className="text-muted text-sm">{winner.handName}</div>
                   </div>
                 </div>
                 <div className="text-right">

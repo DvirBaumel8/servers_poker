@@ -16,11 +16,11 @@ interface PlayingCardProps {
 type CardComponent = FC<SVGProps<SVGSVGElement>>;
 
 const SIZES = {
-  xs: { width: 32, height: 45 },    // Slightly larger for hole cards
-  sm: { width: 44, height: 62 },    // Better for mini displays
-  md: { width: 60, height: 84 },    // Good for community cards
-  lg: { width: 80, height: 112 },   // Large display
-  xl: { width: 100, height: 140 },  // Extra large
+  xs: { width: 32, height: 45 }, // Slightly larger for hole cards
+  sm: { width: 44, height: 62 }, // Better for mini displays
+  md: { width: 60, height: 84 }, // Good for community cards
+  lg: { width: 80, height: 112 }, // Large display
+  xl: { width: 100, height: 140 }, // Extra large
   "2xl": { width: 120, height: 168 }, // Hero display
 };
 
@@ -77,10 +77,13 @@ const CardsMap = Cards as unknown as Record<string, CardComponent>;
 
 function getCardComponent(card: CardType): CardComponent | null {
   if (!card || !card.suit || !card.rank) return null;
-  
+
   const suit = SUIT_MAP[card.suit];
   const rankInput = card.rank?.toString() || "";
-  const rank = RANK_MAP[rankInput] || RANK_MAP[rankInput.toUpperCase()] || rankInput.toLowerCase();
+  const rank =
+    RANK_MAP[rankInput] ||
+    RANK_MAP[rankInput.toUpperCase()] ||
+    rankInput.toLowerCase();
 
   if (!suit || !rank) {
     console.warn("PlayingCard: Could not map card", { card, suit, rank });
@@ -89,11 +92,11 @@ function getCardComponent(card: CardType): CardComponent | null {
 
   const cardName = `${suit}${rank}`;
   const component = CardsMap[cardName];
-  
+
   if (!component) {
     console.warn("PlayingCard: No component found for", cardName, { card });
   }
-  
+
   return component || null;
 }
 
@@ -123,7 +126,7 @@ export const PlayingCard = memo(function PlayingCard({
           "playing-card inline-block rounded-lg overflow-hidden cursor-pointer",
           "shadow-[0_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.5)]",
           "transition-shadow duration-200",
-          className
+          className,
         )}
         style={containerStyles}
       >
@@ -161,7 +164,7 @@ export const PlayingCard = memo(function PlayingCard({
         "playing-card inline-block rounded-lg overflow-hidden cursor-pointer",
         "shadow-[0_4px_12px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.5)]",
         "transition-shadow duration-200",
-        className
+        className,
       )}
       style={containerStyles}
     >

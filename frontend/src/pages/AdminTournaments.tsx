@@ -138,7 +138,8 @@ function TournamentCard({
       >
         <div className="space-y-3 text-sm text-muted-light">
           <p>
-            <strong className="text-white">Tournament:</strong> {tournament.name}
+            <strong className="text-white">Tournament:</strong>{" "}
+            {tournament.name}
           </p>
           <p>
             <strong className="text-white">Status:</strong> {tournament.status}
@@ -149,7 +150,8 @@ function TournamentCard({
           </p>
           {tournament.entriesCount > 0 && (
             <p className="text-yellow-400">
-              Warning: {tournament.entriesCount} player(s) are currently registered.
+              Warning: {tournament.entriesCount} player(s) are currently
+              registered.
             </p>
           )}
         </div>
@@ -213,7 +215,9 @@ function TournamentCard({
           </div>
           <div>
             <div className="text-muted-dark text-xs">Starting Chips</div>
-            <div className="text-white font-medium">{tournament.startingChips}</div>
+            <div className="text-white font-medium">
+              {tournament.startingChips}
+            </div>
           </div>
           <div>
             <div className="text-muted-dark text-xs">Registered</div>
@@ -223,7 +227,9 @@ function TournamentCard({
           </div>
           <div>
             <div className="text-muted-dark text-xs">Per Table</div>
-            <div className="text-white font-medium">{tournament.playersPerTable}</div>
+            <div className="text-white font-medium">
+              {tournament.playersPerTable}
+            </div>
           </div>
         </div>
 
@@ -246,10 +252,18 @@ function TournamentCard({
                       placeholderText="Select date & time"
                       aria-label="Tournament scheduled start date and time"
                     />
-                    <Button variant="primary" size="sm" onClick={handleSaveSchedule}>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleSaveSchedule}
+                    >
                       Save
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditing(false)}
+                    >
                       Cancel
                     </Button>
                   </div>
@@ -521,7 +535,10 @@ function CreateTournamentForm({
                     onChange={handleChange}
                     className="w-4 h-4 rounded border-line-muted bg-subtle-light text-accent focus:ring-accent focus:ring-offset-0"
                   />
-                  <label htmlFor="rebuys_allowed" className="text-sm text-slate-200">
+                  <label
+                    htmlFor="rebuys_allowed"
+                    className="text-sm text-slate-200"
+                  >
                     Allow Rebuys
                   </label>
                 </div>
@@ -625,7 +642,11 @@ function SchedulerStatusCard({
                 <Button variant="primary" size="sm" onClick={handleSave}>
                   Save
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditing(false)}
+                >
                   Cancel
                 </Button>
               </div>
@@ -645,8 +666,8 @@ function SchedulerStatusCard({
       </div>
       <div className="mt-4 pt-4 border-t border-white/10">
         <p className="text-xs text-muted-dark">
-          The scheduler automatically starts tournaments when their scheduled time
-          arrives and minimum players are registered.
+          The scheduler automatically starts tournaments when their scheduled
+          time arrives and minimum players are registered.
         </p>
       </div>
     </SurfaceCard>
@@ -657,9 +678,8 @@ export function AdminTournaments() {
   usePageTracking();
   const { token, user } = useAuth();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(
-    null,
-  );
+  const [schedulerStatus, setSchedulerStatus] =
+    useState<SchedulerStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -769,7 +789,9 @@ export function AdminTournaments() {
       setShowCreateForm(false);
       loadData();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to create tournament");
+      setFormError(
+        err instanceof Error ? err.message : "Failed to create tournament",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -783,7 +805,9 @@ export function AdminTournaments() {
       showSuccess("Tournament started!");
       loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start tournament");
+      setError(
+        err instanceof Error ? err.message : "Failed to start tournament",
+      );
     }
   };
 
@@ -795,7 +819,9 @@ export function AdminTournaments() {
       showSuccess("Tournament cancelled.");
       loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to cancel tournament");
+      setError(
+        err instanceof Error ? err.message : "Failed to cancel tournament",
+      );
     }
   };
 
@@ -807,7 +833,9 @@ export function AdminTournaments() {
       showSuccess("Schedule updated.");
       loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update schedule");
+      setError(
+        err instanceof Error ? err.message : "Failed to update schedule",
+      );
     }
   };
 
@@ -819,7 +847,9 @@ export function AdminTournaments() {
       setSchedulerStatus(result);
       showSuccess("Scheduler configuration updated.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update scheduler");
+      setError(
+        err instanceof Error ? err.message : "Failed to update scheduler",
+      );
     }
   };
 
@@ -838,7 +868,10 @@ export function AdminTournaments() {
 
   if (isLoading) {
     return (
-      <LoadingBlock label="Loading tournament management" className="page-shell" />
+      <LoadingBlock
+        label="Loading tournament management"
+        className="page-shell"
+      />
     );
   }
 
@@ -1030,7 +1063,11 @@ export function AdminTournaments() {
                 >
                   Schedule Future Tournament
                 </Button>
-                <Button className="w-full" variant="ghost" asLink="/admin/analytics">
+                <Button
+                  className="w-full"
+                  variant="ghost"
+                  asLink="/admin/analytics"
+                >
                   View Analytics →
                 </Button>
               </div>
@@ -1043,11 +1080,16 @@ export function AdminTournaments() {
               {tournaments.filter(
                 (t) => t.type === "scheduled" && t.status === "registering",
               ).length === 0 ? (
-                <p className="text-sm text-muted-dark">No scheduled tournaments.</p>
+                <p className="text-sm text-muted-dark">
+                  No scheduled tournaments.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {tournaments
-                    .filter((t) => t.type === "scheduled" && t.status === "registering")
+                    .filter(
+                      (t) =>
+                        t.type === "scheduled" && t.status === "registering",
+                    )
                     .sort((a, b) =>
                       (a.scheduledStartAt || "").localeCompare(
                         b.scheduledStartAt || "",

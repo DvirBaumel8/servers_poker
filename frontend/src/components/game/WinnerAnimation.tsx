@@ -44,8 +44,7 @@ export function WinnerAnimation({
   if (!result || phase === "done") return null;
 
   const winner = result.winners[0];
-  const winnerName =
-    playerNames[winner?.botId] || "Winner";
+  const winnerName = playerNames[winner?.botId] || "Winner";
 
   return (
     <AnimatePresence>

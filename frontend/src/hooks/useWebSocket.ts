@@ -170,10 +170,7 @@ export function useWebSocket(
       logger.info("WebSocket disconnected", "WebSocket", { reason, tableId });
       setState((s) => ({ ...s, connected: false }));
 
-      if (
-        !isManualDisconnectRef.current &&
-        reason !== "io client disconnect"
-      ) {
+      if (!isManualDisconnectRef.current && reason !== "io client disconnect") {
         scheduleRetry();
       }
     });
@@ -183,7 +180,7 @@ export function useWebSocket(
         "WebSocket connection error",
         new Error(error.message),
         "WebSocket",
-        { tableId }
+        { tableId },
       );
       setState((s) => ({
         ...s,

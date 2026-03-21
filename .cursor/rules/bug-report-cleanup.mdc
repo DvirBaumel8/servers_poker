@@ -1,6 +1,9 @@
 ---
 description: Clean up fixed bugs from report files
-globs: docs/reports/**/*.md
+globs: 
+  - docs/reports/**/*.md
+  - docs/monsters_issues.md
+  - docs/qa_report.md
 alwaysApply: false
 ---
 

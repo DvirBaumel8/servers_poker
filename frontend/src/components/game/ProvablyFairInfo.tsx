@@ -35,7 +35,11 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors w-full"
         aria-expanded={expanded}
-        aria-label={expanded ? "Collapse provably fair details" : "Expand provably fair details"}
+        aria-label={
+          expanded
+            ? "Collapse provably fair details"
+            : "Expand provably fair details"
+        }
       >
         <svg
           className={`w-4 h-4 transition-transform ${expanded ? "rotate-90" : ""}`}

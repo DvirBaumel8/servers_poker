@@ -77,7 +77,9 @@ function KPICard({
       >
         {typeof value === "number" ? formatNumber(value) : value}
       </div>
-      {subtitle && <div className="text-sm text-muted-dark mt-1">{subtitle}</div>}
+      {subtitle && (
+        <div className="text-sm text-muted-dark mt-1">{subtitle}</div>
+      )}
       {trend !== undefined && (
         <div
           className={`text-sm mt-2 ${trend >= 0 ? "text-green-400" : "text-red-400"}`}
@@ -106,7 +108,9 @@ export function AdminAnalytics() {
     analyticsApi
       .getAdminStats(days, token)
       .then(setStats)
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      )
       .finally(() => setIsLoading(false));
   }, [token, days]);
 
