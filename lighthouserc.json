@@ -1,7 +1,6 @@
 {
   "ci": {
     "collect": {
-      "staticDistDir": "./frontend/dist",
       "numberOfRuns": 3
     },
     "assert": {

@@ -82,17 +82,35 @@ describe("Games E2E Tests", () => {
 
   async function createTestUser() {
     const id = uid();
-    const response = await request(app.getHttpServer())
+    const email = `gameowner-${id}@example.com`;
+    const password = "SecurePassword123!";
+
+    // Step 1: Register
+    await request(app.getHttpServer())
       .post("/api/v1/auth/register")
       .send({
-        email: `gameowner-${id}@example.com`,
+        email,
         name: `GameOwner-${id}`,
-        password: "SecurePassword123!",
+        password,
+      });
+
+    // Step 2: Get verification code from database
+    const userRecord = await dataSource.query(
+      `SELECT id, verification_code FROM users WHERE email = $1`,
+      [email],
+    );
+
+    // Step 3: Verify email
+    const verifyResponse = await request(app.getHttpServer())
+      .post("/api/v1/auth/verify-email")
+      .send({
+        email,
+        code: userRecord[0].verification_code,
       });
 
     return {
-      accessToken: response.body.accessToken,
-      userId: response.body.user.id,
+      accessToken: verifyResponse.body.accessToken,
+      userId: verifyResponse.body.user.id,
     };
   }
 

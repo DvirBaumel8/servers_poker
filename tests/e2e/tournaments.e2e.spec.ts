@@ -42,17 +42,35 @@ describe("Tournaments E2E Tests", () => {
     emailPrefix = "tournamentowner",
   ): Promise<TestUser> {
     const id = uid();
-    const response = await request(app.getHttpServer())
+    const email = `${emailPrefix}-${id}@example.com`;
+    const password = "SecurePassword123!";
+
+    // Step 1: Register
+    await request(app.getHttpServer())
       .post("/api/v1/auth/register")
       .send({
-        email: `${emailPrefix}-${id}@example.com`,
+        email,
         name: `TournamentOwner-${id}`,
-        password: "SecurePassword123!",
+        password,
+      });
+
+    // Step 2: Get verification code from database
+    const userRecord = await dataSource.query(
+      `SELECT id, verification_code FROM users WHERE email = $1`,
+      [email],
+    );
+
+    // Step 3: Verify email
+    const verifyResponse = await request(app.getHttpServer())
+      .post("/api/v1/auth/verify-email")
+      .send({
+        email,
+        code: userRecord[0].verification_code,
       });
 
     return {
-      accessToken: response.body.accessToken,
-      userId: response.body.user.id,
+      accessToken: verifyResponse.body.accessToken,
+      userId: verifyResponse.body.user.id,
     };
   }
 

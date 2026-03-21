@@ -62,3 +62,8 @@ jobs:
           configPath: ./lighthouserc.json
           uploadArtifacts: true
           temporaryPublicStorage: true
+          urls: |
+            http://localhost:4173/
+          startServerCommand: 'cd frontend && npm run preview -- --host 0.0.0.0'
+          startServerReadyPattern: 'Local'
+          startServerReadyTimeout: 30000

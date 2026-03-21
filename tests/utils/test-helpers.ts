@@ -1,6 +1,6 @@
 import request from "supertest";
 import { INestApplication } from "@nestjs/common";
-import * as bcrypt from "bcrypt";
+import { DataSource } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 
 export interface TestUser {
@@ -19,9 +19,14 @@ export interface TestBot {
   userId: string;
 }
 
+/**
+ * Creates a test user with email verification flow.
+ * Requires dataSource to read verification code from DB.
+ */
 export async function createTestUser(
   app: INestApplication,
   overrides: Partial<TestUser> = {},
+  dataSource?: DataSource,
 ): Promise<TestUser> {
   const uniqueId = uuidv4().slice(0, 8);
   const user: TestUser = {
@@ -32,7 +37,8 @@ export async function createTestUser(
     apiKey: "",
   };
 
-  const response = await request(app.getHttpServer())
+  // Step 1: Register user
+  await request(app.getHttpServer())
     .post("/api/v1/auth/register")
     .send({
       email: user.email,
@@ -41,11 +47,59 @@ export async function createTestUser(
     })
     .expect(201);
 
-  user.id = response.body.user.id;
-  user.accessToken = response.body.accessToken;
-  user.apiKey = response.body.apiKey || "";
+  // Step 2: Get verification code from database
+  if (!dataSource) {
+    throw new Error("dataSource required to get verification code");
+  }
+
+  const userRecord = await dataSource.query(
+    `SELECT id, verification_code FROM users WHERE email = $1`,
+    [user.email],
+  );
+
+  if (!userRecord?.[0]?.verification_code) {
+    throw new Error(`No verification code found for ${user.email}`);
+  }
+
+  // Step 3: Verify email
+  const verifyResponse = await request(app.getHttpServer())
+    .post("/api/v1/auth/verify-email")
+    .send({
+      email: user.email,
+      code: userRecord[0].verification_code,
+    })
+    .expect(200);
+
+  user.id = verifyResponse.body.user.id;
+  user.accessToken = verifyResponse.body.accessToken;
+  user.apiKey = verifyResponse.body.apiKey || "";
 
   return user;
+}
+
+/**
+ * Creates a test user directly in the database (bypasses verification).
+ * Use this for faster tests that don't need to test the auth flow.
+ */
+export async function createTestUserDirect(
+  dataSource: DataSource,
+  overrides: Partial<{ email: string; name: string; password: string }> = {},
+): Promise<{ id: string; email: string; name: string }> {
+  const uniqueId = uuidv4().slice(0, 8);
+  const email = overrides.email || `test-${uniqueId}@example.com`;
+  const name = overrides.name || `TestUser_${uniqueId}`;
+  const passwordHash =
+    "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC"; // "TestPassword123!"
+  const apiKeyHash = uuidv4().replace(/-/g, "");
+
+  const result = await dataSource.query(
+    `INSERT INTO users (email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 'user', true, true, NOW(), NOW())
+     RETURNING id, email, name`,
+    [email, name, passwordHash, apiKeyHash],
+  );
+
+  return result[0];
 }
 
 export async function loginUser(

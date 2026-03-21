@@ -102,16 +102,36 @@ describe("WebSocket E2E Tests", () => {
 
   async function createTestUser() {
     const id = uid();
-    const response = await request(app.getHttpServer())
+    const email = `wstest-${id}@example.com`;
+    const password = "SecurePassword123!";
+
+    // Step 1: Register
+    const registerResponse = await request(app.getHttpServer())
       .post("/api/v1/auth/register")
       .send({
-        email: `wstest-${id}@example.com`,
+        email,
         name: `WSTest-${id}`,
-        password: "SecurePassword123!",
+        password,
       });
+
+    // Step 2: Get verification code from the database (in test env, email service logs to console)
+    const userRepo = dataSource.getRepository(entities.User);
+    const user = await userRepo.findOne({ where: { email } });
+    if (!user || !user.verification_code) {
+      throw new Error("User not found or no verification code");
+    }
+
+    // Step 3: Verify email
+    const verifyResponse = await request(app.getHttpServer())
+      .post("/api/v1/auth/verify-email")
+      .send({
+        email,
+        code: user.verification_code,
+      });
+
     return {
-      accessToken: response.body.accessToken,
-      userId: response.body.user.id,
+      accessToken: verifyResponse.body.accessToken,
+      userId: verifyResponse.body.user.id,
     };
   }
 
