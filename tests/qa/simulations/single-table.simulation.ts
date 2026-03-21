@@ -25,15 +25,15 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { DataSource } from "typeorm";
 import * as crypto from "crypto";
 
-import { appConfig } from "../../src/config";
-import * as entities from "../../src/entities";
-import { TournamentDirectorService } from "../../src/modules/tournaments/tournament-director.service";
-import { TournamentRepository } from "../../src/repositories/tournament.repository";
-import { BotRepository } from "../../src/repositories/bot.repository";
-import { TournamentsModule } from "../../src/modules/tournaments/tournaments.module";
-import { GamesModule } from "../../src/modules/games/games.module";
-import { BotsModule } from "../../src/modules/bots/bots.module";
-import { ServicesModule } from "../../src/services/services.module";
+import { appConfig } from "../../../src/config";
+import * as entities from "../../../src/entities";
+import { TournamentDirectorService } from "../../../src/modules/tournaments/tournament-director.service";
+import { TournamentRepository } from "../../../src/repositories/tournament.repository";
+import { BotRepository } from "../../../src/repositories/bot.repository";
+import { TournamentsModule } from "../../../src/modules/tournaments/tournaments.module";
+import { GamesModule } from "../../../src/modules/games/games.module";
+import { BotsModule } from "../../../src/modules/bots/bots.module";
+import { ServicesModule } from "../../../src/services/services.module";
 
 const SINGLE_TABLE_CONFIG: SimulationConfig = {
   name: "SingleTable-9Player-Tournament",

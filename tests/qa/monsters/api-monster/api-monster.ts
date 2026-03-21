@@ -428,7 +428,8 @@ export class ApiMonster extends BaseMonster {
       }
     }
 
-    // Test with invalid token
+    // Test with invalid token (jwt.io example token - NOT a real secret)
+    // gitleaks:allow
     const invalidToken =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
 
