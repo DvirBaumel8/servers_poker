@@ -135,7 +135,7 @@ jobs:
         run: npm run build
 
       - name: Run E2E tests
-        run: npx vitest run tests/e2e --reporter=verbose
+        run: npx vitest run tests/e2e --reporter=verbose --no-file-parallelism --pool=forks --poolOptions.forks.singleFork
         env:
           NODE_ENV: test
           TEST_DB_HOST: localhost
