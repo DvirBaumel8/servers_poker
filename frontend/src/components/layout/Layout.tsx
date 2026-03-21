@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useAuthStore } from "../../stores/authStore";
 import { botsApi } from "../../api/bots";
 import { Button } from "../ui/primitives";
+import { ACTIVE_BOTS_POLL_MS } from "../../utils/timing";
 
 const NAV_ITEMS = [
   { path: "/tables", label: "Tables" },
@@ -12,11 +13,31 @@ const NAV_ITEMS = [
   { path: "/leaderboard", label: "Leaderboard" },
 ];
 
+const ACTIVE_BOTS_CACHE_KEY = "pokerengine_active_bots_count";
+
+function getCachedBotsCount(): number {
+  try {
+    const cached = localStorage.getItem(ACTIVE_BOTS_CACHE_KEY);
+    return cached ? parseInt(cached, 10) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setCachedBotsCount(count: number): void {
+  try {
+    localStorage.setItem(ACTIVE_BOTS_CACHE_KEY, String(count));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
-  const [activeBotsCount, setActiveBotsCount] = useState(0);
+  const { user, token, logout } = useAuthStore();
+  const isAuthenticated = !!token; // Use token for auth check (immediately available from localStorage)
+  const [activeBotsCount, setActiveBotsCount] = useState(getCachedBotsCount);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -24,13 +45,14 @@ export function Layout() {
       try {
         const data = await botsApi.getActiveBots();
         setActiveBotsCount(data.totalActive);
+        setCachedBotsCount(data.totalActive);
       } catch {
-        setActiveBotsCount(0);
+        // Keep the cached/current value on error, don't reset to 0
       }
     };
 
     loadActiveBots();
-    const interval = setInterval(loadActiveBots, 30000);
+    const interval = setInterval(loadActiveBots, ACTIVE_BOTS_POLL_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -46,17 +68,17 @@ export function Layout() {
   return (
     <div className="app-shell">
       <header className="sticky top-0 z-50 border-b border-white/6 bg-surface-400/80 backdrop-blur-xl">
-        <div className="page-shell flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center justify-between gap-4">
-            <Link to="/" className="group flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-light to-accent shadow-glow-sm">
-                <span className="text-lg font-bold text-surface-400">♠</span>
+        <div className="page-shell flex flex-col gap-3 py-3 sm:gap-4 sm:py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <Link to="/" className="group flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent-light to-accent shadow-glow-sm sm:h-11 sm:w-11 sm:rounded-2xl">
+                <span className="text-base font-bold text-surface-400 sm:text-lg">♠</span>
               </div>
-              <div>
-                <div className="text-lg font-semibold tracking-tight text-white">
+              <div className="min-w-0">
+                <div className="text-base font-semibold tracking-tight text-white sm:text-lg">
                   PokerEngine
                 </div>
-                <div className="max-w-[11rem] text-[11px] uppercase tracking-[0.24em] text-accent/75 sm:max-w-none">
+                <div className="hidden text-[11px] uppercase tracking-[0.24em] text-accent/75 xs:block sm:text-[11px]">
                   Bot Arena Workspace
                 </div>
               </div>
@@ -68,7 +90,7 @@ export function Layout() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen((open) => !open)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] text-white transition hover:bg-white/[0.06] lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/[0.03] text-white transition hover:bg-white/[0.06] sm:h-11 sm:w-11 sm:rounded-2xl lg:hidden"
               aria-label={
                 mobileMenuOpen
                   ? "Close navigation menu"
@@ -99,7 +121,7 @@ export function Layout() {
                   >
                     {item.label}
                     {showBadge && (
-                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-success px-1.5 text-[10px] font-bold text-surface-400">
+                      <span className="ml-1 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-success px-1.5 text-[10px] font-bold text-surface-400">
                         {activeBotsCount > 9 ? "9+" : activeBotsCount}
                       </span>
                     )}
@@ -107,22 +129,35 @@ export function Layout() {
                 );
               })}
               {user?.role === "admin" && (
-                <Link
-                  to="/admin/analytics"
-                  className={clsx(
-                    "whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
-                    location.pathname.startsWith("/admin/analytics")
-                      ? "bg-accent text-surface-400"
-                      : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
-                  )}
-                >
-                  Analytics
-                </Link>
+                <>
+                  <Link
+                    to="/admin/tournaments"
+                    className={clsx(
+                      "whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+                      location.pathname.startsWith("/admin/tournaments")
+                        ? "bg-accent text-surface-400"
+                        : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
+                    )}
+                  >
+                    Manage
+                  </Link>
+                  <Link
+                    to="/admin/analytics"
+                    className={clsx(
+                      "whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+                      location.pathname.startsWith("/admin/analytics")
+                        ? "bg-accent text-surface-400"
+                        : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
+                    )}
+                  >
+                    Analytics
+                  </Link>
+                </>
               )}
             </nav>
 
             <div className="flex items-center gap-2 self-end lg:self-auto">
-              {user ? (
+              {isAuthenticated ? (
                 <>
                   <Link
                     to="/profile"
@@ -134,14 +169,14 @@ export function Layout() {
                     )}
                   >
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-accent-light to-accent text-xs font-bold text-surface-400">
-                      {user.username?.charAt(0).toUpperCase()}
+                      {user?.username?.charAt(0).toUpperCase() || "?"}
                     </div>
                     <div className="hidden text-left sm:block">
                       <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
                         Workspace
                       </div>
                       <div className="font-medium text-white">
-                        {user.username}
+                        {user?.username || "Loading..."}
                       </div>
                     </div>
                   </Link>
@@ -193,21 +228,34 @@ export function Layout() {
                   );
                 })}
                 {user?.role === "admin" && (
-                  <Link
-                    to="/admin/analytics"
-                    className={clsx(
-                      "flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-all",
-                      location.pathname.startsWith("/admin/analytics")
-                        ? "bg-accent text-surface-400"
-                        : "border border-white/6 bg-white/[0.02] text-slate-300 hover:bg-white/[0.04] hover:text-white",
-                    )}
-                  >
-                    Analytics
-                  </Link>
+                  <>
+                    <Link
+                      to="/admin/tournaments"
+                      className={clsx(
+                        "flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                        location.pathname.startsWith("/admin/tournaments")
+                          ? "bg-accent text-surface-400"
+                          : "border border-white/6 bg-white/[0.02] text-slate-300 hover:bg-white/[0.04] hover:text-white",
+                      )}
+                    >
+                      Manage Tournaments
+                    </Link>
+                    <Link
+                      to="/admin/analytics"
+                      className={clsx(
+                        "flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-all",
+                        location.pathname.startsWith("/admin/analytics")
+                          ? "bg-accent text-surface-400"
+                          : "border border-white/6 bg-white/[0.02] text-slate-300 hover:bg-white/[0.04] hover:text-white",
+                      )}
+                    >
+                      Analytics
+                    </Link>
+                  </>
                 )}
               </nav>
               <div className="flex flex-wrap gap-2 pt-1">
-                {user ? (
+                {isAuthenticated ? (
                   <>
                     <Button
                       variant="ghost"

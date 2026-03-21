@@ -1,0 +1,77 @@
+---
+description: Environment variables and configuration management
+globs:
+  - src/config/**/*.ts
+  - .env*
+alwaysApply: false
+---
+
+# Environment & Configuration
+
+## Adding New Environment Variables
+
+1. Add to `.env.example` with a safe default or placeholder
+2. Add to `src/config/app.config.ts` with parsing and defaults
+3. Document in `docs/guides/DEPLOYMENT.md` if deployment-relevant
+
+```typescript
+// In app.config.ts
+export const appConfig = (): AppConfig => ({
+  // Existing config...
+  
+  // New config with sensible default
+  myNewSetting: parseInt(process.env.MY_NEW_SETTING || "100", 10),
+});
+```
+
+## Config Categories
+
+| Category | Examples | Location |
+|----------|----------|----------|
+| Server | PORT, NODE_ENV | `appConfig.port`, `appConfig.nodeEnv` |
+| Auth | JWT_SECRET, JWT_EXPIRES_IN | `appConfig.jwtSecret` |
+| Database | DB_HOST, DB_PORT, DB_NAME | TypeORM config in `app.module.ts` |
+| Redis | REDIS_HOST, REDIS_PORT | `appConfig.redis.*` |
+| Rate Limiting | RATE_LIMIT_MAX | `appConfig.rateLimitMax` |
+| Bot Config | BOT_TIMEOUT_MS | `appConfig.botTimeoutMs` |
+
+## Secrets vs Regular Config
+
+**Secrets** (never commit, use env vars or secret manager):
+- JWT_SECRET
+- DB_PASSWORD
+- REDIS_PASSWORD
+- API keys for external services
+
+**Regular config** (can have defaults in code):
+- PORT, timeouts, limits
+- Feature flags
+- Cache TTLs
+
+## Accessing Config in Services
+
+```typescript
+import { ConfigService } from "@nestjs/config";
+import { AppConfig } from "../config/app.config";
+
+@Injectable()
+export class MyService {
+  constructor(private readonly config: ConfigService<AppConfig>) {}
+
+  async doSomething(): Promise<void> {
+    const timeout = this.config.get("botTimeoutMs");
+  }
+}
+```
+
+## Frontend Config
+
+Use Vite's env variable system:
+
+```typescript
+// In frontend code
+const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const isDev = import.meta.env.DEV;
+```
+
+Only `VITE_` prefixed vars are exposed to the frontend.

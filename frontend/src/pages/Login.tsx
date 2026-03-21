@@ -90,7 +90,9 @@ export function Login() {
             <TextField
               label="Email"
               id="email"
+              name="email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
                 setEmail(e.target.value);
@@ -122,6 +124,8 @@ export function Login() {
               </div>
               <PasswordField
                 id="password"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e: ChangeEvent<HTMLInputElement>) =>
                   setPassword(e.target.value)

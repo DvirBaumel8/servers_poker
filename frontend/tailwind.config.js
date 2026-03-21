@@ -3,6 +3,14 @@ export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   darkMode: "class",
   theme: {
+    screens: {
+      xs: "360px",
+      sm: "640px",
+      md: "768px",
+      lg: "1024px",
+      xl: "1280px",
+      "2xl": "1536px",
+    },
     extend: {
       colors: {
         poker: {
@@ -60,6 +68,17 @@ export default {
         info: {
           DEFAULT: "#60a5fa",
           muted: "rgba(96,165,250,0.16)",
+        },
+        muted: {
+          DEFAULT: "#94a3b8", // slate-400
+          light: "#cbd5e1", // slate-300
+          dark: "#64748b", // slate-500
+          darker: "#475569", // slate-600
+        },
+        subtle: {
+          DEFAULT: "#1e293b", // slate-800
+          light: "#334155", // slate-700
+          dark: "#0f172a", // slate-900
         },
       },
       fontFamily: {

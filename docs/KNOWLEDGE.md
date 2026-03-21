@@ -160,6 +160,7 @@ Multi-instance deployment with shared game state:
 - Other instances sync state via Redis and broadcast to their WebSocket clients
 - Ownership uses distributed locking (Redis SET NX EX pattern)
 - On owner failure, another instance can acquire ownership and recover
+- Socket.IO uses Redis adapter for cross-instance WebSocket broadcasting
 
 **Key Services:**
 - `RedisService` — Core Redis client wrapper (ioredis)
@@ -167,6 +168,22 @@ Multi-instance deployment with shared game state:
 - `GameOwnershipService` — Distributed locking for games/tournaments
 - `RedisGameStateService` — State persistence (Hash per game)
 - `RedisEventBusService` — Cross-instance event distribution
+- `RedisSocketStateService` — WebSocket connection state tracking
+- `RedisIoAdapter` — Socket.IO Redis adapter for cross-instance broadcasts
+
+**Socket.IO Redis Adapter:**
+The `@socket.io/redis-adapter` enables WebSocket broadcasts to reach clients connected to any server instance. Without it, `server.to('room').emit()` only reaches clients on the same instance.
+
+- Configured in `main.ts` via `RedisIoAdapter`
+- Uses separate pub/sub Redis connections
+- Falls back to in-memory adapter if Redis is unavailable
+- No sticky sessions required (any client → any server → correct delivery)
+
+**WebSocket State in Redis:**
+- `poker:socket:{socketId}` → Socket metadata (instanceId, userId, botId)
+- `poker:player:socket:{botId}` → Socket ID for bot messaging
+- `poker:table:subscribers:{tableId}` → Hash of subscribed sockets
+- `poker:bot:activity:subscribers:{botId}` → Hash of activity subscribers
 
 **Redis Key Patterns:**
 - `poker:game:ownership:{tableId}` → instance ID (with TTL)
@@ -179,6 +196,7 @@ Multi-instance deployment with shared game state:
 - Ownership TTL: 10 seconds
 - Ownership renewal: every 3 seconds
 - State TTL: 24 hours (cleanup of orphaned games)
+- Socket state TTL: 1 hour (auto-refresh while connected)
 
 **Configuration:**
 ```bash
@@ -196,6 +214,7 @@ GAME_OWNERSHIP_RENEWAL_MS=3000
 - Works without Redis (falls back to in-memory mode)
 - Redis services are optional injections
 - `LiveGameManagerService.setRedisServices()` enables Redis mode at runtime
+- Socket.IO falls back to in-memory adapter with warning logged
 
 ### Database Migrations
 TypeORM migrations manage schema changes:
@@ -1054,54 +1073,123 @@ Key test cases for visual regression:
 
 ---
 
-## QA Monster Framework (2026-03)
+## QA Monster Army Framework (2026-03)
 
-The QA Monster is our comprehensive testing framework that finds bugs, UX issues, design inconsistencies, and raises opinions about the product.
+The Monster Army is a comprehensive, self-improving QA system designed for **zero-bug poker development**. It replaces the legacy single-monster approach with a layered architecture.
 
 ### Philosophy
 
-The Monster is not just a bug finder — it's an opinionated critic that:
-- Finds bugs (broken functionality)
-- Spots inconsistencies (visual, copy, behavior)
-- Questions UX decisions (too many clicks, confusing flows)
-- Raises opinions ("this feels wrong", "this could be better")
+For a poker platform handling real money:
+- **Bugs aren't inconvenient — they're catastrophic**
+- Every card, chip, and action must be 100% correct
+- **Bugs hide in the seams** between systems, not just in isolated components
+- The system must continuously learn and improve
 
-### Development Workflow Integration
+### Integration Pyramid
 
-**Every new feature MUST include QA Monster updates.**
+Monsters are organized in **layers of integration** to catch bugs at every level:
 
-| Change Type | Monster Update |
-|-------------|----------------|
-| New page | Add to `PAGES` in `monster-config.ts` |
-| New flow | Add to `FLOWS` in `monster-config.ts` |
-| New form | Add validation edge cases |
-| New component | Add to `interactiveElements` |
+```
+                              ▲
+                             /│\
+     Layer 4:               /  │  \         E2E MONSTER
+     Full System           /   │   \        Complete user journeys
+     (weekly)             /────┼────\       
+                         /     │     \
+     Layer 3:           /      │      \     FLOW MONSTERS
+     Multi-System      /       │       \    Game, Tournament flows
+     (nightly)        /────────┼────────\   API→DB→WS→UI
+                     /         │         \
+     Layer 2:       /          │          \ CONNECTOR MONSTERS
+     Two Systems   /           │           \API↔DB, API↔WS, WS↔UI
+     (every PR)   /─────────────┼───────────\
+                 /              │            \
+     Layer 1:   /               │             \ UNIT MONSTERS
+     Single    /                │              \API, Visual, Invariant
+     (every commit)             │               \
+```
+
+### Layer 1: Unit Monsters
+
+| Monster | System | What it tests |
+|---------|--------|---------------|
+| **API Monster** | Backend API | Endpoints, contracts, auth, rate limiting |
+| **Visual Monster** | Frontend UI | Viewports, overflow, console errors |
+| **Invariant Monster** | Game Logic | Chip conservation, cards, actions |
+| **Contract Monster** | API Contracts | Request/response schema validation |
+| **Guardian Monster** | Security | XSS, injection, accessibility |
+| **Chaos Monster** | Resilience | Error handling, timeouts |
+
+### Layer 2: Connector Monsters
+
+| Monster | Systems | What it tests |
+|---------|---------|---------------|
+| **API-DB Connector** | API ↔ Database | Persistence, consistency, transactions |
+| **API-WS Connector** | API ↔ WebSocket | Event propagation, timing, room isolation |
+
+### Layer 3: Flow Monsters
+
+| Monster | Flow | Systems |
+|---------|------|---------|
+| **Game Flow** | Complete hand | API → DB → WS → UI → Bot |
+| **Tournament Flow** | Tournament lifecycle | API → DB → WS → Scheduler |
 
 ### Commands
 
 ```bash
-# Full monster scan
-npm run qa:monster
+# Modern Monster Army (recommended)
+npm run monsters:quick      # API + Invariant only (fast)
+npm run monsters:pr         # Layers 1+2 (PR validation)
+npm run monsters:nightly    # Layers 1+2+3 (full coverage)
 
-# Quick scan (before PR)
-npm run qa:monster:quick
+# Run specific monsters
+npm run monsters:api
+npm run monsters:visual
+npm run monsters:invariant
+npm run monsters:api-db
+npm run monsters:game-flow
 
-# Check coverage for a page
-npm run qa:coverage:check /your-page
+# Self-improvement features
+npm run monsters:evolve          # Preview auto-improvements
+npm run monsters:evolve:apply    # Apply auto-improvements
+npm run monsters:evolve:commit   # Apply and commit to new branch
 
-# See all coverage
-npm run qa:coverage
+# Data cleanup
+npm run monsters:cleanup         # Clean old reports (keep 7 days)
+npm run monsters:cleanup:all     # Complete reset
+
+# Legacy commands (still work)
+npm run qa:monster               # Full legacy scan
+npm run qa:monster:quick         # Quick legacy scan
 ```
 
 ### Key Files
 
 | File | Purpose |
 |------|---------|
-| `tests/qa/monster/monster-config.ts` | Pages, flows, viewports, checks |
-| `tests/qa/monster/generate-instructions.ts` | AI instruction generator |
-| `tests/qa/monster/check-coverage.ts` | Coverage checker |
-| `tests/qa/monster/CONTRIBUTING.md` | How to add to monster |
-| `docs/reports/QA-MONSTER-REPORT-V*.md` | Historical findings |
+| `tests/qa/monsters/README.md` | Monster Army overview |
+| `tests/qa/monsters/orchestrator.ts` | Main entry point |
+| `tests/qa/monsters/shared/types.ts` | Core types (Finding, Run, etc.) |
+| `tests/qa/monsters/api-monster/` | API endpoint testing |
+| `tests/qa/monsters/visual-monster/` | UI/viewport testing |
+| `tests/qa/monsters/invariant-monster/poker-invariants.ts` | Poker rules |
+| `tests/qa/monsters/connectors/` | Cross-system connectors |
+| `tests/qa/monsters/flows/` | Multi-system flow tests |
+| `tests/qa/monsters/evolution/` | Self-improvement agent |
+| `tests/qa/monsters/legacy/monster-config.ts` | Legacy config |
+| `tests/qa/monsters/REPORT.md` | Single source of truth for findings |
+
+### Development Workflow Integration
+
+**Every new feature MUST include Monster updates.**
+
+| Change Type | Update Location |
+|-------------|-----------------|
+| New API endpoint | `monsters/api-monster/api-monster.config.ts` |
+| New page/route | `monsters/visual-monster/visual-monster.config.ts` |
+| New poker invariant | `monsters/invariant-monster/poker-invariants.ts` |
+| New user flow | `monsters/flows/` (game-flow, tournament-flow) |
+| Security concern | `monsters/guardian-monster/` |
 
 ### Finding Categories
 
@@ -1110,11 +1198,91 @@ npm run qa:coverage
 - **CONCERN**: Suboptimal UX (consider fixing)
 - **OPINION**: Could be better (discuss)
 
+### Poker Invariants (Critical Rules)
+
+These rules must **NEVER** be violated:
+
+**Money:**
+- `chip_conservation`: Total chips = constant
+- `no_negative_stacks`: All chips >= 0
+- `bet_within_stack`: Bets <= player's chips
+
+**Cards:**
+- `unique_cards_in_play`: No duplicates
+- `community_cards_count`: 0, 3, 4, or 5 cards
+- `hole_cards_count`: Exactly 2 per player
+
+**Actions:**
+- `correct_turn`: Only active player acts
+- `folded_player_cannot_act`: Folded = out
+
+---
+
+## Admin Tournament Dashboard
+
+A comprehensive admin UI for tournament management, accessible at `/admin/tournaments`.
+
+### Features
+
+**Tournament Creation:**
+- Create both rolling and scheduled tournaments
+- Configure all tournament parameters:
+  - Name, buy-in, starting chips
+  - Min/max players, players per table
+  - Turn timeout, late registration level
+  - Rebuy settings
+  - For scheduled: datetime picker for auto-start
+
+**Tournament Management:**
+- List all tournaments with status filtering (All, Active, Registering, Finished)
+- Start/cancel tournaments
+- Edit scheduled start times inline
+- View registered player counts
+
+**Scheduler Configuration:**
+- View scheduler status (running/stopped)
+- Edit cron expression at runtime
+- See next/last check timestamps
+- Understanding of scheduler behavior
+
+### Frontend Components
+
+| Component | Purpose |
+|-----------|---------|
+| `AdminTournaments.tsx` | Main admin page |
+| `TournamentCard` | Individual tournament display with actions |
+| `CreateTournamentForm` | Modal form for new tournaments |
+| `SchedulerStatusCard` | Scheduler configuration panel |
+
+### API Integration
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/tournaments` | GET | List all tournaments |
+| `/tournaments` | POST | Create tournament |
+| `/tournaments/:id/start` | POST | Start tournament |
+| `/tournaments/:id/cancel` | POST | Cancel tournament |
+| `/tournaments/:id/schedule` | PATCH | Update scheduled start |
+| `/tournaments/admin/scheduler` | GET | Get scheduler status |
+| `/tournaments/admin/scheduler` | PATCH | Update scheduler config |
+| `/tournaments/scheduled/upcoming` | GET | List upcoming scheduled |
+
+### Access Control
+
+- Route protected by `RequireAdmin` wrapper
+- All admin endpoints check `user.role === "admin"`
+- Non-admin users redirected to home page
+
+### Navigation
+
+- "Manage" link appears in nav for admin users
+- Available in both desktop and mobile navigation
+- Quick link from Admin Analytics page
+
 ---
 
 ## Known Gaps / Future Work
 
-- **Scheduled tournament start** — `type:'scheduled'` exists but no timer fires at `scheduled_start_at`
 - **Tournament reset** — finished tournaments can't be restarted without manual DB changes
 - **WebSocket authentication** — JWT validation on connection implemented, need refresh handling
 - **Hand-for-hand bubble play** — not implemented for tournament bubble
@@ -1125,3 +1293,48 @@ npm run qa:coverage
 - **Missing finish positions** — Some eliminations don't record finish_position correctly
 
 For comprehensive edge case documentation, see `EDGE_CASES.md`.
+
+---
+
+## Tournament Scheduling
+
+Scheduled tournaments automatically start when their `scheduled_start_at` time is reached.
+
+### Configuration
+
+Environment variables:
+- `TOURNAMENT_SCHEDULER_ENABLED` — Enable/disable scheduler (default: true)
+- `TOURNAMENT_SCHEDULER_CRON` — Cron expression for check frequency (default: "*/30 * * * * *")
+
+### Admin API
+
+- `GET /api/v1/tournaments/admin/scheduler` — Get scheduler status
+- `PATCH /api/v1/tournaments/admin/scheduler` — Update scheduler config (cron expression)
+- `PATCH /api/v1/tournaments/:id/schedule` — Update tournament scheduled start time
+- `GET /api/v1/tournaments/scheduled/upcoming` — List upcoming scheduled tournaments
+
+### How It Works
+
+1. Scheduler runs on cron schedule (default: every 30 seconds)
+2. Finds tournaments with `type: "scheduled"` and `status: "registering"`
+3. If `scheduled_start_at <= now` and enough players registered → starts tournament
+4. If not enough players → cancels tournament
+
+---
+
+## Leaderboard & Stats
+
+### Endpoints
+
+- `GET /api/v1/games/leaderboard?period=all|month|week&limit=20` — Global leaderboard
+- `GET /api/v1/tournaments/:id/leaderboard` — Tournament leaderboard
+
+### Stats Tracked
+
+| Stat | Description | Updated |
+|------|-------------|---------|
+| `total_hands` | Hands played | Per hand |
+| `hands_won` | Hands won | Per hand |
+| `total_tournaments` | Tournaments entered | On tournament finish |
+| `tournament_wins` | Tournament 1st places | On tournament finish |
+| `total_net` | Net profit/loss | Per hand + tournament payouts |

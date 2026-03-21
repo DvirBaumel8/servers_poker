@@ -4,6 +4,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import * as http from "http";
 import * as https from "https";
 import { HmacSigningService } from "../../common/security";
+import { parseConfigNumber, parseConfigBoolean } from "../../common/utils";
 
 export interface BotCallResult {
   success: boolean;
@@ -61,31 +62,34 @@ export class BotCallerService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     private readonly hmacSigningService: HmacSigningService,
   ) {
-    const parseNum = (
-      val: string | number | undefined,
-      defaultVal: number,
-    ): number => {
-      if (val === undefined) return defaultVal;
-      const parsed = typeof val === "string" ? parseInt(val, 10) : val;
-      return isNaN(parsed) ? defaultVal : parsed;
-    };
-
-    this.timeoutMs = parseNum(this.configService.get("BOT_TIMEOUT_MS"), 10000);
-    this.maxRetries = parseNum(this.configService.get("BOT_MAX_RETRIES"), 1);
-    this.retryDelayMs = parseNum(
-      this.configService.get("BOT_RETRY_DELAY_MS"),
+    this.timeoutMs = parseConfigNumber(
+      this.configService,
+      "BOT_TIMEOUT_MS",
+      10000,
+    );
+    this.maxRetries = parseConfigNumber(
+      this.configService,
+      "BOT_MAX_RETRIES",
+      1,
+    );
+    this.retryDelayMs = parseConfigNumber(
+      this.configService,
+      "BOT_RETRY_DELAY_MS",
       500,
     );
-    this.circuitBreakerThreshold = parseNum(
-      this.configService.get("BOT_CIRCUIT_BREAKER_THRESHOLD"),
+    this.circuitBreakerThreshold = parseConfigNumber(
+      this.configService,
+      "BOT_CIRCUIT_BREAKER_THRESHOLD",
       5,
     );
-    this.circuitBreakerResetMs = parseNum(
-      this.configService.get("BOT_CIRCUIT_BREAKER_RESET_MS"),
+    this.circuitBreakerResetMs = parseConfigNumber(
+      this.configService,
+      "BOT_CIRCUIT_BREAKER_RESET_MS",
       30000,
     );
     this.maxResponseBytes = 65536;
-    this.enableHmacSigning = this.configService.get<boolean>(
+    this.enableHmacSigning = parseConfigBoolean(
+      this.configService,
       "ENABLE_BOT_HMAC_SIGNING",
       false,
     );
@@ -155,14 +159,19 @@ export class BotCallerService implements OnModuleInit {
           attempt,
           retried: attempt > 1,
         };
-      } catch (error: any) {
-        lastError = error.message;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        lastError = message;
 
         this.logger.warn(
-          `Bot ${botId} call failed (attempt ${attempt}): ${error.message}`,
+          `Bot ${botId} call failed (attempt ${attempt}): ${message}`,
         );
 
-        if (!this.isRetryable(error) || attempt > this.maxRetries) {
+        if (
+          !(error instanceof Error) ||
+          !this.isRetryable(error) ||
+          attempt > this.maxRetries
+        ) {
           this.recordFailure(botId);
           break;
         }

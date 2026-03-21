@@ -1,0 +1,28 @@
+# Tech Debt Management
+
+## When Resolving Tech Debt Items
+
+When you fix a technical debt item from `docs/reports/TECH-DEBT-AUDIT.md`:
+
+1. **Remove the item entirely** from the markdown file after fixing
+2. **Do NOT** mark items as "✅ FIXED" or use strikethrough - just delete them
+3. **Renumber** remaining items if needed to keep the list clean
+4. **Update the "Last Updated" date** at the top of the file
+
+## Rationale
+
+- Keep the tech debt file as a clean backlog of **only pending work**
+- Avoid clutter from completed items
+- The git history preserves what was fixed and when
+- Makes it easy to see at a glance what work remains
+
+## File Location
+
+Tech debt items are tracked in: `docs/reports/TECH-DEBT-AUDIT.md`
+
+## Adding New Tech Debt
+
+When discovering new technical debt:
+1. Add it to the appropriate priority section (P1/P2/P3)
+2. Include: Issue description, affected files, and suggested fix
+3. Keep descriptions concise but actionable

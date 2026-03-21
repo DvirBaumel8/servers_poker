@@ -18,13 +18,15 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     super();
   }
 
+  protected get entityName(): string {
+    return "GameStateSnapshot";
+  }
+
   async saveSnapshot(
     snapshot: Partial<GameStateSnapshot>,
     manager?: EntityManager,
   ): Promise<GameStateSnapshot> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
+    const repo = this.getRepo(manager);
 
     const existing = await repo.findOne({
       where: { game_id: snapshot.game_id, status: "active" },
@@ -46,11 +48,7 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     gameId: string,
     manager?: EntityManager,
   ): Promise<GameStateSnapshot | null> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
-    return repo.findOne({
+    return this.getRepo(manager).findOne({
       where: { game_id: gameId, status: "active" },
     });
   }
@@ -59,11 +57,7 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     tableId: string,
     manager?: EntityManager,
   ): Promise<GameStateSnapshot | null> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
-    return repo.findOne({
+    return this.getRepo(manager).findOne({
       where: { table_id: tableId, status: "active" },
     });
   }
@@ -71,11 +65,7 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
   async getAllActiveSnapshots(
     manager?: EntityManager,
   ): Promise<GameStateSnapshot[]> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
-    return repo.find({
+    return this.getRepo(manager).find({
       where: { status: "active" },
       order: { updated_at: "DESC" },
     });
@@ -85,11 +75,7 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     serverInstanceId: string,
     manager?: EntityManager,
   ): Promise<GameStateSnapshot[]> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
-    return repo.find({
+    return this.getRepo(manager).find({
       where: {
         status: "active",
         server_instance_id: Not(serverInstanceId),
@@ -102,11 +88,7 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     newServerInstanceId: string,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
-    await repo.update(snapshotId, {
+    await this.getRepo(manager).update(snapshotId, {
       status: "recovered" as SnapshotStatus,
       server_instance_id: newServerInstanceId,
     });
@@ -116,11 +98,7 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     gameId: string,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
-    await repo.update(
+    await this.getRepo(manager).update(
       { game_id: gameId, status: In(["active", "recovered"]) },
       { status: "completed" as SnapshotStatus },
     );
@@ -130,11 +108,7 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     snapshotId: string,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
-    await repo.update(snapshotId, {
+    await this.getRepo(manager).update(snapshotId, {
       status: "orphaned" as SnapshotStatus,
     });
   }
@@ -143,14 +117,10 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     olderThanDays: number = 7,
     manager?: EntityManager,
   ): Promise<number> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
-    const result = await repo
+    const result = await this.getRepo(manager)
       .createQueryBuilder()
       .delete()
       .where("status IN (:...statuses)", {
@@ -166,11 +136,7 @@ export class GameStateRepository extends BaseRepository<GameStateSnapshot> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<GameStateSnapshot[]> {
-    const repo = manager
-      ? manager.getRepository(GameStateSnapshot)
-      : this.repository;
-
-    return repo.find({
+    return this.getRepo(manager).find({
       where: { tournament_id: tournamentId, status: "active" },
     });
   }

@@ -1,5 +1,14 @@
-import { PipeTransform, Injectable, ArgumentMetadata } from "@nestjs/common";
+import {
+  PipeTransform,
+  Injectable,
+  ArgumentMetadata,
+  BadRequestException,
+} from "@nestjs/common";
 import * as sanitizeHtml from "sanitize-html";
+import {
+  containsSqlInjection,
+  containsXss,
+} from "../validators/input-sanitization.validator";
 
 @Injectable()
 export class SanitizePipe implements PipeTransform {
@@ -15,6 +24,7 @@ export class SanitizePipe implements PipeTransform {
     }
 
     if (typeof value === "string") {
+      this.rejectDangerousInput(value);
       return this.sanitizeString(value);
     }
 
@@ -27,6 +37,19 @@ export class SanitizePipe implements PipeTransform {
     }
 
     return value;
+  }
+
+  private rejectDangerousInput(value: string): void {
+    if (containsSqlInjection(value)) {
+      throw new BadRequestException(
+        "Input contains potentially dangerous SQL characters or keywords",
+      );
+    }
+    if (containsXss(value)) {
+      throw new BadRequestException(
+        "Input contains potentially dangerous script or HTML content",
+      );
+    }
   }
 
   private sanitizeString(value: string): string {
@@ -45,6 +68,9 @@ export class SanitizePipe implements PipeTransform {
     const result: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(obj)) {
+      // Check keys for dangerous input
+      this.rejectDangerousInput(key);
+
       // Sanitize keys too (prevent prototype pollution)
       const sanitizedKey = this.sanitizeString(key);
       if (
@@ -56,15 +82,19 @@ export class SanitizePipe implements PipeTransform {
       }
 
       if (typeof value === "string") {
+        // Check and reject dangerous values
+        this.rejectDangerousInput(value);
         result[sanitizedKey] = this.sanitizeString(value);
       } else if (Array.isArray(value)) {
-        result[sanitizedKey] = value.map((item) =>
-          typeof item === "string"
-            ? this.sanitizeString(item)
-            : typeof item === "object" && item !== null
-              ? this.sanitizeObject(item as Record<string, unknown>)
-              : item,
-        );
+        result[sanitizedKey] = value.map((item) => {
+          if (typeof item === "string") {
+            this.rejectDangerousInput(item);
+            return this.sanitizeString(item);
+          } else if (typeof item === "object" && item !== null) {
+            return this.sanitizeObject(item as Record<string, unknown>);
+          }
+          return item;
+        });
       } else if (typeof value === "object" && value !== null) {
         result[sanitizedKey] = this.sanitizeObject(
           value as Record<string, unknown>,

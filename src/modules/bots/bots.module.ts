@@ -5,6 +5,7 @@ import { BotsController } from "./bots.controller";
 import { BotsConnectivityController } from "./bots-connectivity.controller";
 import { SubscriptionsController } from "./subscriptions.controller";
 import { BotsService } from "./bots.service";
+import { BotOwnershipService } from "./bot-ownership.service";
 import { Bot } from "../../entities/bot.entity";
 import { BotStats } from "../../entities/bot-stats.entity";
 import { BotEvent } from "../../entities/bot-event.entity";
@@ -42,12 +43,18 @@ import { UrlValidatorService } from "../../common/validators/url-validator.servi
   ],
   providers: [
     BotsService,
+    BotOwnershipService,
     BotRepository,
     BotSubscriptionRepository,
     TournamentRepository,
     AnalyticsRepository,
     UrlValidatorService,
   ],
-  exports: [BotsService, BotRepository, BotSubscriptionRepository],
+  exports: [
+    BotsService,
+    BotOwnershipService,
+    BotRepository,
+    BotSubscriptionRepository,
+  ],
 })
 export class BotsModule {}

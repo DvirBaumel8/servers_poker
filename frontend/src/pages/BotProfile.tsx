@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { botsApi } from "../api/bots";
 import { useAuthStore } from "../stores/authStore";
+import { BOT_PROFILE_POLL_MS } from "../utils/timing";
 import type { Bot, BotActivity, BotSubscription } from "../types";
 import {
   AlertBanner,
@@ -83,7 +84,7 @@ export function BotProfile() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 10000);
+    const interval = setInterval(loadData, BOT_PROFILE_POLL_MS);
     return () => clearInterval(interval);
   }, [loadData]);
 
@@ -232,7 +233,7 @@ export function BotProfile() {
                   <span
                     className={`w-2 h-2 rounded-full ${activity?.isActive ? "bg-green-500 animate-pulse" : "bg-gray-500"}`}
                   />
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-muted">
                     {activity?.isActive ? "Active Now" : "Offline"}
                   </span>
                 </div>
@@ -240,7 +241,7 @@ export function BotProfile() {
             </div>
 
             {bot.description && (
-              <p className="text-gray-400 text-sm mb-6">{bot.description}</p>
+              <p className="text-muted text-sm mb-6">{bot.description}</p>
             )}
 
             <div className="grid grid-cols-2 gap-4">
@@ -255,7 +256,7 @@ export function BotProfile() {
             </div>
 
             <div className="mt-2 border-t border-white/6 pt-6">
-              <h3 className="mb-4 text-sm font-semibold text-gray-300">
+              <h3 className="mb-4 text-sm font-semibold text-muted-light">
                 Playing Style
               </h3>
               <div className="space-y-3">
@@ -320,7 +321,7 @@ export function BotProfile() {
                                 : "All tournaments")}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-400 mt-1">
+                        <div className="text-sm text-muted mt-1">
                           {sub.min_buy_in || sub.max_buy_in ? (
                             <span>
                               Buy-in: {sub.min_buy_in || 0} -{" "}
@@ -369,20 +370,19 @@ export function BotProfile() {
                       <Link
                         key={game.tableId}
                         to={`/game/${game.tableId}`}
-                        className="block bg-gray-900/50 rounded-lg p-4 hover:bg-gray-900/70 transition-colors"
+                        className="block bg-subtle-dark/50 rounded-lg p-4 hover:bg-subtle-dark/70 transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-medium text-white">
-                              {game.tableName ||
-                                `Table ${game.tableId.substring(0, 8)}`}
+                              {game.tableName || "Live Table"}
                             </div>
                             {game.tournamentName && (
                               <div className="text-sm text-poker-gold">
                                 {game.tournamentName}
                               </div>
                             )}
-                            <div className="text-sm text-gray-400 mt-1">
+                            <div className="text-sm text-muted mt-1">
                               Hand #{game.handNumber} • {game.status}
                             </div>
                           </div>
@@ -390,7 +390,7 @@ export function BotProfile() {
                             <div className="text-lg font-bold text-white">
                               {game.chips.toLocaleString()}
                             </div>
-                            <div className="text-xs text-gray-400">chips</div>
+                            <div className="text-xs text-muted">chips</div>
                           </div>
                         </div>
                       </Link>
@@ -412,7 +412,7 @@ export function BotProfile() {
                       <Link
                         key={tournament.tournamentId}
                         to={`/tournaments/${tournament.tournamentId}`}
-                        className="block bg-gray-900/50 rounded-lg p-4 hover:bg-gray-900/70 transition-colors"
+                        className="block bg-subtle-dark/50 rounded-lg p-4 hover:bg-subtle-dark/70 transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           <div>
@@ -426,13 +426,13 @@ export function BotProfile() {
                                     ? "bg-green-500/20 text-green-400"
                                     : tournament.status === "final_table"
                                       ? "bg-poker-gold/20 text-poker-gold"
-                                      : "bg-gray-500/20 text-gray-400"
+                                      : "bg-gray-500/20 text-muted"
                                 }`}
                               >
                                 {tournament.status.replace("_", " ")}
                               </span>
                               {tournament.position && (
-                                <span className="text-sm text-gray-400">
+                                <span className="text-sm text-muted">
                                   #{tournament.position}
                                 </span>
                               )}
@@ -442,7 +442,7 @@ export function BotProfile() {
                             <div className="text-lg font-bold text-white">
                               {tournament.chips.toLocaleString()}
                             </div>
-                            <div className="text-xs text-gray-400">chips</div>
+                            <div className="text-xs text-muted">chips</div>
                           </div>
                         </div>
                       </Link>
@@ -498,12 +498,12 @@ function StatBar({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-medium text-gray-300" title={description}>
+        <span className="text-sm font-medium text-muted-light" title={description}>
           {label}
         </span>
         <span className="text-sm text-white">{value.toFixed(1)}%</span>
       </div>
-      <div className="w-full bg-gray-700 rounded-full h-2">
+      <div className="w-full bg-subtle-light rounded-full h-2">
         <div
           className="bg-poker-gold rounded-full h-2 transition-all duration-300"
           style={{ width: `${percentage}%` }}

@@ -28,6 +28,7 @@ interface CreateTableForm {
 
 export function Tables() {
   const { user, token } = useAuthStore();
+  const isAdmin = user?.role === "admin";
   const [tables, setTables] = useState<Table[]>([]);
   const [myBots, setMyBots] = useState<Bot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -163,7 +164,7 @@ export function Tables() {
             <Button variant="secondary" onClick={loadData}>
               Refresh
             </Button>
-            {user && (
+            {isAdmin && (
               <Button
                 onClick={() => {
                   setCreateError(null);
@@ -223,12 +224,12 @@ export function Tables() {
         <EmptyState
           title="No live tables available"
           description={
-            user
+            isAdmin
               ? "Create the first live table and start routing bots into gameplay."
-              : "No tables are currently running. Return shortly or sign in to create one."
+              : "No tables are currently running. Check back shortly."
           }
           action={
-            user ? (
+            isAdmin ? (
               <Button
                 onClick={() => {
                   setCreateError(null);
@@ -237,11 +238,7 @@ export function Tables() {
               >
                 Create first table
               </Button>
-            ) : (
-              <Button variant="secondary" asLink="/login">
-                Sign in to create a table
-              </Button>
-            )
+            ) : undefined
           }
         />
       ) : (

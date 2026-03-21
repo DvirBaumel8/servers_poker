@@ -67,7 +67,8 @@ describe("HttpExceptionFilter", () => {
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: HttpStatus.BAD_REQUEST,
-        message: "Invalid input",
+        message: "Invalid request. Please check your input.",
+        error: "Bad Request",
       }),
     );
   });
@@ -101,7 +102,7 @@ describe("HttpExceptionFilter", () => {
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: "Generic error",
+        message: "An unexpected error occurred. Please try again.",
         error: "Error",
       }),
     );

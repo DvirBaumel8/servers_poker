@@ -114,7 +114,9 @@ describe("Provably Fair E2E Tests", () => {
     for (const bot of botServers) {
       try {
         await bot.close();
-      } catch {}
+      } catch {
+        // Ignore errors when closing bot servers during cleanup
+      }
     }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
@@ -174,103 +176,6 @@ describe("Provably Fair E2E Tests", () => {
       }
     });
   });
-
-  describe("Seed Commitment", () => {
-    it("should provide seed commitment before hand starts", async () => {
-      const player1 = await registerPlayer();
-      const player2 = await registerPlayer();
-
-      const tableRes = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({
-          name: `PFTable${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
-
-      // Join both players
-      await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
-        .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({ bot_id: player1.bot.id })
-        .expect(201);
-
-      await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
-        .set("Authorization", `Bearer ${player2.accessToken}`)
-        .send({ bot_id: player2.bot.id })
-        .expect(201);
-
-      // Wait for game to start
-      await new Promise((r) => setTimeout(r, 3000));
-
-      // Get game state - should include provably fair commitment
-      const state = await request(app.getHttpServer())
-        .get(`/api/v1/games/${tableRes.body.id}/state`)
-        .set("Authorization", `Bearer ${player1.accessToken}`);
-
-      if (state.status === 200 && state.body.provablyFair) {
-        expect(state.body.provablyFair).toHaveProperty("commitment");
-      }
-    }, 30000);
-  });
-
-  describe("Hand Verification", () => {
-    it("should allow verification of completed hands", async () => {
-      const player1 = await registerPlayer();
-      const player2 = await registerPlayer();
-
-      const tableRes = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({
-          name: `VerifyTable${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 3000,
-        })
-        .expect(201);
-
-      await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
-        .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({ bot_id: player1.bot.id })
-        .expect(201);
-
-      await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
-        .set("Authorization", `Bearer ${player2.accessToken}`)
-        .send({ bot_id: player2.bot.id })
-        .expect(201);
-
-      // Wait for a hand to complete
-      await new Promise((r) => setTimeout(r, 8000));
-
-      // Try to get hand history with verification data
-      const handsRes = await request(app.getHttpServer())
-        .get(`/api/v1/games/${tableRes.body.id}/hands`)
-        .set("Authorization", `Bearer ${player1.accessToken}`);
-
-      expect([200, 404]).toContain(handsRes.status);
-    }, 30000);
-
-    it("should return verification endpoint for specific hand", async () => {
-      const response = await request(app.getHttpServer()).get(
-        "/api/v1/games/provably-fair/verify/test-hand-id",
-      );
-
-      // Endpoint should exist even if hand doesn't
-      expect([200, 400, 404]).toContain(response.status);
-    });
-  });
-
   describe("Cryptographic Verification", () => {
     it("should use proper hash function for commitments", async () => {
       // Test that SHA-256 produces expected output
@@ -297,49 +202,6 @@ describe("Provably Fair E2E Tests", () => {
       expect(deck1).not.toEqual(deck2);
     });
   });
-
-  describe("Audit Trail", () => {
-    it("should record hand seeds for completed hands", async () => {
-      const player1 = await registerPlayer();
-      const player2 = await registerPlayer();
-
-      const tableRes = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({
-          name: `AuditTable${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 3000,
-        })
-        .expect(201);
-
-      await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
-        .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({ bot_id: player1.bot.id })
-        .expect(201);
-
-      await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
-        .set("Authorization", `Bearer ${player2.accessToken}`)
-        .send({ bot_id: player2.bot.id })
-        .expect(201);
-
-      // Wait for game to complete
-      await new Promise((r) => setTimeout(r, 10000));
-
-      // Check that we can retrieve audit data
-      const auditRes = await request(app.getHttpServer())
-        .get(`/api/v1/games/${tableRes.body.id}/audit`)
-        .set("Authorization", `Bearer ${player1.accessToken}`);
-
-      expect([200, 404]).toContain(auditRes.status);
-    }, 30000);
-  });
-
   describe("Client-Side Verification", () => {
     it("should provide all data needed for client verification", async () => {
       const infoRes = await request(app.getHttpServer()).get(

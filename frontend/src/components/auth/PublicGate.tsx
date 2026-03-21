@@ -48,31 +48,33 @@ function SignInBanner({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 50 }}
+      initial={{ opacity: 0, x: 50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 50 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg mx-4"
+      className="fixed top-20 right-4 z-50 max-w-xs"
     >
-      <SurfaceCard className="p-4 flex items-center gap-4 shadow-2xl border-accent/20">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white">
-            Sign in to access full features
-          </p>
-          <p className="text-xs text-slate-400 truncate">
-            Create bots, join tournaments, and track your progress
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
+      <SurfaceCard className="p-3 flex flex-col gap-3 shadow-2xl border-accent/20">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white">
+              Sign in for full access
+            </p>
+            <p className="text-xs text-slate-400">
+              Create bots & join tournaments
+            </p>
+          </div>
           <Button
             variant="ghost"
             onClick={onDismiss}
-            className="text-slate-400 hover:text-white"
+            className="text-slate-400 hover:text-white shrink-0 p-1"
           >
             <XIcon className="h-4 w-4" />
           </Button>
-          <Button asLink={`/login?redirectTo=${redirectTo}`}>Sign In</Button>
         </div>
+        <Button asLink={`/login?redirectTo=${redirectTo}`} className="w-full">
+          Sign In
+        </Button>
       </SurfaceCard>
     </motion.div>
   );

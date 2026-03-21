@@ -10,6 +10,7 @@ import { GamePlayer } from "../../entities/game-player.entity";
 import { BotStats } from "../../entities/bot-stats.entity";
 import { BotEvent } from "../../entities/bot-event.entity";
 import { ChipMovement } from "../../entities/chip-movement.entity";
+import { isPostgresError, PG_ERROR_CODES } from "../../common/utils";
 
 interface PlayerActionEvent {
   tableId: string;
@@ -146,8 +147,9 @@ export class GameDataPersistenceService implements OnModuleInit {
           `Cleaned up ${orphaned.length} orphaned game(s) from previous session`,
         );
       }
-    } catch (error: any) {
-      this.logger.error(`Orphaned game cleanup failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Orphaned game cleanup failed: ${message}`);
     }
   }
 
@@ -196,7 +198,7 @@ export class GameDataPersistenceService implements OnModuleInit {
         `Hand ${event.handNumber} created for game ${event.gameId} (ID: ${savedHand.id})`,
       );
     } catch (error) {
-      if ((error as any)?.code === "23505") {
+      if (isPostgresError(error, PG_ERROR_CODES.UNIQUE_VIOLATION)) {
         this.logger.debug(`Hand ${event.handNumber} already exists, skipping`);
         return;
       }
@@ -430,8 +432,9 @@ export class GameDataPersistenceService implements OnModuleInit {
         context: { strikes: event.strikes },
       });
       await this.botEventRepository.save(botEvent);
-    } catch (error: any) {
-      this.logger.error(`Failed to log bot event: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to log bot event: ${message}`);
     }
   }
 
@@ -474,9 +477,11 @@ export class GameDataPersistenceService implements OnModuleInit {
             );
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `Failed to update bot stats for ${player.id}: ${error.message}`,
+          `Failed to update bot stats for ${player.id}: ${errorMessage}`,
         );
       }
     }
@@ -520,8 +525,9 @@ export class GameDataPersistenceService implements OnModuleInit {
         });
         await this.chipMovementRepository.save(winMovement);
       }
-    } catch (error: any) {
-      this.logger.error(`Failed to record chip movements: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to record chip movements: ${message}`);
     }
   }
 
@@ -547,10 +553,9 @@ export class GameDataPersistenceService implements OnModuleInit {
           await this.incrementBotStatField(event.botId, "pfr_hands");
         }
       }
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to record player action stats: ${error.message}`,
-      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to record player action stats: ${message}`);
     }
   }
 

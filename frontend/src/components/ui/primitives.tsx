@@ -80,24 +80,34 @@ export function PageHeader({
 }
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonSize = "sm" | "md" | "lg";
 
 export function Button({
   children,
   className,
   variant = "primary",
+  size = "md",
   asLink,
   ...props
 }: {
   children: ReactNode;
   className?: string;
   variant?: ButtonVariant;
+  size?: ButtonSize;
   asLink?: string;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const sizeClasses = {
+    sm: "px-3 py-1.5 text-xs",
+    md: "",
+    lg: "px-6 py-3 text-base",
+  };
+
   const classes = clsx(
     variant === "primary" && "btn-primary",
     variant === "secondary" && "btn-secondary",
     variant === "ghost" && "btn-ghost",
     variant === "danger" && "btn-danger",
+    size !== "md" && sizeClasses[size],
     className,
   );
 
@@ -155,6 +165,7 @@ export function AlertBanner({
         <button
           onClick={onDismiss}
           className="btn-ghost -mr-2 -mt-1 px-2 py-1 text-xs"
+          aria-label="Dismiss alert"
         >
           Dismiss
         </button>
@@ -361,6 +372,7 @@ export function SegmentedTabs<T extends string>({
 }) {
   return (
     <div
+      role="tablist"
       className={clsx(
         "inline-flex flex-wrap gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-1.5",
         className,
@@ -369,9 +381,11 @@ export function SegmentedTabs<T extends string>({
       {items.map((item) => (
         <button
           key={item.value}
+          role="tab"
+          aria-selected={value === item.value}
           onClick={() => onChange(item.value)}
           className={clsx(
-            "rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+            "min-h-[44px] cursor-pointer rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
             value === item.value
               ? "bg-accent text-surface-400 shadow-glow-sm"
               : "text-slate-400 hover:bg-white/[0.04] hover:text-white",

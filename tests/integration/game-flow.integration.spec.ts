@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigModule } from "@nestjs/config";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
-import { LiveGameManagerService } from "../../src/services/live-game-manager.service";
-import { BotCallerService } from "../../src/services/bot-caller.service";
-import { BotResilienceService } from "../../src/services/bot-resilience.service";
+import { LiveGameManagerService } from "../../src/services/game/live-game-manager.service";
+import { BotCallerService } from "../../src/services/bot/bot-caller.service";
+import { BotResilienceService } from "../../src/services/bot/bot-resilience.service";
 import { ProvablyFairService } from "../../src/services/provably-fair.service";
 import { v4 as uuidv4 } from "uuid";
 

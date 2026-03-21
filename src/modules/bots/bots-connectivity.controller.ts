@@ -6,6 +6,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
@@ -29,6 +31,7 @@ import {
   HealthCheckResultDto,
   BotLatencyDto,
 } from "./dto/bot.dto";
+import { assertFound } from "../../common/utils";
 
 @Controller("bots/connectivity")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -82,11 +85,11 @@ export class BotsConnectivityController {
 
   @Get("health/:botId")
   async getBotHealth(
-    @Param("botId") botId: string,
-  ): Promise<BotHealthStatus | { error: string }> {
+    @Param("botId", ParseUUIDPipe) botId: string,
+  ): Promise<BotHealthStatus> {
     const status = this.botCaller.getHealthStatus(botId);
     if (!status) {
-      return { error: "No health data available for this bot" };
+      throw new NotFoundException("No health data available for this bot");
     }
     return status;
   }
@@ -94,12 +97,10 @@ export class BotsConnectivityController {
   @Post("health/:botId/check")
   @HttpCode(HttpStatus.OK)
   async triggerHealthCheck(
-    @Param("botId") botId: string,
-  ): Promise<HealthCheckResultDto | { error: string }> {
+    @Param("botId", ParseUUIDPipe) botId: string,
+  ): Promise<HealthCheckResultDto> {
     const bot = await this.botsService.findById(botId);
-    if (!bot) {
-      return { error: "Bot not found" };
-    }
+    assertFound(bot, "Bot", botId);
 
     const startTime = Date.now();
     const healthy = await this.botCaller.healthCheck(botId, bot.endpoint);
@@ -117,24 +118,20 @@ export class BotsConnectivityController {
 
   @Get("validate/:botId")
   async validateBot(
-    @Param("botId") botId: string,
-  ): Promise<ValidationReport | { error: string }> {
+    @Param("botId", ParseUUIDPipe) botId: string,
+  ): Promise<ValidationReport> {
     const bot = await this.botsService.findById(botId);
-    if (!bot) {
-      return { error: "Bot not found" };
-    }
+    assertFound(bot, "Bot", botId);
 
     return this.botValidator.validateBot(botId, bot.endpoint);
   }
 
   @Get("validate/:botId/quick")
   async quickValidateBot(
-    @Param("botId") botId: string,
-  ): Promise<ValidationReport | { error: string }> {
+    @Param("botId", ParseUUIDPipe) botId: string,
+  ): Promise<ValidationReport> {
     const bot = await this.botsService.findById(botId);
-    if (!bot) {
-      return { error: "Bot not found" };
-    }
+    assertFound(bot, "Bot", botId);
 
     return this.botValidator.validateBot(botId, bot.endpoint, {
       quickMode: true,
@@ -144,7 +141,7 @@ export class BotsConnectivityController {
   @Post("circuit-breaker/:botId/reset")
   @Roles("admin")
   @HttpCode(HttpStatus.OK)
-  resetCircuitBreaker(@Param("botId") botId: string): {
+  resetCircuitBreaker(@Param("botId", ParseUUIDPipe) botId: string): {
     success: boolean;
     botId: string;
   } {
@@ -153,7 +150,7 @@ export class BotsConnectivityController {
   }
 
   @Get("latency/:botId")
-  getLatency(@Param("botId") botId: string): BotLatencyDto {
+  getLatency(@Param("botId", ParseUUIDPipe) botId: string): BotLatencyDto {
     const latency = this.botCaller.getAverageLatency(botId);
     return { botId, averageLatencyMs: latency };
   }
@@ -161,12 +158,10 @@ export class BotsConnectivityController {
   @Post("register/:botId")
   @HttpCode(HttpStatus.OK)
   async registerBotForMonitoring(
-    @Param("botId") botId: string,
-  ): Promise<{ success: boolean } | { error: string }> {
+    @Param("botId", ParseUUIDPipe) botId: string,
+  ): Promise<{ success: boolean }> {
     const bot = await this.botsService.findById(botId);
-    if (!bot) {
-      return { error: "Bot not found" };
-    }
+    assertFound(bot, "Bot", botId);
 
     this.healthScheduler.registerBot(botId, bot.endpoint);
     return { success: true };
@@ -174,7 +169,7 @@ export class BotsConnectivityController {
 
   @Post("unregister/:botId")
   @HttpCode(HttpStatus.OK)
-  unregisterBotFromMonitoring(@Param("botId") botId: string): {
+  unregisterBotFromMonitoring(@Param("botId", ParseUUIDPipe) botId: string): {
     success: boolean;
   } {
     this.healthScheduler.unregisterBot(botId);

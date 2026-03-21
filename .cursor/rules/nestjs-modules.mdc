@@ -1,0 +1,60 @@
+---
+description: NestJS module patterns and dependency injection
+globs: src/**/*.module.ts
+alwaysApply: false
+---
+
+# NestJS Module Patterns
+
+## Circular Dependencies
+
+Use `forwardRef` when two modules depend on each other:
+
+```typescript
+// In ModuleA
+imports: [forwardRef(() => ModuleB)]
+
+// In services with circular deps
+constructor(
+  @Inject(forwardRef(() => OtherService))
+  private readonly otherService: OtherService,
+) {}
+```
+
+## Optional Dependencies
+
+Use `@Optional()` when a dependency may not be available:
+
+```typescript
+constructor(
+  @Optional()
+  @Inject(RedisService)
+  private readonly redisService: RedisService | null,
+) {}
+
+// Always check before using
+if (this.redisService) {
+  await this.redisService.set(key, value);
+}
+```
+
+## Module Structure
+
+```typescript
+@Module({
+  imports: [
+    // External modules first
+    TypeOrmModule.forFeature([Entity]),
+    // Then internal modules
+    forwardRef(() => RelatedModule),
+  ],
+  controllers: [MyController],
+  providers: [MyService, MyRepository],
+  exports: [MyService], // Only export what other modules need
+})
+export class MyModule {}
+```
+
+## Global Modules
+
+Use sparingly. Mark with `@Global()` only for truly cross-cutting concerns (Redis, Config, Metrics).

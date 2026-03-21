@@ -1,6 +1,7 @@
 import { DataSource } from "typeorm";
 import { v4 as uuid } from "uuid";
 import * as crypto from "crypto";
+import * as bcrypt from "bcrypt";
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -24,6 +25,13 @@ function hashApiKey(key: string): string {
     .toString("hex");
 }
 
+const SALT_ROUNDS = 12;
+const TEST_PASSWORD = "TestPassword123!";
+
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, SALT_ROUNDS);
+}
+
 async function seed() {
   console.log("Connecting to database...");
   await dataSource.initialize();
@@ -32,6 +40,10 @@ async function seed() {
   const queryRunner = dataSource.createQueryRunner();
 
   try {
+    // Pre-hash the password (same hash for all test users)
+    console.log("Hashing password...");
+    const passwordHash = await hashPassword(TEST_PASSWORD);
+
     // Create Users (schema uses 'name' not 'username', 'api_key_hash' not 'api_key')
     console.log("Creating users...");
     const users = [
@@ -46,10 +58,10 @@ async function seed() {
       const apiKey = `api_${uuid().replace(/-/g, "")}`;
       const apiKeyHash = hashApiKey(apiKey);
       await queryRunner.query(
-        `INSERT INTO users (id, email, name, api_key_hash, role, active, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
-         ON CONFLICT (email) DO NOTHING`,
-        [user.id, user.email, user.name, apiKeyHash, user.role]
+        `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, true, true, NOW(), NOW())
+         ON CONFLICT (email) DO UPDATE SET password_hash = $4, email_verified = true`,
+        [user.id, user.email, user.name, passwordHash, apiKeyHash, user.role]
       );
     }
     console.log(`  Created ${users.length} users`);
@@ -299,7 +311,7 @@ async function seed() {
     console.log(`  Created ${gamePlayerCount} game player records`);
 
     console.log("\n✅ Seed data created successfully!");
-    console.log("\nTest accounts (login via API - no password in this schema):");
+    console.log("\nTest accounts (all have password: " + TEST_PASSWORD + "):");
     console.log("  - admin@poker.io (admin)");
     console.log("  - alice@example.com (user)");
     console.log("  - bob@example.com (user)");

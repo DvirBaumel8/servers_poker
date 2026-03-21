@@ -1,0 +1,90 @@
+---
+description: React component and hook patterns for the frontend
+globs: frontend/src/**/*.tsx
+alwaysApply: false
+---
+
+# React Patterns
+
+## Component Structure
+
+```tsx
+// Imports: React, external libs, internal modules, types
+import { useState, useEffect } from "react";
+import { useTournamentStore } from "../stores/tournamentStore";
+import type { Tournament } from "../types";
+
+// Props interface above component
+interface TournamentCardProps {
+  tournament: Tournament;
+  onSelect?: (id: string) => void;
+}
+
+// Functional components only
+export function TournamentCard({ tournament, onSelect }: TournamentCardProps) {
+  // Hooks first, then derived state, then handlers
+  const [expanded, setExpanded] = useState(false);
+  
+  const isActive = tournament.status === "active";
+  
+  const handleClick = () => onSelect?.(tournament.id);
+  
+  return <div onClick={handleClick}>...</div>;
+}
+```
+
+## State Management
+
+Use Zustand stores for shared state (see `stores/`):
+
+```tsx
+// In store
+export const useTournamentStore = create<TournamentStore>((set) => ({
+  tournaments: [],
+  loading: false,
+  error: null,
+  fetchTournaments: async () => {
+    set({ loading: true, error: null });
+    try {
+      const data = await api.getAll();
+      set({ tournaments: data, loading: false });
+    } catch (error) {
+      set({ error: String(error), loading: false });
+    }
+  },
+}));
+
+// In component
+const { tournaments, loading, fetchTournaments } = useTournamentStore();
+```
+
+## Custom Hooks
+
+Extract reusable logic into `hooks/`:
+
+```tsx
+// Good: reusable hook
+export function useWebSocket(tableId: string, options: Options) {
+  const socketRef = useRef<Socket | null>(null);
+  const [state, setState] = useState<WebSocketState>({ connected: false });
+  // ...
+  return { ...state, connect, disconnect };
+}
+```
+
+## Error Boundaries
+
+Wrap feature sections with `ErrorBoundary`:
+
+```tsx
+<ErrorBoundary fallback={<ErrorFallback />}>
+  <GameView />
+</ErrorBoundary>
+```
+
+## Performance
+
+- Use `React.memo` for expensive pure components
+- Use `useCallback` for handlers passed to child components
+- Use `useMemo` for expensive computations
+- Avoid inline object/array literals in JSX props

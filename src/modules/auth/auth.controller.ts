@@ -143,6 +143,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post("regenerate-api-key")
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 3600000, limit: 5 } }) // 5 per hour
   async regenerateApiKey(
     @CurrentUser() user: User,
   ): Promise<RegenerateApiKeyResponseDto> {

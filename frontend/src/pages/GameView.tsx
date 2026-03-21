@@ -2,14 +2,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Table } from "../components/game/Table";
-import { ActionFeed, useActionFeed } from "../components/game/ActionFeed";
+import { useActionFeed } from "../components/game/ActionFeed";
 import { HandResultToast } from "../components/game/HandResultToast";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useAuthStore } from "../stores/authStore";
 import { gamesApi } from "../api/games";
+import { tournamentsApi } from "../api/tournaments";
 import clsx from "clsx";
-import type { HandResult } from "../types";
-import { Button, MetricCard, StatusPill } from "../components/ui/primitives";
+import type { HandResult, Tournament } from "../types";
+import { Button } from "../components/ui/primitives";
 
 const DEFAULT_TURN_TIMEOUT_MS = 10000;
 
@@ -17,7 +18,7 @@ export function GameView() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
-  const { actions, addAction, clearActions } = useActionFeed();
+  const { addAction, clearActions } = useActionFeed();
   const [activeHandResult, setActiveHandResult] = useState<HandResult | null>(
     null,
   );
@@ -30,10 +31,14 @@ export function GameView() {
   >("checking");
   const [preflightError, setPreflightError] = useState<string | null>(null);
   const lastActivePlayerId = useRef<string | null>(null);
+  const [tournamentInfo, setTournamentInfo] = useState<Tournament | null>(null);
+  
+  // Track player names in a ref to avoid stale closure issues
+  const playerNamesRef = useRef<Record<string, string>>({});
 
   const handlePlayerAction = useCallback(
     (action: { botId: string; action: string; amount: number }) => {
-      const playerName = action.botId.slice(0, 8);
+      const playerName = playerNamesRef.current[action.botId] || "Player";
       addAction(playerName, action.action, action.amount);
 
       // Track last action for each player
@@ -67,7 +72,7 @@ export function GameView() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!tableId || !token) {
+    if (!tableId) {
       setPreflightStatus("checking");
       setPreflightError(null);
       return;
@@ -77,7 +82,7 @@ export function GameView() {
     setPreflightError(null);
 
     gamesApi
-      .getGameState(tableId, token)
+      .getGameState(tableId, token || undefined)
       .then(() => {
         if (!cancelled) {
           setPreflightStatus("ready");
@@ -109,6 +114,16 @@ export function GameView() {
     }
   }, [lastHandResult]);
 
+  // Fetch tournament info if this is a tournament table
+  useEffect(() => {
+    if (gameState?.tournamentId && !tournamentInfo) {
+      tournamentsApi
+        .getById(gameState.tournamentId)
+        .then(setTournamentInfo)
+        .catch(() => setTournamentInfo(null));
+    }
+  }, [gameState?.tournamentId, tournamentInfo]);
+
   const handleHandResultComplete = useCallback(() => {
     setActiveHandResult(null);
   }, []);
@@ -126,13 +141,16 @@ export function GameView() {
 
   const playerNames = useMemo(() => {
     if (!gameState) return {};
-    return gameState.players.reduce(
+    const names = gameState.players.reduce(
       (acc, p) => {
         acc[p.id] = p.name;
         return acc;
       },
       {} as Record<string, string>,
     );
+    // Keep the ref in sync for callbacks
+    playerNamesRef.current = names;
+    return names;
   }, [gameState]);
 
   if (preflightStatus === "missing") {
@@ -199,80 +217,76 @@ export function GameView() {
 
   return (
     <div className="min-h-screen bg-shell-gradient">
-      {/* Action feed */}
-      <ActionFeed actions={actions} />
+      {/* Hand result toast - for notifications */}
       <HandResultToast
         result={activeHandResult}
         onDismiss={handleHandResultComplete}
         playerNames={playerNames}
       />
 
-      <div className="page-shell flex flex-col gap-6 py-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate("/tables")}>
-              Back to tables
+      <div className="page-shell flex flex-col gap-4 py-4">
+        {/* Compact header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" onClick={() => navigate(tournamentInfo ? `/tournaments/${tournamentInfo.id}` : "/tables")}>
+              {tournamentInfo ? "Back to tournament" : "Back to tables"}
             </Button>
             <div>
-              <div className="eyebrow-label">Live table view</div>
+              <div className="eyebrow-label">
+                {tournamentInfo ? "Tournament table" : "Live table view"}
+              </div>
               <h1 className="text-2xl font-display font-semibold text-white">
-                Table #{tableId?.slice(0, 8)}
+                {tournamentInfo ? tournamentInfo.name : "Live Table"}
               </h1>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge status={gameState.status} />
-            {gameFinished && (
-              <StatusPill
-                label={`Winner ${gameFinished.winnerName || "Unknown"}`}
-                tone="success"
-              />
+          <div className="flex items-center gap-3">
+            {tournamentInfo && (
+              <>
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs">
+                  <span className="text-slate-400">Level </span>
+                  <span className="font-semibold text-white">{tournamentInfo.currentLevel || 1}</span>
+                </div>
+              </>
             )}
+            <StatusBadge status={gameState.status} />
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_19rem]">
+        {/* Full-width table - no sidebar */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-[2rem] border border-white/6 bg-black/10 p-4 shadow-panel"
+        >
+          <Table
+            gameState={gameState}
+            playerActions={playerActions}
+            turnStartTime={turnStartTime}
+            turnTimeoutMs={DEFAULT_TURN_TIMEOUT_MS}
+            handResult={activeHandResult}
+            onHandResultComplete={handleHandResultComplete}
+            playerNames={playerNames}
+          />
+        </motion.div>
+
+        {/* Winner announcement overlay */}
+        {gameFinished && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-[2rem] border border-white/6 bg-black/10 p-3 shadow-panel"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none"
           >
-            <Table
-              gameState={gameState}
-              playerActions={playerActions}
-              turnStartTime={turnStartTime}
-              turnTimeoutMs={DEFAULT_TURN_TIMEOUT_MS}
-              handResult={activeHandResult}
-              onHandResultComplete={handleHandResultComplete}
-              playerNames={playerNames}
-            />
+            <div className="bg-gradient-to-br from-amber-500/90 to-yellow-600/90 backdrop-blur-xl rounded-3xl px-12 py-8 shadow-2xl border-2 border-yellow-300/50">
+              <div className="text-center">
+                <div className="text-2xl mb-2">🏆</div>
+                <div className="text-amber-100 text-sm uppercase tracking-widest mb-1">Winner</div>
+                <div className="text-white text-3xl font-bold">{gameFinished.winnerName || "Unknown"}</div>
+              </div>
+            </div>
           </motion.div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <MetricCard
-              label="Blinds"
-              value={`${formatAmount(gameState.blinds?.small || 0)}/${formatAmount(gameState.blinds?.big || 0)}`}
-              hint="Current blind level"
-            />
-            <MetricCard
-              label="Pot"
-              value={formatAmount(gameState.pot)}
-              hint="Main pot"
-              accent
-            />
-            <MetricCard
-              label="Hand"
-              value={`#${gameState.handNumber}`}
-              hint="Active hand number"
-            />
-            <MetricCard
-              label="Players"
-              value={`${gameState.players.filter((p) => !p.folded && !p.disconnected).length}/${gameState.players.length}`}
-              hint="Players still active this hand"
-            />
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -331,8 +345,3 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function formatAmount(amount: number): string {
-  if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
-  if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;
-  return amount.toString();
-}

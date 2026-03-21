@@ -17,6 +17,7 @@ import {
   shuffle,
   shuffleWithOrder,
   cardToString,
+  parseCard,
 } from "../../domain/deck";
 import { determineWinners, bestHand } from "../../domain/handEvaluator";
 import { PotManager, BettingRound } from "../../domain/betting";
@@ -1022,7 +1023,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
           name: player.name,
           endpoint: player.endpoint,
           chips: player.chips,
-          holeCards: player.holeCards || [],
+          holeCards: (player.holeCards || []).map(parseCard),
           folded: player.folded,
           allIn: player.allIn,
           strikes: player.strikes,
@@ -1033,7 +1034,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
       game.handNumber = snapshot.hand_number;
       game.stage = snapshot.game_stage;
       game.dealerIndex = snapshot.dealer_index;
-      game.communityCards = snapshot.community_cards || [];
+      game.communityCards = (snapshot.community_cards || []).map(parseCard);
 
       const liveGame: LiveGame = {
         game,
@@ -1260,6 +1261,16 @@ export class LiveGameManagerService implements OnModuleDestroy {
 
   getActiveGameCount(): number {
     return this.liveGames.size;
+  }
+
+  getRunningGameCount(): number {
+    let count = 0;
+    for (const [, liveGame] of this.liveGames) {
+      if (liveGame.game.running) {
+        count++;
+      }
+    }
+    return count;
   }
 
   registerBotInGame(tableId: string, botId: string, botName: string): void {

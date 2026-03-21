@@ -11,9 +11,14 @@ export class RedisPubSubService implements OnModuleDestroy {
   private readonly subscriber: Redis;
   private readonly keyPrefix: string;
   private readonly handlers = new Map<string, Set<MessageHandler>>();
+  private readonly pubSubPollMs: number;
   private isSubscriberReady = false;
 
   constructor(private readonly configService: ConfigService) {
+    this.pubSubPollMs = this.configService.get<number>(
+      "redisPubSubPollMs",
+      100,
+    );
     const config = {
       host: this.configService.get<string>("REDIS_HOST", "localhost"),
       port: this.configService.get<number>("REDIS_PORT", 6379),
@@ -133,7 +138,7 @@ export class RedisPubSubService implements OnModuleDestroy {
           clearTimeout(timeout);
           resolve(true);
         } else {
-          setTimeout(checkReady, 100);
+          setTimeout(checkReady, this.pubSubPollMs);
         }
       };
 

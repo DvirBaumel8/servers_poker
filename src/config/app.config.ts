@@ -1,5 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
 
+/**
+ * Default CORS origins for development.
+ * In production, set CORS_ORIGINS environment variable.
+ */
+export const DEFAULT_CORS_ORIGINS = [
+  "http://localhost:3001",
+  "http://localhost:3002",
+];
+
 export interface WorkerConfig {
   enableWorkerThreads: boolean;
   maxConcurrentGames: number;
@@ -12,6 +21,12 @@ export interface RedisConfig {
   password?: string;
   db: number;
   keyPrefix: string;
+}
+
+export interface TournamentSchedulerConfig {
+  enabled: boolean;
+  checkIntervalMs: number;
+  cronExpression: string;
 }
 
 export interface AppConfig {
@@ -29,6 +44,9 @@ export interface AppConfig {
   instanceId: string;
   gameOwnershipTtlMs: number;
   gameOwnershipRenewalMs: number;
+  tournamentScheduler: TournamentSchedulerConfig;
+  botRecoveryTimeoutMs: number;
+  redisPubSubPollMs: number;
 }
 
 export const appConfig = (): AppConfig => ({
@@ -36,8 +54,13 @@ export const appConfig = (): AppConfig => ({
   nodeEnv: process.env.NODE_ENV || "development",
   jwtSecret: process.env.JWT_SECRET || "change-me-in-production",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "24h",
-  corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:3001").split(","),
-  rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || "100", 10),
+  corsOrigins: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",")
+    : DEFAULT_CORS_ORIGINS,
+  // Global rate limit: 300 requests per minute (5 req/sec)
+  // Generous enough for power users with multiple tabs
+  // Per-route limits on auth endpoints are stricter (see auth.controller.ts)
+  rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || "300", 10),
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
   botTimeoutMs: parseInt(process.env.BOT_TIMEOUT_MS || "10000", 10),
   maxBodySize: parseInt(process.env.MAX_BODY_SIZE || "65536", 10),
@@ -62,4 +85,17 @@ export const appConfig = (): AppConfig => ({
     process.env.GAME_OWNERSHIP_RENEWAL_MS || "3000",
     10,
   ),
+  tournamentScheduler: {
+    enabled: process.env.TOURNAMENT_SCHEDULER_ENABLED !== "false",
+    checkIntervalMs: parseInt(
+      process.env.TOURNAMENT_SCHEDULER_INTERVAL_MS || "30000",
+      10,
+    ),
+    cronExpression: process.env.TOURNAMENT_SCHEDULER_CRON || "*/30 * * * * *", // Every 30 seconds
+  },
+  botRecoveryTimeoutMs: parseInt(
+    process.env.BOT_RECOVERY_TIMEOUT_MS || "5000",
+    10,
+  ),
+  redisPubSubPollMs: parseInt(process.env.REDIS_PUBSUB_POLL_MS || "100", 10),
 });

@@ -1,0 +1,171 @@
+# Bug-to-Monster Improvement Workflow
+
+## Core Principle
+
+**Every bug found is a monster improvement opportunity.**
+
+When ANY bug is discovered (by user, AI, testing, or production), we STOP and ask:
+1. Why didn't the Monster Army catch this?
+2. Which monster SHOULD have caught it?
+3. How do we improve that monster (or create a new one)?
+
+## Workflow: When a Bug is Found
+
+### Step 1: Log the Bug
+
+Create an entry in `tests/qa/monsters/data/bug-retrospectives.json`:
+
+```json
+{
+  "id": "bug-2024-03-21-001",
+  "date": "2024-03-21",
+  "foundBy": "user|ai|test|production",
+  "summary": "Deactivate button looks disabled but is clickable",
+  "category": "ui|api|logic|security|performance",
+  "severity": "critical|high|medium|low",
+  "rootCause": "btn-danger CSS has 22% opacity, no hover state",
+  "monsterAnalysis": {
+    "shouldHaveCaught": "css-lint or visual",
+    "whyMissed": "No check for button opacity or hover states",
+    "existingMonster": true,
+    "monsterToImprove": "css-lint-monster"
+  },
+  "improvement": {
+    "type": "enhance-existing|create-new|add-scenario",
+    "description": "Added checkButtonStyles() to verify opacity > 35% and hover states exist",
+    "filesChanged": ["tests/qa/monsters/browser-monster/css-lint-monster.ts"],
+    "testAdded": "Button .btn-danger looks disabled due to low opacity"
+  },
+  "verified": false
+}
+```
+
+### Step 2: Analyze Why Monster Missed It
+
+Ask these questions:
+- **Wrong monster?** Should a different monster be checking this?
+- **Missing check?** Monster exists but lacks the specific check?
+- **New category?** Need a new monster for this bug type?
+- **Config issue?** Monster is configured incorrectly?
+
+### Step 3: Improve the Monster
+
+Based on analysis, take ONE of these actions:
+
+| Analysis Result | Action |
+|-----------------|--------|
+| Monster exists, missing check | Add new check to existing monster |
+| Monster exists, wrong config | Fix configuration |
+| No monster for this category | Create new specialized monster |
+| Edge case not covered | Add scenario to scenarios.ts |
+
+### Step 4: Verify the Fix
+
+1. Run the improved monster against the original bug
+2. Confirm it now FAILS (catches the bug)
+3. Fix the actual bug
+4. Run monster again - should PASS
+5. Mark `verified: true` in retrospective
+
+## Monster Improvement Categories
+
+### UI/Visual Bugs → Improve These Monsters:
+
+| Bug Type | Monster to Improve | What to Add |
+|----------|-------------------|-------------|
+| Button looks disabled | `css-lint-monster` | Opacity check, hover state check |
+| Elements overlapping | `layout-lint-monster` | Z-index conflict detection |
+| Text cut off | `visual-monster` | Overflow detection |
+| Missing focus indicator | `css-lint-monster` | WCAG focus check |
+| Wrong colors/contrast | `css-lint-monster` | Contrast ratio check |
+
+### Design Quality Issues → Improve These Monsters:
+
+| Issue Type | Monster to Improve | What to Add |
+|------------|-------------------|-------------|
+| UI looks amateur | `design-critic-monster` | Add check for specific amateur pattern |
+| Not competitive with PokerStars | `design-critic-monster` | Add comparison check |
+| Feels static/flat | `design-critic-monster` | Check animations/transitions count |
+| Typography chaotic | `design-critic-monster` | Font scale consistency check |
+| Colors inconsistent | `design-critic-monster` | Palette cohesion check |
+
+### API/Contract Bugs → Improve These Monsters:
+
+| Bug Type | Monster to Improve | What to Add |
+|----------|-------------------|-------------|
+| Wrong response format | `contract-monster` | Add contract definition |
+| Missing field | `contract-monster` | Add field to shape |
+| Auth when should be public | `api-monster` | Fix `auth: false` config |
+| 500 errors | `api-monster` | Add endpoint test |
+
+### Logic/Game Bugs → Improve These Monsters:
+
+| Bug Type | Monster to Improve | What to Add |
+|----------|-------------------|-------------|
+| Chips calculation wrong | `invariant-monster` | Add chips invariant |
+| Cards dealt incorrectly | `invariant-monster` | Add card invariant |
+| Game state inconsistent | `game-flow-monster` | Add state transition check |
+
+### Permission Bugs → Improve These Monsters:
+
+| Bug Type | Monster to Improve | What to Add |
+|----------|-------------------|-------------|
+| Admin button visible to user | `visual-monster` | Add to permission-checks.ts |
+| API accessible to wrong role | `api-monster` | Add to adminOnly endpoints |
+| Page accessible without auth | `browser-monster` | Add scenario |
+
+## Quick Reference Commands
+
+```bash
+# Run specific monster to verify improvement
+npm run monsters:css-lint
+npm run monsters:layout-lint
+npm run monsters:api
+npm run monsters:contract
+
+# Run quick suite (API + Invariant + Contract + CSS)
+npm run monsters:quick
+
+# Full monster army
+npm run monsters:all
+```
+
+## Example: Deactivate Button Bug
+
+**Bug:** Deactivate button on /bots page looks disabled (dark, no hover) but is actually clickable.
+
+**Step 1 - Log:**
+```json
+{
+  "id": "bug-2024-03-21-deactivate-button",
+  "summary": "Deactivate button looks disabled",
+  "category": "ui",
+  "foundBy": "user",
+  "monsterAnalysis": {
+    "whyMissed": "CSS Lint didn't check button opacity or hover states",
+    "monsterToImprove": "css-lint-monster"
+  }
+}
+```
+
+**Step 2 - Analysis:**
+- CSS Lint Monster exists but only checked for basic properties
+- Missing: opacity check, hover state check, focus indicator check
+
+**Step 3 - Improvement:**
+- Added `checkButtonStyles()` method
+- Checks: opacity > 35%, hover state exists, focus indicator exists
+- Added to BUTTON_STYLE_EXPECTATIONS
+
+**Step 4 - Verify:**
+```bash
+npm run monsters:css-lint
+# Now reports: "Button .btn-danger looks disabled due to low opacity"
+```
+
+## Maintenance
+
+Weekly review of `bug-retrospectives.json`:
+- Check all bugs have `verified: true`
+- Look for patterns (same monster missing bugs = needs overhaul)
+- Archive old entries to `bug-retrospectives-archive.json`

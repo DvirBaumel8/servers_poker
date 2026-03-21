@@ -1,0 +1,52 @@
+---
+description: Tiered test execution strategy after code changes
+alwaysApply: true
+---
+
+# Test on Change Strategy
+
+Run tests in tiers based on scope. Fix failures before proceeding—you have the best context immediately after making a change.
+
+## Tier 1: After Modifying a File
+
+Run related unit tests only:
+
+```bash
+# Backend: run tests matching the module
+npx vitest run tests/unit/modules/<module-name>.*.spec.ts
+
+# Example: after editing src/modules/auth/auth.service.ts
+npx vitest run tests/unit/modules/auth.service.spec.ts
+```
+
+## Tier 2: After Completing a Feature/Fix
+
+Run affected e2e tests:
+
+```bash
+# Run e2e tests for the feature area
+npx vitest run tests/e2e/<feature>.e2e.spec.ts
+
+# Example: after auth changes
+npx vitest run tests/e2e/auth.e2e.spec.ts
+```
+
+## Tier 3: Before Commit/PR
+
+Run quick validation:
+
+```bash
+npm run qa:monster:quick
+```
+
+## If Tests Fail
+
+1. Fix immediately—don't move on with broken tests
+2. Re-run the failing test to confirm the fix
+3. Then continue to the next tier
+
+## Skip Conditions
+
+- Documentation-only changes: skip all tiers
+- Config/env changes: skip to Tier 3
+- Pre-existing failures: note them, don't block on unrelated issues

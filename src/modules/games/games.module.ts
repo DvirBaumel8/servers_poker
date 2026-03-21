@@ -1,7 +1,5 @@
 import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { JwtModule } from "@nestjs/jwt";
-import { ConfigModule, ConfigService } from "@nestjs/config";
 import { GamesController } from "./games.controller";
 import { GamesService } from "./games.service";
 import { TablesService } from "./tables.service";
@@ -18,6 +16,8 @@ import { Bot } from "../../entities/bot.entity";
 import { GameRepository } from "../../repositories/game.repository";
 import { TableRepository } from "../../repositories/table.repository";
 import { BotRepository } from "../../repositories/bot.repository";
+import { HandSeedRepository } from "../../repositories/hand-seed.repository";
+import { HandSeed } from "../../entities/hand-seed.entity";
 
 @Module({
   imports: [
@@ -30,17 +30,8 @@ import { BotRepository } from "../../repositories/bot.repository";
       Table,
       TableSeat,
       Bot,
+      HandSeed,
     ]),
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>(
-          "JWT_SECRET",
-          "change-me-in-production",
-        ),
-      }),
-      inject: [ConfigService],
-    }),
     forwardRef(() => TournamentsModule),
   ],
   controllers: [GamesController],
@@ -51,6 +42,7 @@ import { BotRepository } from "../../repositories/bot.repository";
     GameRepository,
     TableRepository,
     BotRepository,
+    HandSeedRepository,
   ],
   exports: [
     GamesService,

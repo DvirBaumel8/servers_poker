@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-03-21T23:25:34.977Z",
+  "issues": [
+    {
+      "id": "ISS-6155B890",
+      "fingerprint": "ux-interactive-issue-bad-cursor-tournaments",
+      "category": "UX",
+      "severity": "low",
+      "source": "browser-qa",
+      "title": "Interactive issue: bad-cursor",
+      "description": "Count: 4",
+      "location": "/tournaments",
+      "status": "resolved",
+      "firstSeen": "2026-03-21T23:20:09.211Z",
+      "lastSeen": "2026-03-21T23:20:10.857Z",
+      "occurrences": 2,
+      "resolvedAt": "2026-03-21T23:25:34.976Z",
+      "resolvedBy": "agent",
+      "resolution": "Added cursor: pointer to SegmentedTabs buttons in primitives.tsx"
+    },
+    {
+      "id": "ISS-F2DD9FDF",
+      "fingerprint": "ux-interactive-issue-small-touch-targets-tournaments",
+      "category": "UX",
+      "severity": "low",
+      "source": "browser-qa",
+      "title": "Interactive issue: small-touch-targets",
+      "description": "Count: 10",
+      "location": "/tournaments",
+      "status": "resolved",
+      "firstSeen": "2026-03-21T23:20:09.212Z",
+      "lastSeen": "2026-03-21T23:24:26.124Z",
+      "occurrences": 4,
+      "resolvedAt": "2026-03-21T23:25:34.977Z",
+      "resolvedBy": "agent",
+      "resolution": "Added min-h-[44px] to all button classes in index.css and SegmentedTabs in primitives.tsx to meet WCAG touch target requirements"
+    }
+  ],
+  "stats": {
+    "totalFound": 2,
+    "totalResolved": 2,
+    "bySource": {
+      "browser-qa": 2
+    },
+    "bySeverity": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 2
+    }
+  }
+}

@@ -11,7 +11,7 @@ vi.mock("../api", () => ({
   },
 }));
 
-vi.mock("../utils/analytics", () => ({
+vi.mock("../hooks/usePageTracking", () => ({
   usePageTracking: () => usePageTracking(),
 }));
 

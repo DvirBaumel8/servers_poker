@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { gamesApi } from "../api/games";
+import { logger } from "../utils/logger";
 import type { LeaderboardEntry } from "../types";
 import {
   AlertBanner,
@@ -25,15 +26,13 @@ export function Leaderboard() {
     try {
       setLoading(true);
       setError(null);
-      console.log("Loading leaderboard with period:", timeRange);
       const data = await gamesApi.getLeaderboard({
         limit: 50,
         period: timeRange,
       });
-      console.log("Leaderboard data received:", data);
       setEntries(data);
     } catch (err) {
-      console.error("Failed to load leaderboard:", err);
+      logger.error("Failed to load leaderboard", err, "Leaderboard");
       setError(
         err instanceof Error ? err.message : "Failed to load leaderboard",
       );
@@ -113,27 +112,27 @@ export function Leaderboard() {
             />
           ) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <SurfaceCard className="overflow-hidden p-0">
+              <SurfaceCard className="p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[640px]">
                     <thead>
                       <tr className="bg-black/10">
-                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:px-6">
                           Rank
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:px-6">
                           Bot
                         </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <th className="whitespace-nowrap px-4 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:px-6">
                           Net profit
                         </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <th className="whitespace-nowrap px-4 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:px-6">
                           Games
                         </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <th className="whitespace-nowrap px-4 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:px-6">
                           Wins
                         </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <th className="whitespace-nowrap px-4 py-4 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 sm:px-6">
                           Hands
                         </th>
                       </tr>
@@ -141,7 +140,7 @@ export function Leaderboard() {
                     <tbody className="divide-y divide-white/6">
                       {entries.map((entry, index) => (
                         <tr key={entry.botId} className="hover:bg-white/[0.03]">
-                          <td className="px-6 py-4">
+                          <td className="whitespace-nowrap px-4 py-4 sm:px-6">
                             <span
                               className={`text-2xl font-semibold ${
                                 index === 0
@@ -156,10 +155,10 @@ export function Leaderboard() {
                               #{index + 1}
                             </span>
                           </td>
-                          <td className="px-6 py-4 font-semibold text-white">
+                          <td className="whitespace-nowrap px-4 py-4 font-semibold text-white sm:px-6">
                             {entry.botName}
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="whitespace-nowrap px-4 py-4 text-right sm:px-6">
                             <span
                               className={
                                 entry.totalNet >= 0
@@ -171,13 +170,13 @@ export function Leaderboard() {
                               {entry.totalNet.toLocaleString()}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-right text-white">
+                          <td className="whitespace-nowrap px-4 py-4 text-right text-white sm:px-6">
                             {entry.totalTournaments}
                           </td>
-                          <td className="px-6 py-4 text-right font-semibold text-accent">
+                          <td className="whitespace-nowrap px-4 py-4 text-right font-semibold text-accent sm:px-6">
                             {entry.tournamentWins}
                           </td>
-                          <td className="px-6 py-4 text-right text-slate-400">
+                          <td className="whitespace-nowrap px-4 py-4 text-right text-slate-400 sm:px-6">
                             {entry.totalHands.toLocaleString()}
                           </td>
                         </tr>

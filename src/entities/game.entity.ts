@@ -12,9 +12,11 @@ export class Game extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
   table_id: string;
 
+  @Index()
   @Column({ type: "varchar", length: 36, nullable: true })
   tournament_id: string | null;
 
+  @Index()
   @Column({ type: "varchar", length: 20, default: "waiting" })
   status: GameStatus;
 

@@ -15,6 +15,7 @@ import { Bot } from "./bot.entity";
 @Entity("tournament_seats")
 @Unique(["tournament_id", "bot_id"])
 @Index(["tournament_table_id"])
+@Index(["tournament_id", "busted"])
 @Check(`"chips" >= 0`)
 @Check(`"seat_number" >= 1 AND "seat_number" <= 10`)
 export class TournamentSeat extends BaseEntity {

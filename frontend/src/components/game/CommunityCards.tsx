@@ -28,7 +28,7 @@ export function CommunityCards({
   }
 
   return (
-    <div className={clsx("flex gap-2 items-center", className)}>
+    <div className={clsx("flex gap-2.5 items-center", className)}>
       {displayCards.map((card, index) => (
         <motion.div
           key={index}
@@ -48,7 +48,7 @@ export function CommunityCards({
           style={{ perspective: 800 }}
         >
           {card ? (
-            <PlayingCard card={card} size="sm" animate={false} />
+            <PlayingCard card={card} size="lg" animate={false} />
           ) : (
             <CardSlot />
           )}
@@ -63,8 +63,8 @@ function CardSlot() {
     <div
       className="rounded-lg"
       style={{
-        width: 40,
-        height: 56,
+        width: 80,
+        height: 112,
         border: "2px dashed rgba(255,255,255,0.12)",
         background: "rgba(255,255,255,0.03)",
       }}

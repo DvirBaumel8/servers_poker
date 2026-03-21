@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import type { Tournament, TournamentEntry } from "../types";
 import { tournamentsApi } from "../api/tournaments";
+import { logger } from "../utils/logger";
 
 interface TournamentStore {
   tournaments: Tournament[];
   currentTournament: Tournament | null;
   leaderboard: TournamentEntry[];
   loading: boolean;
+  leaderboardLoading: boolean;
   error: string | null;
 
   fetchTournaments: (status?: string) => Promise<void>;
@@ -20,6 +22,7 @@ export const useTournamentStore = create<TournamentStore>((set) => ({
   currentTournament: null,
   leaderboard: [],
   loading: false,
+  leaderboardLoading: false,
   error: null,
 
   fetchTournaments: async (status) => {
@@ -53,11 +56,13 @@ export const useTournamentStore = create<TournamentStore>((set) => ({
   },
 
   fetchLeaderboard: async (id) => {
+    set({ leaderboardLoading: true });
     try {
       const leaderboard = await tournamentsApi.getLeaderboard(id);
-      set({ leaderboard });
+      set({ leaderboard, leaderboardLoading: false });
     } catch (error) {
-      console.error("Failed to fetch leaderboard:", error);
+      logger.error("Failed to fetch leaderboard", error, "TournamentStore");
+      set({ leaderboardLoading: false });
     }
   },
 

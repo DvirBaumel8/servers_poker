@@ -1,0 +1,1615 @@
+{
+  "lastUpdated": "2026-03-21T20:01:47.176Z",
+  "findings": [
+    {
+      "monster": "api",
+      "category": "BUG",
+      "severity": "medium",
+      "title": "POST /api/v1/auth/register response shape mismatch",
+      "description": "Response does not match expected shape:\nMissing field: id\nMissing field: name",
+      "location": {
+        "endpoint": "/api/v1/auth/register"
+      },
+      "evidence": {
+        "response": {
+          "status": 201,
+          "body": {
+            "message": "Verification code sent to your email",
+            "email": "test-1774111815876@example.com",
+            "requiresVerification": true,
+            "verificationCode": "250892"
+          }
+        },
+        "diff": {
+          "expected": {
+            "id": "string",
+            "email": "string",
+            "name": "string"
+          },
+          "actual": "object"
+        }
+      },
+      "reproducible": true,
+      "tags": [
+        "api",
+        "contract",
+        "shape"
+      ],
+      "id": "api-1774111816107-9y1xxk",
+      "fingerprint": "745e1ebddedeb53c",
+      "firstSeen": "2026-03-21T16:19:03.010Z",
+      "lastSeen": "2026-03-21T16:50:16.640Z",
+      "occurrences": 6,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 3,
+      "estimatedEffort": "small",
+      "fixPlan": {
+        "description": "Update response DTO to include missing fields",
+        "steps": [
+          "Identify the DTO class for the endpoint",
+          "Add missing fields to the DTO",
+          "Update service to populate the fields",
+          "Update API documentation"
+        ],
+        "filesLikelyAffected": [
+          "src/modules/*/dto/*.dto.ts"
+        ],
+        "testStrategy": "Run API Monster contract tests",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "api",
+      "category": "BUG",
+      "severity": "critical",
+      "title": "POST /api/v1/auth/login returned unexpected status",
+      "description": "Expected 200 or 201, got 401",
+      "location": {
+        "endpoint": "/api/v1/auth/login"
+      },
+      "evidence": {
+        "request": {
+          "method": "POST",
+          "url": "http://localhost:3000/api/v1/auth/login",
+          "body": {
+            "email": "admin@poker.io",
+            "password": "Admin123!"
+          }
+        },
+        "response": {
+          "status": 401,
+          "body": {
+            "statusCode": 401,
+            "message": "Please sign in to continue.",
+            "error": "Authentication Required",
+            "timestamp": "2026-03-21T16:50:16.404Z",
+            "path": "/api/v1/auth/login"
+          }
+        }
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Send POST request to http://localhost:3000/api/v1/auth/login",
+        "With body: {\"email\":\"admin@poker.io\",\"password\":\"Admin123!\"}"
+      ],
+      "tags": [
+        "api",
+        "status-code",
+        "post"
+      ],
+      "id": "api-1774111816405-og7r5p",
+      "fingerprint": "fffeee390fff99cc",
+      "firstSeen": "2026-03-21T16:19:03.010Z",
+      "lastSeen": "2026-03-21T16:50:16.640Z",
+      "occurrences": 6,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 1,
+      "estimatedEffort": "medium",
+      "fixPlan": {
+        "description": "Fix authentication handling",
+        "steps": [
+          "Check JWT configuration in auth.module.ts",
+          "Verify test credentials exist in database",
+          "Check password hashing consistency",
+          "Verify token generation/validation"
+        ],
+        "filesLikelyAffected": [
+          "src/modules/auth/auth.service.ts",
+          "src/modules/auth/auth.controller.ts"
+        ],
+        "testStrategy": "Run auth E2E tests and API Monster",
+        "riskLevel": "medium"
+      }
+    },
+    {
+      "monster": "api",
+      "category": "BUG",
+      "severity": "high",
+      "title": "GET /api/v1/games/:id returned unexpected status",
+      "description": "Expected 200 or 404, got 401",
+      "location": {
+        "endpoint": "/api/v1/games/:id"
+      },
+      "evidence": {
+        "request": {
+          "method": "GET",
+          "url": "http://localhost:3000/api/v1/games/5879857c-9c9b-4812-9786-f921c181d3ae"
+        },
+        "response": {
+          "status": 401,
+          "body": {
+            "statusCode": 401,
+            "message": "Please sign in to continue.",
+            "error": "Authentication Required",
+            "timestamp": "2026-03-21T16:50:16.467Z",
+            "path": "/api/v1/games/5879857c-9c9b-4812-9786-f921c181d3ae"
+          }
+        }
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Send GET request to http://localhost:3000/api/v1/games/5879857c-9c9b-4812-9786-f921c181d3ae",
+        "Without body"
+      ],
+      "tags": [
+        "api",
+        "status-code",
+        "get"
+      ],
+      "id": "api-1774111816467-84exsn",
+      "fingerprint": "0d2ee4c73da0bf28",
+      "firstSeen": "2026-03-21T16:19:03.010Z",
+      "lastSeen": "2026-03-21T16:50:16.640Z",
+      "occurrences": 6,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 2,
+      "estimatedEffort": "unknown"
+    },
+    {
+      "monster": "api",
+      "category": "BUG",
+      "severity": "high",
+      "title": "GET /api/v1/tournaments validation failed",
+      "description": "Invalid tournament status: finished",
+      "location": {
+        "endpoint": "/api/v1/tournaments"
+      },
+      "evidence": {
+        "response": {
+          "status": 200,
+          "body": [
+            {
+              "id": "5d787562-aa0c-40b9-a26f-cadd48a60d5f",
+              "name": "High Roller",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 500,
+              "starting_chips": 20000,
+              "min_players": 2,
+              "max_players": 20,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-19T19:26:59.751Z",
+              "finished_at": null,
+              "entries_count": 5,
+              "created_at": "2026-03-19T19:36:50.598Z"
+            },
+            {
+              "id": "a0e20051-39c4-468d-8162-22a5668ffb13",
+              "name": "Turbo Blast",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 25,
+              "starting_chips": 3000,
+              "min_players": 2,
+              "max_players": 30,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-19T19:22:39.912Z",
+              "finished_at": null,
+              "entries_count": 3,
+              "created_at": "2026-03-19T19:36:50.600Z"
+            },
+            {
+              "id": "e5bebbe6-5d04-4291-ac98-b74351737564",
+              "name": "Weekly Championship",
+              "type": "rolling",
+              "status": "finished",
+              "buy_in": 200,
+              "starting_chips": 15000,
+              "min_players": 2,
+              "max_players": 80,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-19T18:50:42.424Z",
+              "finished_at": "2026-03-19T19:15:42.213Z",
+              "entries_count": 5,
+              "created_at": "2026-03-19T19:36:50.600Z"
+            },
+            {
+              "id": "5b79a498-e168-45b3-9182-f577035dca5b",
+              "name": "Beginner's Luck",
+              "type": "rolling",
+              "status": "finished",
+              "buy_in": 10,
+              "starting_chips": 2000,
+              "min_players": 2,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-19T18:57:20.647Z",
+              "finished_at": "2026-03-19T19:15:32.476Z",
+              "entries_count": 2,
+              "created_at": "2026-03-19T19:36:50.600Z"
+            },
+            {
+              "id": "efb86d42-6240-4189-b96c-f292300f96aa",
+              "name": "High Roller",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 500,
+              "starting_chips": 20000,
+              "min_players": 2,
+              "max_players": 20,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-19T19:08:47.173Z",
+              "finished_at": null,
+              "entries_count": 5,
+              "created_at": "2026-03-19T19:37:45.905Z"
+            },
+            {
+              "id": "1a60a1f9-773f-48ed-9387-bcde18a39f3f",
+              "name": "Turbo Blast",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 25,
+              "starting_chips": 3000,
+              "min_players": 2,
+              "max_players": 30,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-19T19:18:22.665Z",
+              "finished_at": null,
+              "entries_count": 3,
+              "created_at": "2026-03-19T19:37:45.905Z"
+            },
+            {
+              "id": "c90ae03c-b58e-4f44-a9da-3a22f0571ee1",
+              "name": "Weekly Championship",
+              "type": "rolling",
+              "status": "finished",
+              "buy_in": 200,
+              "starting_chips": 15000,
+              "min_players": 2,
+              "max_players": 80,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-19T19:13:57.317Z",
+              "finished_at": "2026-03-19T19:36:15.268Z",
+              "entries_count": 5,
+              "created_at": "2026-03-19T19:37:45.906Z"
+            },
+            {
+              "id": "9ea95e3f-4263-4e7f-af16-9833bf24c89d",
+              "name": "Beginner's Luck",
+              "type": "rolling",
+              "status": "finished",
+              "buy_in": 10,
+              "starting_chips": 2000,
+              "min_players": 2,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-19T19:21:05.934Z",
+              "finished_at": "2026-03-19T19:26:07.163Z",
+              "entries_count": 2,
+              "created_at": "2026-03-19T19:37:45.906Z"
+            },
+            {
+              "id": "f982df1e-1dd0-488e-b5ae-cd278f6f4ed7",
+              "name": "Ultimate Bot Championship",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 5000,
+              "late_reg_ends_level": 6,
+              "rebuys_allowed": false,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T00:33:00.569Z",
+              "finished_at": null,
+              "entries_count": 20,
+              "created_at": "2026-03-21T00:29:05.624Z"
+            },
+            {
+              "id": "034e7389-758b-4a4d-9fe2-7335a55e0a9e",
+              "name": "Lifecycle Test 1774105134290",
+              "type": "rolling",
+              "status": "cancelled",
+              "buy_in": 50,
+              "starting_chips": 3000,
+              "min_players": 2,
+              "max_players": 20,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": "2026-03-21T14:58:54.311Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:58:54.294Z"
+            },
+            {
+              "id": "a727bed3-ff35-4c0b-b71c-44df6ac8c842",
+              "name": "Schedule Test 1774105455010",
+              "type": "scheduled",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:04:15.013Z"
+            },
+            {
+              "id": "37717956-6592-48ba-b13b-8920605d8a68",
+              "name": "'; DROP TABLE tournaments; --",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:04:15.100Z"
+            },
+            {
+              "id": "118911d6-b4ca-42c2-bead-7d2602aea2ee",
+              "name": "Schedule Test 1774105134319",
+              "type": "scheduled",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:58:54.321Z"
+            },
+            {
+              "id": "5c9126c2-2729-4052-8c7a-3bd1feb647cc",
+              "name": "Ultimate Bot Championship v2",
+              "type": "rolling",
+              "status": "finished",
+              "buy_in": 100,
+              "starting_chips": 1500,
+              "min_players": 6,
+              "max_players": 36,
+              "players_per_table": 9,
+              "turn_timeout_ms": 5000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": false,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T00:56:58.592Z",
+              "finished_at": "2026-03-21T01:02:16.854Z",
+              "entries_count": 32,
+              "created_at": "2026-03-21T00:53:25.327Z"
+            },
+            {
+              "id": "6cc69169-cfad-49a2-96ca-2bc18bd9e45d",
+              "name": "'; DROP TABLE tournaments; --",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:58:54.369Z"
+            },
+            {
+              "id": "6e166d38-9afd-4906-b2ff-762f3553a7da",
+              "name": "Simulation Test V3",
+              "type": "rolling",
+              "status": "cancelled",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 10,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T01:06:28.399Z",
+              "finished_at": "2026-03-21T01:08:51.783Z",
+              "entries_count": 30,
+              "created_at": "2026-03-21T01:05:49.634Z"
+            },
+            {
+              "id": "cbcb9312-333b-40dd-9ce4-796e20510b62",
+              "name": "Simulation Test V4 - Fixed Chips",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 10,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T01:09:04.396Z",
+              "finished_at": null,
+              "entries_count": 30,
+              "created_at": "2026-03-21T01:08:51.806Z"
+            },
+            {
+              "id": "260018a3-3c2b-4b02-ac06-fb9aae1a807a",
+              "name": "Sunday Million",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 100,
+              "starting_chips": 10000,
+              "min_players": 2,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T14:22:25.341Z",
+              "finished_at": null,
+              "entries_count": 4,
+              "created_at": "2026-03-19T19:36:50.597Z"
+            },
+            {
+              "id": "b47f8825-f96b-4251-806f-df53d788b1a5",
+              "name": "Daily Grind",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 50,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T14:23:11.869Z",
+              "finished_at": null,
+              "entries_count": 33,
+              "created_at": "2026-03-19T19:36:50.598Z"
+            },
+            {
+              "id": "a35dd830-cd26-4ccb-85bc-2ad530fb66c6",
+              "name": "",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:58:54.374Z"
+            },
+            {
+              "id": "a363af17-d0e4-40e9-92e4-5d85e93a9495",
+              "name": "Overflow Test",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 9007199254740992,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:58:54.379Z"
+            },
+            {
+              "id": "26e6b525-f0f9-4dcd-8573-9fd60e1d6691",
+              "name": "",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:59:02.077Z"
+            },
+            {
+              "id": "185256d2-fdd1-4150-ba7c-0289787a2ff3",
+              "name": "Daily Grind",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 50,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T14:25:41.643Z",
+              "finished_at": null,
+              "entries_count": 33,
+              "created_at": "2026-03-19T19:37:45.903Z"
+            },
+            {
+              "id": "f01bf600-21e0-4094-9a6c-add88a7c3758",
+              "name": "Ultimate Bot Championship",
+              "type": "rolling",
+              "status": "running",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 5000,
+              "late_reg_ends_level": 6,
+              "rebuys_allowed": false,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T14:27:08.426Z",
+              "finished_at": null,
+              "entries_count": 30,
+              "created_at": "2026-03-21T00:51:44.923Z"
+            },
+            {
+              "id": "a8070dbf-829d-4229-913a-6bf147c9cc21",
+              "name": "Live Test 14:30:04",
+              "type": "standard",
+              "status": "running",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T14:30:04.553Z",
+              "finished_at": null,
+              "entries_count": 30,
+              "created_at": "2026-03-21T14:30:04.524Z"
+            },
+            {
+              "id": "44e7dabb-a4eb-43ee-9bf9-4348aa80accd",
+              "name": "Sunday Million",
+              "type": "rolling",
+              "status": "finished",
+              "buy_in": 100,
+              "starting_chips": 10000,
+              "min_players": 2,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": "2026-03-21T14:23:59.934Z",
+              "finished_at": "2026-03-21T14:34:37.106Z",
+              "entries_count": 34,
+              "created_at": "2026-03-19T19:37:45.902Z"
+            },
+            {
+              "id": "d257e7e3-1d10-45eb-a2c0-7de97464414f",
+              "name": "Rolling Test 1774105134244",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:58:54.261Z"
+            },
+            {
+              "id": "be81ed03-163b-4240-92d7-2267b464d160",
+              "name": "QA Test 1774105142090",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T13:59:02.096Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T14:59:02.105Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:59:02.094Z"
+            },
+            {
+              "id": "8a4cd8ad-c7f1-487a-9c6a-10806b0317f4",
+              "name": "Rolling Test 1774105454929",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:04:14.950Z"
+            },
+            {
+              "id": "282e3451-bc3f-4644-a4c6-9332e8bbe223",
+              "name": "Lifecycle Test 1774105454973",
+              "type": "rolling",
+              "status": "cancelled",
+              "buy_in": 50,
+              "starting_chips": 3000,
+              "min_players": 2,
+              "max_players": 20,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": "2026-03-21T15:04:14.998Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:04:14.976Z"
+            },
+            {
+              "id": "a89e4d01-0a0a-45b1-a510-9d5af73d75ef",
+              "name": "QA Test 1774105462969",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T14:04:22.987Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T15:04:22.998Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:04:22.973Z"
+            },
+            {
+              "id": "ef7c5e85-8168-49fa-bd73-194f0436d247",
+              "name": "Rolling Test 1774105511536",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:05:11.544Z"
+            },
+            {
+              "id": "41018151-86f1-4955-ba31-04d8b045563a",
+              "name": "Lifecycle Test 1774105511576",
+              "type": "rolling",
+              "status": "cancelled",
+              "buy_in": 50,
+              "starting_chips": 3000,
+              "min_players": 2,
+              "max_players": 20,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": "2026-03-21T15:05:11.600Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:05:11.579Z"
+            },
+            {
+              "id": "b5295803-fa55-46d6-94ac-fbdce38294d6",
+              "name": "Schedule Test 1774105511610",
+              "type": "scheduled",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:05:11.614Z"
+            },
+            {
+              "id": "a75e5286-a7ca-4b1c-ae16-463787604746",
+              "name": "'; DROP TABLE tournaments; --",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:05:11.716Z"
+            },
+            {
+              "id": "6cd7bec0-16bd-4a02-8a9d-7181025f92b0",
+              "name": "QA Test 1774105519565",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T16:05:19.565Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T15:05:19.576Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:05:19.568Z"
+            },
+            {
+              "id": "695fd3ee-fb7c-42c1-88b8-c3fea55cc300",
+              "name": "Rolling Test 1774106136451",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:15:36.466Z"
+            },
+            {
+              "id": "b42c2a2d-3473-4ee5-8679-17350173509d",
+              "name": "Lifecycle Test 1774106136489",
+              "type": "rolling",
+              "status": "cancelled",
+              "buy_in": 50,
+              "starting_chips": 3000,
+              "min_players": 2,
+              "max_players": 20,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": "2026-03-21T15:15:36.510Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:15:36.492Z"
+            },
+            {
+              "id": "c1a5f908-9fb2-406f-8f9a-fa431a0ea8df",
+              "name": "Scheduled Test 1774105134266",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 200,
+              "starting_chips": 10000,
+              "min_players": 4,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T15:58:54.266Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T15:58:55.491Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T14:58:54.272Z"
+            },
+            {
+              "id": "090b232c-cef7-4e0f-8994-fbfe1f18ff95",
+              "name": "Scheduled Test 1774105454954",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 200,
+              "starting_chips": 10000,
+              "min_players": 4,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T16:04:14.954Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T16:04:25.487Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:04:14.960Z"
+            },
+            {
+              "id": "35d14975-89dc-40ea-92d0-6b7efceaa586",
+              "name": "Scheduled Test 1774105511548",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 200,
+              "starting_chips": 10000,
+              "min_players": 4,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T16:05:11.548Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T16:05:12.029Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:05:11.560Z"
+            },
+            {
+              "id": "343814c4-7cc1-4c16-a046-6c5775e884d9",
+              "name": "Scheduled Test 1774106136471",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 200,
+              "starting_chips": 10000,
+              "min_players": 4,
+              "max_players": 100,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T16:15:36.470Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T16:15:42.058Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:15:36.477Z"
+            },
+            {
+              "id": "729b39d9-aee0-4d6d-b42b-4c685b6ec78c",
+              "name": "Schedule Test 1774106136519",
+              "type": "scheduled",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:15:36.523Z"
+            },
+            {
+              "id": "f23558d2-f509-4797-8a11-4fbd1861b1c4",
+              "name": "'; DROP TABLE tournaments; --",
+              "type": "rolling",
+              "status": "registering",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": null,
+              "started_at": null,
+              "finished_at": null,
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:15:36.647Z"
+            },
+            {
+              "id": "a9dfd1d6-fd6c-418a-8bce-7d2a8c9556b3",
+              "name": "QA Test 1774106143415",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T16:15:43.415Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T15:15:43.430Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:15:43.419Z"
+            },
+            {
+              "id": "a4e7dd97-c7e8-4588-bad8-1f39249fedca",
+              "name": "QA Test 1774106192919",
+              "type": "scheduled",
+              "status": "cancelled",
+              "buy_in": 100,
+              "starting_chips": 5000,
+              "min_players": 2,
+              "max_players": 50,
+              "players_per_table": 9,
+              "turn_timeout_ms": 10000,
+              "late_reg_ends_level": 4,
+              "rebuys_allowed": true,
+              "scheduled_start_at": "2026-03-21T16:16:32.919Z",
+              "started_at": null,
+              "finished_at": "2026-03-21T15:16:32.934Z",
+              "entries_count": 0,
+              "created_at": "2026-03-21T15:16:32.923Z"
+            }
+          ]
+        }
+      },
+      "reproducible": true,
+      "tags": [
+        "api",
+        "validation"
+      ],
+      "id": "api-1774111816513-79ngsm",
+      "fingerprint": "0054981b45e65efc",
+      "firstSeen": "2026-03-21T16:19:03.010Z",
+      "lastSeen": "2026-03-21T16:50:16.640Z",
+      "occurrences": 6,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 2,
+      "estimatedEffort": "unknown"
+    },
+    {
+      "monster": "api",
+      "category": "SECURITY",
+      "severity": "high",
+      "title": "Rate limiting not enforced on /api/v1/auth/login",
+      "description": "Made 20 requests without hitting rate limit. Expected limit at ~10 requests.",
+      "location": {
+        "endpoint": "/api/v1/auth/login"
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Send 20 rapid requests to /api/v1/auth/login",
+        "Observe no 429 status returned"
+      ],
+      "tags": [
+        "security",
+        "rate-limit"
+      ],
+      "id": "api-1774111816545-qoz8fl",
+      "fingerprint": "0baa54b9006a9be6",
+      "firstSeen": "2026-03-21T16:19:03.010Z",
+      "lastSeen": "2026-03-21T16:50:16.640Z",
+      "occurrences": 6,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 1,
+      "estimatedEffort": "small",
+      "fixPlan": {
+        "description": "Add rate limiting to endpoint",
+        "steps": [
+          "Add @Throttle decorator to controller method",
+          "Configure appropriate limits (e.g., 5 requests per minute for auth)",
+          "Add rate limit headers to response",
+          "Test with rapid requests"
+        ],
+        "filesLikelyAffected": [
+          "src/modules/auth/auth.controller.ts",
+          "src/common/guards/custom-throttler.guard.ts"
+        ],
+        "testStrategy": "Run API Monster rate limiting tests",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "api",
+      "category": "SECURITY",
+      "severity": "high",
+      "title": "Rate limiting not enforced on /api/v1/auth/register",
+      "description": "Made 15 requests without hitting rate limit. Expected limit at ~5 requests.",
+      "location": {
+        "endpoint": "/api/v1/auth/register"
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Send 15 rapid requests to /api/v1/auth/register",
+        "Observe no 429 status returned"
+      ],
+      "tags": [
+        "security",
+        "rate-limit"
+      ],
+      "id": "api-1774111816566-9vu2w3",
+      "fingerprint": "21e1c257dd7e7984",
+      "firstSeen": "2026-03-21T16:19:03.010Z",
+      "lastSeen": "2026-03-21T16:50:16.640Z",
+      "occurrences": 6,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 1,
+      "estimatedEffort": "small",
+      "fixPlan": {
+        "description": "Add rate limiting to endpoint",
+        "steps": [
+          "Add @Throttle decorator to controller method",
+          "Configure appropriate limits (e.g., 5 requests per minute for auth)",
+          "Add rate limit headers to response",
+          "Test with rapid requests"
+        ],
+        "filesLikelyAffected": [
+          "src/modules/auth/auth.controller.ts",
+          "src/common/guards/custom-throttler.guard.ts"
+        ],
+        "testStrategy": "Run API Monster rate limiting tests",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "visual",
+      "category": "BUG",
+      "severity": "medium",
+      "title": "Overflow detected on Home",
+      "description": "Element \"body\" has overflow at Galaxy Fold (280x653)",
+      "location": {
+        "page": "/",
+        "viewport": "Galaxy Fold"
+      },
+      "evidence": {
+        "raw": {
+          "selector": "body",
+          "element": "Page may have horizontal scroll on narrow devices"
+        }
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Navigate to /",
+        "Set viewport to 280x653",
+        "Observe overflow on body"
+      ],
+      "tags": [
+        "visual",
+        "overflow",
+        "mobile"
+      ],
+      "id": "visual-1774112446143-m3d5wm",
+      "fingerprint": "5346101e2d1c224f",
+      "firstSeen": "2026-03-21T16:19:11.099Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 28,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 3,
+      "estimatedEffort": "trivial",
+      "fixPlan": {
+        "description": "Fix responsive layout for mobile viewports",
+        "steps": [
+          "Identify the overflowing element",
+          "Add overflow-x: hidden or proper constraints",
+          "Test on target viewport sizes",
+          "Consider using CSS Grid or Flexbox for layout"
+        ],
+        "filesLikelyAffected": [
+          "frontend/src/index.css",
+          "frontend/src/components/**/*.tsx"
+        ],
+        "testStrategy": "Run Visual Monster on affected viewports",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "visual",
+      "category": "BUG",
+      "severity": "medium",
+      "title": "Overflow detected on Login",
+      "description": "Element \"body\" has overflow at Galaxy Fold (280x653)",
+      "location": {
+        "page": "/login",
+        "viewport": "Galaxy Fold"
+      },
+      "evidence": {
+        "raw": {
+          "selector": "body",
+          "element": "Page may have horizontal scroll on narrow devices"
+        }
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Navigate to /login",
+        "Set viewport to 280x653",
+        "Observe overflow on body"
+      ],
+      "tags": [
+        "visual",
+        "overflow",
+        "mobile"
+      ],
+      "id": "visual-1774112446156-2z7eay",
+      "fingerprint": "b7605bc905652540",
+      "firstSeen": "2026-03-21T16:19:11.099Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 28,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 3,
+      "estimatedEffort": "trivial",
+      "fixPlan": {
+        "description": "Fix responsive layout for mobile viewports",
+        "steps": [
+          "Identify the overflowing element",
+          "Add overflow-x: hidden or proper constraints",
+          "Test on target viewport sizes",
+          "Consider using CSS Grid or Flexbox for layout"
+        ],
+        "filesLikelyAffected": [
+          "frontend/src/index.css",
+          "frontend/src/components/**/*.tsx"
+        ],
+        "testStrategy": "Run Visual Monster on affected viewports",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "visual",
+      "category": "BUG",
+      "severity": "medium",
+      "title": "Overflow detected on Register",
+      "description": "Element \"body\" has overflow at Galaxy Fold (280x653)",
+      "location": {
+        "page": "/register",
+        "viewport": "Galaxy Fold"
+      },
+      "evidence": {
+        "raw": {
+          "selector": "body",
+          "element": "Page may have horizontal scroll on narrow devices"
+        }
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Navigate to /register",
+        "Set viewport to 280x653",
+        "Observe overflow on body"
+      ],
+      "tags": [
+        "visual",
+        "overflow",
+        "mobile"
+      ],
+      "id": "visual-1774112446172-xlowih",
+      "fingerprint": "4397c87742a03994",
+      "firstSeen": "2026-03-21T16:19:11.099Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 28,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 3,
+      "estimatedEffort": "trivial",
+      "fixPlan": {
+        "description": "Fix responsive layout for mobile viewports",
+        "steps": [
+          "Identify the overflowing element",
+          "Add overflow-x: hidden or proper constraints",
+          "Test on target viewport sizes",
+          "Consider using CSS Grid or Flexbox for layout"
+        ],
+        "filesLikelyAffected": [
+          "frontend/src/index.css",
+          "frontend/src/components/**/*.tsx"
+        ],
+        "testStrategy": "Run Visual Monster on affected viewports",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "visual",
+      "category": "BUG",
+      "severity": "medium",
+      "title": "Overflow detected on Tournaments",
+      "description": "Element \"body\" has overflow at Galaxy Fold (280x653)",
+      "location": {
+        "page": "/tournaments",
+        "viewport": "Galaxy Fold"
+      },
+      "evidence": {
+        "raw": {
+          "selector": "body",
+          "element": "Page may have horizontal scroll on narrow devices"
+        }
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Navigate to /tournaments",
+        "Set viewport to 280x653",
+        "Observe overflow on body"
+      ],
+      "tags": [
+        "visual",
+        "overflow",
+        "mobile"
+      ],
+      "id": "visual-1774112446187-nwurpo",
+      "fingerprint": "79c532291eeddab9",
+      "firstSeen": "2026-03-21T16:19:11.099Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 28,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 3,
+      "estimatedEffort": "trivial",
+      "fixPlan": {
+        "description": "Fix responsive layout for mobile viewports",
+        "steps": [
+          "Identify the overflowing element",
+          "Add overflow-x: hidden or proper constraints",
+          "Test on target viewport sizes",
+          "Consider using CSS Grid or Flexbox for layout"
+        ],
+        "filesLikelyAffected": [
+          "frontend/src/index.css",
+          "frontend/src/components/**/*.tsx"
+        ],
+        "testStrategy": "Run Visual Monster on affected viewports",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "visual",
+      "category": "BUG",
+      "severity": "medium",
+      "title": "Overflow detected on Leaderboard",
+      "description": "Element \"body\" has overflow at Galaxy Fold (280x653)",
+      "location": {
+        "page": "/leaderboard",
+        "viewport": "Galaxy Fold"
+      },
+      "evidence": {
+        "raw": {
+          "selector": "body",
+          "element": "Page may have horizontal scroll on narrow devices"
+        }
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Navigate to /leaderboard",
+        "Set viewport to 280x653",
+        "Observe overflow on body"
+      ],
+      "tags": [
+        "visual",
+        "overflow",
+        "mobile"
+      ],
+      "id": "visual-1774112446204-nprlxb",
+      "fingerprint": "312f8a1e58480d01",
+      "firstSeen": "2026-03-21T16:19:11.099Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 28,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 3,
+      "estimatedEffort": "trivial",
+      "fixPlan": {
+        "description": "Fix responsive layout for mobile viewports",
+        "steps": [
+          "Identify the overflowing element",
+          "Add overflow-x: hidden or proper constraints",
+          "Test on target viewport sizes",
+          "Consider using CSS Grid or Flexbox for layout"
+        ],
+        "filesLikelyAffected": [
+          "frontend/src/index.css",
+          "frontend/src/components/**/*.tsx"
+        ],
+        "testStrategy": "Run Visual Monster on affected viewports",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "visual",
+      "category": "BUG",
+      "severity": "medium",
+      "title": "Overflow detected on Tables",
+      "description": "Element \"body\" has overflow at Galaxy Fold (280x653)",
+      "location": {
+        "page": "/tables",
+        "viewport": "Galaxy Fold"
+      },
+      "evidence": {
+        "raw": {
+          "selector": "body",
+          "element": "Page may have horizontal scroll on narrow devices"
+        }
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Navigate to /tables",
+        "Set viewport to 280x653",
+        "Observe overflow on body"
+      ],
+      "tags": [
+        "visual",
+        "overflow",
+        "mobile"
+      ],
+      "id": "visual-1774112446215-8qfkdk",
+      "fingerprint": "8c7fba1ff1ff83c7",
+      "firstSeen": "2026-03-21T16:19:11.099Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 28,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 3,
+      "estimatedEffort": "trivial",
+      "fixPlan": {
+        "description": "Fix responsive layout for mobile viewports",
+        "steps": [
+          "Identify the overflowing element",
+          "Add overflow-x: hidden or proper constraints",
+          "Test on target viewport sizes",
+          "Consider using CSS Grid or Flexbox for layout"
+        ],
+        "filesLikelyAffected": [
+          "frontend/src/index.css",
+          "frontend/src/components/**/*.tsx"
+        ],
+        "testStrategy": "Run Visual Monster on affected viewports",
+        "riskLevel": "low"
+      }
+    },
+    {
+      "monster": "api",
+      "category": "BUG",
+      "severity": "critical",
+      "title": "Cannot establish WebSocket connection",
+      "description": "Failed to connect WebSocket to game 5879857c-9c9b-4812-9786-f921c181d3ae",
+      "location": {
+        "endpoint": "/games?game=5879857c-9c9b-4812-9786-f921c181d3ae"
+      },
+      "reproducible": true,
+      "tags": [
+        "connector",
+        "api-ws",
+        "connection"
+      ],
+      "id": "api-1774112446137-3awmmf",
+      "fingerprint": "ba2c94671e7ce2c7",
+      "firstSeen": "2026-03-21T16:19:11.099Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 13,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 1,
+      "estimatedEffort": "medium",
+      "fixPlan": {
+        "description": "Fix WebSocket connection establishment",
+        "steps": [
+          "Check WebSocket gateway configuration",
+          "Verify Redis adapter is properly configured",
+          "Check CORS settings for WebSocket",
+          "Verify game room exists before connecting"
+        ],
+        "filesLikelyAffected": [
+          "src/modules/games/games.gateway.ts",
+          "src/common/redis/redis-io.adapter.ts"
+        ],
+        "testStrategy": "Run API-WS Connector and E2E Monster",
+        "riskLevel": "medium"
+      }
+    },
+    {
+      "monster": "api",
+      "category": "CONCERN",
+      "severity": "medium",
+      "title": "No state event received via WebSocket",
+      "description": "API returns state but WebSocket didn't send state event",
+      "location": {
+        "endpoint": "/games?game=5879857c-9c9b-4812-9786-f921c181d3ae"
+      },
+      "reproducible": true,
+      "tags": [
+        "connector",
+        "api-ws",
+        "state-sync"
+      ],
+      "id": "api-1774112446161-0j44td",
+      "fingerprint": "6d4eb48f1f19ac38",
+      "firstSeen": "2026-03-21T16:19:11.099Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 13,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 3,
+      "estimatedEffort": "medium",
+      "fixPlan": {
+        "description": "Fix WebSocket connection establishment",
+        "steps": [
+          "Check WebSocket gateway configuration",
+          "Verify Redis adapter is properly configured",
+          "Check CORS settings for WebSocket",
+          "Verify game room exists before connecting"
+        ],
+        "filesLikelyAffected": [
+          "src/modules/games/games.gateway.ts",
+          "src/common/redis/redis-io.adapter.ts"
+        ],
+        "testStrategy": "Run API-WS Connector and E2E Monster",
+        "riskLevel": "medium"
+      }
+    },
+    {
+      "monster": "e2e",
+      "category": "BUG",
+      "severity": "critical",
+      "title": "E2E Critical Path Failed: new_user_tournament_journey",
+      "description": "Step \"Login with credentials\" failed: Login failed: 401",
+      "location": {
+        "endpoint": "e2e/new_user_tournament_journey/Login with credentials"
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Run E2E scenario: new_user_tournament_journey",
+        "Step that failed: Login with credentials",
+        "Error: Login failed: 401"
+      ],
+      "tags": [
+        "e2e",
+        "critical-path",
+        "new_user_tournament_journey"
+      ],
+      "id": "e2e-1774112449207-nyubbw",
+      "fingerprint": "6f03ef602d7a6801",
+      "firstSeen": "2026-03-21T16:34:03.685Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 11,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 1,
+      "estimatedEffort": "unknown"
+    },
+    {
+      "monster": "e2e",
+      "category": "BUG",
+      "severity": "critical",
+      "title": "E2E Critical Path Failed: data_consistency_journey",
+      "description": "Step \"Verify leaderboard data integrity\" failed: Invalid entry: total_winnings is not a number",
+      "location": {
+        "endpoint": "e2e/data_consistency_journey/Verify leaderboard data integrity"
+      },
+      "reproducible": true,
+      "reproductionSteps": [
+        "Run E2E scenario: data_consistency_journey",
+        "Step that failed: Verify leaderboard data integrity",
+        "Error: Invalid entry: total_winnings is not a number"
+      ],
+      "tags": [
+        "e2e",
+        "critical-path",
+        "data_consistency_journey"
+      ],
+      "id": "e2e-1774112450299-a4qzdq",
+      "fingerprint": "0c3330ba899c1988",
+      "firstSeen": "2026-03-21T16:34:03.685Z",
+      "lastSeen": "2026-03-21T17:00:50.304Z",
+      "occurrences": 11,
+      "status": "open",
+      "triageStatus": "new",
+      "priority": 1,
+      "estimatedEffort": "unknown"
+    }
+  ]
+}

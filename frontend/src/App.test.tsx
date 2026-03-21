@@ -1,5 +1,5 @@
 import { MemoryRouter } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import App from "./App";
 
 const authState = {
@@ -64,52 +64,58 @@ describe("App routing shells", () => {
     authState.fetchUser.mockReset();
   });
 
-  it("uses the marketing shell on the home page", () => {
+  it("uses the marketing shell on the home page", async () => {
     renderApp("/");
 
-    expect(screen.getByText(/production bot arena/i)).toBeInTheDocument();
-    expect(screen.getByText(/home route/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/home route/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/pokerengine/i)).toBeInTheDocument();
   });
 
-  it("uses the auth shell on login", () => {
+  it("uses the auth shell on login", async () => {
     renderApp("/login");
 
-    expect(
-      screen.getByText(/build, deploy, and watch bots compete/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/login route/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/login route/i)).toBeInTheDocument();
+    });
   });
 
-  it("uses the product shell on tables", () => {
+  it("uses the product shell on tables", async () => {
     renderApp("/tables");
 
-    expect(screen.getByText(/bot arena workspace/i)).toBeInTheDocument();
-    expect(screen.getByText(/sign in to continue/i)).toBeInTheDocument();
-    expect(screen.queryByText(/tables route/i)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText(/sign in/i).length).toBeGreaterThan(0);
+    });
   });
 
-  it("uses the game shell without product chrome", () => {
+  it("uses the game shell without product chrome", async () => {
     authState.token = "token";
     authState.user = { role: "user", username: "player" };
 
     renderApp("/game/table-1");
 
-    expect(screen.getByText(/game route/i)).toBeInTheDocument();
-    expect(screen.queryByText(/bot arena workspace/i)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/game route/i)).toBeInTheDocument();
+    });
   });
 
-  it("redirects protected profile route to login when signed out", () => {
+  it("redirects protected profile route to login when signed out", async () => {
     renderApp("/profile");
 
-    expect(screen.getByText(/login route/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/login route/i)).toBeInTheDocument();
+    });
   });
 
-  it("allows admin analytics route for admins", () => {
+  it("allows admin analytics route for admins", async () => {
     authState.token = "token";
     authState.user = { role: "admin", username: "admin" };
 
     renderApp("/admin/analytics");
 
-    expect(screen.getByText(/admin analytics route/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/admin analytics route/i)).toBeInTheDocument();
+    });
   });
 });

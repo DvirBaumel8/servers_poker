@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import type { ProvablyFairData } from "../../types";
+import { COPY_FEEDBACK_MS } from "../../utils/timing";
 
 interface ProvablyFairInfoProps {
   data: ProvablyFairData;
@@ -14,7 +15,7 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopied(label);
-    setTimeout(() => setCopied(null), 2000);
+    setTimeout(() => setCopied(null), COPY_FEEDBACK_MS);
   };
 
   const verifyLocally = () => {
@@ -32,7 +33,9 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
     <div className="mt-4 pt-4 border-t border-white/10">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full"
+        className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors w-full"
+        aria-expanded={expanded}
+        aria-label={expanded ? "Collapse provably fair details" : "Expand provably fair details"}
       >
         <svg
           className={`w-4 h-4 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -81,14 +84,15 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
                 copied={copied === "client"}
               />
               <div className="flex items-center justify-between py-1">
-                <span className="text-gray-500">Nonce (Hand #)</span>
-                <span className="text-gray-300 font-mono">{data.nonce}</span>
+                <span className="text-muted-dark">Nonce (Hand #)</span>
+                <span className="text-muted-light font-mono">{data.nonce}</span>
               </div>
 
               <div className="flex gap-2 mt-3">
                 <button
                   onClick={verifyLocally}
                   className="flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded text-xs font-medium transition-colors"
+                  aria-label="Copy verification data to clipboard"
                 >
                   {copied === "verification"
                     ? "Copied!"
@@ -124,15 +128,15 @@ function SeedRow({
 }) {
   return (
     <div className="flex items-center justify-between py-1 group">
-      <span className="text-gray-500">{label}</span>
+      <span className="text-muted-dark">{label}</span>
       <div className="flex items-center gap-2">
-        <span className="text-gray-300 font-mono truncate max-w-[140px]">
+        <span className="text-muted-light font-mono truncate max-w-[140px]">
           {value.slice(0, 12)}...{value.slice(-8)}
         </span>
         <button
           onClick={onCopy}
-          className="text-gray-500 hover:text-white transition-colors"
-          title="Copy to clipboard"
+          className="text-muted-dark hover:text-white transition-colors"
+          aria-label={`Copy ${label} to clipboard`}
         >
           {copied ? (
             <svg

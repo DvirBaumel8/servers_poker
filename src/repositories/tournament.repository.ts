@@ -13,6 +13,10 @@ import { BaseRepository } from "./base.repository";
 
 @Injectable()
 export class TournamentRepository extends BaseRepository<Tournament> {
+  protected get entityName(): string {
+    return "Tournament";
+  }
+
   constructor(
     @InjectRepository(Tournament)
     protected readonly repository: Repository<Tournament>,
@@ -28,13 +32,38 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     super();
   }
 
+  private getEntryRepo(manager?: EntityManager): Repository<TournamentEntry> {
+    return manager
+      ? manager.getRepository(TournamentEntry)
+      : this.entryRepository;
+  }
+
+  private getTableRepo(manager?: EntityManager): Repository<TournamentTable> {
+    return manager
+      ? manager.getRepository(TournamentTable)
+      : this.tableRepository;
+  }
+
+  private getSeatRepo(manager?: EntityManager): Repository<TournamentSeat> {
+    return manager
+      ? manager.getRepository(TournamentSeat)
+      : this.seatRepository;
+  }
+
+  private getBlindLevelRepo(
+    manager?: EntityManager,
+  ): Repository<TournamentBlindLevel> {
+    return manager
+      ? manager.getRepository(TournamentBlindLevel)
+      : this.blindLevelRepository;
+  }
+
   async findByStatus(
     status: TournamentStatus | TournamentStatus[],
     manager?: EntityManager,
   ): Promise<Tournament[]> {
-    const repo = manager ? manager.getRepository(Tournament) : this.repository;
     const statuses = Array.isArray(status) ? status : [status];
-    return repo.find({ where: { status: In(statuses) } });
+    return this.getRepo(manager).find({ where: { status: In(statuses) } });
   }
 
   async updateStatus(
@@ -55,9 +84,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     data: Partial<TournamentEntry>,
     manager?: EntityManager,
   ): Promise<TournamentEntry> {
-    const repo = manager
-      ? manager.getRepository(TournamentEntry)
-      : this.entryRepository;
+    const repo = this.getEntryRepo(manager);
     const entry = repo.create(data);
     return repo.save(entry);
   }
@@ -66,10 +93,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<TournamentEntry[]> {
-    const repo = manager
-      ? manager.getRepository(TournamentEntry)
-      : this.entryRepository;
-    return repo.find({
+    return this.getEntryRepo(manager).find({
       where: { tournament_id: tournamentId },
       relations: ["bot"],
     });
@@ -79,10 +103,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<TournamentEntry[]> {
-    const repo = manager
-      ? manager.getRepository(TournamentEntry)
-      : this.entryRepository;
-    return repo.find({
+    return this.getEntryRepo(manager).find({
       where: { tournament_id: tournamentId, finish_position: IsNull() },
       relations: ["bot"],
     });
@@ -95,10 +116,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     finishPosition: number,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TournamentEntry)
-      : this.entryRepository;
-    await repo.update(
+    await this.getEntryRepo(manager).update(
       { tournament_id: tournamentId, bot_id: botId },
       { bust_level: bustLevel, finish_position: finishPosition },
     );
@@ -111,10 +129,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     finishPosition: number,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TournamentEntry)
-      : this.entryRepository;
-    await repo.update(
+    await this.getEntryRepo(manager).update(
       { tournament_id: tournamentId, bot_id: botId },
       { payout, finish_position: finishPosition },
     );
@@ -124,9 +139,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     data: Partial<TournamentTable>,
     manager?: EntityManager,
   ): Promise<TournamentTable> {
-    const repo = manager
-      ? manager.getRepository(TournamentTable)
-      : this.tableRepository;
+    const repo = this.getTableRepo(manager);
     const table = repo.create(data);
     return repo.save(table);
   }
@@ -136,10 +149,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     gameId: string | null,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TournamentTable)
-      : this.tableRepository;
-    await repo.update(tableId, { game_id: gameId });
+    await this.getTableRepo(manager).update(tableId, { game_id: gameId });
   }
 
   async updateTableStatus(
@@ -147,20 +157,14 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     status: TableStatus,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TournamentTable)
-      : this.tableRepository;
-    await repo.update(tableId, { status });
+    await this.getTableRepo(manager).update(tableId, { status });
   }
 
   async getTables(
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<TournamentTable[]> {
-    const repo = manager
-      ? manager.getRepository(TournamentTable)
-      : this.tableRepository;
-    return repo.find({
+    return this.getTableRepo(manager).find({
       where: { tournament_id: tournamentId },
       order: { table_number: "ASC" },
     });
@@ -170,9 +174,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     data: Partial<TournamentSeat>,
     manager?: EntityManager,
   ): Promise<TournamentSeat> {
-    const repo = manager
-      ? manager.getRepository(TournamentSeat)
-      : this.seatRepository;
+    const repo = this.getSeatRepo(manager);
     const existing = await repo.findOne({
       where: {
         tournament_id: data.tournament_id,
@@ -193,10 +195,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     chips: number,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TournamentSeat)
-      : this.seatRepository;
-    await repo.update(
+    await this.getSeatRepo(manager).update(
       { tournament_id: tournamentId, bot_id: botId },
       { chips },
     );
@@ -207,10 +206,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     botId: string,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TournamentSeat)
-      : this.seatRepository;
-    await repo.update(
+    await this.getSeatRepo(manager).update(
       { tournament_id: tournamentId, bot_id: botId },
       { busted: true, chips: 0 },
     );
@@ -220,9 +216,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     data: Partial<TournamentBlindLevel>,
     manager?: EntityManager,
   ): Promise<TournamentBlindLevel> {
-    const repo = manager
-      ? manager.getRepository(TournamentBlindLevel)
-      : this.blindLevelRepository;
+    const repo = this.getBlindLevelRepo(manager);
     const existing = await repo.findOne({
       where: {
         tournament_id: data.tournament_id,
@@ -255,10 +249,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     amount: number = 1,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TournamentBlindLevel)
-      : this.blindLevelRepository;
-    await repo.increment(
+    await this.getBlindLevelRepo(manager).increment(
       { tournament_id: tournamentId, level },
       "hands_played",
       amount,
@@ -269,10 +260,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<TournamentBlindLevel | null> {
-    const repo = manager
-      ? manager.getRepository(TournamentBlindLevel)
-      : this.blindLevelRepository;
-    return repo.findOne({
+    return this.getBlindLevelRepo(manager).findOne({
       where: { tournament_id: tournamentId },
       order: { level: "DESC" },
     });
@@ -282,10 +270,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<TournamentEntry[]> {
-    const repo = manager
-      ? manager.getRepository(TournamentEntry)
-      : this.entryRepository;
-    return repo.find({
+    return this.getEntryRepo(manager).find({
       where: { tournament_id: tournamentId },
       relations: ["bot"],
       order: { finish_position: "ASC" },
@@ -293,10 +278,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
   }
 
   async deleteEntry(entryId: string, manager?: EntityManager): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TournamentEntry)
-      : this.entryRepository;
-    await repo.delete(entryId);
+    await this.getEntryRepo(manager).delete(entryId);
   }
 
   async findEntryByBotId(
@@ -304,10 +286,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     botId: string,
     manager?: EntityManager,
   ): Promise<TournamentEntry | null> {
-    const repo = manager
-      ? manager.getRepository(TournamentEntry)
-      : this.entryRepository;
-    return repo.findOne({
+    return this.getEntryRepo(manager).findOne({
       where: { tournament_id: tournamentId, bot_id: botId },
     });
   }
@@ -316,10 +295,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<TournamentSeat[]> {
-    const repo = manager
-      ? manager.getRepository(TournamentSeat)
-      : this.seatRepository;
-    return repo.find({
+    return this.getSeatRepo(manager).find({
       where: { tournament_id: tournamentId },
       relations: ["bot"],
       order: { chips: "DESC" },
@@ -330,12 +306,67 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<TournamentSeat[]> {
-    const repo = manager
-      ? manager.getRepository(TournamentSeat)
-      : this.seatRepository;
-    return repo.find({
+    return this.getSeatRepo(manager).find({
       where: { tournament_id: tournamentId },
       relations: ["bot"],
     });
+  }
+
+  /**
+   * Get entry counts for multiple tournaments in a single query.
+   * Fixes N+1 query issue in findAll().
+   */
+  async getEntryCounts(
+    tournamentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Map<string, number>> {
+    if (tournamentIds.length === 0) {
+      return new Map();
+    }
+
+    const results = await this.getEntryRepo(manager)
+      .createQueryBuilder("e")
+      .select("e.tournament_id", "tournamentId")
+      .addSelect("COUNT(*)", "count")
+      .where("e.tournament_id IN (:...ids)", { ids: tournamentIds })
+      .groupBy("e.tournament_id")
+      .getRawMany();
+
+    return new Map(
+      results.map((r: { tournamentId: string; count: string }) => [
+        r.tournamentId,
+        parseInt(r.count, 10),
+      ]),
+    );
+  }
+
+  /**
+   * Update the scheduled start time for a tournament.
+   */
+  async updateSchedule(
+    id: string,
+    scheduledStartAt: Date | null,
+  ): Promise<void> {
+    await this.repository.update(id, {
+      scheduled_start_at: scheduledStartAt,
+    });
+  }
+
+  /**
+   * Find upcoming scheduled tournaments (within the next 7 days).
+   */
+  async findUpcomingScheduled(): Promise<Tournament[]> {
+    const now = new Date();
+    const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    return this.repository
+      .createQueryBuilder("t")
+      .where("t.type = :type", { type: "scheduled" })
+      .andWhere("t.status = :status", { status: "registering" })
+      .andWhere("t.scheduled_start_at IS NOT NULL")
+      .andWhere("t.scheduled_start_at > :now", { now })
+      .andWhere("t.scheduled_start_at <= :oneWeekFromNow", { oneWeekFromNow })
+      .orderBy("t.scheduled_start_at", "ASC")
+      .getMany();
   }
 }

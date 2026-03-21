@@ -24,6 +24,7 @@ interface BotFormData {
   name: string;
   endpoint: string;
   description: string;
+  skip_validation?: boolean;
 }
 
 interface ValidationResult {
@@ -540,6 +541,20 @@ export function Bots() {
             }
             placeholder="Describe the bot's style, constraints, or deployment notes."
           />
+          <label className="flex items-center gap-3 text-sm text-slate-400 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={formData.skip_validation ?? false}
+              onChange={(e) =>
+                setFormData({ ...formData, skip_validation: e.target.checked })
+              }
+              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900"
+            />
+            <span>
+              Skip endpoint validation{" "}
+              <span className="text-slate-500">(dev/test only)</span>
+            </span>
+          </label>
         </form>
       </AppModal>
 

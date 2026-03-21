@@ -1,0 +1,60 @@
+---
+description: Documentation standards and formatting
+globs:
+  - docs/**/*.md
+  - "*.md"
+alwaysApply: false
+---
+
+# Documentation Standards
+
+## Formatting Guidelines
+
+## Code Comments
+
+Only add comments that explain **why**, not **what**:
+
+```typescript
+// Bad: describes what code does (obvious)
+// Loop through players and update chips
+for (const player of players) {
+  player.chips += winnings;
+}
+
+// Good: explains non-obvious reasoning
+// Process in reverse order to handle side pots correctly
+// (largest stacks get remainder from uneven splits)
+for (const player of players.reverse()) {
+  player.chips += calculateShare(player);
+}
+```
+
+## JSDoc for Public APIs
+
+Add JSDoc to exported functions/classes used by other modules:
+
+```typescript
+/**
+ * Evaluates a poker hand and returns its rank.
+ * @param cards - Array of 5-7 cards
+ * @returns Hand rank and high cards for tiebreaking
+ */
+export function evaluateHand(cards: Card[]): HandEvaluation {
+  // ...
+}
+```
+
+## README Updates
+
+Keep `README.md` minimal — point to `docs/` for details:
+
+- Quick start instructions
+- Link to `docs/ARCHITECTURE.md` for system overview
+- Link to `docs/guides/` for specific topics
+
+## Markdown Formatting
+
+- Use ATX headers (`#`, `##`, not underlines)
+- Code blocks with language tags
+- Tables for structured info
+- Keep lines under 100 chars when practical

@@ -16,7 +16,8 @@ import { appConfig } from "../../src/config";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../src/common/guards/roles.guard";
-import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
 import { v4 as uuidv4 } from "uuid";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -66,7 +67,7 @@ describe("Analytics E2E Tests", () => {
         },
         {
           provide: APP_GUARD,
-          useClass: ThrottlerGuard,
+          useClass: CustomThrottlerGuard,
         },
       ],
     }).compile();

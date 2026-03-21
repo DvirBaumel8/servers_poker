@@ -16,7 +16,8 @@ import * as entities from "../../src/entities";
 import { appConfig } from "../../src/config";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
-import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
 import { sleep } from "../utils/test-helpers";
 import { v4 as uuidv4 } from "uuid";
 
@@ -61,7 +62,7 @@ describe("WebSocket E2E Tests", () => {
         },
         {
           provide: APP_GUARD,
-          useClass: ThrottlerGuard,
+          useClass: CustomThrottlerGuard,
         },
       ],
     }).compile();
@@ -154,7 +155,7 @@ describe("WebSocket E2E Tests", () => {
     });
   }
 
-  describe.concurrent("WebSocket Connection", () => {
+  describe("WebSocket Connection", () => {
     it("should connect with valid JWT token", async () => {
       const { accessToken } = await createTestUser();
       const socket = await connectSocket(accessToken);
@@ -184,7 +185,7 @@ describe("WebSocket E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Table Subscription", () => {
+  describe("Table Subscription", () => {
     it("should subscribe to table events", async () => {
       const { accessToken } = await createTestUser();
       const socket = await connectSocket(accessToken);
@@ -286,7 +287,7 @@ describe("WebSocket E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Game Events", () => {
+  describe("Game Events", () => {
     it("should handle multiple clients subscribing to same table", async () => {
       const { accessToken: token1 } = await createTestUser();
       const { accessToken: token2 } = await createTestUser();
@@ -347,7 +348,7 @@ describe("WebSocket E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Error Handling", () => {
+  describe("Error Handling", () => {
     it("should handle subscription to non-existent table gracefully", async () => {
       const { accessToken } = await createTestUser();
       const socket = await connectSocket(accessToken);

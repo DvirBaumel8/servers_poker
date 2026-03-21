@@ -1,0 +1,75 @@
+# Bug-to-Monster Workflow
+
+**CRITICAL**: Every bug found in this codebase MUST strengthen the Monster Army.
+
+## The Workflow
+
+When ANY bug is discovered (by user, testing, production, code review, etc.):
+
+1. **Record** - Document the bug with `npm run monsters:learn`
+2. **Analyze** - Identify which monster SHOULD have caught it
+3. **Enhance** - Add detection code to that monster
+4. **Verify** - Run the monster to confirm it now catches this bug type
+
+## Quick Reference
+
+```bash
+# Record a new bug interactively
+npm run monsters:learn
+
+# View learning statistics
+npm run monsters:learn:stats
+
+# See pending learnings
+cat tests/qa/monsters/pending-learnings.md
+```
+
+## Which Monster to Update
+
+| Bug Category | Primary Monster | File |
+|---|---|---|
+| UI crashes | browser-qa | `browser-monster/browser-qa-monster.ts` |
+| Visual issues | product-quality | `browser-monster/product-quality-monster.ts` |
+| API errors | api-monster | `api-monster/api-monster.ts` |
+| Validation bugs | contract-monster | `contract-monster/contract-monster.ts` |
+| Security issues | guardian-monster | `guardian-monster/guardian-monster.ts` |
+| Game logic bugs | invariant-monster | `invariant-monster/poker-invariants.ts` |
+| Tournament bugs | tournament-flow | `flows/tournament-flow-monster.ts` |
+
+## When Fixing a Bug
+
+After you fix a bug, ALWAYS:
+
+1. Ask: "How could our monsters have caught this earlier?"
+2. Add detection code to the appropriate monster
+3. Run `npm run monsters:all:fast` to verify
+
+## Example: Adding Detection
+
+If you fix a bug where a form submits with empty fields:
+
+```typescript
+// In browser-qa-monster.ts, add:
+const emptySubmit = await page.evaluate(`
+  (() => {
+    const forms = document.querySelectorAll('form');
+    for (const form of forms) {
+      const requiredEmpty = form.querySelectorAll('[required]:invalid');
+      if (requiredEmpty.length > 0) {
+        return { hasIssue: true, form: form.id || 'unknown' };
+      }
+    }
+    return { hasIssue: false };
+  })()
+`);
+if (emptySubmit.hasIssue) {
+  this.addFinding("BUG", "high", "Form allows empty submission", 
+    `Form ${emptySubmit.form} has invalid required fields`, url);
+}
+```
+
+## The Goal
+
+**We should NEVER see the same type of bug twice.**
+
+Each bug makes the Monster Army smarter, building an ever-growing safety net that catches issues before they reach production.

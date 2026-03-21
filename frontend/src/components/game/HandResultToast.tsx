@@ -1,3 +1,4 @@
+import { useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HandResult } from "../../types";
 import { ProvablyFairInfo } from "./ProvablyFairInfo";
@@ -13,21 +14,46 @@ export function HandResultToast({
   onDismiss,
   playerNames = {},
 }: HandResultToastProps) {
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onDismiss();
+      }
+    },
+    [onDismiss],
+  );
+
+  useEffect(() => {
+    if (result) {
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [result, handleKeyDown]);
+
   if (!result) return null;
 
   const getPlayerName = (botId: string) => {
-    return playerNames[botId] || botId.slice(0, 8);
+    return playerNames[botId] || "Player";
   };
 
   return (
     <AnimatePresence>
+      {/* Backdrop overlay to reduce visual clutter */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+        onClick={onDismiss}
+        aria-hidden="true"
+      />
       <motion.div
         initial={{ opacity: 0, y: -50, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -20, scale: 0.9 }}
         className="fixed top-20 left-1/2 -translate-x-1/2 z-50"
       >
-        <div className="bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-lg rounded-2xl border border-yellow-500/30 shadow-2xl shadow-yellow-500/10 p-6 min-w-[320px] max-w-[400px]">
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 backdrop-blur-lg rounded-2xl border border-yellow-500/30 shadow-2xl shadow-yellow-500/10 p-6 min-w-[320px] max-w-[400px]">
           {/* Trophy header */}
           <div className="flex items-center justify-center gap-2 mb-4">
             <span className="text-3xl">🏆</span>
@@ -54,7 +80,7 @@ export function HandResultToast({
                     <div className="text-white font-semibold">
                       {getPlayerName(winner.botId)}
                     </div>
-                    <div className="text-gray-400 text-sm">
+                    <div className="text-muted text-sm">
                       {winner.handName}
                     </div>
                   </div>
@@ -70,7 +96,7 @@ export function HandResultToast({
 
           {/* Total pot */}
           <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
-            <span className="text-gray-400">Total Pot</span>
+            <span className="text-muted">Total Pot</span>
             <span className="text-yellow-400 font-bold text-lg">
               {formatAmount(result.pot)}
             </span>
@@ -88,6 +114,7 @@ export function HandResultToast({
           <button
             onClick={onDismiss}
             className="mt-4 w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm"
+            aria-label="Dismiss hand result and continue"
           >
             Continue
           </button>

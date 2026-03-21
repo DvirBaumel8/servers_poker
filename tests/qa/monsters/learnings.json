@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-03-22T00:59:00.000Z",
+  "bugs": [
+    {
+      "id": "BUG-M5XK7Q",
+      "title": "Card serialization showing undefinedundefined",
+      "description": "Cards in game state API were showing as 'undefinedundefined' instead of proper card values like 'A♥'. This caused invariant violations for duplicate cards and invalid card format.",
+      "category": "game-invariant",
+      "severity": "critical",
+      "location": "/api/v1/games/:id/state",
+      "foundBy": "invariant-monster",
+      "foundDate": "2026-03-22T00:54:00.000Z",
+      "rootCause": "Card objects with undefined rank/suit were being concatenated as template literals `${rank}${suit}` without null checks, producing 'undefinedundefined' strings. The invariant monster was then flagging these as invalid/duplicate cards.",
+      "fix": "1. Updated normalizeCardToString() to detect and convert invalid strings like 'undefinedundefined' to '??' (hidden card). 2. Added snake_case field support in parseGameState(). 3. Added extra filtering in poker-invariants.ts to skip cards containing 'undefined' or 'null'."
+    }
+  ],
+  "learnings": [
+    {
+      "bugId": "BUG-M5XK7Q",
+      "monster": "invariant-monster",
+      "detectionPattern": "Invalid card serialization producing 'undefinedundefined' strings",
+      "detectionCode": "// The fix was applied directly to normalizeCardToString and poker-invariants.ts\n// Now handles invalid strings like 'undefinedundefined' gracefully",
+      "addedDate": "2026-03-22T00:59:00.000Z",
+      "verified": true
+    }
+  ],
+  "stats": {
+    "totalBugsRecorded": 1,
+    "totalLearningsAdded": 1,
+    "bugsByCategory": {
+      "game-invariant": 1
+    }
+  }
+}

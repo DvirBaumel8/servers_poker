@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { getEmailValidationMessage, normalizeEmail } from "../utils/email";
+import { RESET_PASSWORD_REDIRECT_MS } from "../utils/timing";
 import {
   AlertBanner,
   Button,
@@ -103,7 +104,7 @@ export function ResetPassword() {
         newPassword,
       });
       setSuccess(true);
-      setTimeout(() => navigate("/login"), 2000);
+      setTimeout(() => navigate("/login"), RESET_PASSWORD_REDIRECT_MS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reset password");
     } finally {
@@ -194,7 +195,9 @@ export function ResetPassword() {
               <TextField
                 label="Email address"
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   setEmail(e.target.value);
@@ -241,7 +244,9 @@ export function ResetPassword() {
             <TextField
               label="New password"
               id="newPassword"
+              name="newPassword"
               type="password"
+              autoComplete="new-password"
               value={newPassword}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setNewPassword(e.target.value)
@@ -254,7 +259,9 @@ export function ResetPassword() {
             <TextField
               label="Confirm new password"
               id="confirmPassword"
+              name="confirmPassword"
               type="password"
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setConfirmPassword(e.target.value)

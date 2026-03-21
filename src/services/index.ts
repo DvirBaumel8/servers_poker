@@ -20,6 +20,7 @@ export * from "./game/game-ownership.service";
 export * from "./redis/redis-game-state.service";
 export * from "./redis/redis-event-bus.service";
 export * from "./redis/redis-health.service";
+export * from "./redis/redis-socket-state.service";
 
 // Other services
 export * from "./bot-metrics.gateway";

@@ -48,7 +48,7 @@ export function LeaderboardTable({
                   className={clsx(
                     "font-bold",
                     index === 0 && "text-yellow-400",
-                    index === 1 && "text-gray-300",
+                    index === 1 && "text-muted-light",
                     index === 2 && "text-amber-600",
                     index > 2 && "text-slate-400",
                   )}

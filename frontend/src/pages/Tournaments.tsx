@@ -5,6 +5,8 @@ import { useTournamentStore } from "../stores/tournamentStore";
 import { tournamentsApi } from "../api/tournaments";
 import { botsApi } from "../api/bots";
 import { useAuthStore } from "../stores/authStore";
+import { logger } from "../utils/logger";
+import { TOURNAMENT_LIST_POLL_MS } from "../utils/timing";
 import type { Bot, Tournament } from "../types";
 import {
   AlertBanner,
@@ -40,6 +42,7 @@ interface CreateTournamentForm {
 
 export function Tournaments() {
   const { user, token } = useAuthStore();
+  const isAdmin = user?.role === "admin";
   const { tournaments, loading, error, fetchTournaments } =
     useTournamentStore();
   const [statusFilter, setStatusFilter] = useState("active");
@@ -80,8 +83,8 @@ export function Tournaments() {
       try {
         const bots = await botsApi.getMy(token);
         setMyBots(bots.filter((b) => b.active));
-      } catch {
-        console.error("Failed to load bots");
+      } catch (err) {
+        logger.error("Failed to load bots", err, "Tournaments");
       }
     }
   }, [token]);
@@ -92,7 +95,13 @@ export function Tournaments() {
 
   useEffect(() => {
     fetchTournaments(statusFilter);
-  }, [statusFilter]);
+
+    const pollInterval = setInterval(() => {
+      fetchTournaments(statusFilter);
+    }, TOURNAMENT_LIST_POLL_MS);
+
+    return () => clearInterval(pollInterval);
+  }, [statusFilter, fetchTournaments]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -242,7 +251,7 @@ export function Tournaments() {
                 label: status.label,
               }))}
             />
-            {user && (
+            {isAdmin && (
               <Button
                 onClick={() => {
                   setCreateError(null);
@@ -289,12 +298,12 @@ export function Tournaments() {
         <EmptyState
           title="No tournaments match this filter"
           description={
-            user
+            isAdmin
               ? "Create a new tournament or switch the lobby filter to explore other states."
               : "The selected tournament state is currently empty. Try another filter or check back soon."
           }
           action={
-            user ? (
+            isAdmin ? (
               <Button
                 onClick={() => {
                   setCreateError(null);

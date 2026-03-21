@@ -1,0 +1,86 @@
+---
+description: Database access patterns with TypeORM
+globs: src/repositories/**/*.ts
+alwaysApply: false
+---
+
+# Database Patterns
+
+## Repository Pattern
+
+Each entity has a dedicated repository class:
+
+```typescript
+@Injectable()
+export class TournamentRepository {
+  constructor(
+    @InjectRepository(Tournament)
+    private readonly repo: Repository<Tournament>,
+  ) {}
+
+  async findById(id: string): Promise<Tournament | null> {
+    return this.repo.findOne({ where: { id } });
+  }
+}
+```
+
+## Query Optimization
+
+**Avoid N+1 queries** — use relations or query builder:
+
+```typescript
+// Bad: N+1
+const tournaments = await this.repo.find();
+for (const t of tournaments) {
+  t.entries = await this.entryRepo.find({ tournament_id: t.id });
+}
+
+// Good: eager load
+const tournaments = await this.repo.find({
+  relations: ["entries", "entries.bot"],
+});
+
+// Good: query builder
+const tournaments = await this.repo
+  .createQueryBuilder("t")
+  .leftJoinAndSelect("t.entries", "e")
+  .where("t.status = :status", { status: "active" })
+  .getMany();
+```
+
+## Transactions
+
+Use transactions for multi-step writes:
+
+```typescript
+await this.dataSource.transaction(async (manager) => {
+  await manager.save(Tournament, tournament);
+  await manager.save(TournamentEntry, entries);
+});
+```
+
+## Parameterized Queries
+
+**Never concatenate user input into queries:**
+
+```typescript
+// Bad - SQL injection risk
+await this.repo.query(`SELECT * FROM users WHERE name = '${name}'`);
+
+// Good - parameterized
+await this.repo.query(`SELECT * FROM users WHERE name = $1`, [name]);
+```
+
+## Pagination
+
+Always paginate large result sets:
+
+```typescript
+async findAll(page = 1, limit = 20): Promise<[Tournament[], number]> {
+  return this.repo.findAndCount({
+    skip: (page - 1) * limit,
+    take: limit,
+    order: { created_at: "DESC" },
+  });
+}
+```

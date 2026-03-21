@@ -5,17 +5,18 @@ import {
   Param,
   Body,
   Query,
-  NotFoundException,
   UseGuards,
   ForbiddenException,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { GamesService } from "./games.service";
 import { TablesService } from "./tables.service";
 import { ProvablyFairService } from "../../services/provably-fair.service";
-import { HandSeedRepository } from "../../repositories/hand-seed.repository";
 import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { Roles } from "../../common/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { RolesGuard } from "../../common/guards/roles.guard";
 import { User } from "../../entities/user.entity";
 import {
   CreateTableDto,
@@ -23,9 +24,12 @@ import {
   TableResponseDto,
   JoinTableResponseDto,
   LeaderboardEntryDto,
+  LeaderboardQueryDto,
+  PaginationQueryDto,
   VerifyHandDto,
   VerifyHandResponseDto,
 } from "./dto/game.dto";
+import { assertFound } from "../../common/utils";
 
 @Controller("games")
 export class GamesController {
@@ -33,7 +37,6 @@ export class GamesController {
     private readonly gamesService: GamesService,
     private readonly tablesService: TablesService,
     private readonly provablyFairService: ProvablyFairService,
-    private readonly handSeedRepository: HandSeedRepository,
   ) {}
 
   @Public()
@@ -53,14 +56,20 @@ export class GamesController {
   @Public()
   @Get("leaderboard")
   async getLeaderboard(
-    @Query("limit") limit?: string,
+    @Query() query: LeaderboardQueryDto,
   ): Promise<LeaderboardEntryDto[]> {
-    return this.gamesService.getLeaderboard(limit ? parseInt(limit, 10) : 20);
+    return this.gamesService.getLeaderboard(
+      query.limit ?? 20,
+      query.period ?? "all",
+    );
   }
 
   @UseGuards(JwtAuthGuard)
   @Get("hands/:handId")
-  async getHand(@Param("handId") handId: string, @CurrentUser() user: User) {
+  async getHand(
+    @Param("handId", ParseUUIDPipe) handId: string,
+    @CurrentUser() user: User,
+  ) {
     const hasAccess = await this.gamesService.userHasAccessToHand(
       handId,
       user.id,
@@ -73,25 +82,22 @@ export class GamesController {
     }
 
     const hand = await this.gamesService.getHand(handId);
-    if (!hand) {
-      throw new NotFoundException(`Hand ${handId} not found`);
-    }
+    assertFound(hand, "Hand", handId);
     return hand;
   }
 
   @UseGuards(JwtAuthGuard)
   @Get("table/:tableId")
-  async findByTableId(@Param("tableId") tableId: string) {
+  async findByTableId(@Param("tableId", ParseUUIDPipe) tableId: string) {
     return this.gamesService.findByTableId(tableId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get("table/:tableId/history")
   async getTableHistory(
-    @Param("tableId") tableId: string,
+    @Param("tableId", ParseUUIDPipe) tableId: string,
     @CurrentUser() user: User,
-    @Query("limit") limit?: string,
-    @Query("offset") offset?: string,
+    @Query() query: PaginationQueryDto,
   ) {
     const games = await this.gamesService.findByTableId(tableId);
     if (games.length > 0) {
@@ -109,12 +115,13 @@ export class GamesController {
 
     return this.gamesService.getTableHistory(
       tableId,
-      limit ? parseInt(limit, 10) : 50,
-      offset ? parseInt(offset, 10) : 0,
+      query.limit ?? 50,
+      query.offset ?? 0,
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
   @Post("tables")
   async createTable(@Body() dto: CreateTableDto, @CurrentUser() _user: User) {
     return this.tablesService.create(dto);
@@ -122,34 +129,30 @@ export class GamesController {
 
   @UseGuards(JwtAuthGuard)
   @Get("tables/:id")
-  async getTable(@Param("id") id: string) {
+  async getTable(@Param("id", ParseUUIDPipe) id: string) {
     const table = await this.tablesService.findById(id);
-    if (!table) {
-      throw new NotFoundException(`Table ${id} not found`);
-    }
+    assertFound(table, "Table", id);
     return table;
   }
 
   @UseGuards(JwtAuthGuard)
   @Get(":id")
-  async findOne(@Param("id") id: string) {
+  async findOne(@Param("id", ParseUUIDPipe) id: string) {
     const game = await this.gamesService.findById(id);
-    if (!game) {
-      throw new NotFoundException(`Game ${id} not found`);
-    }
+    assertFound(game, "Game", id);
     return game;
   }
 
   @Public()
   @Get(":id/state")
-  async getGameState(@Param("id") tableId: string) {
+  async getGameState(@Param("id", ParseUUIDPipe) tableId: string) {
     return this.tablesService.getTableState(tableId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post(":id/join")
   async joinTable(
-    @Param("id") tableId: string,
+    @Param("id", ParseUUIDPipe) tableId: string,
     @Body() dto: JoinTableDto,
     @CurrentUser() user: User,
   ): Promise<JoinTableResponseDto> {
@@ -159,10 +162,9 @@ export class GamesController {
   @UseGuards(JwtAuthGuard)
   @Get(":id/hands")
   async getHandHistory(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
-    @Query("limit") limit?: string,
-    @Query("offset") offset?: string,
+    @Query() query: PaginationQueryDto,
   ) {
     const hasAccess = await this.gamesService.userHasAccessToGame(
       id,
@@ -177,8 +179,8 @@ export class GamesController {
 
     return this.gamesService.getHandHistory(
       id,
-      limit ? parseInt(limit, 10) : 50,
-      offset ? parseInt(offset, 10) : 0,
+      query.limit ?? 50,
+      query.offset ?? 0,
     );
   }
 
@@ -240,7 +242,7 @@ export class GamesController {
   @UseGuards(JwtAuthGuard)
   @Get(":gameId/seeds")
   async getGameHandSeeds(
-    @Param("gameId") gameId: string,
+    @Param("gameId", ParseUUIDPipe) gameId: string,
     @CurrentUser() user: User,
   ) {
     const hasAccess = await this.gamesService.userHasAccessToGame(
@@ -254,18 +256,7 @@ export class GamesController {
       );
     }
 
-    const seeds = await this.handSeedRepository.findByGame(gameId);
-    return seeds.map((seed) => ({
-      handNumber: seed.hand_number,
-      serverSeed: seed.server_seed,
-      serverSeedHash: seed.server_seed_hash,
-      clientSeed: seed.client_seed,
-      combinedHash: seed.combined_hash,
-      deckOrder: seed.deck_order,
-      revealed: seed.revealed,
-      revealedAt: seed.revealed_at,
-      createdAt: seed.created_at,
-    }));
+    return this.gamesService.getGameSeeds(gameId);
   }
 
   /**
@@ -275,7 +266,7 @@ export class GamesController {
   @UseGuards(JwtAuthGuard)
   @Get(":gameId/seeds/:handNumber")
   async getHandSeed(
-    @Param("gameId") gameId: string,
+    @Param("gameId", ParseUUIDPipe) gameId: string,
     @Param("handNumber") handNumber: string,
     @CurrentUser() user: User,
   ) {
@@ -290,26 +281,11 @@ export class GamesController {
       );
     }
 
-    const seed = await this.handSeedRepository.findByGameAndHand(
+    const seed = await this.gamesService.getHandSeed(
       gameId,
       parseInt(handNumber, 10),
     );
-    if (!seed) {
-      throw new NotFoundException(
-        `Hand seed not found for game ${gameId}, hand ${handNumber}`,
-      );
-    }
-    return {
-      handNumber: seed.hand_number,
-      serverSeed: seed.server_seed,
-      serverSeedHash: seed.server_seed_hash,
-      clientSeed: seed.client_seed,
-      combinedHash: seed.combined_hash,
-      deckOrder: seed.deck_order,
-      revealed: seed.revealed,
-      revealedAt: seed.revealed_at,
-      createdAt: seed.created_at,
-      verificationUrl: `/api/v1/games/verify-hand`,
-    };
+    assertFound(seed, "HandSeed", `game ${gameId}, hand ${handNumber}`);
+    return seed;
   }
 }

@@ -249,5 +249,3 @@ export class TransactionAuditLog {
     this.entries = [];
   }
 }
-
-export const chipInvariantChecker = new ChipInvariantChecker();

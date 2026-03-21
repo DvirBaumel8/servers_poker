@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
+import { ACTION_FEED_DISPLAY_MS } from "../../utils/timing";
 
 export interface ActionEvent {
   id: string;
@@ -35,7 +36,7 @@ function ActionItem({ action }: { action: ActionEvent }) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsVisible(false), 3000);
+    const timer = setTimeout(() => setIsVisible(false), ACTION_FEED_DISPLAY_MS);
     return () => clearTimeout(timer);
   }, []);
 

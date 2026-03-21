@@ -41,7 +41,6 @@ docs
 .idx
 .eslintrc.js
 .prettierrc
-tsconfig.json
 
 # Test files
 test.js

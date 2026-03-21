@@ -71,8 +71,9 @@ export class BotAutoRegistrationService implements OnModuleInit {
     try {
       await this.cleanupExpiredSubscriptions();
       await this.processAllActiveSubscriptions();
-    } catch (error: any) {
-      this.logger.error(`Scheduled registration error: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Scheduled registration error: ${message}`);
     } finally {
       this.isProcessing = false;
     }
@@ -268,11 +269,12 @@ export class BotAutoRegistrationService implements OnModuleInit {
 
       result.success = true;
       return result;
-    } catch (error: any) {
-      result.reason = error.message;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      result.reason = message;
       await this.subscriptionRepository.incrementFailed(subscription.id);
       this.logger.error(
-        `Auto-registration failed for bot ${subscription.bot_id}: ${error.message}`,
+        `Auto-registration failed for bot ${subscription.bot_id}: ${message}`,
       );
       return result;
     }

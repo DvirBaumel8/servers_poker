@@ -6,12 +6,14 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { BotsService } from "../../../src/modules/bots/bots.service";
+import { BotOwnershipService } from "../../../src/modules/bots/bot-ownership.service";
 import { ConfigService } from "@nestjs/config";
 
 describe("BotsService", () => {
   let service: BotsService;
   let mockBotRepository: {
     findById: ReturnType<typeof vi.fn>;
+    findByIdOrThrow: ReturnType<typeof vi.fn>;
     findByUserId: ReturnType<typeof vi.fn>;
     findByName: ReturnType<typeof vi.fn>;
     findAll: ReturnType<typeof vi.fn>;
@@ -23,8 +25,13 @@ describe("BotsService", () => {
   let mockAnalyticsRepository: {
     getBotProfile: ReturnType<typeof vi.fn>;
   };
+  let mockBotOwnershipService: {
+    getBotWithOwnershipCheck: ReturnType<typeof vi.fn>;
+    assertOwnership: ReturnType<typeof vi.fn>;
+  };
   let mockConfigService: Partial<ConfigService>;
   let mockUrlValidator: {
+    validate: ReturnType<typeof vi.fn>;
     validateWithHealthCheck: ReturnType<typeof vi.fn>;
   };
 
@@ -43,6 +50,7 @@ describe("BotsService", () => {
   beforeEach(() => {
     mockBotRepository = {
       findById: vi.fn(),
+      findByIdOrThrow: vi.fn(),
       findByUserId: vi.fn(),
       findByName: vi.fn(),
       findAll: vi.fn(),
@@ -56,17 +64,24 @@ describe("BotsService", () => {
       getBotProfile: vi.fn(),
     };
 
+    mockBotOwnershipService = {
+      getBotWithOwnershipCheck: vi.fn(),
+      assertOwnership: vi.fn(),
+    };
+
     mockConfigService = {
       get: vi.fn().mockReturnValue(10000),
     };
 
     mockUrlValidator = {
+      validate: vi.fn().mockReturnValue({ valid: true }),
       validateWithHealthCheck: vi.fn(),
     };
 
     service = new BotsService(
       mockBotRepository as never,
       mockAnalyticsRepository as never,
+      mockBotOwnershipService as never,
       mockConfigService as ConfigService,
       mockUrlValidator as never,
     );
@@ -186,7 +201,9 @@ describe("BotsService", () => {
   describe("update", () => {
     it("should update bot successfully", async () => {
       const updatedBot = { ...mockBot, description: "Updated" };
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockResolvedValue(
+        mockBot,
+      );
       mockBotRepository.update.mockResolvedValue(updatedBot);
 
       const result = await service.update("bot-123", "user-123", {
@@ -197,7 +214,9 @@ describe("BotsService", () => {
     });
 
     it("should throw NotFoundException when bot not found", async () => {
-      mockBotRepository.findById.mockResolvedValue(null);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockRejectedValue(
+        new NotFoundException("Bot bot-123 not found"),
+      );
 
       await expect(
         service.update("nonexistent", "user-123", {}),
@@ -205,7 +224,9 @@ describe("BotsService", () => {
     });
 
     it("should throw ForbiddenException when user does not own bot", async () => {
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockRejectedValue(
+        new ForbiddenException("You do not own this bot"),
+      );
 
       await expect(service.update("bot-123", "other-user", {})).rejects.toThrow(
         ForbiddenException,
@@ -215,7 +236,9 @@ describe("BotsService", () => {
 
   describe("deactivate", () => {
     it("should deactivate own bot", async () => {
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockResolvedValue(
+        mockBot,
+      );
       mockBotRepository.deactivate.mockResolvedValue(undefined);
 
       await service.deactivate("bot-123", "user-123", false);
@@ -224,7 +247,9 @@ describe("BotsService", () => {
     });
 
     it("should allow admin to deactivate any bot", async () => {
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockResolvedValue(
+        mockBot,
+      );
       mockBotRepository.deactivate.mockResolvedValue(undefined);
 
       await service.deactivate("bot-123", "other-user", true);
@@ -233,7 +258,9 @@ describe("BotsService", () => {
     });
 
     it("should throw NotFoundException when bot not found", async () => {
-      mockBotRepository.findById.mockResolvedValue(null);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockRejectedValue(
+        new NotFoundException("Bot nonexistent not found"),
+      );
 
       await expect(
         service.deactivate("nonexistent", "user-123", false),
@@ -241,7 +268,9 @@ describe("BotsService", () => {
     });
 
     it("should throw ForbiddenException when non-admin deactivates other's bot", async () => {
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockRejectedValue(
+        new ForbiddenException("You do not own this bot"),
+      );
 
       await expect(
         service.deactivate("bot-123", "other-user", false),
@@ -252,7 +281,9 @@ describe("BotsService", () => {
   describe("activate", () => {
     it("should activate own bot", async () => {
       const inactiveBot = { ...mockBot, active: false };
-      mockBotRepository.findById.mockResolvedValue(inactiveBot);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockResolvedValue(
+        inactiveBot,
+      );
       mockBotRepository.activate.mockResolvedValue(undefined);
 
       await service.activate("bot-123", "user-123", false);
@@ -261,7 +292,9 @@ describe("BotsService", () => {
     });
 
     it("should throw NotFoundException when bot not found", async () => {
-      mockBotRepository.findById.mockResolvedValue(null);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockRejectedValue(
+        new NotFoundException("Bot nonexistent not found"),
+      );
 
       await expect(
         service.activate("nonexistent", "user-123", false),
@@ -269,7 +302,9 @@ describe("BotsService", () => {
     });
 
     it("should throw ForbiddenException when non-admin activates other's bot", async () => {
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockRejectedValue(
+        new ForbiddenException("You do not own this bot"),
+      );
 
       await expect(
         service.activate("bot-123", "other-user", false),

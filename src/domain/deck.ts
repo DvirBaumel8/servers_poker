@@ -80,8 +80,76 @@ function shuffleWithOrder(deck: Card[], deckOrder: number[]): Card[] {
   return shuffled;
 }
 
-function cardToString(card: Card): string {
-  return `${card.rank}${card.suit}`;
+type CardLike = {
+  rank?: string;
+  suit: string;
+  value?: number;
+};
+
+const VALUE_TO_RANK: { [key: number]: string } = {
+  2: "2",
+  3: "3",
+  4: "4",
+  5: "5",
+  6: "6",
+  7: "7",
+  8: "8",
+  9: "9",
+  10: "10",
+  11: "J",
+  12: "Q",
+  13: "K",
+  14: "A",
+};
+
+function cardToString(card: CardLike | Card | string): string {
+  // If already a string, return as-is
+  if (typeof card === "string") {
+    return card;
+  }
+  // If it's not an object, return unknown
+  if (!card || typeof card !== "object") {
+    return "??";
+  }
+  // Get rank - either from rank property or derived from value
+  let rank = card.rank;
+  if (!rank && card.value !== undefined) {
+    rank = VALUE_TO_RANK[card.value];
+  }
+  // Validate we have both rank and suit
+  if (typeof rank !== "string" || typeof card.suit !== "string") {
+    return "??";
+  }
+  return `${rank}${card.suit}`;
+}
+
+/**
+ * Parse a card string like "A♥" or "10♠" back into a Card object.
+ * Also handles object format {rank, suit} for backwards compatibility.
+ */
+function parseCard(input: string | { rank?: string; suit?: string }): Card {
+  // Handle object format
+  if (typeof input === "object" && input !== null) {
+    const rank = input.rank || "?";
+    const suit = input.suit || "?";
+    return { rank, suit, value: RANK_VALUES[rank] || 0 };
+  }
+
+  // Handle string format
+  if (typeof input !== "string" || input.length < 2) {
+    return { rank: "?", suit: "?", value: 0 };
+  }
+
+  // Extract suit (last character - Unicode suit symbol)
+  const chars = [...input]; // Handle Unicode correctly
+  const suit = chars.pop() || "?";
+  const rank = chars.join("");
+
+  return {
+    rank,
+    suit,
+    value: RANK_VALUES[rank] || 0,
+  };
 }
 
 export {
@@ -89,6 +157,7 @@ export {
   shuffle,
   shuffleWithOrder,
   cardToString,
+  parseCard,
   RANK_VALUES,
   Card,
 };

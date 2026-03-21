@@ -81,20 +81,35 @@ export class AnalyticsRepository {
   ): Promise<void> {
     await this.ensureBotStats(botId);
 
+    const ALLOWED_COLUMNS = new Set([
+      "total_hands",
+      "total_tournaments",
+      "tournament_wins",
+      "total_net",
+      "vpip_hands",
+      "pfr_hands",
+      "wtsd_hands",
+      "wmsd_hands",
+      "aggressive_actions",
+      "passive_actions",
+    ]);
+
     const setClause: string[] = [];
-    const params: Record<string, number> = {};
+    const values: (string | number)[] = [botId];
+    let paramIndex = 2;
 
     for (const [key, value] of Object.entries(increments)) {
-      if (value !== undefined && value !== 0) {
-        setClause.push(`${key} = ${key} + :${key}`);
-        params[key] = value;
+      if (value !== undefined && value !== 0 && ALLOWED_COLUMNS.has(key)) {
+        setClause.push(`${key} = ${key} + $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
       }
     }
 
     if (setClause.length > 0) {
       await this.dataSource.query(
         `UPDATE bot_stats SET ${setClause.join(", ")}, updated_at = NOW() WHERE bot_id = $1`,
-        [botId, ...Object.values(params)],
+        values,
       );
     }
   }

@@ -105,15 +105,15 @@ export const PlayerChipCounts: Story = {
   render: () => (
     <div className="flex gap-12">
       <div className="flex flex-col items-center gap-2">
-        <span className="text-gray-400 text-xs">Short Stack</span>
+        <span className="text-muted text-xs">Short Stack</span>
         <PokerChipStack amount={1200} size="sm" />
       </div>
       <div className="flex flex-col items-center gap-2">
-        <span className="text-gray-400 text-xs">Average</span>
+        <span className="text-muted text-xs">Average</span>
         <PokerChipStack amount={15000} size="sm" />
       </div>
       <div className="flex flex-col items-center gap-2">
-        <span className="text-gray-400 text-xs">Chip Leader</span>
+        <span className="text-muted text-xs">Chip Leader</span>
         <PokerChipStack amount={85000} size="sm" />
       </div>
     </div>
@@ -126,15 +126,15 @@ export const BettingChips: Story = {
       <div className="text-white text-sm">Current Bets</div>
       <div className="flex gap-16">
         <div className="flex flex-col items-center gap-2">
-          <span className="text-gray-400 text-xs">Player 1</span>
+          <span className="text-muted text-xs">Player 1</span>
           <PokerChipStack amount={200} size="sm" showValue />
         </div>
         <div className="flex flex-col items-center gap-2">
-          <span className="text-gray-400 text-xs">Player 2</span>
+          <span className="text-muted text-xs">Player 2</span>
           <PokerChipStack amount={600} size="sm" showValue />
         </div>
         <div className="flex flex-col items-center gap-2">
-          <span className="text-gray-400 text-xs">Player 3</span>
+          <span className="text-muted text-xs">Player 3</span>
           <PokerChipStack amount={600} size="sm" showValue />
         </div>
       </div>
@@ -145,7 +145,7 @@ export const BettingChips: Story = {
 export const PotDisplay: Story = {
   render: () => (
     <div className="flex flex-col items-center gap-4 p-8 rounded-lg bg-black/30">
-      <span className="text-gray-400 text-sm">Main Pot</span>
+      <span className="text-muted text-sm">Main Pot</span>
       <PokerChipStack amount={4200} size="md" />
     </div>
   ),

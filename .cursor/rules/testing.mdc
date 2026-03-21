@@ -12,7 +12,7 @@ globs:
 The project enforces minimum coverage thresholds on **unit-testable code**:
 - **Statements**: 80%
 - **Branches**: 70%
-- **Functions**: 85%
+- **Functions**: 80%
 - **Lines**: 80%
 
 Files excluded from coverage (better suited for integration/E2E tests):

@@ -206,7 +206,7 @@ describe("UrlValidatorService", () => {
       });
 
       const result = await service.validateWithHealthCheck(
-        "http://localhost:4000/action",
+        "https://api.example.com/action",
       );
 
       expect(result.valid).toBe(true);
@@ -220,11 +220,20 @@ describe("UrlValidatorService", () => {
       });
 
       const result = await service.validateWithHealthCheck(
-        "http://localhost:4000/action",
+        "https://api.example.com/action",
       );
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("HTTP 500");
+    });
+
+    it("should skip health check for localhost in non-production", async () => {
+      const result = await service.validateWithHealthCheck(
+        "http://localhost:4000/action",
+      );
+
+      expect(result.valid).toBe(true);
+      expect(result.healthCheck).toEqual({ success: true, latencyMs: 0 });
     });
   });
 });

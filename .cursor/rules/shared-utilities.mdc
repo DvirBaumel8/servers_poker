@@ -1,0 +1,175 @@
+# Shared Utilities
+
+Use these shared utilities to avoid code duplication. Always prefer using existing utilities over writing new boilerplate.
+
+## Backend Utilities (`src/common/utils/`)
+
+### Entity Assertions
+
+```typescript
+import { assertFound, assertOwnershipOrAdmin, assertSelfOrAdmin } from "../../common/utils";
+
+// Instead of:
+const bot = await this.botRepository.findById(id);
+if (!bot) throw new NotFoundException(`Bot ${id} not found`);
+
+// Use:
+const bot = await this.botRepository.findById(id);
+assertFound(bot, "Bot", id);
+
+// Or use repository method directly:
+const bot = await this.botRepository.findByIdOrThrow(id);
+```
+
+### Ownership Checks
+
+```typescript
+// Instead of:
+if (bot.user_id !== userId && !isAdmin) {
+  throw new ForbiddenException("You do not own this bot");
+}
+
+// Use:
+assertOwnershipOrAdmin(bot.user_id, userId, isAdmin, "You do not own this bot");
+
+// Or use BotOwnershipService for bots:
+const bot = await this.botOwnership.getBotWithOwnershipCheck(id, userId, isAdmin);
+```
+
+### Pagination
+
+```typescript
+import { toPaginatedResponse } from "../../common/utils";
+
+// Instead of:
+return {
+  data: items.map((i) => this.toDto(i)),
+  total,
+  limit,
+  offset,
+  hasMore: offset + items.length < total,
+};
+
+// Use:
+return toPaginatedResponse(items, total, limit, offset, (i) => this.toDto(i));
+```
+
+### User Self-or-Admin Access
+
+```typescript
+import { RequireSelfOrAdmin, SelfOrAdminGuard } from "../../common/guards";
+
+// Instead of manual checks in each controller method:
+if (user.id !== id && user.role !== "admin") {
+  throw new ForbiddenException("Access denied");
+}
+
+// Use decorator:
+@Controller("users")
+@UseGuards(JwtAuthGuard, RolesGuard, SelfOrAdminGuard)
+export class UsersController {
+  @Get(":id")
+  @RequireSelfOrAdmin("id")
+  findOne(@Param("id") id: string) { ... }
+}
+```
+
+### Error Logging
+
+```typescript
+import { logOperationError } from "../../common/utils";
+
+// Instead of:
+this.logger.error(`Failed to save state: ${error.message}`, error.stack);
+
+// Use:
+logOperationError(this.logger, "save game state", error, { gameId, playerId });
+```
+
+## QA Monster Utilities (`tests/qa/monsters/shared/`)
+
+### Environment Config
+
+```typescript
+import { getEnv } from "../shared";
+
+// Instead of scattered process.env calls:
+const baseUrl = process.env.API_BASE_URL || process.env.API_URL || "http://localhost:3000";
+
+// Use:
+const env = getEnv();
+const baseUrl = env.apiBaseUrl;
+```
+
+### Authentication
+
+```typescript
+import { createAuthHelper } from "../shared";
+
+// Instead of duplicating auth logic:
+const authHelper = createAuthHelper();
+await authHelper.authenticateAsAdmin();
+const headers = authHelper.getAdminHeaders();
+```
+
+### Health Checks
+
+```typescript
+import { requireBackendHealthy, checkHealth } from "../shared";
+
+// Instead of:
+const healthCheck = await this.fetch(`${url}/api/v1/health`);
+if (!healthCheck.ok) throw new Error("Backend not responding");
+
+// Use:
+await requireBackendHealthy();
+```
+
+### Path Parameters
+
+```typescript
+import { replacePathParams, parseEndpoint, DEFAULT_TEST_IDS } from "../shared";
+
+// Instead of:
+path = path.replace(":id", "00000000-...");
+path = path.replace(":botId", "00000000-...");
+
+// Use:
+const resolvedPath = replacePathParams(path, { id: testId });
+```
+
+### CLI Runners
+
+```typescript
+import { runMonsterCli } from "../shared";
+
+// Instead of 30+ lines of CLI boilerplate:
+if (require.main === module) {
+  runMonsterCli(new MyMonster(), "my-monster-type");
+}
+```
+
+### Response Validation
+
+```typescript
+import { validateResponseShape, COMMON_SHAPES } from "../shared";
+
+// Use predefined shapes:
+const result = validateResponseShape(response, COMMON_SHAPES.paginatedResponse);
+
+// Or custom shapes:
+const result = validateResponseShape(response, {
+  id: "string",
+  count: "number",
+  items: "array",
+});
+```
+
+## When to Create New Utilities
+
+Create a new shared utility when:
+1. The same pattern appears 3+ times across different files
+2. The logic is complex enough to warrant abstraction
+3. The pattern involves common error handling or validation
+
+Always add new utilities to the appropriate index.ts for easy importing.

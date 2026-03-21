@@ -6,6 +6,10 @@ import { BaseRepository } from "./base.repository";
 
 @Injectable()
 export class BotRepository extends BaseRepository<Bot> {
+  protected get entityName(): string {
+    return "Bot";
+  }
+
   constructor(
     @InjectRepository(Bot)
     protected readonly repository: Repository<Bot>,
@@ -14,21 +18,20 @@ export class BotRepository extends BaseRepository<Bot> {
   }
 
   async findByName(name: string, manager?: EntityManager): Promise<Bot | null> {
-    const repo = manager ? manager.getRepository(Bot) : this.repository;
-    return repo.findOne({ where: { name } });
+    return this.getRepo(manager).findOne({ where: { name } });
   }
 
   async findByUserId(userId: string, manager?: EntityManager): Promise<Bot[]> {
-    const repo = manager ? manager.getRepository(Bot) : this.repository;
-    return repo.find({ where: { user_id: userId } });
+    return this.getRepo(manager).find({ where: { user_id: userId } });
   }
 
   async findActiveByUserId(
     userId: string,
     manager?: EntityManager,
   ): Promise<Bot[]> {
-    const repo = manager ? manager.getRepository(Bot) : this.repository;
-    return repo.find({ where: { user_id: userId, active: true } });
+    return this.getRepo(manager).find({
+      where: { user_id: userId, active: true },
+    });
   }
 
   async updateEndpoint(
@@ -51,7 +54,6 @@ export class BotRepository extends BaseRepository<Bot> {
     if (ids.length === 0) {
       return [];
     }
-    const repo = manager ? manager.getRepository(Bot) : this.repository;
-    return repo.find({ where: { id: In(ids) } });
+    return this.getRepo(manager).find({ where: { id: In(ids) } });
   }
 }

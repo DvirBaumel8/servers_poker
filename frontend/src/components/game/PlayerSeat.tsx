@@ -1,7 +1,7 @@
+import { memo, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
-import { useEffect, useState } from "react";
-import { MiniPlayingCard } from "../common/PlayingCard";
+import { PlayingCard } from "../common/PlayingCard";
 import type { Player, Card } from "../../types";
 
 interface PlayerSeatProps {
@@ -32,7 +32,27 @@ const AVATAR_COLORS = [
   { bg: "from-yellow-400 to-amber-600", ring: "ring-yellow-400/50" },
 ];
 
-export function PlayerSeat({
+const BOT_TYPE_STYLES: Record<string, { bg: string; ring: string; icon: string }> = {
+  random: { bg: "from-gray-500 to-slate-600", ring: "ring-gray-400/50", icon: "🎲" },
+  smart: { bg: "from-blue-500 to-indigo-600", ring: "ring-blue-400/50", icon: "🧠" },
+  folder: { bg: "from-red-400 to-rose-600", ring: "ring-red-400/50", icon: "📁" },
+  aggressive: { bg: "from-orange-500 to-red-600", ring: "ring-orange-400/50", icon: "🔥" },
+  tight: { bg: "from-cyan-500 to-blue-600", ring: "ring-cyan-400/50", icon: "🎯" },
+  caller: { bg: "from-green-500 to-emerald-600", ring: "ring-green-400/50", icon: "📞" },
+};
+
+function getBotTypeFromName(name: string): string | null {
+  const lowerName = name.toLowerCase();
+  if (lowerName.includes("random")) return "random";
+  if (lowerName.includes("smart")) return "smart";
+  if (lowerName.includes("folder")) return "folder";
+  if (lowerName.includes("aggressive")) return "aggressive";
+  if (lowerName.includes("tight")) return "tight";
+  if (lowerName.includes("caller")) return "caller";
+  return null;
+}
+
+export const PlayerSeat = memo(function PlayerSeat({
   player,
   isDealer = false,
   isActive = false,
@@ -46,8 +66,10 @@ export function PlayerSeat({
   const isFolded = player.folded;
   const isAllIn = player.allIn;
   const isDisconnected = player.disconnected;
-  const colors = AVATAR_COLORS[seatIndex % AVATAR_COLORS.length];
-  const initial = (player.name || "B").charAt(0).toUpperCase();
+  const botType = getBotTypeFromName(player.name || "");
+  const botTypeStyle = botType ? BOT_TYPE_STYLES[botType] : null;
+  const colors = botTypeStyle || AVATAR_COLORS[seatIndex % AVATAR_COLORS.length];
+  const initial = botTypeStyle?.icon || (player.name || "B").charAt(0).toUpperCase();
 
   const actionToShow = lastAction || player.lastAction;
   const isRecentAction =
@@ -75,7 +97,7 @@ export function PlayerSeat({
     <motion.div
       animate={{ scale: isActive ? 1.05 : 1 }}
       className={clsx(
-        "relative flex flex-col items-center",
+        "player-seat relative flex flex-col items-center",
         isFolded && "opacity-40",
         isDisconnected && "opacity-20 grayscale",
         className,
@@ -96,20 +118,20 @@ export function PlayerSeat({
       <div className="relative">
         {/* Timer ring */}
         {isActive && (
-          <div className="absolute -inset-1.5 z-0">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 68 68">
+          <div className="absolute -inset-1 z-0">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 56 56">
               <circle
-                cx="34"
-                cy="34"
-                r="31"
+                cx="28"
+                cy="28"
+                r="25"
                 fill="none"
                 stroke="rgba(255,255,255,0.08)"
                 strokeWidth="3"
               />
               <circle
-                cx="34"
-                cy="34"
-                r="31"
+                cx="28"
+                cy="28"
+                r="25"
                 fill="none"
                 stroke={
                   progress > 30
@@ -120,7 +142,7 @@ export function PlayerSeat({
                 }
                 strokeWidth="3"
                 strokeLinecap="round"
-                strokeDasharray={`${(progress / 100) * 195} 195`}
+                strokeDasharray={`${(progress / 100) * 157} 157`}
                 className="transition-all duration-100"
               />
             </svg>
@@ -130,7 +152,7 @@ export function PlayerSeat({
         {/* Avatar */}
         <div
           className={clsx(
-            "w-14 h-14 rounded-full flex items-center justify-center relative z-10",
+            "w-12 h-12 rounded-full flex items-center justify-center relative z-10",
             "bg-gradient-to-br shadow-lg border-2",
             colors.bg,
             isActive
@@ -138,17 +160,20 @@ export function PlayerSeat({
               : "border-white/20",
           )}
         >
-          <span className="text-white font-bold text-lg drop-shadow">
+          <span className="text-white font-bold text-base drop-shadow">
             {initial}
           </span>
         </div>
 
-        {/* Dealer button */}
+        {/* Dealer button - positioned on left when folded to avoid overlap */}
         {isDealer && (
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -bottom-0.5 -right-0.5 z-20 w-6 h-6 rounded-full flex items-center justify-center"
+            className={clsx(
+              "absolute -bottom-0.5 z-20 w-6 h-6 rounded-full flex items-center justify-center",
+              isFolded ? "-left-0.5" : "-right-0.5"
+            )}
             style={{
               background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
               border: "2px solid #fef3c7",
@@ -187,22 +212,22 @@ export function PlayerSeat({
       )}
 
       {/* Hole cards */}
-      <div className="flex gap-0.5 mt-1.5 -mb-0.5">
+      <div className="flex gap-1 mt-2">
         {showCards && player.holeCards && player.holeCards.length > 0 ? (
           player.holeCards.map((card, i) => (
-            <MiniPlayingCard key={i} card={card as Card} />
+            <PlayingCard key={i} card={card as Card} size="sm" animate={false} />
           ))
         ) : (
           <>
-            <MiniPlayingCard hidden />
-            <MiniPlayingCard hidden />
+            <PlayingCard hidden size="sm" animate={false} />
+            <PlayingCard hidden size="sm" animate={false} />
           </>
         )}
       </div>
 
       {/* Name plate */}
       <div
-        className="mt-1 px-3 py-1.5 rounded-lg text-center min-w-[95px] relative"
+        className="mt-1.5 px-2.5 py-1.5 rounded-lg text-center min-w-[90px] max-w-[120px] relative"
         style={{
           background:
             "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)",
@@ -212,9 +237,10 @@ export function PlayerSeat({
       >
         <div
           className={clsx(
-            "font-semibold text-[11px] truncate max-w-[85px]",
-            isFolded ? "text-gray-500" : "text-white",
+            "font-semibold text-[11px] truncate",
+            isFolded ? "text-muted-dark" : "text-white",
           )}
+          title={player.name || "Player"}
         >
           {player.name || "Player"}
         </div>
@@ -223,20 +249,20 @@ export function PlayerSeat({
         </div>
       </div>
 
-      {/* All-in badge */}
+      {/* All-in badge - positioned above avatar with enough clearance */}
       {isAllIn && (
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute -top-2 left-1/2 -translate-x-1/2 z-20"
+          className="absolute -top-5 left-1/2 -translate-x-1/2 z-30"
         >
           <span
-            className="text-[10px] font-black px-2.5 py-0.5 rounded-full"
+            className="text-[10px] font-black px-3 py-1 rounded-full whitespace-nowrap"
             style={{
               background: "linear-gradient(135deg, #dc2626, #b91c1c)",
               color: "white",
-              border: "1px solid #fca5a5",
-              boxShadow: "0 0 12px rgba(220,38,38,0.5)",
+              border: "2px solid #fca5a5",
+              boxShadow: "0 0 16px rgba(220,38,38,0.6), 0 2px 8px rgba(0,0,0,0.3)",
             }}
           >
             ALL IN
@@ -257,14 +283,18 @@ export function PlayerSeat({
         </motion.div>
       )}
 
-      {/* Action badge */}
+      {/* Action badge - positioned towards center based on seat position */}
       {isRecentAction && actionToShow && !isFolded && (
         <motion.div
           key={actionToShow.timestamp}
           initial={{ scale: 0, y: -5, opacity: 0 }}
           animate={{ scale: 1, y: 0, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
-          className="mt-1 z-30"
+          className={clsx(
+            "mt-1 z-30",
+            seatIndex >= 2 && seatIndex <= 3 && "translate-x-2",
+            seatIndex >= 6 && seatIndex <= 7 && "-translate-x-2"
+          )}
         >
           <ActionBadge
             action={actionToShow.type}
@@ -274,9 +304,15 @@ export function PlayerSeat({
       )}
     </motion.div>
   );
-}
+});
 
-function ActionBadge({ action, amount }: { action: string; amount?: number }) {
+const ActionBadge = memo(function ActionBadge({
+  action,
+  amount,
+}: {
+  action: string;
+  amount?: number;
+}) {
   const configs: Record<string, { bg: string; text: string }> = {
     fold: { bg: "rgba(127,29,29,0.9)", text: "#fca5a5" },
     check: { bg: "rgba(30,58,138,0.9)", text: "#93c5fd" },
@@ -306,7 +342,7 @@ function ActionBadge({ action, amount }: { action: string; amount?: number }) {
       {showAmount && ` ${formatChips(amount)}`}
     </div>
   );
-}
+});
 
 function formatChips(amount: number): string {
   if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;

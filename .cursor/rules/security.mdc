@@ -1,0 +1,104 @@
+---
+description: Security checklist for code changes
+alwaysApply: true
+---
+
+# Security Checklist
+
+## Input Validation
+
+All user input must be validated via DTOs:
+
+```typescript
+export class CreateTournamentDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(100)
+  name: string;
+
+  @IsInt()
+  @Min(2)
+  @Max(10)
+  max_players: number;
+}
+```
+
+## SQL Injection Prevention
+
+Always use parameterized queries:
+
+```typescript
+// Bad: SQL injection risk
+await this.repo.query(`SELECT * FROM users WHERE name = '${name}'`);
+
+// Good: parameterized
+await this.repo.query(`SELECT * FROM users WHERE name = $1`, [name]);
+
+// Good: TypeORM query builder (auto-parameterized)
+await this.repo.findOne({ where: { name } });
+```
+
+## Authentication
+
+- Routes require JWT by default (global guard)
+- Use `@Public()` decorator only for truly public endpoints
+- Never expose user passwords or hashed passwords in responses
+
+```typescript
+@Get("profile")
+// JWT required (default)
+getProfile(@CurrentUser() user: User) {}
+
+@Post("login")
+@Public()  // Explicitly public
+login(@Body() dto: LoginDto) {}
+```
+
+## Rate Limiting
+
+Public endpoints must have rate limiting:
+
+```typescript
+@Throttle({ default: { limit: 5, ttl: 60000 } })
+@Post("login")
+login() {}
+```
+
+## Secrets
+
+Never hardcode secrets:
+
+```typescript
+// Bad
+const secret = "my-jwt-secret";
+
+// Good
+const secret = this.config.get("jwtSecret");
+```
+
+## Bot Endpoint Validation
+
+Validate bot endpoints before making requests:
+
+```typescript
+// The UrlValidatorService checks:
+// - Valid URL format
+// - Not localhost/private IPs in production
+// - HTTPS in production
+```
+
+## Sensitive Data in Logs
+
+Never log:
+- Passwords or password hashes
+- JWT tokens
+- Full credit card numbers
+- Player hole cards (use masked representation)
+
+```typescript
+// Bad
+this.logger.log("Login attempt", { password: dto.password });
+
+// Good
+this.logger.log("Login attempt", { email: dto.email });
+```

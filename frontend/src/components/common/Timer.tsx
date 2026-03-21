@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
+import { TIMER_INTERVAL_MS } from "../../utils/timing";
 
 interface TimerProps {
   duration: number;
@@ -32,7 +33,7 @@ export function Timer({
         }
         return t - 1;
       });
-    }, 1000);
+    }, TIMER_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [paused, timeLeft, onExpire]);
@@ -42,7 +43,7 @@ export function Timer({
   const isCritical = progress < 0.1;
 
   return (
-    <div className={clsx("relative w-16 h-16", className)}>
+    <div className={clsx("timer-countdown relative w-16 h-16", className)}>
       <svg className="w-full h-full transform -rotate-90">
         <circle
           cx="32"

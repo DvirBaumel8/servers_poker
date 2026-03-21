@@ -84,8 +84,10 @@ describe("Bots page", () => {
     expect(screen.getByText(/bots currently in action/i)).toBeInTheDocument();
     expect(screen.getAllByText(/riverpilot/i).length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: /my bots/i }));
-    expect(screen.getByText(/your bot operations/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /my bots/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/your bot operations/i)).toBeInTheDocument();
+    });
   });
 
   it("keeps the public directory visible when private bot inventory fails", async () => {

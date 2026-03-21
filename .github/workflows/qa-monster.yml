@@ -21,8 +21,14 @@ on:
         options:
           - quick
           - full
+          - full-with-improve
+      auto_improve:
+        description: 'Enable auto-improvement (creates PR with config updates)'
+        required: false
+        default: false
+        type: boolean
 
-  # Nightly full scan
+  # Nightly full scan with auto-improve
   schedule:
     - cron: '0 2 * * *'  # 2 AM UTC daily
 
@@ -49,7 +55,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
       
       - name: Install dependencies
@@ -92,9 +98,11 @@ jobs:
         run: |
           HAS_CRITICAL=0
 
-          if [ -f "docs/reports/QA-MONSTER-REPORT-V1.md" ]; then
-            CRITICAL_COUNT=$(awk -F'|' '/\| 🔴 Critical \|/ {gsub(/ /, "", $3); print $3}' docs/reports/QA-MONSTER-REPORT-V1.md | head -n 1)
-            CRITICAL_COUNT=${CRITICAL_COUNT:-0}
+          # Check the new report location
+          REPORT_FILE="tests/qa/monsters/REPORT.md"
+          if [ -f "$REPORT_FILE" ]; then
+            # Look for critical findings (🔴) in the Open Bugs section
+            CRITICAL_COUNT=$(grep -c "🔴 Critical" "$REPORT_FILE" 2>/dev/null || echo "0")
             if [ "$CRITICAL_COUNT" -gt "0" ]; then
               echo "::warning::Found $CRITICAL_COUNT critical issues in QA Monster report"
               HAS_CRITICAL=1
@@ -107,7 +115,10 @@ jobs:
     name: Monster Scan
     runs-on: ubuntu-latest
     needs: coverage-check
-    if: github.event_name == 'schedule' || github.event.inputs.scan_type == 'full'
+    if: github.event_name == 'schedule' || github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'full-with-improve'
+    outputs:
+      findings_count: ${{ steps.run-monsters.outputs.findings_count }}
+      improvements_made: ${{ steps.run-monsters.outputs.improvements_made }}
     
     services:
       postgres:
@@ -126,11 +137,14 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
       
       - name: Install dependencies
@@ -150,11 +164,30 @@ jobs:
       - name: Build Frontend
         run: npm run build:frontend
       
+      - name: Setup test database
+        run: npm run test:db:setup
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: 5432
+          TEST_DB_USERNAME: postgres
+          TEST_DB_PASSWORD: postgres
+          TEST_DB_NAME: poker
+      
       - name: Start Services
         run: |
           # Start backend
           node dist/src/main.js &
-          sleep 5
+          sleep 10
+          
+          # Wait for backend to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/api/v1/health | grep -q "ok"; then
+              echo "Backend is ready"
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 2
+          done
           
           # Start frontend
           cd frontend && npm run preview -- --port 3001 &
@@ -167,23 +200,134 @@ jobs:
           DB_NAME: poker
           NODE_ENV: test
       
-      - name: Generate Monster Instructions
+      - name: Run Monster Army
+        id: run-monsters
         run: |
-          npm run qa:monster > monster-instructions.txt
-          echo "## QA Monster Full Scan Instructions Generated" >> $GITHUB_STEP_SUMMARY
+          echo "## Monster Army Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Instructions saved to monster-instructions.txt" >> $GITHUB_STEP_SUMMARY
+          
+          # Determine if auto-improve should be enabled
+          SHOULD_IMPROVE="false"
+          if [ "${{ github.event_name }}" == "schedule" ] || [ "${{ github.event.inputs.auto_improve }}" == "true" ] || [ "${{ github.event.inputs.scan_type }}" == "full-with-improve" ]; then
+            SHOULD_IMPROVE="true"
+            echo "🔧 Auto-improve enabled" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Run the full monster army with appropriate flags
+          if [ "$SHOULD_IMPROVE" == "true" ]; then
+            # Use evolve:apply to actually write changes (not just dry-run)
+            npm run monsters:evolve:apply 2>&1 | tee monster-output.txt || true
+          else
+            npm run monsters:full 2>&1 | tee monster-output.txt || true
+          fi
+          
+          # Extract findings count
+          FINDINGS=$(grep -oP 'Total:\s+\K\d+' monster-output.txt | tail -1 || echo "0")
+          echo "findings_count=$FINDINGS" >> $GITHUB_OUTPUT
+          
+          # Check if improvements were made (any changes in monsters directory)
+          if [ -n "$(git status --porcelain tests/qa/monsters/)" ]; then
+            echo "improvements_made=true" >> $GITHUB_OUTPUT
+            echo "✅ Config improvements generated" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Changes Made" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            git status --short tests/qa/monsters/ >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "improvements_made=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No config improvements needed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Pages: $(grep -c 'path:' tests/qa/monster/monster-config.ts || echo 0)" >> $GITHUB_STEP_SUMMARY
-          echo "Flows: $(grep -c 'name:.*Flow' tests/qa/monster/monster-config.ts || echo 0)" >> $GITHUB_STEP_SUMMARY
-          echo "Viewports: $(grep -c 'width:' tests/qa/monster/monster-config.ts || echo 0)" >> $GITHUB_STEP_SUMMARY
+          echo "### Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -50 monster-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
       
-      - name: Upload Monster Instructions
+      - name: Upload Monster Report
         uses: actions/upload-artifact@v4
         with:
-          name: monster-instructions
-          path: monster-instructions.txt
-          retention-days: 7
+          name: monster-report
+          path: |
+            monster-output.txt
+            tests/qa/monsters/reports/
+            tests/qa/monsters/REPORT.md
+          retention-days: 30
+      
+      - name: Commit improvements (if any)
+        if: steps.run-monsters.outputs.improvements_made == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create a unique branch name
+          BRANCH_NAME="monster-improve-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b $BRANCH_NAME
+          
+          # Stage and commit changes
+          git add tests/qa/monsters/
+          git commit -m "chore(monsters): auto-improve configs from CI scan
+
+- Updated monster configurations based on scan findings
+- Auto-generated by QA Monster workflow
+
+Findings: ${{ steps.run-monsters.outputs.findings_count }}
+Run: ${{ github.run_id }}"
+          
+          # Push the branch
+          git push origin $BRANCH_NAME
+          
+          # Save branch name for PR creation
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+      
+      - name: Create Pull Request
+        if: steps.run-monsters.outputs.improvements_made == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branchName = process.env.BRANCH_NAME;
+            const findingsCount = '${{ steps.run-monsters.outputs.findings_count }}';
+            
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🦖 Monster Army: Auto-improve configs',
+              head: branchName,
+              base: 'main',
+              body: `## Monster Army Auto-Improvements
+
+This PR was automatically created by the QA Monster CI workflow.
+
+### What changed
+- Updated monster configurations based on scan findings
+- Added new test cases or edge cases as needed
+- Updated REPORT.md with latest findings
+
+### Scan Summary
+- **Findings detected**: ${findingsCount}
+- **Run ID**: ${{ github.run_id }}
+- **Triggered by**: ${{ github.event_name }}
+
+### Review Checklist
+- [ ] Review the generated test configurations
+- [ ] Verify the changes make sense
+- [ ] Run \`npm run monsters:quick\` locally to validate
+
+---
+*Auto-generated by [QA Monster Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*
+`
+            });
+            
+            console.log(`Created PR #${pr.number}: ${pr.html_url}`);
+            
+            // Add labels
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: ['qa-monster', 'auto-generated']
+            });
 
   block-on-critical:
     name: Review Critical Issues
@@ -225,7 +369,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
       
       - name: Install dependencies
@@ -330,12 +474,18 @@ jobs:
     name: Create Issues for Findings
     runs-on: ubuntu-latest
     needs: monster-scan
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' && needs.monster-scan.outputs.findings_count > 0
     permissions:
       issues: write
     
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Download Monster Report
+        uses: actions/download-artifact@v4
+        with:
+          name: monster-report
+          path: ./monster-artifacts
       
       - name: Parse Monster Report and Create Issues
         uses: actions/github-script@v7
@@ -343,14 +493,26 @@ jobs:
           script: |
             const fs = require('fs');
             
-            // Read the monster report
-            const reportPath = 'docs/reports/QA-MONSTER-REPORT-V1.md';
-            if (!fs.existsSync(reportPath)) {
+            // Try multiple report locations
+            const reportPaths = [
+              './monster-artifacts/tests/qa/monsters/REPORT.md',
+              './monster-artifacts/REPORT.md',
+              'tests/qa/monsters/REPORT.md',
+            ];
+            
+            let report = null;
+            for (const path of reportPaths) {
+              if (fs.existsSync(path)) {
+                report = fs.readFileSync(path, 'utf8');
+                console.log(`Found report at: ${path}`);
+                break;
+              }
+            }
+            
+            if (!report) {
               console.log('No monster report found');
               return;
             }
-            
-            const report = fs.readFileSync(reportPath, 'utf8');
             
             // Get existing issues with qa-monster label
             const { data: existingIssues } = await github.rest.issues.listForRepo({
@@ -362,31 +524,28 @@ jobs:
             
             const existingTitles = existingIssues.map(i => i.title);
             
-            // Parse issues from report (simple regex for MON-* IDs)
-            const issuePattern = /### (MON-\w+-\d+): (.+)\n\n\*\*Severity:\*\* (🔴|🟠|🟡|🟢) (\w+)/g;
+            // Parse findings from the new report format
+            // Look for bug entries in "## Open Bugs" section
+            const bugPattern = /- \*\*(🔴|🟠|🟡|🔵)\s+(\w+)\*\*:\s+(.+)/g;
             let match;
             let createdCount = 0;
             
-            while ((match = issuePattern.exec(report)) !== null) {
-              const [_, id, title, emoji, severity] = match;
-              const issueTitle = `[QA-Monster] ${id}: ${title}`;
+            while ((match = bugPattern.exec(report)) !== null) {
+              const [_, emoji, severity, title] = match;
+              const issueTitle = `[QA-Monster] ${title}`;
               
-              // Skip if issue already exists
-              if (existingTitles.some(t => t.includes(id))) {
-                console.log(`Issue already exists: ${id}`);
+              // Skip if issue already exists (fuzzy match on title)
+              const titleLower = title.toLowerCase();
+              if (existingTitles.some(t => t.toLowerCase().includes(titleLower.slice(0, 30)))) {
+                console.log(`Issue already exists: ${title}`);
                 continue;
               }
               
               // Only create issues for critical and high severity
               if (severity !== 'Critical' && severity !== 'High') {
-                console.log(`Skipping ${severity} issue: ${id}`);
+                console.log(`Skipping ${severity} issue: ${title}`);
                 continue;
               }
-              
-              // Extract the full issue content from report
-              const issueStart = report.indexOf(`### ${id}`);
-              const issueEnd = report.indexOf('###', issueStart + 1);
-              const issueContent = report.substring(issueStart, issueEnd > 0 ? issueEnd : issueStart + 2000);
               
               const labels = ['qa-monster', `qa-monster:${severity.toLowerCase()}`];
               if (severity === 'Critical') {
@@ -397,7 +556,26 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title: issueTitle,
-                body: `## QA Monster Finding\n\n${issueContent}\n\n---\n*Auto-created by QA Monster nightly scan*`,
+                body: `## QA Monster Finding
+
+**Severity**: ${emoji} ${severity}
+**Title**: ${title}
+
+### Details
+This issue was automatically detected by the QA Monster nightly scan.
+
+### Reproduction
+Run \`npm run monsters:full\` locally to reproduce.
+
+### Fix Guidance
+1. Review the finding details
+2. Implement a fix
+3. Run \`npm run monsters:quick\` to verify
+4. Close this issue when fixed
+
+---
+*Auto-created by QA Monster nightly scan*
+*Run: ${{ github.run_id }}*`,
                 labels: labels
               });
               

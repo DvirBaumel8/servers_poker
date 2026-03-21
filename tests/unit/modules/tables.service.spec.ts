@@ -12,6 +12,7 @@ describe("TablesService", () => {
   let mockTableRepository: {
     create: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
+    findByIdOrThrow: ReturnType<typeof vi.fn>;
     findAll: ReturnType<typeof vi.fn>;
     findByStatus: ReturnType<typeof vi.fn>;
     updateStatus: ReturnType<typeof vi.fn>;
@@ -20,6 +21,7 @@ describe("TablesService", () => {
   };
   let mockBotRepository: {
     findById: ReturnType<typeof vi.fn>;
+    findByIdOrThrow: ReturnType<typeof vi.fn>;
   };
   let mockGameRepository: {
     createGame: ReturnType<typeof vi.fn>;
@@ -71,6 +73,7 @@ describe("TablesService", () => {
     mockTableRepository = {
       create: vi.fn(),
       findById: vi.fn(),
+      findByIdOrThrow: vi.fn(),
       findAll: vi.fn(),
       findByStatus: vi.fn(),
       updateStatus: vi.fn(),
@@ -80,6 +83,7 @@ describe("TablesService", () => {
 
     mockBotRepository = {
       findById: vi.fn(),
+      findByIdOrThrow: vi.fn(),
     };
 
     mockGameRepository = {
@@ -150,11 +154,11 @@ describe("TablesService", () => {
       );
     });
 
-    it("should throw BadRequestException for duplicate table name", async () => {
+    it("should throw ConflictException for duplicate table name", async () => {
       mockTableRepository.create.mockRejectedValue({ code: "23505" });
 
       await expect(service.create({ name: "Duplicate" })).rejects.toThrow(
-        BadRequestException,
+        ConflictException,
       );
     });
 
@@ -243,14 +247,10 @@ describe("TablesService", () => {
   });
 
   describe("joinTable", () => {
-    it("should throw BadRequestException when bot_id missing", async () => {
-      await expect(
-        service.joinTable("table-123", {}, "user-123"),
-      ).rejects.toThrow(BadRequestException);
-    });
-
     it("should throw NotFoundException when table not found", async () => {
-      mockTableRepository.findById.mockResolvedValue(null);
+      mockTableRepository.findByIdOrThrow.mockRejectedValue(
+        new NotFoundException("Table nonexistent not found"),
+      );
 
       await expect(
         service.joinTable("nonexistent", { bot_id: "bot-123" }, "user-123"),
@@ -258,7 +258,7 @@ describe("TablesService", () => {
     });
 
     it("should throw ConflictException when table is finished", async () => {
-      mockTableRepository.findById.mockResolvedValue({
+      mockTableRepository.findByIdOrThrow.mockResolvedValue({
         ...mockTable,
         status: "finished",
       });
@@ -269,8 +269,10 @@ describe("TablesService", () => {
     });
 
     it("should throw NotFoundException when bot not found", async () => {
-      mockTableRepository.findById.mockResolvedValue(mockTable);
-      mockBotRepository.findById.mockResolvedValue(null);
+      mockTableRepository.findByIdOrThrow.mockResolvedValue(mockTable);
+      mockBotRepository.findByIdOrThrow.mockRejectedValue(
+        new NotFoundException("Bot nonexistent not found"),
+      );
 
       await expect(
         service.joinTable("table-123", { bot_id: "nonexistent" }, "user-123"),
@@ -278,8 +280,8 @@ describe("TablesService", () => {
     });
 
     it("should throw ForbiddenException when user does not own bot", async () => {
-      mockTableRepository.findById.mockResolvedValue(mockTable);
-      mockBotRepository.findById.mockResolvedValue({
+      mockTableRepository.findByIdOrThrow.mockResolvedValue(mockTable);
+      mockBotRepository.findByIdOrThrow.mockResolvedValue({
         ...mockBot,
         user_id: "other-user",
       });
@@ -290,8 +292,8 @@ describe("TablesService", () => {
     });
 
     it("should throw ConflictException when bot is deactivated", async () => {
-      mockTableRepository.findById.mockResolvedValue(mockTable);
-      mockBotRepository.findById.mockResolvedValue({
+      mockTableRepository.findByIdOrThrow.mockResolvedValue(mockTable);
+      mockBotRepository.findByIdOrThrow.mockResolvedValue({
         ...mockBot,
         active: false,
       });

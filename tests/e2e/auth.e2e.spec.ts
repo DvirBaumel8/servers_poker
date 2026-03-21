@@ -60,7 +60,60 @@ describe("Auth E2E Tests", () => {
     await app.close();
   });
 
-  describe.concurrent("User Registration Flow", () => {
+  describe("Input Validation", () => {
+    it("should reject registration with weak password (too short)", async () => {
+      const response = await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({
+          email: "weakpass@test.com",
+          name: "WeakPass",
+          password: "123", // Only 3 chars, should fail @MinLength(8)
+        })
+        .expect(400);
+
+      expect(response.body.statusCode).toBe(400);
+    });
+
+    it("should reject registration with invalid email format", async () => {
+      const response = await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({
+          email: "notanemail", // Not a valid email
+          name: "BadEmail",
+          password: "ValidPassword123!",
+        })
+        .expect(400);
+
+      expect(response.body.statusCode).toBe(400);
+    });
+
+    it("should reject registration with missing required fields", async () => {
+      const response = await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({
+          email: "missing@test.com",
+          // Missing name and password
+        })
+        .expect(400);
+
+      expect(response.body.statusCode).toBe(400);
+    });
+
+    it("should reject registration with password missing uppercase", async () => {
+      const response = await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({
+          email: "nouppercase@test.com",
+          name: "NoUpper",
+          password: "password123", // No uppercase letter
+        })
+        .expect(400);
+
+      expect(response.body.statusCode).toBe(400);
+    });
+  });
+
+  describe("User Registration Flow", () => {
     it("should register a new user and require email verification", async () => {
       const testEmail = `newuser-${uid()}@example.com`;
       const response = await request(app.getHttpServer())
@@ -159,7 +212,7 @@ describe("Auth E2E Tests", () => {
     });
   });
 
-  describe.concurrent("User Login Flow", () => {
+  describe("User Login Flow", () => {
     async function createVerifiedUser() {
       const testEmail = `logintest-${uid()}@example.com`;
       const testPassword = "TestPassword123!";
@@ -213,7 +266,7 @@ describe("Auth E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Protected Routes", () => {
+  describe("Protected Routes", () => {
     async function createAuthenticatedUser() {
       const testEmail = `protected-${uid()}@example.com`;
       const testPassword = "TestPassword123!";

@@ -1,0 +1,442 @@
+{
+  "version": 1,
+  "description": "Bug retrospectives for Monster Army improvement. Each bug found is analyzed and used to improve monsters.",
+  "bugs": [
+    {
+      "id": "bug-2026-03-21-001",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "raw.map is not a function - /bots API returns paginated object but frontend expects array",
+      "category": "api",
+      "severity": "critical",
+      "rootCause": "Backend returns { data: [], total, limit, offset, hasMore } but frontend code called response.map() directly",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "contract-monster or api-monster",
+        "whyMissed": "No contract validation between frontend expectations and backend responses",
+        "existingMonster": false,
+        "monsterToImprove": null,
+        "monsterCreated": "contract-monster"
+      },
+      "improvement": {
+        "type": "create-new",
+        "description": "Created Contract Monster to validate API response shapes match frontend expectations",
+        "filesChanged": [
+          "tests/qa/monsters/contract-monster/contract-monster.ts",
+          "tests/qa/monsters/contract-monster/contracts.ts"
+        ],
+        "testAdded": "GET /bots expects paginated response with data array"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-002",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "Please sign in to continue error on /bots page for unauthenticated users",
+      "category": "api",
+      "severity": "high",
+      "rootCause": "/bots endpoint required auth when it should be public",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "api-monster",
+        "whyMissed": "API Monster config accepted both 200 AND 401 for auth:false endpoints - contradictory",
+        "existingMonster": true,
+        "monsterToImprove": "api-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Fixed API Monster config to only accept 200 for public endpoints. Added testPublicEndpointsWithoutAuth() method.",
+        "filesChanged": [
+          "tests/qa/monsters/api-monster/api-monster.config.ts",
+          "tests/qa/monsters/api-monster/api-monster.ts"
+        ],
+        "testAdded": "Public endpoint requires auth: GET /bots"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-003",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "Create Tournament button visible to regular users (should be admin-only)",
+      "category": "ui",
+      "severity": "high",
+      "rootCause": "Frontend showing admin-only buttons without checking user role",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "visual-monster",
+        "whyMissed": "No role-based UI permission testing",
+        "existingMonster": true,
+        "monsterToImprove": "visual-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Added permission-checks.ts with role-based UI element visibility tests. Visual Monster now authenticates as different roles and checks element visibility.",
+        "filesChanged": [
+          "tests/qa/monsters/visual-monster/visual-monster.ts",
+          "tests/qa/monsters/visual-monster/permission-checks.ts"
+        ],
+        "testAdded": "User cannot see Create Tournament button"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-004",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "Deactivate button looks disabled (dark, no hover) but is actually clickable",
+      "category": "ui",
+      "severity": "high",
+      "rootCause": ".btn-danger CSS has 22% opacity background, no hover state, no focus indicator",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "css-lint-monster (new) or visual-monster",
+        "whyMissed": "No CSS analysis for button interactivity indicators",
+        "existingMonster": false,
+        "monsterToImprove": null,
+        "monsterCreated": "css-lint-monster"
+      },
+      "improvement": {
+        "type": "create-new",
+        "description": "Created CSS Lint Monster that analyzes CSS for button opacity, hover states, focus indicators, and cursor styles",
+        "filesChanged": [
+          "tests/qa/monsters/browser-monster/css-lint-monster.ts",
+          "tests/qa/monsters/browser-monster/accessibility-checks.ts"
+        ],
+        "testAdded": "Button .btn-danger looks disabled due to low opacity"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-005",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "ALL IN badge overlaps with player cards and avatars in game view",
+      "category": "ui",
+      "severity": "high",
+      "rootCause": "Too many absolute-positioned elements with conflicting z-index values (z-10, z-20, z-30)",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "layout-lint-monster (new)",
+        "whyMissed": "No analysis of z-index conflicts or absolute positioning overlap",
+        "existingMonster": false,
+        "monsterToImprove": null,
+        "monsterCreated": "layout-lint-monster"
+      },
+      "improvement": {
+        "type": "create-new",
+        "description": "Created Layout Lint Monster that detects z-index conflicts, overlapping absolute elements, and excessive positioning complexity",
+        "filesChanged": [
+          "tests/qa/monsters/browser-monster/layout-lint-monster.ts"
+        ],
+        "testAdded": "Too many absolute positioned elements in PlayerSeat.tsx"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-006",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "NO-LIMIT HOLD'EM text overlapped by player elements in game view",
+      "category": "ui",
+      "severity": "medium",
+      "rootCause": "Text positioned at top:26% while player seats positioned at top:6% overlap it",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "layout-lint-monster",
+        "whyMissed": "Was caught by layout-lint-monster as part of 12 absolute elements finding",
+        "existingMonster": true,
+        "monsterToImprove": "layout-lint-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Layout Lint Monster already catches this - grouped under 'Too many absolute positioned elements'",
+        "filesChanged": [],
+        "testAdded": null
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-007",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "Internal table ID (#4cfe226a) visible to users in Table header",
+      "category": "ui",
+      "severity": "medium",
+      "rootCause": "GameView.tsx line 233 shows `Table #${tableId?.slice(0, 8)}` exposing internal UUID to users",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "visual-monster or design-critic-monster",
+        "whyMissed": "No check for internal IDs/UUIDs being exposed in user-facing UI elements",
+        "existingMonster": true,
+        "monsterToImprove": "design-critic-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Added 'Internal ID Exposure' design standard that detects UUID patterns in user-facing text",
+        "filesChanged": [
+          "tests/qa/monsters/browser-monster/design-critic-monster.ts",
+          "frontend/src/pages/GameView.tsx"
+        ],
+        "testAdded": "Detect internal IDs exposed in UI"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-008",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "Community cards overlap and hide the NO-LIMIT HOLD'EM text in center of table",
+      "category": "ui",
+      "severity": "high",
+      "rootCause": "Community cards positioned at z-index that overlaps center table text. Layout not accounting for card height.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "layout-lint-monster",
+        "whyMissed": "Layout lint checks for absolute positioning but not for specific overlap between cards and text elements",
+        "existingMonster": true,
+        "monsterToImprove": "layout-lint-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Fixed Table.tsx layout - removed overlapping text, repositioned community cards lower",
+        "filesChanged": [
+          "frontend/src/components/game/Table.tsx"
+        ],
+        "testAdded": "Community cards should not overlap center table text"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-009",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "Inconsistent card display between hole cards and community cards",
+      "category": "ui",
+      "severity": "medium",
+      "rootCause": "Hole cards and community cards use different sizes ('sm' vs 'lg') but may render with different visual styles",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "design-critic-monster",
+        "whyMissed": "No consistency check for visual elements that should match (cards, buttons, etc.)",
+        "existingMonster": true,
+        "monsterToImprove": "design-critic-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Added card size consistency check to design-critic-monster - warns when more than 3 card sizes are used",
+        "filesChanged": [
+          "tests/qa/monsters/browser-monster/design-critic-monster.ts"
+        ],
+        "testAdded": "Card components should have consistent visual style"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-010",
+      "date": "2026-03-21",
+      "foundBy": "user",
+      "summary": "Sign in button still showing after successful login",
+      "category": "ui",
+      "severity": "high",
+      "rootCause": "Layout.tsx checks 'user' object for auth state, but only 'token' is persisted. After login, token exists but user is null until async fetchUser() completes.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "visual-monster or e2e-monster",
+        "whyMissed": "No test for post-login UI state verification",
+        "existingMonster": true,
+        "monsterToImprove": "e2e-monster"
+      },
+      "improvement": {
+        "type": "fix-code",
+        "description": "Changed Layout.tsx to use 'token' (isAuthenticated) for auth state check instead of 'user' object. Token is immediately available from localStorage while user loads async.",
+        "filesChanged": [
+          "frontend/src/components/layout/Layout.tsx"
+        ],
+        "testAdded": "Should add e2e test: After login, header shows user profile not Sign In button"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-011",
+      "date": "2026-03-21",
+      "foundBy": "api-monster",
+      "summary": "SQL injection and XSS attacks not rejected by tournament creation endpoint",
+      "category": "security",
+      "severity": "critical",
+      "rootCause": "SanitizePipe was stripping dangerous content instead of rejecting it. Validation ran AFTER sanitization, so cleaned input passed validation.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "api-monster (and it did!)",
+        "whyMissed": "N/A - api-monster correctly identified the issue",
+        "existingMonster": true,
+        "monsterToImprove": null
+      },
+      "improvement": {
+        "type": "fix-code",
+        "description": "Modified SanitizePipe to REJECT dangerous input with BadRequestException instead of silently stripping it. Added rejectDangerousInput() method that throws 400 for SQL injection (DROP, SELECT, UNION, etc.) and XSS (script, onclick, img, etc.) patterns. Now the API returns 400 Bad Request before input even reaches validation layer.",
+        "filesChanged": [
+          "src/common/pipes/sanitize.pipe.ts"
+        ],
+        "testAdded": "api-monster already has tests for sql_injection_drop, sql_injection_union, xss_script, xss_event_handler variations"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-012",
+      "date": "2026-03-21",
+      "foundBy": "code-quality-monster",
+      "summary": "Multiple code quality issues: hardcoded timeouts, missing UUID validation, unsafe error access",
+      "category": "code-quality",
+      "severity": "medium",
+      "rootCause": "Various code quality issues accumulated over development: hardcoded timeout values in frontend, missing ParseUUIDPipe on route params, unsafe error.message access without instanceof checks",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "code-quality-monster (and it did!)",
+        "whyMissed": "N/A - code-quality-monster correctly identified 116 issues",
+        "existingMonster": true,
+        "monsterToImprove": "code-quality-monster"
+      },
+      "improvement": {
+        "type": "fix-code",
+        "description": "Fixed 118 issues total: (1) Created frontend/src/utils/timing.ts with centralized timing constants, (2) Added ParseUUIDPipe to 13 route parameters, (3) Added instanceof Error checks for safe error access, (4) Added botRecoveryTimeoutMs and redisPubSubPollMs to app.config.ts, (5) Improved stale-closure detection to avoid false positives when accessing properties of objects in dependency array",
+        "filesChanged": [
+          "frontend/src/utils/timing.ts",
+          "frontend/src/components/common/Timer.tsx",
+          "frontend/src/components/game/ActionFeed.tsx",
+          "frontend/src/components/game/ProvablyFairInfo.tsx",
+          "frontend/src/components/game/WinnerAnimation.tsx",
+          "frontend/src/components/layout/Layout.tsx",
+          "frontend/src/components/tournament/TournamentCard.tsx",
+          "frontend/src/pages/AdminTournaments.tsx",
+          "frontend/src/pages/BotProfile.tsx",
+          "frontend/src/pages/ResetPassword.tsx",
+          "frontend/src/pages/TournamentDetail.tsx",
+          "frontend/src/pages/Tournaments.tsx",
+          "frontend/src/pages/AdminAnalytics.tsx",
+          "src/config/app.config.ts",
+          "src/main.ts",
+          "src/modules/bots/bots-connectivity.controller.ts",
+          "src/modules/games/games.controller.ts",
+          "src/modules/games/games.gateway.ts",
+          "src/services/bot-metrics.gateway.ts",
+          "src/services/game/game-recovery.service.ts",
+          "src/common/redis/redis-pubsub.service.ts",
+          "tests/qa/monsters/code-quality-monster/code-quality-monster.ts",
+          "tests/qa/monsters/guardian-monster/guardian-monster.ts"
+        ],
+        "testAdded": "Improved stale-closure rule to check if accessed object is a property of a dependency"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-21-013",
+      "date": "2026-03-21",
+      "foundBy": "guardian-monster",
+      "summary": "X-Powered-By header exposed server technology",
+      "category": "security",
+      "severity": "high",
+      "rootCause": "Helmet was configured but hidePoweredBy was not explicitly set to true",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "guardian-monster (and it did!)",
+        "whyMissed": "N/A - guardian-monster correctly identified the issue",
+        "existingMonster": true,
+        "monsterToImprove": null
+      },
+      "improvement": {
+        "type": "fix-code",
+        "description": "Added hidePoweredBy: true to helmet configuration in main.ts",
+        "filesChanged": [
+          "src/main.ts"
+        ],
+        "testAdded": null
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-001",
+      "date": "2026-03-22",
+      "foundBy": "invariant-monster",
+      "summary": "Card format 'undefinedundefined' - cards showing as invalid format due to missing rank/suit conversion",
+      "category": "game-logic",
+      "severity": "critical",
+      "rootCause": "Multiple issues: (1) cardToString in deck.ts didn't handle string inputs or cards with value but missing rank, (2) Game recovery didn't parse stored card strings back to Card objects, (3) Invariant monster didn't normalize card formats before validation",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "invariant-monster (and it did!)",
+        "whyMissed": "N/A - invariant-monster correctly identified the issue",
+        "existingMonster": true,
+        "monsterToImprove": "invariant-monster"
+      },
+      "improvement": {
+        "type": "fix-code",
+        "description": "Fixed three layers: (1) Enhanced cardToString to accept strings, objects with rank/suit, or objects with value/suit and derive rank from VALUE_TO_RANK mapping, (2) Added parseCard function to convert string cards back to Card objects, (3) Added normalizeCardsToStrings helper to monster shared/types.ts and applied in invariant-monster and game-flow-monster",
+        "filesChanged": [
+          "src/domain/deck.ts",
+          "src/services/game/live-game-manager.service.ts",
+          "tests/qa/monsters/shared/types.ts",
+          "tests/qa/monsters/invariant-monster/invariant-monster.ts",
+          "tests/qa/monsters/flows/game-flow-monster.ts"
+        ],
+        "testAdded": "Invariant monster now normalizes all card formats before validation"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-002",
+      "date": "2026-03-22",
+      "foundBy": "browser-qa-monster",
+      "summary": "React crash on Admin pages: 'getSnapshot should be cached to avoid infinite loop'",
+      "category": "ui",
+      "severity": "critical",
+      "rootCause": "RequireAdmin component in App.tsx used Zustand selector returning new object on every render: useAuthStore((state) => ({ token: state.token, user: state.user })). In React 18/19, this causes infinite re-renders because each call returns !== object.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "browser-qa-monster (and it did!)",
+        "whyMissed": "N/A - browser-qa-monster correctly identified the crash",
+        "existingMonster": true,
+        "monsterToImprove": null
+      },
+      "improvement": {
+        "type": "fix-code",
+        "description": "Changed RequireAdmin to use separate selectors: const token = useAuthStore(state => state.token); const user = useAuthStore(state => state.user); This ensures stable references.",
+        "filesChanged": [
+          "frontend/src/App.tsx"
+        ],
+        "testAdded": null
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-003",
+      "date": "2026-03-22",
+      "foundBy": "browser-qa-monster",
+      "summary": "Login/Register forms failing Playwright tests - input fields missing name attributes",
+      "category": "ui",
+      "severity": "high",
+      "rootCause": "TextField and PasswordField components in auth pages didn't have name or autoComplete attributes, causing Playwright selectors like input[name='email'] to fail",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "browser-qa-monster (and it did!)",
+        "whyMissed": "N/A - browser-qa-monster correctly identified the flow failure",
+        "existingMonster": true,
+        "monsterToImprove": null
+      },
+      "improvement": {
+        "type": "fix-code",
+        "description": "Added name and autoComplete attributes to all TextField and PasswordField components in Login.tsx, Register.tsx, ForgotPassword.tsx, and ResetPassword.tsx",
+        "filesChanged": [
+          "frontend/src/pages/Login.tsx",
+          "frontend/src/pages/Register.tsx",
+          "frontend/src/pages/ForgotPassword.tsx",
+          "frontend/src/pages/ResetPassword.tsx"
+        ],
+        "testAdded": null
+      },
+      "verified": true
+    }
+  ],
+  "stats": {
+    "totalBugs": 16,
+    "byCategory": {
+      "api": 2,
+      "ui": 10,
+      "security": 2,
+      "code-quality": 1,
+      "game-logic": 1
+    },
+    "byMonsterAction": {
+      "create-new": 3,
+      "enhance-existing": 8,
+      "fix-code": 5
+    },
+    "monstersCreated": ["contract-monster", "css-lint-monster", "layout-lint-monster"],
+    "monstersImproved": ["api-monster", "visual-monster", "design-critic-monster", "layout-lint-monster", "code-quality-monster"]
+  }
+}

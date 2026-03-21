@@ -22,27 +22,27 @@ interface TableProps {
 }
 
 const SEAT_POSITIONS_9 = [
-  { top: "72%", left: "50%" }, // Bottom center (hero position)
-  { top: "68%", left: "18%" }, // Bottom left
-  { top: "45%", left: "5%" }, // Left middle
-  { top: "20%", left: "12%" }, // Top left
-  { top: "12%", left: "35%" }, // Top left-center
-  { top: "12%", left: "65%" }, // Top right-center
-  { top: "20%", left: "88%" }, // Top right
-  { top: "45%", left: "95%" }, // Right middle
-  { top: "68%", left: "82%" }, // Bottom right
+  { top: "80%", left: "50%" },  // Bottom center (hero position) - pushed down
+  { top: "72%", left: "16%" },  // Bottom left - adjusted
+  { top: "48%", left: "4%" },   // Left middle - moved out more
+  { top: "18%", left: "10%" },  // Top left - moved up and out
+  { top: "6%", left: "35%" },   // Top left-center - pushed up
+  { top: "6%", left: "65%" },   // Top right-center - pushed up
+  { top: "18%", left: "90%" },  // Top right - moved up and out
+  { top: "48%", left: "96%" },  // Right middle - moved out more
+  { top: "72%", left: "84%" },  // Bottom right - adjusted
 ];
 
 const BET_POSITIONS_9 = [
-  { top: "68%", left: "50%" },
-  { top: "65%", left: "28%" },
-  { top: "50%", left: "20%" },
-  { top: "35%", left: "25%" },
-  { top: "28%", left: "40%" },
-  { top: "28%", left: "60%" },
-  { top: "35%", left: "75%" },
-  { top: "50%", left: "80%" },
-  { top: "65%", left: "72%" },
+  { top: "66%", left: "50%" },  // Bottom center
+  { top: "62%", left: "28%" },  // Bottom left
+  { top: "48%", left: "18%" },  // Left middle
+  { top: "32%", left: "22%" },  // Top left
+  { top: "24%", left: "40%" },  // Top left-center
+  { top: "24%", left: "60%" },  // Top right-center
+  { top: "32%", left: "78%" },  // Top right
+  { top: "48%", left: "82%" },  // Right middle
+  { top: "62%", left: "72%" },  // Bottom right
 ];
 
 export function Table({
@@ -55,7 +55,7 @@ export function Table({
   onHandResultComplete,
   playerNames = {},
 }: TableProps) {
-  const { players, communityCards, pot, stage, handNumber, status } = gameState;
+  const { players, communityCards, pot, stage, handNumber, status, blinds } = gameState;
 
   const getPositions = () => {
     const count = Math.max(players.length, 2);
@@ -71,23 +71,39 @@ export function Table({
         ],
       };
     }
+    if (count <= 4) {
+      return {
+        seats: [
+          { top: "78%", left: "50%" },  // Bottom center - pushed down for clearance
+          { top: "50%", left: "8%" },   // Left - moved out more
+          { top: "8%", left: "50%" },   // Top center - pushed up for clearance
+          { top: "50%", left: "92%" },  // Right - moved out more
+        ],
+        bets: [
+          { top: "62%", left: "50%" },
+          { top: "50%", left: "22%" },
+          { top: "25%", left: "50%" },
+          { top: "50%", left: "78%" },
+        ],
+      };
+    }
     if (count <= 6) {
       return {
         seats: [
-          { top: "72%", left: "50%" },
-          { top: "60%", left: "12%" },
-          { top: "25%", left: "12%" },
-          { top: "15%", left: "50%" },
-          { top: "25%", left: "88%" },
-          { top: "60%", left: "88%" },
+          { top: "78%", left: "50%" },  // Bottom center
+          { top: "65%", left: "10%" },  // Bottom left - moved out
+          { top: "25%", left: "10%" },  // Top left - moved out
+          { top: "8%", left: "50%" },   // Top center
+          { top: "25%", left: "90%" },  // Top right - moved out
+          { top: "65%", left: "90%" },  // Bottom right - moved out
         ],
         bets: [
-          { top: "56%", left: "50%" },
-          { top: "50%", left: "25%" },
-          { top: "35%", left: "25%" },
-          { top: "30%", left: "50%" },
-          { top: "35%", left: "75%" },
-          { top: "50%", left: "75%" },
+          { top: "62%", left: "50%" },
+          { top: "55%", left: "24%" },
+          { top: "35%", left: "24%" },
+          { top: "25%", left: "50%" },
+          { top: "35%", left: "76%" },
+          { top: "55%", left: "76%" },
         ],
       };
     }
@@ -107,7 +123,7 @@ export function Table({
 
   return (
     <div
-      className={clsx("relative w-full max-w-5xl aspect-[16/10]", className)}
+      className={clsx("poker-table relative w-full max-w-5xl aspect-[16/10]", className)}
     >
       {/* Winner animation overlay */}
       <WinnerAnimation
@@ -161,54 +177,68 @@ export function Table({
 
       {/* Center content - z-index 10 to stay below players but above table */}
       <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-        {/* Game type / branding */}
-        <div
-          className="absolute top-[16%] text-lg font-bold tracking-[0.3em] uppercase"
-          style={{
-            color: "rgba(201,162,39,0.12)",
-            textShadow: "0 0 20px rgba(201,162,39,0.05)",
-          }}
-        >
-          No-Limit Hold'em
-        </div>
-
         {/* Community cards - centered in the middle of the table */}
-        <div className="absolute top-[36%]">
+        <div className="absolute top-[38%]">
           <CommunityCards cards={communityCards} stage={stage} />
         </div>
 
-        {/* Pot display - positioned below cards */}
-        {pot > 0 && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute top-[50%] flex flex-col items-center"
-          >
-            <div className="rounded-[1.75rem] border border-white/8 bg-black/35 px-5 py-3 backdrop-blur-xl">
-              <div className="mb-1 text-center text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                Main pot
-              </div>
-              <PokerChipStack amount={pot} size="sm" />
-            </div>
-            {/* Hand info - directly below pot */}
-            {handNumber > 0 && status !== "waiting" && (
-              <div className="mt-2 text-white/40 text-xs">
-                Hand #{handNumber} • {formatStage(stage)}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* Hand info when no pot yet */}
-        {pot === 0 && handNumber > 0 && status !== "waiting" && (
-          <div className="absolute top-[55%] text-white/40 text-xs">
+        {/* Hand info - always visible below cards */}
+        {handNumber > 0 && status !== "waiting" && (
+          <div className="absolute top-[52%] text-white/50 text-sm font-medium tracking-wide">
             Hand #{handNumber} • {formatStage(stage)}
           </div>
         )}
 
+        {/* Pot display - prominent center display */}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute top-[56%] flex flex-col items-center"
+        >
+          <div 
+            className="rounded-2xl px-6 py-3 backdrop-blur-xl"
+            style={{
+              background: "linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(20,30,20,0.8) 100%)",
+              border: "2px solid rgba(201,162,39,0.4)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
+            }}
+          >
+            <div className="text-center text-[10px] uppercase tracking-[0.25em] text-amber-200/70 mb-1">
+              Pot
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <PokerChipStack amount={pot} size="sm" showValue={false} />
+              <span 
+                className="text-2xl font-bold"
+                style={{ color: "#c9a227", textShadow: "0 2px 4px rgba(0,0,0,0.5)" }}
+              >
+                {formatAmount(pot)}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
         {status === "waiting" && players.length < 2 && (
           <div className="absolute top-[50%] text-white/50 text-lg">
             Waiting for players...
+          </div>
+        )}
+
+        {/* Blinds indicator - top left of table */}
+        {blinds && (blinds.small > 0 || blinds.big > 0) && (
+          <div className="absolute top-[12%] left-[12%]">
+            <div 
+              className="rounded-xl px-3 py-1.5 backdrop-blur-sm"
+              style={{
+                background: "rgba(0,0,0,0.5)",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <div className="text-[9px] uppercase tracking-wider text-slate-400 mb-0.5">Blinds</div>
+              <div className="text-sm font-semibold text-white">
+                {formatAmount(blinds.small)}/{formatAmount(blinds.big)}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -248,7 +278,7 @@ export function Table({
               <motion.div
                 initial={{ scale: 0, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="absolute z-15 flex items-center gap-1"
+                className="bet-display absolute z-15 flex items-center gap-1"
                 style={{
                   top: betPos.top,
                   left: betPos.left,

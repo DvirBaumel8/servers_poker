@@ -82,32 +82,68 @@ The `EmailService` logs verification codes to stdout instead of sending emails. 
 
 **Every feature, refactor, or significant UI change MUST include QA Monster updates.**
 
-The QA Monster is our comprehensive testing framework that finds bugs, UX issues, and design inconsistencies. When developing:
+All QA testing lives in `tests/qa/monsters/` — the consolidated "Monster Army" system.
 
-1. **Before starting**: Check `tests/qa/monster/monster-config.ts` for existing coverage
-2. **During development**: Consider edge cases, error states, mobile viewports
-3. **Before PR**: Update monster config with new flows/pages
+**When Monsters Run (automatic):**
+
+| Trigger | What Runs | Time | Purpose |
+|---------|-----------|------|---------|
+| Pre-commit | Fast monsters | ~10s | Catch issues before git history |
+| Every PR | All 21 monsters | ~17s | Full validation before merge |
+| Push to main | All + E2E | ~2min | Post-merge verification |
+| Nightly | Full + Chaos | ~5min | Deep testing, baselines |
+
+**Quick commands:**
+```bash
+# Run all 21 monsters in parallel (~17s)
+npm run monsters:all
+
+# Fast monsters only (~10s)
+npm run monsters:all:fast
+
+# 🎰 Simulation Monster - Professional QA (most important!)
+npm run monsters:simulation           # Standard (~90s, 4 scenarios)
+npm run monsters:simulation:quick     # Quick (~30s, CI-friendly)
+npm run monsters:simulation:thorough  # Full (~5-10min, 7 scenarios)
+
+# Single monster
+npm run monsters:invariant
+npm run monsters:browser-qa
+npm run monsters:api
+```
+
+**Key files:**
+- `tests/qa/monsters/README.md` — Monster Army overview & architecture
+- `tests/qa/monsters/orchestrator.ts` — Main entry point
+- `tests/qa/monsters/data/bug-retrospectives.json` — Bug analysis for monster improvement
+- `tests/qa/monsters/docs/CONTRIBUTING.md` — Guide for updating monster
+- `.cursor/rules/bug-to-monster-workflow.mdc` — Bug-to-Monster improvement process
 
 **What to update:**
 
 | Change Type | Update Location |
 |-------------|-----------------|
-| New page/route | Add to `PAGES` array in `monster-config.ts` |
-| New user flow | Add to `FLOWS` array in `monster-config.ts` |
-| New form/inputs | Add edge cases and validation scenarios |
-| New component | Add to page's `interactiveElements` |
-| New API endpoint | Add error scenarios |
+| New API endpoint | `monsters/api-monster/api-monster.config.ts` |
+| New page/route | `monsters/visual-monster/visual-monster.config.ts` |
+| New poker invariant | `monsters/invariant-monster/poker-invariants.ts` |
+| New user flow | `monsters/flows/` (game-flow, tournament-flow) |
+| Game logic changes | `monsters/simulation-monster/simulation-monster.ts` |
+| Security concern | `monsters/guardian-monster/` |
+| CSS/styling issue | `monsters/browser-monster/css-lint-monster.ts` |
+| Layout/overlap issue | `monsters/browser-monster/layout-lint-monster.ts` |
 
-**Quick commands:**
-```bash
-npm run qa:monster          # Full scan
-npm run qa:monster:quick    # Quick scan (before PR)
-npm run qa:monster:page X   # Test specific page
-```
+### Bug-to-Monster Workflow (CRITICAL)
 
-**Key files:**
-- `tests/qa/monster/monster-config.ts` — Pages, flows, viewports, checks
-- `tests/qa/monster/CONTRIBUTING.md` — Full guide for updating monster
-- `docs/reports/QA-MONSTER-REPORT-V*.md` — Findings history
+**Every bug found = Monster Army improvement opportunity.**
 
-See `tests/qa/monster/CONTRIBUTING.md` for detailed examples.
+When ANY bug is discovered (by user, AI, testing, or production):
+
+1. **STOP** and ask: Why didn't the Monster Army catch this?
+2. **LOG** the bug in `tests/qa/monsters/data/bug-retrospectives.json`
+3. **ANALYZE** which monster should have caught it
+4. **IMPROVE** the monster or create a new one
+5. **VERIFY** the improved monster now catches the bug
+
+See `.cursor/rules/bug-to-monster-workflow.mdc` for detailed process.
+
+See `tests/qa/monsters/README.md` for the full Monster Army architecture.

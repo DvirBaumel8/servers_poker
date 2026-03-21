@@ -6,7 +6,9 @@ import {
   Query,
   Req,
   Logger,
+  InternalServerErrorException,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { Request } from "express";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -52,7 +54,7 @@ export class AnalyticsController {
   async getAdminStats(
     @Query() query: MetricsHistoryQueryDto,
   ): Promise<AdminStatsDto> {
-    const days = parseInt(query.days || "30", 10);
+    const days = query.days ?? 30;
 
     const [stats, topPerformers, metricsHistory] = await Promise.all([
       this.analyticsService.getPlatformStats(),
@@ -96,15 +98,13 @@ export class AnalyticsController {
       };
     } catch (error) {
       this.logger.error("Failed to save metrics snapshot:", error);
-      return {
-        success: false,
-        message: "Failed to save metrics snapshot",
-      };
+      throw new InternalServerErrorException("Failed to save metrics snapshot");
     }
   }
 
   @Public()
   @Post("events")
+  @Throttle({ default: { ttl: 60000, limit: 60 } }) // 60 per minute
   async recordEvent(
     @Body() dto: RecordEventDto,
     @Req() req: Request,
@@ -130,7 +130,7 @@ export class AnalyticsController {
       return { success: true };
     } catch (error) {
       this.logger.error("Failed to record analytics event:", error);
-      return { success: false };
+      throw new InternalServerErrorException("Failed to record event");
     }
   }
 
@@ -139,7 +139,7 @@ export class AnalyticsController {
   async getEventsSummary(
     @Query() query: MetricsHistoryQueryDto,
   ): Promise<Record<string, number>> {
-    const days = parseInt(query.days || "7", 10);
+    const days = query.days ?? 7;
     const since = new Date();
     since.setDate(since.getDate() - days);
 
@@ -162,7 +162,7 @@ export class AnalyticsController {
   @Roles("admin")
   @Get("metrics/history")
   async getMetricsHistory(@Query() query: MetricsHistoryQueryDto) {
-    const days = parseInt(query.days || "30", 10);
+    const days = query.days ?? 30;
     return this.analyticsService.getMetricsHistory(days);
   }
 

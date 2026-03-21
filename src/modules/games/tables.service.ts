@@ -1,10 +1,8 @@
 import {
   Injectable,
   Logger,
-  NotFoundException,
   ForbiddenException,
   ConflictException,
-  BadRequestException,
   Inject,
   forwardRef,
 } from "@nestjs/common";
@@ -22,6 +20,11 @@ import {
   TableResponseDto,
   JoinTableResponseDto,
 } from "./dto/game.dto";
+import {
+  assertFound,
+  mapPostgresError,
+  PG_ERROR_CODES,
+} from "../../common/utils";
 
 @Injectable()
 export class TablesService {
@@ -58,19 +61,17 @@ export class TablesService {
 
       this.logger.log(`Table ${table.id} created: ${table.name}`);
       return table;
-    } catch (error: any) {
-      if (error?.code === "23505") {
-        throw new BadRequestException("A table with this name already exists");
-      }
-      if (error?.code === "23514") {
-        throw new BadRequestException(
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to create table: ${message}`);
+      throw mapPostgresError(error, {
+        [PG_ERROR_CODES.UNIQUE_VIOLATION]:
+          "A table with this name already exists",
+        [PG_ERROR_CODES.CHECK_VIOLATION]:
           "Invalid table configuration: check that blind values and starting chips are valid positive numbers",
-        );
-      }
-      this.logger.error(`Failed to create table: ${error?.message}`);
-      throw new BadRequestException(
-        "Failed to create table. Please check your input and try again.",
-      );
+        default:
+          "Failed to create table. Please check your input and try again.",
+      });
     }
   }
 
@@ -159,23 +160,13 @@ export class TablesService {
     dto: JoinTableDto,
     userId: string,
   ): Promise<JoinTableResponseDto> {
-    if (!dto.bot_id) {
-      throw new BadRequestException("Required: { bot_id }");
-    }
-
-    const table = await this.tableRepository.findById(tableId);
-    if (!table) {
-      throw new NotFoundException("Table not found");
-    }
+    const table = await this.tableRepository.findByIdOrThrow(tableId);
 
     if (table.status === "finished") {
       throw new ConflictException("This game has already finished");
     }
 
-    const bot = await this.botRepository.findById(dto.bot_id);
-    if (!bot) {
-      throw new NotFoundException("Bot not found");
-    }
+    const bot = await this.botRepository.findByIdOrThrow(dto.bot_id);
 
     if (bot.user_id !== userId) {
       throw new ForbiddenException("You do not own this bot");
@@ -371,9 +362,7 @@ export class TablesService {
     }
 
     const table = await this.tableRepository.findById(tableId);
-    if (!table) {
-      throw new NotFoundException("Table not found");
-    }
+    assertFound(table, "Table", tableId);
 
     return {
       status: table.status,

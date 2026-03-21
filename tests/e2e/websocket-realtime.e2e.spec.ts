@@ -120,12 +120,16 @@ describe("WebSocket Real-time E2E Tests", () => {
     for (const socket of sockets) {
       try {
         socket.disconnect();
-      } catch {}
+      } catch {
+        // Ignore errors when disconnecting sockets during cleanup
+      }
     }
     for (const bot of botServers) {
       try {
         await bot.close();
-      } catch {}
+      } catch {
+        // Ignore errors when closing bot servers during cleanup
+      }
     }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();

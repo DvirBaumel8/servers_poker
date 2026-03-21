@@ -16,14 +16,15 @@ export class BotSubscriptionRepository extends BaseRepository<BotSubscription> {
     super();
   }
 
+  protected get entityName(): string {
+    return "Subscription";
+  }
+
   async findByBotId(
     botId: string,
     manager?: EntityManager,
   ): Promise<BotSubscription[]> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
-    return repo.find({
+    return this.getRepo(manager).find({
       where: { bot_id: botId },
       relations: ["tournament"],
       order: { priority: "DESC", created_at: "DESC" },
@@ -34,10 +35,7 @@ export class BotSubscriptionRepository extends BaseRepository<BotSubscription> {
     botId: string,
     manager?: EntityManager,
   ): Promise<BotSubscription[]> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
-    return repo.find({
+    return this.getRepo(manager).find({
       where: { bot_id: botId, status: "active" },
       relations: ["tournament"],
       order: { priority: "DESC" },
@@ -48,10 +46,7 @@ export class BotSubscriptionRepository extends BaseRepository<BotSubscription> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<BotSubscription[]> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
-    return repo.find({
+    return this.getRepo(manager).find({
       where: { tournament_id: tournamentId, status: "active" },
       relations: ["bot"],
       order: { priority: "DESC" },
@@ -59,11 +54,8 @@ export class BotSubscriptionRepository extends BaseRepository<BotSubscription> {
   }
 
   async findAllActive(manager?: EntityManager): Promise<BotSubscription[]> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
     const now = new Date();
-    return repo.find({
+    return this.getRepo(manager).find({
       where: [
         { status: "active", expires_at: IsNull() },
         { status: "active", expires_at: Not(LessThan(now)) },
@@ -78,11 +70,7 @@ export class BotSubscriptionRepository extends BaseRepository<BotSubscription> {
     buyIn: number,
     manager?: EntityManager,
   ): Promise<BotSubscription[]> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
-
-    const query = repo
+    const query = this.getRepo(manager)
       .createQueryBuilder("sub")
       .leftJoinAndSelect("sub.bot", "bot")
       .where("sub.status = :status", { status: "active" })
@@ -110,17 +98,13 @@ export class BotSubscriptionRepository extends BaseRepository<BotSubscription> {
     id: string,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
+    const repo = this.getRepo(manager);
     await repo.increment({ id }, "successful_registrations", 1);
     await repo.update(id, { last_registration_attempt: new Date() });
   }
 
   async incrementFailed(id: string, manager?: EntityManager): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
+    const repo = this.getRepo(manager);
     await repo.increment({ id }, "failed_registrations", 1);
     await repo.update(id, { last_registration_attempt: new Date() });
   }
@@ -130,10 +114,7 @@ export class BotSubscriptionRepository extends BaseRepository<BotSubscription> {
     status: SubscriptionStatus,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
-    await repo.update(id, { status });
+    await this.getRepo(manager).update(id, { status });
   }
 
   async findByBotAndTournament(
@@ -141,19 +122,13 @@ export class BotSubscriptionRepository extends BaseRepository<BotSubscription> {
     tournamentId: string,
     manager?: EntityManager,
   ): Promise<BotSubscription | null> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
-    return repo.findOne({
+    return this.getRepo(manager).findOne({
       where: { bot_id: botId, tournament_id: tournamentId },
     });
   }
 
   async deleteExpired(manager?: EntityManager): Promise<number> {
-    const repo = manager
-      ? manager.getRepository(BotSubscription)
-      : this.repository;
-    const result = await repo.delete({
+    const result = await this.getRepo(manager).delete({
       expires_at: LessThan(new Date()),
     });
     return result.affected || 0;

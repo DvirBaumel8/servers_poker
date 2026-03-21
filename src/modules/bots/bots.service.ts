@@ -2,13 +2,13 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  ForbiddenException,
   BadRequestException,
   Logger,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { BotRepository } from "../../repositories/bot.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
+import { BotOwnershipService } from "./bot-ownership.service";
 import { Bot } from "../../entities/bot.entity";
 import {
   CreateBotDto,
@@ -17,6 +17,8 @@ import {
   ValidateBotResponseDto,
 } from "./dto/bot.dto";
 import { UrlValidatorService } from "../../common/validators/url-validator.service";
+import { PaginatedResponse } from "../../common/dto";
+import { toPaginatedResponse } from "../../common/utils";
 
 const MAX_BOTS_PER_ACCOUNT = 10;
 
@@ -24,14 +26,21 @@ const MAX_BOTS_PER_ACCOUNT = 10;
 export class BotsService {
   private readonly logger = new Logger(BotsService.name);
   private readonly botTimeoutMs: number;
+  private readonly nodeEnv: string;
 
   constructor(
     private readonly botRepository: BotRepository,
     private readonly analyticsRepository: AnalyticsRepository,
+    private readonly botOwnership: BotOwnershipService,
     private readonly configService: ConfigService,
     private readonly urlValidator: UrlValidatorService,
   ) {
     this.botTimeoutMs = this.configService.get<number>("BOT_TIMEOUT_MS", 10000);
+    this.nodeEnv = this.configService.get<string>("NODE_ENV", "development");
+  }
+
+  private isProduction(): boolean {
+    return this.nodeEnv === "production";
   }
 
   async create(userId: string, dto: CreateBotDto): Promise<BotResponseDto> {
@@ -49,13 +58,35 @@ export class BotsService {
       throw new ConflictException(`Bot name '${dto.name}' already exists`);
     }
 
-    // Validate endpoint URL with health check
-    const urlValidation = await this.urlValidator.validateWithHealthCheck(
-      dto.endpoint,
-      5000,
-    );
+    // Validate endpoint URL
+    const urlValidation = this.urlValidator.validate(dto.endpoint);
     if (!urlValidation.valid) {
-      throw new BadRequestException(urlValidation.error);
+      throw new BadRequestException(
+        `Invalid endpoint URL: ${urlValidation.error}`,
+      );
+    }
+
+    // In dev/test mode, allow skipping health check with skip_validation flag
+    const skipHealthCheck =
+      dto.skip_validation === true && !this.isProduction();
+
+    if (!skipHealthCheck) {
+      // Perform health check to verify bot is reachable
+      const healthCheck = await this.urlValidator.validateWithHealthCheck(
+        dto.endpoint,
+        5000,
+      );
+      if (!healthCheck.valid) {
+        throw new BadRequestException(
+          `Cannot connect to bot endpoint: ${healthCheck.error}. ` +
+            `Make sure your bot is running and accessible at ${dto.endpoint}. ` +
+            (this.isProduction()
+              ? ""
+              : 'In dev mode, you can add "skip_validation": true to bypass this check.'),
+        );
+      }
+    } else {
+      this.logger.warn(`Skipping health check for bot ${dto.name} (dev mode)`);
     }
 
     const bot = await this.botRepository.create({
@@ -89,20 +120,43 @@ export class BotsService {
     return bots.filter((b) => b.active).map((b) => this.toResponseDto(b));
   }
 
+  async findActivePaginated(
+    limit: number,
+    offset: number,
+  ): Promise<PaginatedResponse<BotResponseDto>> {
+    const [bots, total] = await this.botRepository.findAndCount({
+      where: { active: true },
+      take: limit,
+      skip: offset,
+      order: { created_at: "DESC" },
+    });
+    return toPaginatedResponse(bots, total, limit, offset, (b) =>
+      this.toResponseDto(b),
+    );
+  }
+
+  async findByUserIdPaginated(
+    userId: string,
+    limit: number,
+    offset: number,
+  ): Promise<PaginatedResponse<BotResponseDto>> {
+    const [bots, total] = await this.botRepository.findAndCount({
+      where: { user_id: userId },
+      take: limit,
+      skip: offset,
+      order: { created_at: "DESC" },
+    });
+    return toPaginatedResponse(bots, total, limit, offset, (b) =>
+      this.toResponseDto(b),
+    );
+  }
+
   async update(
     id: string,
     userId: string,
     dto: UpdateBotDto,
   ): Promise<BotResponseDto> {
-    const bot = await this.botRepository.findById(id);
-    if (!bot) {
-      throw new NotFoundException(`Bot ${id} not found`);
-    }
-
-    if (bot.user_id !== userId) {
-      throw new ForbiddenException("You do not own this bot");
-    }
-
+    await this.botOwnership.getBotWithOwnershipCheck(id, userId, false);
     const updated = await this.botRepository.update(id, dto);
     return this.toResponseDto(updated!);
   }
@@ -112,36 +166,17 @@ export class BotsService {
     userId: string,
     isAdmin: boolean,
   ): Promise<void> {
-    const bot = await this.botRepository.findById(id);
-    if (!bot) {
-      throw new NotFoundException(`Bot ${id} not found`);
-    }
-
-    if (bot.user_id !== userId && !isAdmin) {
-      throw new ForbiddenException("You do not own this bot");
-    }
-
+    await this.botOwnership.getBotWithOwnershipCheck(id, userId, isAdmin);
     await this.botRepository.deactivate(id);
   }
 
   async activate(id: string, userId: string, isAdmin: boolean): Promise<void> {
-    const bot = await this.botRepository.findById(id);
-    if (!bot) {
-      throw new NotFoundException(`Bot ${id} not found`);
-    }
-
-    if (bot.user_id !== userId && !isAdmin) {
-      throw new ForbiddenException("You do not own this bot");
-    }
-
+    await this.botOwnership.getBotWithOwnershipCheck(id, userId, isAdmin);
     await this.botRepository.activate(id);
   }
 
   async validate(id: string): Promise<ValidateBotResponseDto> {
-    const bot = await this.botRepository.findById(id);
-    if (!bot) {
-      throw new NotFoundException(`Bot ${id} not found`);
-    }
+    const bot = await this.botRepository.findByIdOrThrow(id);
 
     const result: ValidateBotResponseDto = {
       valid: false,
@@ -185,11 +220,12 @@ export class BotsService {
           `HTTP ${response.status}: ${response.statusText}`,
         );
       }
-    } catch (error: any) {
-      if (error.name === "AbortError") {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === "AbortError") {
         result.details.errors.push(`Timeout after ${this.botTimeoutMs}ms`);
       } else {
-        result.details.errors.push(error.message);
+        const message = error instanceof Error ? error.message : String(error);
+        result.details.errors.push(message);
       }
     }
 

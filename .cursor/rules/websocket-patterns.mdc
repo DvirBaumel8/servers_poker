@@ -1,0 +1,96 @@
+---
+description: WebSocket gateway patterns for real-time communication
+globs: src/**/*.gateway.ts
+alwaysApply: false
+---
+
+# WebSocket Patterns
+
+## Gateway Structure
+
+```typescript
+@WebSocketGateway({
+  cors: { origin: "*" },
+  namespace: "/games",
+})
+export class GamesGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer()
+  server: Server;
+
+  handleConnection(client: Socket): void {
+    this.logger.log(`Client connected: ${client.id}`);
+  }
+
+  handleDisconnect(client: Socket): void {
+    this.logger.log(`Client disconnected: ${client.id}`);
+  }
+}
+```
+
+## Room-Based Broadcasting
+
+Use rooms for targeted messaging:
+
+```typescript
+// Join a room
+client.join(`game:${gameId}`);
+
+// Broadcast to room (excluding sender)
+client.to(`game:${gameId}`).emit("player.joined", data);
+
+// Broadcast to room (including sender)
+this.server.to(`game:${gameId}`).emit("game.stateUpdated", state);
+
+// Leave room
+client.leave(`game:${gameId}`);
+```
+
+## Event Naming
+
+Use `noun.verb` format for consistency:
+
+```typescript
+// Incoming (from client)
+@SubscribeMessage("game.join")
+handleJoinGame(client: Socket, payload: JoinGameDto) {}
+
+// Outgoing (to client)
+this.server.emit("game.started", data);
+this.server.emit("player.acted", action);
+this.server.emit("hand.completed", result);
+```
+
+## Connection Tracking
+
+Track connected clients for metrics:
+
+```typescript
+private connectedClients = new Map<string, ClientInfo>();
+
+handleConnection(client: Socket): void {
+  this.connectedClients.set(client.id, { connectedAt: new Date() });
+}
+
+handleDisconnect(client: Socket): void {
+  this.connectedClients.delete(client.id);
+}
+
+getConnectedCount(): number {
+  return this.connectedClients.size;
+}
+```
+
+## Error Handling
+
+Emit errors back to the client:
+
+```typescript
+@SubscribeMessage("game.action")
+async handleAction(client: Socket, payload: ActionDto) {
+  try {
+    await this.gameService.processAction(payload);
+  } catch (error) {
+    client.emit("error", { message: error.message });
+  }
+}
+```

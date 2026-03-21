@@ -1,0 +1,102 @@
+---
+description: Performance optimization patterns
+globs:
+  - src/**/*.ts
+  - frontend/src/**/*.tsx
+alwaysApply: false
+---
+
+# Performance Patterns
+
+## Database (N+1 Prevention)
+
+```typescript
+// Bad: N+1 queries
+const tournaments = await this.repo.find();
+for (const t of tournaments) {
+  t.entries = await this.entryRepo.find({ tournament_id: t.id }); // N queries!
+}
+
+// Good: eager load relations
+const tournaments = await this.repo.find({
+  relations: ["entries", "entries.bot"],
+});
+
+// Good: query builder with join
+const tournaments = await this.repo
+  .createQueryBuilder("t")
+  .leftJoinAndSelect("t.entries", "e")
+  .where("t.status = :status", { status: "active" })
+  .getMany();
+```
+
+## Pagination
+
+Always paginate large result sets:
+
+```typescript
+async findAll(page = 1, limit = 20): Promise<[Tournament[], number]> {
+  return this.repo.findAndCount({
+    skip: (page - 1) * limit,
+    take: limit,
+    order: { created_at: "DESC" },
+  });
+}
+```
+
+## React Memoization
+
+```tsx
+// Memo for expensive pure components
+const ExpensiveList = React.memo(function ExpensiveList({ items }: Props) {
+  return items.map(item => <ExpensiveItem key={item.id} item={item} />);
+});
+
+// useCallback for handlers passed to children
+const handleClick = useCallback((id: string) => {
+  setSelected(id);
+}, []);
+
+// useMemo for expensive computations
+const sortedItems = useMemo(() => 
+  items.slice().sort((a, b) => b.score - a.score),
+  [items]
+);
+```
+
+## Avoid Inline Objects in JSX
+
+```tsx
+// Bad: creates new object every render
+<Component style={{ margin: 10 }} options={{ sort: true }} />
+
+// Good: stable references
+const style = { margin: 10 };
+const options = useMemo(() => ({ sort: true }), []);
+<Component style={style} options={options} />
+```
+
+## WebSocket Events
+
+Don't emit more than necessary:
+
+```typescript
+// Bad: emit on every state change
+this.server.emit("gameState", fullState); // Every action!
+
+// Good: emit targeted updates
+this.server.emit("playerAction", { playerId, action, amount });
+// Full state only on subscribe or significant changes
+```
+
+## Lazy Loading
+
+Use dynamic imports for large pages:
+
+```tsx
+const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics"));
+
+<Suspense fallback={<Loading />}>
+  <AdminAnalytics />
+</Suspense>
+```

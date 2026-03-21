@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { useTournamentStore } from "../stores/tournamentStore";
+import { TOURNAMENT_DETAIL_POLL_MS, TOURNAMENT_COUNTDOWN_MS } from "../utils/timing";
 import {
   LoadingBlock,
   MetricCard,
@@ -66,6 +67,7 @@ export function TournamentDetail() {
     currentTournament,
     leaderboard,
     loading,
+    leaderboardLoading,
     fetchTournament,
     fetchLeaderboard,
   } = useTournamentStore();
@@ -78,7 +80,7 @@ export function TournamentDetail() {
       const interval = setInterval(() => {
         fetchTournament(id);
         fetchLeaderboard(id);
-      }, 5000);
+      }, TOURNAMENT_DETAIL_POLL_MS);
 
       return () => clearInterval(interval);
     }
@@ -104,7 +106,7 @@ export function TournamentDetail() {
     };
 
     calculateRemaining();
-    const interval = setInterval(calculateRemaining, 1000);
+    const interval = setInterval(calculateRemaining, TOURNAMENT_COUNTDOWN_MS);
 
     return () => clearInterval(interval);
   }, [
@@ -235,8 +237,8 @@ export function TournamentDetail() {
                 className="space-y-6"
               >
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <span className="text-gray-400 text-sm">Start Time</span>
+                  <div className="bg-subtle-dark/50 rounded-lg p-4">
+                    <span className="text-muted text-sm">Start Time</span>
                     <p className="text-xl font-bold text-white mt-1">
                       {tournament.startedAt
                         ? new Date(tournament.startedAt).toLocaleString()
@@ -248,8 +250,8 @@ export function TournamentDetail() {
                     </p>
                   </div>
 
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <span className="text-gray-400 text-sm">
+                  <div className="bg-subtle-dark/50 rounded-lg p-4">
+                    <span className="text-muted text-sm">
                       Starting Chips
                     </span>
                     <p className="text-xl font-bold text-white mt-1">
@@ -257,15 +259,15 @@ export function TournamentDetail() {
                     </p>
                   </div>
 
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <span className="text-gray-400 text-sm">Players Left</span>
+                  <div className="bg-subtle-dark/50 rounded-lg p-4">
+                    <span className="text-muted text-sm">Players Left</span>
                     <p className="text-xl font-bold text-white mt-1">
                       {playersLeft} / {tournament.entriesCount}
                     </p>
                   </div>
 
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <span className="text-gray-400 text-sm">
+                  <div className="bg-subtle-dark/50 rounded-lg p-4">
+                    <span className="text-muted text-sm">
                       Late Registration
                     </span>
                     <p
@@ -273,7 +275,7 @@ export function TournamentDetail() {
                         "text-xl font-bold mt-1",
                         lateRegTimeRemaining && lateRegTimeRemaining > 0
                           ? "text-yellow-400"
-                          : "text-gray-500",
+                          : "text-muted-dark",
                       )}
                     >
                       {tournament.status === "registering"
@@ -285,8 +287,8 @@ export function TournamentDetail() {
                     </p>
                   </div>
 
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <span className="text-gray-400 text-sm">
+                  <div className="bg-subtle-dark/50 rounded-lg p-4">
+                    <span className="text-muted text-sm">
                       Total Prize Pool
                     </span>
                     <p className="text-xl font-bold text-green-400 mt-1">
@@ -294,8 +296,8 @@ export function TournamentDetail() {
                     </p>
                   </div>
 
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <span className="text-gray-400 text-sm">
+                  <div className="bg-subtle-dark/50 rounded-lg p-4">
+                    <span className="text-muted text-sm">
                       1st Place Prize
                     </span>
                     <p className="text-xl font-bold text-poker-gold mt-1">
@@ -305,8 +307,8 @@ export function TournamentDetail() {
                 </div>
 
                 {tournament.currentLevel && (
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <span className="text-gray-400 text-sm">Current Level</span>
+                  <div className="bg-subtle-dark/50 rounded-lg p-4">
+                    <span className="text-muted text-sm">Current Level</span>
                     <p className="text-xl font-bold text-white mt-1">
                       Level {tournament.currentLevel} - Blinds{" "}
                       {BLIND_STRUCTURE[tournament.currentLevel - 1]
@@ -322,15 +324,46 @@ export function TournamentDetail() {
 
             {activeTab === "players" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                {sortedPlayers.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
-                    No players registered yet
+                {leaderboardLoading && sortedPlayers.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-muted mb-2">Loading player data...</p>
+                    <p className="text-muted-dark text-sm">
+                      Fetching current chip counts
+                    </p>
+                  </div>
+                ) : sortedPlayers.length === 0 ? (
+                  <div className="text-center py-12">
+                    {tournament.status === "registering" ? (
+                      <>
+                        <p className="text-muted mb-2">
+                          {tournament.entriesCount > 0
+                            ? `${tournament.entriesCount} player${tournament.entriesCount > 1 ? "s" : ""} registered`
+                            : "No players registered yet"}
+                        </p>
+                        <p className="text-muted-dark text-sm">
+                          Player details will appear once the tournament starts
+                        </p>
+                      </>
+                    ) : tournament.status === "running" ? (
+                      <>
+                        <p className="text-muted mb-2">
+                          {tournament.entriesCount > 0
+                            ? "Waiting for table assignments..."
+                            : "No players in this tournament"}
+                        </p>
+                        <p className="text-muted-dark text-sm">
+                          Chip counts will appear once play begins
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-muted">No player data available</p>
+                    )}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="text-left text-gray-400 text-sm border-b border-gray-700">
+                        <tr className="text-left text-muted text-sm border-b border-line">
                           <th className="pb-3 pr-4 w-16">Rank</th>
                           <th className="pb-3 pr-4">Player</th>
                           <th className="pb-3 text-right">Chips</th>
@@ -340,14 +373,14 @@ export function TournamentDetail() {
                         {sortedPlayers.map((player, index) => (
                           <tr
                             key={player.botId}
-                            className="border-b border-gray-700/50 hover:bg-gray-800/30"
+                            className="border-b border-line/50 hover:bg-subtle/30"
                           >
                             <td className="py-4 pr-4">
                               <span
                                 className={clsx(
                                   "font-bold",
                                   index === 0 && "text-yellow-400",
-                                  index === 1 && "text-gray-300",
+                                  index === 1 && "text-muted-light",
                                   index === 2 && "text-amber-600",
                                   index > 2 && "text-white",
                                 )}
@@ -379,7 +412,7 @@ export function TournamentDetail() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="text-left text-gray-400 text-sm border-b border-gray-700">
+                      <tr className="text-left text-muted text-sm border-b border-line">
                         <th className="pb-3 pr-4">Level</th>
                         <th className="pb-3 pr-4">Blinds</th>
                         <th className="pb-3 pr-4">Ante</th>
@@ -391,7 +424,7 @@ export function TournamentDetail() {
                         <tr
                           key={level.level}
                           className={clsx(
-                            "border-b border-gray-700/50",
+                            "border-b border-line/50",
                             tournament.currentLevel === level.level &&
                               "bg-poker-gold/10 border-poker-gold/30",
                           )}
@@ -417,10 +450,10 @@ export function TournamentDetail() {
                             {level.smallBlind.toLocaleString()} /{" "}
                             {level.bigBlind.toLocaleString()}
                           </td>
-                          <td className="py-3 pr-4 text-gray-400">
+                          <td className="py-3 pr-4 text-muted">
                             {level.ante.toLocaleString()}
                           </td>
-                          <td className="py-3 text-right text-gray-400">
+                          <td className="py-3 text-right text-muted">
                             {level.minutes} min
                           </td>
                         </tr>
@@ -428,7 +461,7 @@ export function TournamentDetail() {
                     </tbody>
                   </table>
                 </div>
-                <p className="text-gray-500 text-sm mt-4">
+                <p className="text-muted-dark text-sm mt-4">
                   Late registration closes at the end of Level{" "}
                   {tournament.lateRegEndsLevel}
                 </p>
@@ -437,14 +470,14 @@ export function TournamentDetail() {
 
             {activeTab === "prizes" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <div className="mb-4 p-4 bg-gray-900/50 rounded-lg">
+                <div className="mb-4 p-4 bg-subtle-dark/50 rounded-lg">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Total Prize Pool</span>
+                    <span className="text-muted">Total Prize Pool</span>
                     <span className="text-2xl font-bold text-green-400">
                       {prizePool.toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-gray-500 text-sm mt-2">
+                  <p className="text-muted-dark text-sm mt-2">
                     {tournament.entriesCount} entries ×{" "}
                     {tournament.buyIn.toLocaleString()} buy-in
                   </p>
@@ -453,7 +486,7 @@ export function TournamentDetail() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="text-left text-gray-400 text-sm border-b border-gray-700">
+                      <tr className="text-left text-muted text-sm border-b border-line">
                         <th className="pb-3 pr-4">Rank</th>
                         <th className="pb-3 text-right">Prize</th>
                       </tr>
@@ -462,14 +495,14 @@ export function TournamentDetail() {
                       {payouts.map((payout) => (
                         <tr
                           key={payout.position}
-                          className="border-b border-gray-700/50 hover:bg-gray-800/30"
+                          className="border-b border-line/50 hover:bg-subtle/30"
                         >
                           <td className="py-4 pr-4">
                             <span
                               className={clsx(
                                 "font-bold",
                                 payout.position === 1 && "text-yellow-400",
-                                payout.position === 2 && "text-gray-300",
+                                payout.position === 2 && "text-muted-light",
                                 payout.position === 3 && "text-amber-600",
                                 payout.position > 3 && "text-white",
                               )}
@@ -487,7 +520,7 @@ export function TournamentDetail() {
                             <span className="text-poker-gold font-bold">
                               {payout.amount.toLocaleString()}
                             </span>
-                            <span className="text-gray-500 text-sm ml-2">
+                            <span className="text-muted-dark text-sm ml-2">
                               ({payout.percentage}%)
                             </span>
                           </td>
@@ -497,7 +530,7 @@ export function TournamentDetail() {
                   </table>
                 </div>
 
-                <p className="text-gray-500 text-sm mt-4">
+                <p className="text-muted-dark text-sm mt-4">
                   Prize structure updates as more players join. Currently paying{" "}
                   {payouts.length} position{payouts.length > 1 ? "s" : ""}.
                 </p>

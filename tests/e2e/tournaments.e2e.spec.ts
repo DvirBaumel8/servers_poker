@@ -16,7 +16,8 @@ import * as entities from "../../src/entities";
 import { appConfig } from "../../src/config";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
-import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
 import { v4 as uuidv4 } from "uuid";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -43,6 +44,7 @@ describe("Tournaments E2E Tests", () => {
 
   async function createTestUser(
     emailPrefix = "tournamentowner",
+    role = "admin",
   ): Promise<TestUser> {
     const id = uid();
     const email = `${emailPrefix}-${id}@example.com`;
@@ -55,13 +57,13 @@ describe("Tournaments E2E Tests", () => {
     // Create user directly in DB
     await dataSource.query(
       `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())`,
-      [userId, email, name, passwordHash, apiKeyHash],
+       VALUES ($1, $2, $3, $4, $5, $6, true, true, NOW(), NOW())`,
+      [userId, email, name, passwordHash, apiKeyHash, role],
     );
 
     // Generate JWT token
     const accessToken = jwtService.sign(
-      { sub: userId, email },
+      { sub: userId, email, role },
       { expiresIn: "1h" },
     );
 
@@ -77,13 +79,20 @@ describe("Tournaments E2E Tests", () => {
   ): Promise<TestBot> {
     const id = uid();
     const port = 19000 + Math.floor(Math.random() * 1000);
+    const botName = `${namePrefix}${id}`.replace(/-/g, "");
     const response = await request(app.getHttpServer())
       .post("/api/v1/bots")
       .set("Authorization", `Bearer ${accessToken}`)
       .send({
-        name: `${namePrefix}-${id}`,
+        name: botName,
         endpoint: `http://localhost:${port}`,
       });
+
+    if (response.status !== 201) {
+      throw new Error(
+        `Failed to create bot: ${response.status} ${JSON.stringify(response.body)}`,
+      );
+    }
 
     return {
       id: response.body.id,
@@ -157,7 +166,7 @@ describe("Tournaments E2E Tests", () => {
         },
         {
           provide: APP_GUARD,
-          useClass: ThrottlerGuard,
+          useClass: CustomThrottlerGuard,
         },
       ],
     }).compile();
@@ -184,7 +193,7 @@ describe("Tournaments E2E Tests", () => {
     await app.close();
   });
 
-  describe.concurrent("Tournament CRUD Operations", () => {
+  describe("Tournament CRUD Operations", () => {
     it("should create a scheduled tournament", async () => {
       const { user } = await createTestContext(0);
 
@@ -207,15 +216,15 @@ describe("Tournaments E2E Tests", () => {
       expect(response.body.status).toBe("registering");
     });
 
-    it("should create a sit-n-go tournament", async () => {
+    it("should create a rolling tournament", async () => {
       const { user } = await createTestContext(0);
 
       const response = await request(app.getHttpServer())
         .post("/api/v1/tournaments")
         .set("Authorization", `Bearer ${user.accessToken}`)
         .send({
-          name: `SNG-Tournament-${uid()}`,
-          type: "sit_n_go",
+          name: `Rolling-Tournament-${uid()}`,
+          type: "rolling",
           buy_in: 50,
           starting_chips: 500,
           min_players: 3,
@@ -223,7 +232,7 @@ describe("Tournaments E2E Tests", () => {
         })
         .expect(201);
 
-      expect(response.body.type).toBe("sit_n_go");
+      expect(response.body.type).toBe("rolling");
       expect(response.body.min_players).toBe(3);
     });
 
@@ -235,7 +244,7 @@ describe("Tournaments E2E Tests", () => {
       });
       await createTestTournament(user.accessToken, {
         name: `Tournament2-${uid()}`,
-        type: "sit_n_go",
+        type: "rolling",
         buy_in: 50,
         starting_chips: 500,
         max_players: 9,
@@ -269,7 +278,7 @@ describe("Tournaments E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Tournament Validation", () => {
+  describe("Tournament Validation", () => {
     it("should reject tournament with invalid type", async () => {
       const { user } = await createTestContext(0);
 
@@ -322,7 +331,7 @@ describe("Tournaments E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Tournament Registration", () => {
+  describe("Tournament Registration", () => {
     it("should allow bot to register for tournament", async () => {
       const { user, bots } = await createTestContext(1);
 
@@ -359,13 +368,15 @@ describe("Tournaments E2E Tests", () => {
         })
         .expect(201);
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentId}/register`)
         .set("Authorization", `Bearer ${user.accessToken}`)
         .send({
           bot_id: bots[0].id,
         })
-        .expect(409);
+        .expect(400);
+
+      expect(response.body.message).toContain("already registered");
     });
 
     it("should reject second bot from same owner registering for tournament", async () => {
@@ -459,7 +470,7 @@ describe("Tournaments E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Tournament Status", () => {
+  describe("Tournament Status", () => {
     it("should get tournament state", async () => {
       const user1 = await createTestUser("stateowner1");
       const user2 = await createTestUser("stateowner2");
@@ -486,12 +497,12 @@ describe("Tournaments E2E Tests", () => {
         });
 
       const response = await request(app.getHttpServer())
-        .get(`/api/v1/tournaments/${tournamentId}/state`)
+        .get(`/api/v1/tournaments/${tournamentId}`)
         .set("Authorization", `Bearer ${user1.accessToken}`)
         .expect(200);
 
-      expect(response.body).toHaveProperty("tournament");
-      expect(response.body).toHaveProperty("entries");
+      expect(response.body).toHaveProperty("id");
+      expect(response.body).toHaveProperty("status");
     });
 
     it("should get tournament leaderboard", async () => {
@@ -511,12 +522,13 @@ describe("Tournaments E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Tournament Access Control", () => {
+  describe("Tournament Access Control", () => {
     it("should reject registration for non-existent tournament", async () => {
       const { user, bots } = await createTestContext(1);
+      const fakeId = uuidv4();
 
       await request(app.getHttpServer())
-        .post("/api/v1/tournaments/non-existent-id/register")
+        .post(`/api/v1/tournaments/${fakeId}/register`)
         .set("Authorization", `Bearer ${user.accessToken}`)
         .send({
           bot_id: bots[0].id,
