@@ -106,7 +106,7 @@ describe("WebSocket E2E Tests", () => {
     const password = "SecurePassword123!";
 
     // Step 1: Register
-    const registerResponse = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post("/api/v1/auth/register")
       .send({
         email,
@@ -114,11 +114,14 @@ describe("WebSocket E2E Tests", () => {
         password,
       });
 
-    // Step 2: Get verification code from the database (in test env, email service logs to console)
-    const userRepo = dataSource.getRepository(entities.User);
-    const user = await userRepo.findOne({ where: { email } });
-    if (!user || !user.verification_code) {
-      throw new Error("User not found or no verification code");
+    // Step 2: Get verification code from database
+    const userRecord = await dataSource.query(
+      `SELECT id, verification_code FROM users WHERE email = $1`,
+      [email],
+    );
+
+    if (!userRecord?.[0]?.verification_code) {
+      throw new Error(`No verification code found for ${email}`);
     }
 
     // Step 3: Verify email
@@ -126,7 +129,7 @@ describe("WebSocket E2E Tests", () => {
       .post("/api/v1/auth/verify-email")
       .send({
         email,
-        code: user.verification_code,
+        code: userRecord[0].verification_code,
       });
 
     return {
