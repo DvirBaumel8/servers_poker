@@ -3,7 +3,13 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, MoreThan } from "typeorm";
 import { execSync } from "child_process";
-import { readFileSync, writeFileSync, unlinkSync } from "fs";
+import {
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  mkdtempSync,
+  rmdirSync,
+} from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { StrategyAnalysisReport } from "../../entities/strategy-analysis-report.entity";
@@ -358,14 +364,19 @@ export class StrategyTunerService {
       }
 
       const commitMsg = this.buildCommitMessage(opportunities);
-      const commitMsgFile = join(tmpdir(), `tuner-commit-${Date.now()}.txt`);
-      writeFileSync(commitMsgFile, commitMsg, "utf-8");
+      const tmpDir = mkdtempSync(join(tmpdir(), "tuner-"));
+      const commitMsgFile = join(tmpDir, "commit-msg.txt");
+      writeFileSync(commitMsgFile, commitMsg, {
+        encoding: "utf-8",
+        mode: 0o600,
+      });
       try {
         this.exec("git add src/modules/bot-strategy/strategy-tunables.ts");
         this.exec(`git commit --file="${commitMsgFile}"`);
       } finally {
         try {
           unlinkSync(commitMsgFile);
+          rmdirSync(tmpDir);
         } catch {
           /* best-effort cleanup */
         }
@@ -442,8 +453,9 @@ export class StrategyTunerService {
       return null;
     }
 
-    const bodyFile = join(tmpdir(), `tuner-pr-body-${Date.now()}.md`);
-    writeFileSync(bodyFile, body, "utf-8");
+    const tmpDir = mkdtempSync(join(tmpdir(), "tuner-pr-"));
+    const bodyFile = join(tmpDir, "pr-body.md");
+    writeFileSync(bodyFile, body, { encoding: "utf-8", mode: 0o600 });
     try {
       const result = this.exec(
         `gh pr create --base main --head ${branchName} --title "Auto-tune: strategy engine parameter adjustments" --body-file "${bodyFile}" --draft --label auto-tune`,
@@ -456,6 +468,7 @@ export class StrategyTunerService {
     } finally {
       try {
         unlinkSync(bodyFile);
+        rmdirSync(tmpDir);
       } catch {
         /* best-effort cleanup */
       }
