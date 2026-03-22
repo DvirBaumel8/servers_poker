@@ -2,7 +2,7 @@
 description: Clean up fixed bugs from report files
 globs: 
   - docs/reports/**/*.md
-  - docs/monsters_issues.md
+  - docs/MONSTERS_ISSUES.md
   - docs/qa_report.md
 alwaysApply: false
 ---

@@ -89,17 +89,17 @@ describe("WebSocket E2E Tests", () => {
   });
 
   afterAll(async () => {
-    if (clientSocket?.connected) {
+    if (clientSocket && clientSocket.connected) {
       clientSocket.disconnect();
     }
-    if (dataSource?.isInitialized) {
+    if (dataSource && dataSource.isInitialized) {
       await dataSource.destroy();
     }
     await app.close();
   });
 
   afterEach(async () => {
-    if (clientSocket?.connected) {
+    if (clientSocket && clientSocket.connected) {
       clientSocket.disconnect();
       clientSocket = null;
     }

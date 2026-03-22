@@ -28,11 +28,7 @@ import {
   Severity,
 } from "../shared/types";
 import { MemoryStore, getMemoryStore } from "../memory/memory-store";
-import {
-  AutoImproveEngine,
-  ImprovementStrategies,
-  ImprovementReport,
-} from "./auto-improve";
+import { AutoImproveEngine, ImprovementReport } from "./auto-improve";
 
 export interface EvolutionAgentConfig {
   autoImproveEnabled: boolean;

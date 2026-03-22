@@ -743,7 +743,7 @@ async function main(): Promise<void> {
   generateReport();
   generateStatsReport();
 
-  console.log("  📄 Issues Report: docs/monsters_issues.md");
+  console.log("  📄 Issues Report: docs/MONSTERS_ISSUES.md");
   console.log("  📊 Stats Report: docs/monster_stats.md");
 
   // Evolution Analysis - analyze if monsters should have caught issues they didn't

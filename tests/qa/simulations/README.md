@@ -122,7 +122,7 @@ Max Players/Table: 10 (industry standard)
 Error Rate Target: < 0.1%
 
 ═══════════════════════════════════════════════════════════════════════
-All findings have been persisted to docs/monsters_issues.md
+All findings have been persisted to docs/MONSTERS_ISSUES.md
 ═══════════════════════════════════════════════════════════════════════
 ```
 
@@ -140,7 +140,7 @@ The Simulation Monster runs as part of the Monster Army CI job:
 
 All findings are automatically persisted to:
 - `tests/qa/monsters/shared/issues.json` (machine-readable)
-- `docs/monsters_issues.md` (human-readable)
+- `docs/MONSTERS_ISSUES.md` (human-readable)
 
 The unified issue tracker deduplicates by fingerprint.
 
@@ -243,5 +243,5 @@ npm run sim:multi -- --small
 2. **Run `monsters:simulation:quick` before pushing**: Fast and catches most issues
 3. **Run `monsters:simulation` before PRs**: Validates all core scenarios
 4. **Run `monsters:simulation:thorough` weekly**: Comprehensive but time-consuming
-5. **Check the issue tracker**: `docs/monsters_issues.md` for persistent findings
+5. **Check the issue tracker**: `docs/MONSTERS_ISSUES.md` for persistent findings
 6. **Don't ignore warnings**: They often predict future failures

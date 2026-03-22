@@ -169,7 +169,6 @@ async function quickCheck(): Promise<void> {
 
   let bugs: any[] = [];
   let qualityScores: Record<string, number> = {};
-  let overallScore = 0;
 
   try {
     // Check 1: Home page (bugs + quality)
@@ -192,7 +191,6 @@ async function quickCheck(): Promise<void> {
     const homeResult = (await page1.evaluate(MEGA_CHECK)) as any;
     bugs = homeResult.bugs;
     qualityScores = { ...homeResult.quality };
-    overallScore = homeResult.score;
     await ctx1.close();
 
     // Check 2: Game page (game-specific quality)

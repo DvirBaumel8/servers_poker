@@ -180,16 +180,14 @@ class IterationRunner {
       ? "npx ts-node tests/qa/monsters/orchestrator.ts --quick"
       : "npx ts-node tests/qa/monsters/orchestrator.ts api visual invariant chaos guardian api-db api-ws e2e --parallel";
 
-    let monsterOutput = "";
     try {
-      monsterOutput = execSync(monsterCommand, {
+      execSync(monsterCommand, {
         cwd: process.cwd(),
         encoding: "utf-8",
         timeout: 180000, // 3 minutes
         stdio: ["pipe", "pipe", "pipe"],
       });
-    } catch (e: any) {
-      monsterOutput = e.stdout || "";
+    } catch {
       observations.push(
         "Monster run completed with failures (expected if bugs exist)",
       );

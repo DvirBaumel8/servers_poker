@@ -17,8 +17,6 @@ import {
   InvariantContext,
   InvariantResult,
   GameStateSnapshot,
-  PlayerSnapshot,
-  TournamentSnapshot,
 } from "../shared/types";
 
 // ============================================================================
@@ -466,7 +464,7 @@ export const ACTION_INVARIANTS: InvariantCheck[] = [
     category: "actions",
     severity: "high",
     check: (ctx: InvariantContext): InvariantResult => {
-      const { before, after, action } = ctx;
+      const { before, action } = ctx;
 
       if (!before || !action || action.action.toLowerCase() !== "raise") {
         return { passed: true };
@@ -501,7 +499,7 @@ export const TOURNAMENT_INVARIANTS: InvariantCheck[] = [
     category: "tournament",
     severity: "critical",
     check: (ctx: InvariantContext): InvariantResult => {
-      const { after, tournament } = ctx;
+      const { tournament } = ctx;
 
       if (!tournament) {
         return { passed: true };

@@ -1,6 +1,6 @@
 {
-  "lastRun": "2026-03-21T23:41:03.483Z",
-  "totalRuns": 10,
+  "lastRun": "2026-03-21T23:57:18.031Z",
+  "totalRuns": 12,
   "knownIssues": [
     {
       "fingerprint": "general:\ude80-launching-browser...:unknown",
@@ -547,7 +547,7 @@
       "category": "GENERAL",
       "title": "\ude80 Running parallel test groups...",
       "firstSeen": "2026-03-21T22:13:50.197Z",
-      "occurrences": 8,
+      "occurrences": 10,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -556,7 +556,7 @@
       "category": "GENERAL",
       "title": "\udd10 Testing auth flows...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 8,
+      "occurrences": 10,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -565,7 +565,7 @@
       "category": "GENERAL",
       "title": "\uddb1️  Testing interactive elements...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 6,
+      "occurrences": 7,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -574,7 +574,7 @@
       "category": "GENERAL",
       "title": "\udcdd Running sequential tests...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 8,
+      "occurrences": 10,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -583,7 +583,7 @@
       "category": "GENERAL",
       "title": "\udccb Tests: 13 run, 12 passed, 0 failed",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 8,
+      "occurrences": 10,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -592,7 +592,7 @@
       "category": "GENERAL",
       "title": "\udd34 Critical: 0",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 8,
+      "occurrences": 10,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -610,7 +610,7 @@
       "category": "GENERAL",
       "title": "\udc51 Testing admin pages...",
       "firstSeen": "2026-03-21T22:21:01.773Z",
-      "occurrences": 2,
+      "occurrences": 3,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -619,7 +619,7 @@
       "category": "GENERAL",
       "title": "\udfe1 Medium: 0",
       "firstSeen": "2026-03-21T22:21:01.773Z",
-      "occurrences": 6,
+      "occurrences": 8,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     }
@@ -693,6 +693,20 @@
     {
       "iteration": 1,
       "date": "2026-03-21T23:41:03.483Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:42:47.406Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:57:18.030Z",
       "findingsBefore": 7,
       "findingsAfter": 7,
       "fixesApplied": []

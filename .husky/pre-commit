@@ -36,7 +36,7 @@ else
   echo ""
   echo "❌ Monster Army found issues!"
   echo ""
-  echo "   View report: cat docs/monsters_issues.md"
+  echo "   View report: cat docs/MONSTERS_ISSUES.md"
   echo "   Skip (emergency): git commit --no-verify"
   echo ""
   exit 1

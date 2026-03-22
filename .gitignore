@@ -27,6 +27,8 @@ coverage/
 tests/qa/monsters/reports/
 tests/qa/monsters/screenshots/
 tests/qa/monsters/**/reports/
+tests/qa/monsters/**/screenshots/
+tests/qa/monsters/browser-monster/quality-history.json
 tests/qa/performance/reports/
 !tests/qa/monsters/reports/.gitkeep
 !tests/qa/monsters/screenshots/.gitkeep

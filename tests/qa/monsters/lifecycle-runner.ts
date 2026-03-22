@@ -499,7 +499,7 @@ function learnAndUpdate(cycles: CycleResult[]): void {
   printSummary();
 
   console.log("  📄 Reports updated:");
-  console.log("     - docs/monsters_issues.md");
+  console.log("     - docs/MONSTERS_ISSUES.md");
   console.log("     - docs/monster_stats.md");
 }
 

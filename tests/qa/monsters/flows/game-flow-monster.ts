@@ -48,9 +48,7 @@ export class GameFlowMonster extends BaseMonster {
     this.log(`Found ${games.length} games, ${tournaments.length} tournaments`);
 
     // Validate games in parallel
-    const gameResults = await Promise.all(
-      games.slice(0, 10).map((g) => this.validateGame(g)),
-    );
+    await Promise.all(games.slice(0, 10).map((g) => this.validateGame(g)));
 
     // Validate tournament tables
     for (const tournament of tournaments.slice(0, 3)) {

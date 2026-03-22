@@ -262,7 +262,6 @@ export class GuardianMonster extends BaseMonster {
       };
     }
 
-    const duration = Date.now() - startTime;
     this.recordTest(!result.vulnerable);
 
     if (result.vulnerable) {
@@ -309,7 +308,6 @@ export class GuardianMonster extends BaseMonster {
       };
     }
 
-    const duration = Date.now() - startTime;
     this.recordTest(result.passed);
 
     if (!result.passed) {

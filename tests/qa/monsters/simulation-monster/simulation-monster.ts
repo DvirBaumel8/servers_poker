@@ -23,7 +23,7 @@
  *
  * Part of the Monster Army - findings persist to:
  * - tests/qa/monsters/shared/issues.json
- * - docs/monsters_issues.md
+ * - docs/MONSTERS_ISSUES.md
  */
 
 import { Test, TestingModule } from "@nestjs/testing";
@@ -1230,7 +1230,7 @@ export class SimulationMonster extends BaseMonster {
 
     this.log("");
     this.log(`${"═".repeat(70)}`);
-    this.log(`All findings have been persisted to docs/monsters_issues.md`);
+    this.log(`All findings have been persisted to docs/MONSTERS_ISSUES.md`);
     this.log(`${"═".repeat(70)}\n`);
   }
 }

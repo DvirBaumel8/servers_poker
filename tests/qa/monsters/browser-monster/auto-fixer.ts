@@ -126,10 +126,9 @@ const fixers: Fixer[] = [
       // Find inputs without aria-label
       const inputPattern =
         /<input\s+([^>]*?)(?<!\baria-label\s*=\s*"[^"]*")\s*\/>/g;
-      let modified = content;
       let fixCount = 0;
 
-      modified = content.replace(inputPattern, (match, attrs) => {
+      const modified = content.replace(inputPattern, (match, attrs) => {
         if (!attrs.includes("aria-label")) {
           // Extract name or placeholder for label
           const nameMatch = attrs.match(/name\s*=\s*"([^"]+)"/);
@@ -191,25 +190,27 @@ const fixers: Fixer[] = [
       // Find icon-only buttons without aria-label
       const buttonPattern =
         /<button\s+([^>]*?)>(\s*<[^/][^>]*\/>\s*)<\/button>/g;
-      let modified = content;
       let fixCount = 0;
 
-      modified = content.replace(buttonPattern, (match, attrs, children) => {
-        if (!attrs.includes("aria-label")) {
-          // Try to infer label from icon or class
-          let label = "Button";
-          if (children.includes("Close") || children.includes("X"))
-            label = "Close";
-          else if (children.includes("Menu")) label = "Menu";
-          else if (children.includes("Search")) label = "Search";
-          else if (children.includes("Plus") || children.includes("Add"))
-            label = "Add";
+      const modified = content.replace(
+        buttonPattern,
+        (match, attrs, children) => {
+          if (!attrs.includes("aria-label")) {
+            // Try to infer label from icon or class
+            let label = "Button";
+            if (children.includes("Close") || children.includes("X"))
+              label = "Close";
+            else if (children.includes("Menu")) label = "Menu";
+            else if (children.includes("Search")) label = "Search";
+            else if (children.includes("Plus") || children.includes("Add"))
+              label = "Add";
 
-          fixCount++;
-          return `<button ${attrs} aria-label="${label}">${children}</button>`;
-        }
-        return match;
-      });
+            fixCount++;
+            return `<button ${attrs} aria-label="${label}">${children}</button>`;
+          }
+          return match;
+        },
+      );
 
       if (fixCount > 0) {
         writeFile(filePath, modified);

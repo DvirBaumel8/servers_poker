@@ -195,8 +195,13 @@ async function runOrchestrator(options: OrchestratorOptions): Promise<void> {
     // Run in parallel
     console.log("Running monsters in parallel...\n");
     const promises = options.monsters.map(async (monsterType) => {
-      const monster = MONSTER_REGISTRY[monsterType]?.();
-      if (!monster) {
+      const factory = MONSTER_REGISTRY[monsterType];
+      if (!factory) {
+        console.log(`⚠️  ${monsterType} monster not registered`);
+        return null;
+      }
+      const monster = factory();
+      if (!monster || typeof monster.run !== "function") {
         console.log(`⚠️  ${monsterType} monster not implemented yet`);
         return null;
       }
@@ -217,8 +222,13 @@ async function runOrchestrator(options: OrchestratorOptions): Promise<void> {
       console.log(`Running ${monsterType} monster...`);
       console.log("─".repeat(50));
 
-      const monster = MONSTER_REGISTRY[monsterType]?.();
-      if (!monster) {
+      const factory = MONSTER_REGISTRY[monsterType];
+      if (!factory) {
+        console.log(`⚠️  ${monsterType} monster not registered`);
+        continue;
+      }
+      const monster = factory();
+      if (!monster || typeof monster.run !== "function") {
         console.log(`⚠️  ${monsterType} monster not implemented yet`);
         continue;
       }

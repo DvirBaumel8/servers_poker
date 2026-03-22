@@ -253,7 +253,7 @@ jobs:
         with:
           name: monster-army-report
           path: |
-            docs/monsters_issues.md
+            docs/MONSTERS_ISSUES.md
             docs/monster_stats.md
             monster-report.txt
             simulation-report.txt
@@ -268,8 +268,8 @@ jobs:
             let report = '';
             
             // Read unified issues report
-            if (fs.existsSync('docs/monsters_issues.md')) {
-              report = fs.readFileSync('docs/monsters_issues.md', 'utf8');
+            if (fs.existsSync('docs/MONSTERS_ISSUES.md')) {
+              report = fs.readFileSync('docs/MONSTERS_ISSUES.md', 'utf8');
             }
             
             // Add stats

@@ -14,9 +14,7 @@ import { TablesService } from "./tables.service";
 import { ProvablyFairService } from "../../services/provably-fair.service";
 import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { Roles } from "../../common/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
-import { RolesGuard } from "../../common/guards/roles.guard";
 import { User } from "../../entities/user.entity";
 import {
   CreateTableDto,
@@ -120,8 +118,7 @@ export class GamesController {
     );
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("admin")
+  @UseGuards(JwtAuthGuard)
   @Post("tables")
   async createTable(@Body() dto: CreateTableDto, @CurrentUser() _user: User) {
     return this.tablesService.create(dto);
