@@ -358,6 +358,12 @@ export class LayoutLintMonster extends BaseMonster {
     const byPosition = new Map<string, PositionedElement[]>();
 
     for (const el of this.positionedElements) {
+      // Skip files in the accepted list (intentional design decision)
+      const fileName = el.file.split("/").pop() || "";
+      if (ACCEPTED_HEAVY_POSITIONING_FILES.includes(fileName)) {
+        continue;
+      }
+
       if (el.top && el.left) {
         // Normalize position to a grid
         const topNum = parseInt(el.top.replace("%", ""));

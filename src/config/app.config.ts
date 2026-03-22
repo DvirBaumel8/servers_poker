@@ -9,6 +9,12 @@ export const DEFAULT_CORS_ORIGINS = [
   "http://localhost:3002",
 ];
 
+/**
+ * Default CSP connect sources for development.
+ * In production, set CSP_CONNECT_SRC environment variable.
+ */
+export const DEFAULT_DEV_CONNECT_SRC = ["http://localhost:*"];
+
 export interface WorkerConfig {
   enableWorkerThreads: boolean;
   maxConcurrentGames: number;

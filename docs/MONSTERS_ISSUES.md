@@ -1,15 +1,15 @@
 # 🗂️ Monster Issues Report
 
-**Last Updated:** 3/22/2026, 2:16:54 AM
+**Last Updated:** 3/22/2026, 2:40:19 AM
 **Database Version:** 1
 
 ## Summary
 
 | Metric | Count |
 |--------|-------|
-| Total Issues Found | 2 |
+| Total Issues Found | 4 |
 | Open Issues | 1 |
-| Resolved Issues | 1 |
+| Resolved Issues | 3 |
 
 ### By Severity (Open Only)
 
@@ -25,6 +25,8 @@
 | Monster | Issues Found |
 |---------|--------------|
 | browser-qa | 2 |
+| browser | 1 |
+| code-quality | 1 |
 
 ---
 
@@ -52,15 +54,9 @@
 
 ---
 
-## Recently Resolved
-
-- ✅ **Interactive issue: bad-cursor** — Resolved 3/22/2026
-
----
-
 ## 🎯 Product Quality Report
 
-**Last Run:** 3/22/2026, 2:12:31 AM
+**Last Run:** 3/22/2026, 2:40:19 AM
 **Overall Score:** 7/10 (✅ B)
 
 ### Functional but not impressive. Weakest area: game.

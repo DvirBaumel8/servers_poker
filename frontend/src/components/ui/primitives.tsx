@@ -639,7 +639,7 @@ export function PasswordField({
           aria-label={
             visible ? `Hide ${accessibleLabel}` : `Show ${accessibleLabel}`
           }
-          className="absolute inset-y-1.5 right-1.5 inline-flex items-center justify-center rounded-xl px-3 text-slate-400 transition hover:bg-white/[0.04] hover:text-white focus:outline-none focus:ring-2 focus:ring-accent/20"
+          className="absolute inset-y-1.5 right-1.5 inline-flex items-center justify-center rounded-xl px-3 min-w-[44px] min-h-[36px] text-slate-400 transition hover:bg-white/[0.04] hover:text-white focus:outline-none focus:ring-2 focus:ring-accent/20"
         >
           {visible ? <EyeOffIcon /> : <EyeIcon />}
         </button>

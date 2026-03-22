@@ -215,12 +215,12 @@ export const PlayerSeat = memo(function PlayerSeat({
         )}
       </div>
 
-      {/* Thinking indicator */}
+      {/* Thinking indicator - only show when not all-in (all-in badge takes precedence) */}
       {isActive && !isFolded && !isAllIn && (
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute -top-7 left-1/2 -translate-x-1/2 z-20"
+          className="absolute -top-8 left-1/2 -translate-x-1/2 z-20"
         >
           <div
             className="text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 whitespace-nowrap"
@@ -262,7 +262,7 @@ export const PlayerSeat = memo(function PlayerSeat({
 
       {/* Name plate */}
       <div
-        className="mt-1.5 px-2.5 py-1.5 rounded-lg text-center min-w-[90px] max-w-[120px] relative"
+        className="mt-2 px-3 py-2 rounded-xl text-center min-w-[100px] max-w-[130px] relative"
         style={{
           background:
             "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)",
@@ -272,24 +272,24 @@ export const PlayerSeat = memo(function PlayerSeat({
       >
         <div
           className={clsx(
-            "font-semibold text-[11px] truncate",
+            "font-semibold text-xs truncate",
             isFolded ? "text-muted-dark" : "text-white",
           )}
           title={player.name || "Player"}
         >
           {player.name || "Player"}
         </div>
-        <div className="font-bold text-sm" style={{ color: "#c9a227" }}>
+        <div className="font-bold text-base" style={{ color: "#c9a227" }}>
           {formatChips(player.chips)}
         </div>
       </div>
 
-      {/* All-in badge - positioned above avatar with enough clearance */}
+      {/* All-in badge - positioned above avatar, distinct from thinking indicator */}
       {isAllIn && (
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute -top-6 left-1/2 -translate-x-1/2 z-30"
+          className="absolute -top-8 left-1/2 -translate-x-1/2 z-30"
         >
           <span
             className="text-xs font-black px-3.5 py-1.5 rounded-full whitespace-nowrap"
@@ -306,12 +306,12 @@ export const PlayerSeat = memo(function PlayerSeat({
         </motion.div>
       )}
 
-      {/* Fold overlay */}
+      {/* Fold overlay - positioned over the avatar area */}
       {isFolded && !isDisconnected && (
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute top-8 left-1/2 -translate-x-1/2"
+          className="absolute top-6 left-1/2 -translate-x-1/2 z-10"
         >
           <span className="text-red-500/60 font-black text-sm rotate-[-12deg] drop-shadow">
             FOLD

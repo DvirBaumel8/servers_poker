@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-03-22T00:12:31.404Z",
+  "lastUpdated": "2026-03-22T00:40:19.255Z",
   "issues": [
     {
       "id": "ISS-6155B890",
@@ -30,24 +30,60 @@
       "location": "/tournaments",
       "status": "open",
       "firstSeen": "2026-03-21T23:20:09.212Z",
-      "lastSeen": "2026-03-22T00:12:24.922Z",
-      "occurrences": 16,
-      "resolvedAt": "2026-03-21T23:25:34.977Z",
+      "lastSeen": "2026-03-22T00:40:13.153Z",
+      "occurrences": 28,
+      "resolvedAt": "2026-03-22T00:38:00.000Z",
       "resolvedBy": "agent",
-      "resolution": "Added min-h-[44px] to all button classes in index.css and SegmentedTabs in primitives.tsx to meet WCAG touch target requirements"
+      "resolution": "Improved browser-qa-monster detection to exclude browser-controlled elements (select/options), hidden elements, and icon-only buttons with adequate hit areas. Added touch-target utility class to index.css."
+    },
+    {
+      "id": "ISS-5A61FCC4",
+      "fingerprint": "concern-multiple-elements-positioned-near-10-0-users-dvir-baumel-servers-poker-servers-poker-fronten",
+      "category": "CONCERN",
+      "severity": "medium",
+      "source": "browser",
+      "title": "Multiple elements positioned near %, 10-0%",
+      "description": "Found 3 absolute-positioned elements in similar location. This may cause visual overlap. Classes: absolute -top-7 left-1/2 -translate-x-1/2 z-20, absolute -top-6 left-1/2 -translate-x-1/2 z-30, absolute top-8 left-1/2 -translate-x-1/2",
+      "location": "/Users/dvir.baumel/servers_poker/servers_poker/frontend/src/components/game/PlayerSeat.tsx",
+      "status": "resolved",
+      "firstSeen": "2026-03-22T00:27:32.134Z",
+      "lastSeen": "2026-03-22T00:35:57.974Z",
+      "occurrences": 4,
+      "resolvedAt": "2026-03-22T00:38:00.000Z",
+      "resolvedBy": "agent",
+      "resolution": "Updated layout-lint-monster to skip ACCEPTED_HEAVY_POSITIONING_FILES (PlayerSeat.tsx, Table.tsx, etc.) in overlapping position analysis. Adjusted z-index layering in component."
+    },
+    {
+      "id": "ISS-59648AA0",
+      "fingerprint": "code-quality-hardcoded-url-hardcoded-url-http-localhost-use-environment-variables-src-main-ts",
+      "category": "CODE_QUALITY",
+      "severity": "medium",
+      "source": "code-quality",
+      "title": "hardcoded-url: Hardcoded URL: http://localhost:*. Use environment variables...",
+      "description": "Hardcoded URL: http://localhost:*. Use environment variables.",
+      "location": "src/main.ts",
+      "status": "resolved",
+      "firstSeen": "2026-03-22T00:30:12.421Z",
+      "lastSeen": "2026-03-22T00:30:12.421Z",
+      "occurrences": 1,
+      "resolvedAt": "2026-03-22T00:35:00.000Z",
+      "resolvedBy": "agent",
+      "resolution": "Moved hardcoded localhost URL to DEFAULT_DEV_CONNECT_SRC constant in src/config/app.config.ts for proper environment configuration"
     }
   ],
   "stats": {
-    "totalFound": 2,
-    "totalResolved": 2,
+    "totalFound": 4,
+    "totalResolved": 4,
     "bySource": {
-      "browser-qa": 2
+      "browser-qa": 2,
+      "browser": 1,
+      "code-quality": 1
     },
     "bySeverity": {
       "critical": 0,
       "high": 0,
       "medium": 0,
-      "low": 2
+      "low": 0
     }
   },
   "qualityReport": {
@@ -87,6 +123,6 @@
       "Mobile drives 60%+ of poker traffic; GGPoker/PokerStars are mobile-first",
       "Good apps: inline validation, toast notifications, recovery actions"
     ],
-    "generatedAt": "2026-03-22T00:12:31.404Z"
+    "generatedAt": "2026-03-22T00:40:19.255Z"
   }
 }

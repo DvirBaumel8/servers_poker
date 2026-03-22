@@ -6,7 +6,10 @@ import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { SanitizePipe } from "./common/pipes/sanitize.pipe";
 import { RedisIoAdapter } from "./common/redis/redis-io.adapter";
-import { DEFAULT_CORS_ORIGINS } from "./config/app.config";
+import {
+  DEFAULT_CORS_ORIGINS,
+  DEFAULT_DEV_CONNECT_SRC,
+} from "./config/app.config";
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -49,7 +52,7 @@ async function bootstrap() {
             "'self'",
             "wss:",
             "ws:",
-            ...(isProduction ? [] : ["http://localhost:*"]),
+            ...(isProduction ? [] : DEFAULT_DEV_CONNECT_SRC),
           ],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],

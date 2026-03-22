@@ -4,10 +4,12 @@ globs:
   - docs/reports/**/*.md
   - docs/MONSTERS_ISSUES.md
   - docs/qa_report.md
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Bug Report Cleanup
+
+**⚠️ NEVER document resolved issues. NEVER add "Recently Fixed" sections. DELETE fixed items entirely.**
 
 When fixing bugs, gaps, or issues documented in files under `docs/reports/`:
 

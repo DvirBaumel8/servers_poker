@@ -315,6 +315,12 @@ textarea {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
+/* WCAG 2.1 touch target sizing for select options */
+select.input-field option {
+  min-height: 44px;
+  padding: 12px 16px;
+}
+
 .input-field:focus {
   border-color: rgba(210, 177, 95, 0.38);
 }
@@ -352,6 +358,15 @@ textarea {
   border-color: rgba(210, 177, 95, 0.22);
   box-shadow: 0 20px 36px rgba(0, 0, 0, 0.34);
   transform: translateY(-2px);
+}
+
+/* WCAG 2.1 touch target utility - minimum 44x44px for interactive elements */
+@utility touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @utility text-shadow {

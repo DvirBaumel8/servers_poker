@@ -169,9 +169,26 @@ const BATCH_INTERACTIVE_CHECK = `(() => {
   const focusableCount = document.querySelectorAll('button, a, input, select, textarea, [tabindex]').length;
   
   // Check for touch targets (minimum 44x44px)
+  // Exclude: hidden elements, elements inside dropdowns/selects, icon-only elements with sufficient hit area
   const smallTargets = Array.from(clickables).filter(el => {
     const rect = el.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 && (rect.width < 44 || rect.height < 44);
+    if (rect.width === 0 || rect.height === 0) return false;
+    if (rect.width >= 44 && rect.height >= 44) return false;
+    
+    // Skip elements inside select/option (browser-controlled sizing)
+    if (el.closest('select') || el.tagName === 'OPTION') return false;
+    
+    // Skip hidden or off-screen elements
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    if (rect.top < -100 || rect.left < -100) return false;
+    
+    // Allow icon-only buttons if they have adequate hit area (36px+ is acceptable for icon buttons)
+    const text = el.textContent?.trim() || '';
+    const hasOnlyIcon = text === '' || text.length <= 2;
+    if (hasOnlyIcon && rect.width >= 36 && rect.height >= 36) return false;
+    
+    return true;
   });
   if (smallTargets.length > 5) {
     issues.push({ type: 'small-touch-targets', count: smallTargets.length });

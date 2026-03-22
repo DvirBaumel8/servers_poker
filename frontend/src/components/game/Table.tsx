@@ -209,7 +209,7 @@ export function Table({
                 "0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
             }}
           >
-            <div className="text-center text-[10px] uppercase tracking-[0.25em] text-amber-200/70 mb-1">
+            <div className="text-center text-[11px] uppercase tracking-[0.25em] text-amber-200/70 mb-1">
               Pot
             </div>
             <div className="flex items-center justify-center gap-2">
@@ -237,16 +237,16 @@ export function Table({
         {blinds && (blinds.small > 0 || blinds.big > 0) && (
           <div className="absolute top-[12%] left-[12%]">
             <div
-              className="rounded-xl px-3 py-1.5 backdrop-blur-sm"
+              className="rounded-xl px-3.5 py-2 backdrop-blur-sm"
               style={{
                 background: "rgba(0,0,0,0.5)",
                 border: "1px solid rgba(255,255,255,0.1)",
               }}
             >
-              <div className="text-[9px] uppercase tracking-wider text-slate-400 mb-0.5">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 mb-0.5">
                 Blinds
               </div>
-              <div className="text-sm font-semibold text-white">
+              <div className="text-base font-semibold text-white">
                 {formatAmount(blinds.small)}/{formatAmount(blinds.big)}
               </div>
             </div>
