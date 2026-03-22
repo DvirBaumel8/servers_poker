@@ -48,6 +48,7 @@ const CRITICAL_ROUTES = [
   { path: "/login", name: "Login" },
   { path: "/tournaments", name: "Tournaments" },
   { path: "/tables", name: "Tables" },
+  { path: "/bots/build", name: "Bot Builder" },
 ];
 
 const CRITICAL_VIEWPORTS = [

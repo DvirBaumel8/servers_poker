@@ -113,10 +113,11 @@ fi
 
 if [ "$QUICK_MODE" = false ]; then
   echo ""
-  echo -e "${BLUE}📋 STEP 4: MONSTER ARMY (Quick Check)${NC}"
+  echo -e "${BLUE}📋 STEP 4: NON-BROWSER MONSTERS (mirrors CI test-all job)${NC}"
   echo ""
   
-  run_step "Monster Quick Check" "npm run monsters:quick 2>&1 | tail -20"
+  run_step "Monsters (Fast, static)" "npx ts-node tests/qa/monsters/run-all.ts --fast --static 2>&1 | tail -20"
+  run_step "Monsters (All, static)" "npx ts-node tests/qa/monsters/run-all.ts --static 2>&1 | tail -30"
 
   echo ""
   echo -e "${BLUE}📋 STEP 5: QA SUITE (mirrors CI test-all job)${NC}"

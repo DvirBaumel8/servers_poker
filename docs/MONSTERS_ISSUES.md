@@ -1,22 +1,22 @@
 # 🗂️ Monster Issues Report
 
-**Last Updated:** 3/22/2026, 3:53:51 AM
+**Last Updated:** 3/22/2026, 1:59:20 PM
 **Database Version:** 1
 
 ## Summary
 
 | Metric | Count |
 |--------|-------|
-| Total Issues Found | 10 |
-| Open Issues | 0 |
-| Resolved Issues | 10 |
+| Total Issues Found | 21 |
+| Open Issues | 1 |
+| Resolved Issues | 20 |
 
 ### By Severity (Open Only)
 
 | Severity | Count |
 |----------|-------|
 | 🔴 Critical | 0 |
-| 🟠 High | 0 |
+| 🟠 High | 1 |
 | 🟡 Medium | 0 |
 | 🟢 Low | 0 |
 
@@ -25,9 +25,18 @@
 | Monster | Issues Found |
 |---------|--------------|
 | browser-qa | 6 |
+| api | 3 |
 | product-quality | 2 |
 | browser | 1 |
 | code-quality | 1 |
+| analyzer-pipeline | 1 |
+| quick-check | 1 |
+| visual | 1 |
+| contract | 1 |
+| invariant | 1 |
+| chaos | 1 |
+| guardian | 1 |
+| e2e | 1 |
 
 ---
 
@@ -39,7 +48,7 @@
 
 ## 🟠 High Priority Issues
 
-*No high priority issues!*
+- **ISS-51AA4F6B** [BUG] Page load error — /
 
 ---
 
@@ -57,7 +66,7 @@
 
 ## 🎯 Product Quality Report
 
-**Last Run:** 3/22/2026, 3:51:45 AM
+**Last Run:** 3/22/2026, 11:21:10 AM
 **Overall Score:** 7/10 (✅ B)
 
 ### Functional but not impressive. Weakest area: game.

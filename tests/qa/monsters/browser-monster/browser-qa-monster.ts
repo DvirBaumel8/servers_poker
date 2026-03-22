@@ -30,6 +30,7 @@ const CRITICAL_ROUTES = [
   "/register",
   "/tournaments",
   "/bots",
+  "/bots/build",
   "/leaderboard",
 ];
 

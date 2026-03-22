@@ -52,7 +52,7 @@ const ALL_SUITES: TestSuite[] = [
   {
     id: "monsters-fast",
     name: "Monsters (Fast)",
-    command: "npx ts-node tests/qa/monsters/run-all.ts --fast",
+    command: "npx ts-node tests/qa/monsters/run-all.ts --fast --static",
     timeout: 60000,
     group: 1,
   },
@@ -61,7 +61,7 @@ const ALL_SUITES: TestSuite[] = [
   {
     id: "monsters-all",
     name: "Monsters (All)",
-    command: "npm run monsters:all",
+    command: "npx ts-node tests/qa/monsters/run-all.ts --static",
     timeout: 60000,
     group: 2,
     skipInQuick: true,

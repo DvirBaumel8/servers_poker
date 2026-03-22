@@ -3,65 +3,70 @@ description: Keep documentation in sync with code changes
 alwaysApply: true
 ---
 
-# Documentation Sync
+# Documentation Sync — MANDATORY
 
-**After completing any code change, check if documentation needs updating.**
+**You MUST update documentation as part of EVERY code change. This is NOT optional. Do NOT wait for the user to remind you. Do NOT finish your turn without completing doc updates. Treat doc updates as part of the implementation itself, not a follow-up step.**
 
-## Mandatory Doc Updates
+## Enforcement Rule
 
-| Code Change | Required Doc Update |
-|-------------|---------------------|
-| New API endpoint/controller | `docs/API.md` |
-| New NestJS module | `docs/ARCHITECTURE.md` (modules section) |
-| New entity | `docs/ARCHITECTURE.md` (entities section) |
-| New service | `docs/ARCHITECTURE.md` (services section) |
-| New frontend page | `docs/ARCHITECTURE.md` (pages section) |
-| New env variable | `.env.example` + `docs/guides/DEPLOYMENT.md` |
-| New npm script | `README.md` (scripts table) + `package.json` |
-| Architecture change | `docs/ARCHITECTURE.md` |
+Before you report a task as complete, you MUST:
+
+1. Review every file you created or modified in this turn
+2. Match each file against the trigger table below
+3. For EVERY match, update the corresponding doc/config file
+4. If zero matches, explicitly state "No doc updates needed" with reasoning
+
+**If you skip this, you are leaving the task incomplete.**
+
+## Trigger Table
+
+| If you touched... | You MUST update... |
+|---|---|
+| New/changed API endpoint or `@Controller`/`@Get`/`@Post`/etc. | `docs/API.md` |
+| New/changed NestJS module | `docs/ARCHITECTURE.md` (modules section) |
+| New/changed entity or `@Entity` | `docs/ARCHITECTURE.md` (entities section) + `docs/DATA_DICTIONARY.md` |
+| New/changed service | `docs/ARCHITECTURE.md` (services section) |
+| New/changed frontend page (`frontend/src/pages/`) | `docs/ARCHITECTURE.md` (pages section) |
+| New/changed frontend route (`App.tsx` route) | `docs/ARCHITECTURE.md` + all monster page configs (see Monster Config Updates below) |
+| New/changed env variable | `.env.example` + `docs/guides/DEPLOYMENT.md` |
+| New/changed npm script | `README.md` (scripts table) |
+| Architecture or directory structure change | `docs/ARCHITECTURE.md` |
 | New poker rule/invariant | `docs/KNOWLEDGE.md` + `tests/qa/monsters/invariant-monster/poker-invariants.ts` |
-| New QA monster/test | `tests/qa/monsters/README.md` |
-| Security change | `docs/guides/SECURITY.md` |
-| Database migration | `docs/DATA_DICTIONARY.md` if schema changes |
+| New QA monster/test pattern | `tests/qa/monsters/README.md` |
+| Security-related change | `docs/guides/SECURITY.md` |
+| Database migration or schema change | `docs/DATA_DICTIONARY.md` |
+| New design decision or feature | `docs/KNOWLEDGE.md` |
+| Strategy/tuner change | `tests/qa/monsters/analyzer-pipeline-monster/` |
 
-## QA Monster Updates
+## Monster Config Updates (for new pages/routes)
+
+When you add a new frontend page or route, you MUST update ALL of these:
+
+| Monster Config | File |
+|---|---|
+| Visual Monster pages | `tests/qa/monsters/visual-monster/visual-monster.config.ts` |
+| Browser QA routes | `tests/qa/monsters/browser-monster/browser-qa-monster.ts` |
+| Browser scenarios + PAGES_BY_ROLE | `tests/qa/monsters/browser-monster/scenarios.ts` |
+| Fast browser routes | `tests/qa/monsters/browser-monster/fast-browser-monster.ts` |
+| Product quality screenshots | `tests/qa/monsters/browser-monster/product-quality-monster.ts` |
+| Auto-fixer route mappings | `tests/qa/monsters/browser-monster/auto-fixer.ts` |
+| Permission checks | `tests/qa/monsters/visual-monster/permission-checks.ts` |
+| Performance profiler pages | `tests/qa/monsters/visual-monster/performance-profiler.ts` |
+| Accessibility checker pages | `tests/qa/monsters/visual-monster/accessibility-checker.ts` |
+| Network simulator pages | `tests/qa/monsters/visual-monster/network-simulator.ts` |
+| Legacy monster config | `tests/qa/monsters/legacy/monster-config.ts` |
+| Legacy complete inventory | `tests/qa/monsters/legacy/complete-inventory.ts` |
+
+**Missing even ONE of these means the task is incomplete.**
+
+## QA Monster Updates (for non-page changes)
 
 | Code Change | Monster Update |
-|-------------|----------------|
+|---|---|
 | New API endpoint | `tests/qa/monsters/api-monster/api-monster.config.ts` |
-| New frontend page/route | `tests/qa/monsters/visual-monster/visual-monster.config.ts` |
 | New poker invariant | `tests/qa/monsters/invariant-monster/poker-invariants.ts` |
 | New user flow | `tests/qa/monsters/flows/` |
-
-## Pre-Commit Checklist
-
-Before finishing a task, verify:
-
-1. **API changes** → Is `docs/API.md` updated?
-2. **New files in src/** → Is `docs/ARCHITECTURE.md` updated?
-3. **New features** → Is `docs/KNOWLEDGE.md` updated if there are design decisions?
-4. **New commands** → Is `README.md` updated?
-5. **QA coverage** → Are monster configs updated?
-
-## How to Update
-
-When adding a new module/entity/service/page:
-
-```bash
-# Check what's documented vs what exists
-ls src/modules/          # Compare with docs/ARCHITECTURE.md modules section
-ls src/entities/         # Compare with docs/ARCHITECTURE.md entities section
-ls frontend/src/pages/   # Compare with docs/ARCHITECTURE.md pages section
-```
-
-## Indicators That Docs Need Updating
-
-- Created a new file in `src/modules/`, `src/entities/`, `src/services/`, `frontend/src/pages/`
-- Added a new `@Controller`, `@Get`, `@Post`, etc.
-- Added a new `@Entity`
-- Added a new environment variable
-- Changed the directory structure
-- Added new npm scripts
+| Game logic changes | `tests/qa/monsters/simulation-monster/simulation-monster.ts` |
 
 ## Skip Documentation For
 

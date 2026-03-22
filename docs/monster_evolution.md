@@ -1,6 +1,6 @@
 # 🧬 Monster Evolution Report
 
-**Generated:** 3/22/2026, 3:20:52 AM
+**Generated:** 3/22/2026, 1:58:36 PM
 
 ## Evolution Suggestions
 
@@ -10,11 +10,10 @@
 
 | Monster | Issues Found | Categories |
 |---------|--------------|------------|
-| browser-qa | 4 | RENDER |
+| quick-check | 1 | BUG |
 
 ## Silent Monsters (0 Issues Found)
 
-- quick-check
 - fast-browser
 - fast-quality
 - css-lint
@@ -28,11 +27,13 @@
 - design-critic
 - product-quality
 - live-ui
+- browser-qa
 - e2e
 - game-flow
 - tournament-flow
 - chaos
 - superhero
+- browser
 
 ## Recommended Actions
 

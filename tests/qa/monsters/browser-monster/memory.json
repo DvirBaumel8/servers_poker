@@ -1,6 +1,6 @@
 {
-  "lastRun": "2026-03-22T01:52:23.945Z",
-  "totalRuns": 32,
+  "lastRun": "2026-03-22T09:21:47.861Z",
+  "totalRuns": 37,
   "knownIssues": [
     {
       "fingerprint": "general:\ude80-launching-browser...:unknown",
@@ -547,7 +547,7 @@
       "category": "GENERAL",
       "title": "\ude80 Running parallel test groups...",
       "firstSeen": "2026-03-21T22:13:50.197Z",
-      "occurrences": 30,
+      "occurrences": 35,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -556,7 +556,7 @@
       "category": "GENERAL",
       "title": "\udd10 Testing auth flows...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 24,
+      "occurrences": 25,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -565,7 +565,7 @@
       "category": "GENERAL",
       "title": "\uddb1️  Testing interactive elements...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 20,
+      "occurrences": 24,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -574,7 +574,7 @@
       "category": "GENERAL",
       "title": "\udcdd Running sequential tests...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 30,
+      "occurrences": 35,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -592,7 +592,7 @@
       "category": "GENERAL",
       "title": "\udd34 Critical: 0",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 29,
+      "occurrences": 34,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -610,7 +610,7 @@
       "category": "GENERAL",
       "title": "\udc51 Testing admin pages...",
       "firstSeen": "2026-03-21T22:21:01.773Z",
-      "occurrences": 12,
+      "occurrences": 14,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -619,7 +619,7 @@
       "category": "GENERAL",
       "title": "\udfe1 Medium: 0",
       "firstSeen": "2026-03-21T22:21:01.773Z",
-      "occurrences": 28,
+      "occurrences": 33,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -628,7 +628,7 @@
       "category": "GENERAL",
       "title": "\udcc4 Testing public pages...",
       "firstSeen": "2026-03-22T00:38:50.592Z",
-      "occurrences": 4,
+      "occurrences": 7,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -646,7 +646,7 @@
       "category": "GENERAL",
       "title": "\udccb Using game 450bbb17... with 0 players",
       "firstSeen": "2026-03-22T01:34:25.823Z",
-      "occurrences": 5,
+      "occurrences": 10,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -655,6 +655,15 @@
       "category": "GENERAL",
       "title": "\udccb Tests: 15 run, 14 passed, 0 failed",
       "firstSeen": "2026-03-22T01:34:25.824Z",
+      "occurrences": 5,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udccb-tests:-16-run,-15-passed,-0-failed:unknown",
+      "category": "GENERAL",
+      "title": "\udccb Tests: 16 run, 15 passed, 0 failed",
+      "firstSeen": "2026-03-22T09:09:19.582Z",
       "occurrences": 5,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
@@ -883,6 +892,41 @@
     {
       "iteration": 1,
       "date": "2026-03-22T01:52:23.945Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T09:09:19.582Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T09:12:15.674Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T09:14:50.426Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T09:19:34.452Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T09:21:47.860Z",
       "findingsBefore": 8,
       "findingsAfter": 8,
       "fixesApplied": []

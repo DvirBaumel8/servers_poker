@@ -28,9 +28,9 @@ echo ""
 echo "🦖 Monster Army: Running fast validation..."
 echo ""
 
-# Run fast monsters (invariant + API contract + quick checks)
-# These are fast (~8-10s) and catch the most common issues
-if npm run monsters:all:fast --silent 2>/dev/null; then
+# Run fast static-analysis monsters (CSS lint, layout lint, code quality)
+# These don't require a running frontend/backend server (~5s)
+if npx ts-node tests/qa/monsters/run-all.ts --fast --static 2>/dev/null; then
   echo "✅ Monster Army: All checks passed"
 else
   echo ""

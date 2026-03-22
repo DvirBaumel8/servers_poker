@@ -40,6 +40,7 @@ export type MonsterType =
   | "betting-flow"
   | "player-flow"
   | "simulation" // Live game simulation with invariant validation
+  | "analyzer-pipeline" // Strategy decision audit & analysis pipeline
   // E2E (Layer 4)
   | "e2e";
 
