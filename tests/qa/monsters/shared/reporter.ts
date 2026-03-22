@@ -60,7 +60,8 @@ const MONSTER_ICONS: Record<MonsterType, string> = {
   "tournament-flow": "🏆",
   "betting-flow": "💰",
   "player-flow": "👤",
-  simulation: "🎰", // Live game simulation
+  simulation: "🎰",
+  "analyzer-pipeline": "🔬",
   // E2E
   e2e: "🌐",
   // Browser QA

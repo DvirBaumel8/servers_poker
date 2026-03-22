@@ -1,16 +1,21 @@
 # 🧬 Monster Evolution Report
 
-**Generated:** 3/22/2026, 3:20:52 AM
+**Generated:** 3/22/2026, 11:23:05 AM
 
 ## Evolution Suggestions
 
-*No evolution needed right now.*
+
+### ISS-55E334A4: Analyzer Pipeline Monster crashed
+- **Found by:** analyzer-pipeline
+- **Also add detection to:** quick-check, browser-qa, e2e
+- **Reason:** Critical BUG issue - other monsters should also catch this
+
 
 ## Monster Coverage
 
 | Monster | Issues Found | Categories |
 |---------|--------------|------------|
-| browser-qa | 4 | RENDER |
+| analyzer-pipeline | 1 | BUG |
 
 ## Silent Monsters (0 Issues Found)
 
@@ -28,11 +33,13 @@
 - design-critic
 - product-quality
 - live-ui
+- browser-qa
 - e2e
 - game-flow
 - tournament-flow
 - chaos
 - superhero
+- browser
 
 ## Recommended Actions
 

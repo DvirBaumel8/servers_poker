@@ -316,7 +316,14 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const baseUrl = args[0] || "http://localhost:3001";
 
-  const pages = ["/", "/login", "/tournaments", "/leaderboard", "/tables"];
+  const pages = [
+    "/",
+    "/login",
+    "/tournaments",
+    "/leaderboard",
+    "/tables",
+    "/bots/build",
+  ];
 
   const profiler = new PerformanceProfiler();
 

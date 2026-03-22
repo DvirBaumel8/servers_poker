@@ -728,6 +728,7 @@ class ProductQualityMonster {
       { name: "home", url: "/" },
       { name: "tournaments", url: "/tournaments" },
       { name: "login", url: "/login" },
+      { name: "bot-builder", url: "/bots/build" },
     ];
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");

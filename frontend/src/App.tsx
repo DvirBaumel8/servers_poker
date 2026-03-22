@@ -29,6 +29,9 @@ const Bots = lazy(() =>
 const BotProfile = lazy(() =>
   import("./pages/BotProfile").then((m) => ({ default: m.BotProfile })),
 );
+const BotBuilder = lazy(() =>
+  import("./pages/BotBuilder").then((m) => ({ default: m.BotBuilder })),
+);
 const Leaderboard = lazy(() =>
   import("./pages/Leaderboard").then((m) => ({ default: m.Leaderboard })),
 );
@@ -147,6 +150,14 @@ function App() {
               <PublicGate>
                 <Bots />
               </PublicGate>
+            }
+          />
+          <Route
+            path="bots/build"
+            element={
+              <RequireAuth>
+                <BotBuilder />
+              </RequireAuth>
             }
           />
           <Route

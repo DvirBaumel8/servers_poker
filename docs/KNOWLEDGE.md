@@ -849,6 +849,30 @@ Bots can be configured to automatically register for tournaments:
 
 ---
 
+## Bot Builder (No-Code Bot Creation)
+
+### Overview
+Visual bot creation wizard accessible at `/bots/build`. Allows users to create internal bots without writing code through a tiered complexity system.
+
+### Tiers
+- **Quick Bot** — Personality sliders (aggression, bluff frequency, risk tolerance) + presets
+- **Strategy Builder** — Visual IF/THEN rule builder with conditional blocks
+- **Pro Builder** — Full range chart editor with per-position control
+
+### Architecture
+- **Frontend**: `BotBuilder.tsx` page with step-based wizard (tier → personality → rules → review)
+- **Components**: `TierSelector`, `PersonalitySliders`, `PersonalityPresets`, `RuleBuilder`, `RangeChart`, `PositionOverrides`, `WhatIfSimulator`
+- **Store**: `botBuilderStore.ts` (Zustand) manages wizard state
+- **Backend**: `StrategyEngineService` evaluates the strategy JSON at game-time
+- **Route**: `/bots/build` (requires authentication, lazy-loaded)
+
+### Design Decisions
+- Route placed before `/bots/:id` in router to avoid param conflict
+- Requires authentication (no guest access) since created bots are tied to user accounts
+- Strategy JSON validated by `strategy.validator.ts` before persistence
+
+---
+
 ## Platform Analytics & Reporting
 
 ### Overview

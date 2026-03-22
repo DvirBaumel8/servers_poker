@@ -27,6 +27,13 @@ export const PERMISSION_CHECKS: PermissionCheck[] = [
     shouldFind: ["Bot Directory", "Bot", "Bots"],
   },
   {
+    name: "Guest redirected from Bot Builder",
+    page: "/bots/build",
+    asRole: "guest",
+    expectRedirect: true,
+    redirectTo: "/login",
+  },
+  {
     name: "Guest cannot see Create Tournament button",
     page: "/tournaments",
     asRole: "guest",
@@ -61,7 +68,14 @@ export const PERMISSION_CHECKS: PermissionCheck[] = [
     page: "/bots",
     asRole: "user",
     shouldFind: ["Create bot"],
-    shouldNotFind: [], // Users CAN create bots
+    shouldNotFind: [],
+  },
+  {
+    name: "User can access Bot Builder",
+    page: "/bots/build",
+    asRole: "user",
+    shouldFind: [],
+    expectRedirect: false,
   },
   {
     name: "User cannot see Create Tournament button",

@@ -188,6 +188,18 @@ const PAGES: PageConfig[] = [
     dataStates: ["loading", "loaded", "empty"],
   },
   {
+    path: "/bots/build",
+    name: "Bot Builder",
+    requiresAuth: true,
+    waitForSelector: "[data-testid='bot-builder'], main",
+    dataStates: ["loading", "loaded"],
+    interactiveElements: [
+      "input[name='name']",
+      "button[type='submit']",
+      "[data-testid='tier-selector']",
+    ],
+  },
+  {
     path: "/profile",
     name: "Profile",
     requiresAuth: true,

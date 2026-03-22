@@ -427,7 +427,14 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const baseUrl = args[0] || "http://localhost:3001";
 
-  const pages = ["/", "/login", "/register", "/tournaments", "/leaderboard"];
+  const pages = [
+    "/",
+    "/login",
+    "/register",
+    "/tournaments",
+    "/leaderboard",
+    "/bots/build",
+  ];
 
   const checker = new AccessibilityChecker();
 

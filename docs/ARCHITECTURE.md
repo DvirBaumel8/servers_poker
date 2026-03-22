@@ -190,6 +190,7 @@ servers_poker/
 │   │   │   ├── Tournaments.tsx      — Tournament lobby
 │   │   │   ├── TournamentDetail.tsx — Tournament workspace
 │   │   │   ├── Bots.tsx             — Bot directory + owned bot workspace
+│   │   │   ├── BotBuilder.tsx       — No-code bot creation wizard (tier/personality/rules)
 │   │   │   ├── BotProfile.tsx       — Bot performance + subscriptions workspace
 │   │   │   ├── Leaderboard.tsx      — Rankings workspace
 │   │   │   ├── Profile.tsx          — Account + API key workspace

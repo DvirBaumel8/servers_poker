@@ -52,6 +52,7 @@ function findFileByPath(searchPath: string): string | null {
     register: ["pages/Register.tsx"],
     tournaments: ["pages/Tournaments.tsx", "pages/TournamentDetail.tsx"],
     bots: ["pages/Bots.tsx", "pages/BotProfile.tsx"],
+    "bots/build": ["pages/BotBuilder.tsx"],
     "admin/tournaments": ["pages/AdminTournaments.tsx"],
     "admin/analytics": ["pages/AdminAnalytics.tsx"],
     profile: ["pages/Profile.tsx"],

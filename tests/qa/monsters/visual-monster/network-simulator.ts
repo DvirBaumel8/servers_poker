@@ -325,7 +325,7 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const baseUrl = args[0] || "http://localhost:3001";
 
-  const pages = ["/", "/tournaments", "/leaderboard"];
+  const pages = ["/", "/tournaments", "/leaderboard", "/bots/build"];
 
   const simulator = new NetworkSimulator();
 

@@ -20,6 +20,13 @@ import { BotSubscriptionRepository } from "../../repositories/bot-subscription.r
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
 import { UrlValidatorService } from "../../common/validators/url-validator.service";
+import { StrategyDecision } from "../../entities/strategy-decision.entity";
+import { StrategyAnalysisReport } from "../../entities/strategy-analysis-report.entity";
+import { StrategyTunerRun } from "../../entities/strategy-tuner-run.entity";
+import { DecisionLoggerService } from "../bot-strategy/decision-logger.service";
+import { DecisionAnalyzerService } from "../bot-strategy/decision-analyzer.service";
+import { StrategyTunerService } from "../bot-strategy/strategy-tuner.service";
+import { StrategyTunerController } from "../bot-strategy/strategy-tuner.controller";
 
 @Module({
   imports: [
@@ -33,6 +40,9 @@ import { UrlValidatorService } from "../../common/validators/url-validator.servi
       TournamentTable,
       TournamentSeat,
       TournamentBlindLevel,
+      StrategyDecision,
+      StrategyAnalysisReport,
+      StrategyTunerRun,
     ]),
     ConfigModule,
   ],
@@ -40,6 +50,7 @@ import { UrlValidatorService } from "../../common/validators/url-validator.servi
     BotsController,
     BotsConnectivityController,
     SubscriptionsController,
+    StrategyTunerController,
   ],
   providers: [
     BotsService,
@@ -49,12 +60,18 @@ import { UrlValidatorService } from "../../common/validators/url-validator.servi
     TournamentRepository,
     AnalyticsRepository,
     UrlValidatorService,
+    DecisionLoggerService,
+    DecisionAnalyzerService,
+    StrategyTunerService,
   ],
   exports: [
     BotsService,
     BotOwnershipService,
     BotRepository,
     BotSubscriptionRepository,
+    DecisionLoggerService,
+    DecisionAnalyzerService,
+    StrategyTunerService,
   ],
 })
 export class BotsModule {}

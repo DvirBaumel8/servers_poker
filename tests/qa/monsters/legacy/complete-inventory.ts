@@ -195,6 +195,7 @@ export const FRONTEND_PAGES = [
   { path: "/tournaments", component: "Tournaments.tsx", auth: true },
   { path: "/tournaments/:id", component: "TournamentDetail.tsx", auth: true },
   { path: "/bots", component: "Bots.tsx", auth: true },
+  { path: "/bots/build", component: "BotBuilder.tsx", auth: true },
   { path: "/bots/:id", component: "BotProfile.tsx", auth: true },
   { path: "/leaderboard", component: "Leaderboard.tsx", auth: true },
   { path: "/profile", component: "Profile.tsx", auth: true },
@@ -212,7 +213,7 @@ export const FRONTEND_PAGES = [
   },
 ];
 
-export const TOTAL_PAGES = FRONTEND_PAGES.length; // 15
+export const TOTAL_PAGES = FRONTEND_PAGES.length; // 16
 
 // ============================================================================
 // FRONTEND COMPONENTS (20 total, 5 with stories)

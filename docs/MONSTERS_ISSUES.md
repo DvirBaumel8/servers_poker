@@ -1,21 +1,21 @@
 # 🗂️ Monster Issues Report
 
-**Last Updated:** 3/22/2026, 3:53:51 AM
+**Last Updated:** 3/22/2026, 11:23:05 AM
 **Database Version:** 1
 
 ## Summary
 
 | Metric | Count |
 |--------|-------|
-| Total Issues Found | 10 |
-| Open Issues | 0 |
+| Total Issues Found | 11 |
+| Open Issues | 1 |
 | Resolved Issues | 10 |
 
 ### By Severity (Open Only)
 
 | Severity | Count |
 |----------|-------|
-| 🔴 Critical | 0 |
+| 🔴 Critical | 1 |
 | 🟠 High | 0 |
 | 🟡 Medium | 0 |
 | 🟢 Low | 0 |
@@ -28,12 +28,26 @@
 | product-quality | 2 |
 | browser | 1 |
 | code-quality | 1 |
+| analyzer-pipeline | 1 |
 
 ---
 
 ## 🔴 Critical Issues
 
-*No critical issues! 🎉*
+
+### ISS-55E334A4: Analyzer Pipeline Monster crashed
+
+- **Category:** BUG
+- **Location:** tests/qa/monsters/analyzer-pipeline
+- **Found by:** analyzer-pipeline
+- **Occurrences:** 1
+- **First Seen:** 3/22/2026
+
+The monster itself failed to complete: Nest could not find StrategyTunerService element (this provider does not exist in the current context)
+
+
+
+
 
 ---
 
@@ -57,7 +71,7 @@
 
 ## 🎯 Product Quality Report
 
-**Last Run:** 3/22/2026, 3:51:45 AM
+**Last Run:** 3/22/2026, 11:21:10 AM
 **Overall Score:** 7/10 (✅ B)
 
 ### Functional but not impressive. Weakest area: game.

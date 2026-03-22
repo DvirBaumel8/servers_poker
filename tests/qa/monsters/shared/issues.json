@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-03-22T01:51:45.969Z",
+  "lastUpdated": "2026-03-22T09:21:10.762Z",
   "issues": [
     {
       "id": "ISS-6155B890",
@@ -173,19 +173,34 @@
       "resolvedAt": "2026-03-22T03:15:00.000Z",
       "resolvedBy": "agent",
       "resolution": "Fixed card string parsing in PlayingCard component. Cards sent as strings like 'K♠' are now correctly parsed and rendered using the @letele/playing-cards SVG library."
+    },
+    {
+      "id": "ISS-55E334A4",
+      "fingerprint": "bug-analyzer-pipeline-monster-crashed-tests-qa-monsters-analyzer-pipeline",
+      "category": "BUG",
+      "severity": "critical",
+      "source": "analyzer-pipeline",
+      "title": "Analyzer Pipeline Monster crashed",
+      "description": "The monster itself failed to complete: Nest could not find StrategyTunerService element (this provider does not exist in the current context)",
+      "location": "tests/qa/monsters/analyzer-pipeline",
+      "status": "open",
+      "firstSeen": "2026-03-22T08:58:42.280Z",
+      "lastSeen": "2026-03-22T08:58:42.280Z",
+      "occurrences": 1
     }
   ],
   "stats": {
-    "totalFound": 10,
+    "totalFound": 11,
     "totalResolved": 10,
     "bySource": {
       "browser-qa": 6,
       "browser": 1,
       "code-quality": 1,
-      "product-quality": 2
+      "product-quality": 2,
+      "analyzer-pipeline": 1
     },
     "bySeverity": {
-      "critical": 0,
+      "critical": 1,
       "high": 0,
       "medium": 0,
       "low": 0
@@ -224,6 +239,6 @@
       "Mobile drives 60%+ of poker traffic; GGPoker/PokerStars are mobile-first",
       "Good apps: inline validation, toast notifications, recovery actions"
     ],
-    "generatedAt": "2026-03-22T01:51:45.969Z"
+    "generatedAt": "2026-03-22T09:21:10.762Z"
   }
 }

@@ -192,4 +192,28 @@ export const botsApi = {
       undefined,
       token,
     ),
+
+  getPresets: (): Promise<{ presets: any[] }> =>
+    api.get<{ presets: any[] }>("/bots/internal/presets"),
+
+  getConditionFields: (): Promise<{ fields: any[] }> =>
+    api.get<{ fields: any[] }>("/bots/internal/condition-fields"),
+
+  createInternal: (
+    data: { name: string; strategy: any; description?: string },
+    token: string,
+  ): Promise<{ id: string }> =>
+    api.post<{ id: string }>("/bots/internal", data, token),
+
+  simulateAction: (
+    strategy: any,
+    scenario: any,
+    token: string,
+  ): Promise<{
+    action: { type: string; amount?: number };
+    source: string;
+    explanation: string;
+    ruleId?: string;
+    handNotation?: string;
+  }> => api.post("/bots/internal/simulate", { strategy, scenario }, token),
 };
