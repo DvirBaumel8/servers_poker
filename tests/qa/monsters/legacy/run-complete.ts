@@ -37,7 +37,7 @@ function printHeader(title: string): void {
   console.log(`${CYAN}${"═".repeat(60)}${RESET}\n`);
 }
 
-function printSection(title: string): void {
+function _printSection(title: string): void {
   console.log(`\n${YELLOW}▶ ${title}${RESET}`);
 }
 

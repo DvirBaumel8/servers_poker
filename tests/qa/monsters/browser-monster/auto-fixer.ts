@@ -289,13 +289,15 @@ const stableCallback = useCallback(() => {
 `;
 
       const dir = path.dirname(suggestionPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
+      // Use recursive:true which handles race condition safely
+      fs.mkdirSync(dir, { recursive: true });
 
+      // Read existing content if any, handle missing file gracefully
       let existing = "";
-      if (fs.existsSync(suggestionPath)) {
+      try {
         existing = fs.readFileSync(suggestionPath, "utf-8");
+      } catch {
+        // File doesn't exist yet, that's fine
       }
 
       fs.writeFileSync(suggestionPath, existing + suggestion);

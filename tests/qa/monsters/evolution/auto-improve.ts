@@ -17,7 +17,7 @@
  * - Create new test files for specific bugs
  */
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync, readFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { execSync } from "child_process";
 import {
@@ -441,9 +441,13 @@ ${testCase.implementation}
         // Append to existing config file
         // For now, just create a TODO file - real implementation would parse and modify
         const todoPath = action.targetFile.replace(".ts", ".todo.ts");
-        const existing = existsSync(todoPath)
-          ? readFileSync(todoPath, "utf-8")
-          : "// Auto-generated improvements - review and merge manually\n\n";
+        let existing =
+          "// Auto-generated improvements - review and merge manually\n\n";
+        try {
+          existing = readFileSync(todoPath, "utf-8");
+        } catch {
+          // File doesn't exist, use default
+        }
 
         writeFileSync(todoPath, existing + action.change + "\n");
         break;

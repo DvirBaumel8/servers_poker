@@ -381,7 +381,11 @@ async function fixHardcodedTimeout(
 async function fixCssOverflow(issue: PrioritizedIssue): Promise<FixResult> {
   const cssPath = path.join(process.cwd(), "frontend/src/index.css");
 
-  if (!fs.existsSync(cssPath)) {
+  // Read file content, handle missing file gracefully
+  let content: string;
+  try {
+    content = fs.readFileSync(cssPath, "utf-8");
+  } catch {
     return {
       issueId: issue.id,
       success: false,
@@ -389,8 +393,6 @@ async function fixCssOverflow(issue: PrioritizedIssue): Promise<FixResult> {
       filesModified: [],
     };
   }
-
-  let content = fs.readFileSync(cssPath, "utf-8");
 
   if (content.includes("overflow-x: hidden")) {
     return {

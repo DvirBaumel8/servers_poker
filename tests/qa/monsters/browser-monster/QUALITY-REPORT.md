@@ -1,6 +1,6 @@
 # 🎯 Product Quality Report
 
-**Generated:** 3/22/2026, 2:06:36 AM
+**Generated:** 3/22/2026, 2:12:31 AM
 **Overall Score:** 7/10 (B)
 
 ## Executive Summary
@@ -21,6 +21,8 @@ Functional but not impressive. Weakest area: game.
 
 | Date | Score |
 |------|-------|
+| 3/22/2026 | 7/10 |
+| 3/22/2026 | 7/10 |
 | 3/22/2026 | 7/10 |
 | 3/22/2026 | 7/10 |
 | 3/22/2026 | 7/10 |
@@ -45,8 +47,8 @@ Functional but not impressive. Weakest area: game.
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Page Load Time | 0.94s | < 3s | ✅ |
-| First Contentful Paint | 0.10s | < 1.8s | ✅ |
+| Page Load Time | 0.93s | < 3s | ✅ |
+| First Contentful Paint | 0.09s | < 1.8s | ✅ |
 | Largest Contentful Paint | 0.07s | < 2.5s | ✅ |
 | Time to Interactive | 0.07s | < 3.8s | ✅ |
 | Cumulative Layout Shift | 0.000 | < 0.1 | ✅ |
@@ -122,10 +124,10 @@ Functional but not impressive. Weakest area: game.
 
 ## 📸 Screenshots
 
-- `home-2026-03-22T00-06-30-778Z.png`
-- `tournaments-2026-03-22T00-06-30-778Z.png`
-- `login-2026-03-22T00-06-30-778Z.png`
-- `home-mobile-2026-03-22T00-06-30-778Z.png`
+- `home-2026-03-22T00-12-25-876Z.png`
+- `tournaments-2026-03-22T00-12-25-876Z.png`
+- `login-2026-03-22T00-12-25-876Z.png`
+- `home-mobile-2026-03-22T00-12-25-876Z.png`
 
 _Screenshots saved to: tests/qa/monsters/browser-monster/screenshots/_
 
@@ -141,7 +143,7 @@ _Screenshots saved to: tests/qa/monsters/browser-monster/screenshots/_
 | Minor Issues | 12 |
 | Suggestions | 0 |
 | Pass Rate | 83% |
-| Page Load | 0.94s |
+| Page Load | 0.93s |
 | Accessibility | 98/100 |
 
 ---

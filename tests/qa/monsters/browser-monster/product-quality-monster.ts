@@ -788,12 +788,12 @@ class ProductQualityMonster {
   ): void {
     let history: HistoricalScore[] = [];
 
-    if (fs.existsSync(HISTORY_FILE)) {
-      try {
-        history = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"));
-      } catch {
-        history = [];
-      }
+    // Read existing history, handling missing file gracefully
+    try {
+      history = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"));
+    } catch {
+      // File doesn't exist or is invalid JSON, start fresh
+      history = [];
     }
 
     // Add current score
@@ -808,6 +808,9 @@ class ProductQualityMonster {
       history = history.slice(-30);
     }
 
+    // Ensure directory exists before writing
+    const dir = path.dirname(HISTORY_FILE);
+    fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
   }
 

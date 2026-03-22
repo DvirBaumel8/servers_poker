@@ -21,12 +21,11 @@
  */
 
 import * as http from "http";
-import * as https from "https";
 import * as WebSocket from "ws";
 
 const API_BASE = "http://localhost:3000";
 const WS_URL = "ws://localhost:3000";
-const FRONTEND_URL = "http://localhost:3001";
+const _FRONTEND_URL = "http://localhost:3001"; // Reserved for future use
 
 // Use existing admin credentials from seed data
 const ADMIN_EMAIL = "admin@poker.io";

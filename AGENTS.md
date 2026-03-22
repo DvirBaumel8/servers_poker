@@ -87,9 +87,19 @@ node dist/src/main.js
 
 ### Tests
 
-- **Unit tests**: `npx vitest run tests/unit` — no DB needed; some pre-existing failures
-- **E2E tests**: require a running PostgreSQL (`poker_test` DB on port 5433); use `docker-compose.test.yml`
-- **Lint**: `npx eslint "{src,apps,libs,test}/**/*.ts"` (backend), `cd frontend && npx eslint src --ext ts,tsx` (frontend) — pre-existing prettier formatting errors exist
+**ONE COMMAND TO RUN ALL TESTS:**
+```bash
+npm run qa:all        # Standard: Unit + Integration + Monsters (~33s)
+npm run qa:all:quick  # Quick: Unit + Integration + Fast Monsters (~12s)
+npm run qa:all:full   # Full: All tests including E2E + Simulations (~150s)
+```
+
+**Individual test suites:**
+- **Unit tests**: `npm run test:unit` — no DB needed (~10s)
+- **Integration tests**: `npm run test:integration` — no DB needed (~1s)
+- **E2E tests**: `npm run test:e2e` — requires PostgreSQL (~118s)
+- **Monsters**: `npm run monsters:all` — all 21 QA monsters (~19s)
+- **Lint**: `npx eslint "{src,apps,libs,test}/**/*.ts"` (backend)
 
 ### Email verification in dev mode
 

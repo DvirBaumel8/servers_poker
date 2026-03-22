@@ -673,7 +673,7 @@ export const ALL_INVARIANTS: InvariantCheck[] = [
 // HELPERS
 // ============================================================================
 
-function sumAllChips(state: GameStateSnapshot): number {
+function _sumAllChips(state: GameStateSnapshot): number {
   const playerChips = state.players.reduce(
     (sum, p) => sum + p.chips + p.bet,
     0,

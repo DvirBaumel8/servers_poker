@@ -15,7 +15,7 @@
  * - Can run in dry-run mode
  */
 
-import { readFileSync, writeFileSync, existsSync, copyFileSync } from "fs";
+import { readFileSync, writeFileSync, copyFileSync } from "fs";
 import { join, dirname } from "path";
 import { Finding } from "../shared/types";
 
@@ -343,7 +343,11 @@ $1`,
    * Apply a single fix to a file
    */
   private applySingleFix(fix: CodeFix): boolean {
-    if (!existsSync(fix.targetFile)) {
+    // Read file content, handle missing file gracefully
+    let content: string;
+    try {
+      content = readFileSync(fix.targetFile, "utf-8");
+    } catch {
       console.warn(`  File not found: ${fix.targetFile}`);
       return false;
     }
@@ -352,9 +356,6 @@ $1`,
     const backupPath = fix.targetFile + ".backup";
     copyFileSync(fix.targetFile, backupPath);
     fix.backupPath = backupPath;
-
-    // Read file
-    const content = readFileSync(fix.targetFile, "utf-8");
 
     // Check if pattern exists
     const pattern =

@@ -211,7 +211,7 @@ const BATCH_FORM_CHECK = `(() => {
 // BROWSER QA MONSTER CLASS
 // ============================================================================
 
-class BrowserQAMonster {
+export class BrowserQAMonster {
   name = "Browser QA Monster";
   type = "browser-qa";
 

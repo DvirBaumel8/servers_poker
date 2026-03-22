@@ -39,7 +39,7 @@ interface BotPersonality {
   disconnectChance: number; // 0-1, probability of simulating disconnect
 }
 
-const PERSONALITIES: BotPersonality[] = [
+const _PERSONALITIES: BotPersonality[] = [
   { name: "AggroKing", style: "aggressive", disconnectChance: 0.02 },
   { name: "TightMike", style: "tight", disconnectChance: 0.01 },
   { name: "LooseGoose", style: "loose", disconnectChance: 0.05 },

@@ -13,7 +13,6 @@ import {
   VISUAL_CHECKS,
   UX_FRICTION_CHECKS,
   A11Y_CHECKS,
-  Viewport,
   PageConfig,
 } from "./monster-config";
 

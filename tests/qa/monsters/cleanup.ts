@@ -162,12 +162,17 @@ function cleanMemoryStore(config: CleanupConfig): CleanupStats {
   };
   const memoryPath = join(process.cwd(), PATHS.memoryStore);
 
-  if (!existsSync(memoryPath)) {
+  // Read file and get size atomically to avoid TOCTOU race
+  let originalSize = 0;
+  let fileContent: string;
+  try {
+    const stat = statSync(memoryPath);
+    originalSize = stat.size;
+    fileContent = readFileSync(memoryPath, "utf-8");
+  } catch {
     console.log("  ⏭️  No memory store found");
     return stats;
   }
-
-  const originalSize = statSync(memoryPath).size;
 
   if (config.deleteAll) {
     // Complete reset
@@ -194,7 +199,7 @@ function cleanMemoryStore(config: CleanupConfig): CleanupStats {
 
   // Partial cleanup - keep recent runs and relevant findings
   try {
-    const data = JSON.parse(readFileSync(memoryPath, "utf-8"));
+    const data = JSON.parse(fileContent);
     const originalRuns = data.runs?.length || 0;
     const originalFindings = data.findings?.length || 0;
 

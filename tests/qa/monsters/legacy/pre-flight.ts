@@ -188,7 +188,6 @@ function printSummary(
   console.log(`\n${CYAN}${"─".repeat(60)}${RESET}`);
 
   const passed = results.filter((r) => r.passed).length;
-  const failed = results.filter((r) => !r.passed).length;
   const requiredFailed = results.filter((r) => !r.passed && r.required).length;
   const optionalFailed = results.filter((r) => !r.passed && !r.required).length;
 

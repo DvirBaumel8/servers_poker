@@ -163,16 +163,14 @@ export class MemoryStore {
     // Try to preserve manual sections from existing report
     let manualSections = "";
     try {
-      if (existsSync(reportPath)) {
-        const existing = readFileSync(reportPath, "utf-8");
-        const manualMarker = "<!-- MANUAL SECTIONS BELOW -->";
-        const manualIndex = existing.indexOf(manualMarker);
-        if (manualIndex !== -1) {
-          manualSections = existing.slice(manualIndex);
-        }
+      const existing = readFileSync(reportPath, "utf-8");
+      const manualMarker = "<!-- MANUAL SECTIONS BELOW -->";
+      const manualIndex = existing.indexOf(manualMarker);
+      if (manualIndex !== -1) {
+        manualSections = existing.slice(manualIndex);
       }
     } catch {
-      // Ignore errors reading existing file
+      // File doesn't exist or can't be read, use defaults
     }
 
     // Default manual sections if none exist

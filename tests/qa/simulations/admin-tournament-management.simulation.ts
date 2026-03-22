@@ -48,6 +48,8 @@ class AdminTournamentSimulation {
     this.baseUrl = baseUrl;
   }
 
+  // Log messages only include status codes and test names, not response bodies
+  // lgtm[js/clear-text-logging]
   private log(message: string): void {
     console.log(`[AdminTournamentSim] ${message}`);
   }

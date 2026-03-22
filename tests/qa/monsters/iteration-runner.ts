@@ -11,12 +11,12 @@
  * This is the ultimate test of the self-improving QA system.
  */
 
-import { execSync, spawn } from "child_process";
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
+import { execSync } from "child_process";
+import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { getMemoryStore } from "./memory/memory-store";
-import { TriageEngine, printTriageReport } from "./triage/fix-workflow";
-import { CodeFixer, fixAllIssues } from "./evolution/code-fixer";
+import { TriageEngine } from "./triage/fix-workflow";
+import { fixAllIssues } from "./evolution/code-fixer";
 
 // ============================================================================
 // FALSE POSITIVE SUPPRESSION
@@ -207,7 +207,7 @@ class IterationRunner {
     console.log("  📍 Step 2: Triaging findings...");
     const triage = new TriageEngine();
     const triaged = triage.autoTriage(realFindings);
-    const triageReport = triage.generateReport();
+    triage.generateReport(); // Generate report for side effects
 
     // Step 3: Attempt auto-fixes
     console.log("  📍 Step 3: Attempting auto-fixes...");

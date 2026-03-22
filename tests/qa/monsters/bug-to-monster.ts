@@ -372,10 +372,12 @@ function savePendingLearning(
     "tests/qa/monsters/pending-learnings.md",
   );
 
+  // Read existing content or use template for new file
   let content = "";
-  if (fs.existsSync(pendingPath)) {
+  try {
     content = fs.readFileSync(pendingPath, "utf-8");
-  } else {
+  } catch {
+    // File doesn't exist, start with template
     content = `# 📝 Pending Monster Learnings
 
 These bugs have been analyzed but the detection code hasn't been added yet.
