@@ -133,7 +133,10 @@ export function createFaultInjectingBotServer(
       } catch (err) {
         console.error(`[FaultBot:${port}] Error:`, err);
         res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: String(err) }));
+        // Only expose error message, not stack trace
+        const message =
+          err instanceof Error ? err.message : "Internal server error";
+        res.end(JSON.stringify({ error: message }));
       }
     });
   });

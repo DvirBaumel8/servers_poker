@@ -1,0 +1,70 @@
+---
+description: Event-driven architecture patterns using EventEmitter2
+globs: src/**/*.ts
+alwaysApply: false
+---
+
+# Event-Driven Patterns
+
+## Event Naming Convention
+
+Use `domain.action` format:
+
+```typescript
+// Good
+this.eventEmitter.emit("game.handStarted", { gameId, handNumber });
+this.eventEmitter.emit("tournament.botRegistered", { tournamentId, botId });
+this.eventEmitter.emit("bot.healthCheckFailed", { botId, reason });
+
+// Bad - inconsistent naming
+this.eventEmitter.emit("startHand", data);
+this.eventEmitter.emit("TOURNAMENT_PLAYER_JOIN", data);
+```
+
+## Emitting Events
+
+```typescript
+import { EventEmitter2 } from "@nestjs/event-emitter";
+
+@Injectable()
+export class MyService {
+  constructor(private readonly eventEmitter: EventEmitter2) {}
+
+  async doSomething(): Promise<void> {
+    // Business logic first
+    await this.repository.save(entity);
+    
+    // Emit event after successful operation
+    this.eventEmitter.emit("domain.actionCompleted", {
+      entityId: entity.id,
+      timestamp: new Date(),
+    });
+  }
+}
+```
+
+## Listening to Events
+
+```typescript
+import { OnEvent } from "@nestjs/event-emitter";
+
+@Injectable()
+export class MetricsCollectorService {
+  @OnEvent("game.handStarted")
+  handleHandStarted(event: { gameId: string; handNumber: number }): void {
+    this.metricsService.incrementHandsDealt();
+  }
+}
+```
+
+## When to Use Events vs Direct Calls
+
+**Use events for:**
+- Decoupled side effects (metrics, logging, notifications)
+- Multiple listeners for one action
+- Cross-module communication without tight coupling
+
+**Use direct calls for:**
+- Core business logic that must succeed
+- When you need the return value
+- Synchronous validation

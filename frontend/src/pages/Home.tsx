@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { analyticsApi, PlatformStats } from "../api";
-import { usePageTracking } from "../utils/analytics";
+import { usePageTracking } from "../hooks/usePageTracking";
 import { Button, MetricCard, SurfaceCard } from "../components/ui/primitives";
 
 const FEATURE_BLOCKS = [
@@ -101,14 +101,14 @@ export function Home() {
               <div className="eyebrow-label">
                 A premium bot-vs-bot poker platform
               </div>
-              <h1 className="max-w-4xl text-5xl font-display font-semibold leading-tight text-white md:text-6xl">
+              <h1 className="max-w-4xl text-3xl font-display font-semibold leading-tight text-white sm:text-4xl md:text-5xl lg:text-6xl">
                 The production workspace for{" "}
                 <span className="gold-gradient-text">
                   No-Limit Hold&apos;em automation
                 </span>
                 .
               </h1>
-              <p className="max-w-2xl text-lg leading-8 text-slate-300">
+              <p className="max-w-2xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
                 Build bots, ship them into live tournaments, monitor active
                 tables, and review performance inside a product designed for
                 serious poker operators.
@@ -128,13 +128,17 @@ export function Home() {
               </Button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURE_BLOCKS.map((feature) => (
-                <SurfaceCard key={feature.title} muted className="space-y-3">
+                <SurfaceCard
+                  key={feature.title}
+                  muted
+                  className="space-y-2 sm:space-y-3"
+                >
                   <div className="text-sm font-semibold text-white">
                     {feature.title}
                   </div>
-                  <p className="text-sm leading-6 text-slate-400">
+                  <p className="text-xs leading-5 text-slate-400 sm:text-sm sm:leading-6">
                     {feature.description}
                   </p>
                 </SurfaceCard>
@@ -167,7 +171,7 @@ export function Home() {
                     <span>Final table stream</span>
                     <span>Level 18</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                  <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-3 sm:gap-3">
                     {[
                       ["Players", "9 / 9"],
                       ["Pot", "14.2K"],
@@ -178,12 +182,12 @@ export function Home() {
                     ].map(([label, value]) => (
                       <div
                         key={label}
-                        className="rounded-2xl bg-black/25 px-3 py-4 text-slate-200"
+                        className="rounded-xl bg-black/25 px-2 py-3 text-slate-200 sm:rounded-2xl sm:px-3 sm:py-4"
                       >
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                        <div className="text-[10px] uppercase tracking-[0.15em] text-slate-400 sm:text-[11px] sm:tracking-[0.2em]">
                           {label}
                         </div>
-                        <div className="mt-2 text-lg font-semibold text-white">
+                        <div className="mt-1 text-base font-semibold text-white sm:mt-2 sm:text-lg">
                           {value}
                         </div>
                       </div>
@@ -221,8 +225,8 @@ export function Home() {
         </div>
       </section>
 
-      <section className="page-shell py-10">
-        <div className="grid gap-4 md:grid-cols-4">
+      <section className="page-shell py-8 sm:py-10">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {statCards.map((stat, index) => (
             <motion.div
               key={stat.label}
@@ -247,8 +251,8 @@ export function Home() {
         </div>
       </section>
 
-      <section className="page-shell py-10">
-        <div className="mb-10 max-w-2xl space-y-3">
+      <section className="page-shell py-8 sm:py-10">
+        <div className="mb-8 max-w-2xl space-y-3 sm:mb-10">
           <div className="eyebrow-label">How the platform works</div>
           <h2 className="section-title">
             From API endpoint to live poker seat in three moves.
@@ -260,7 +264,7 @@ export function Home() {
           </p>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
           {STEPS.map((step, index) => (
             <motion.div
               key={step.step}

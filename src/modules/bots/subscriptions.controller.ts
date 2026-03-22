@@ -7,16 +7,15 @@ import {
   Param,
   Body,
   UseGuards,
-  NotFoundException,
-  ForbiddenException,
   BadRequestException,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { User } from "../../entities/user.entity";
 import { BotSubscriptionRepository } from "../../repositories/bot-subscription.repository";
-import { BotRepository } from "../../repositories/bot.repository";
 import { TournamentRepository } from "../../repositories/tournament.repository";
+import { BotOwnershipService } from "./bot-ownership.service";
 import {
   CreateSubscriptionDto,
   UpdateSubscriptionDto,
@@ -24,22 +23,27 @@ import {
   SubscriptionStatsDto,
 } from "./dto/subscription.dto";
 import { BotSubscription } from "../../entities/bot-subscription.entity";
+import { assertFound } from "../../common/utils";
 
 @Controller("bots/:botId/subscriptions")
 @UseGuards(JwtAuthGuard)
 export class SubscriptionsController {
   constructor(
     private readonly subscriptionRepository: BotSubscriptionRepository,
-    private readonly botRepository: BotRepository,
     private readonly tournamentRepository: TournamentRepository,
+    private readonly botOwnership: BotOwnershipService,
   ) {}
 
   @Get()
   async findAll(
-    @Param("botId") botId: string,
+    @Param("botId", ParseUUIDPipe) botId: string,
     @CurrentUser() user: User,
   ): Promise<SubscriptionResponseDto[]> {
-    await this.verifyBotOwnership(botId, user);
+    await this.botOwnership.getBotWithOwnershipCheck(
+      botId,
+      user.id,
+      user.role === "admin",
+    );
 
     const subscriptions = await this.subscriptionRepository.findByBotId(botId);
     return subscriptions.map((s) => this.toResponseDto(s));
@@ -47,10 +51,14 @@ export class SubscriptionsController {
 
   @Get("stats")
   async getStats(
-    @Param("botId") botId: string,
+    @Param("botId", ParseUUIDPipe) botId: string,
     @CurrentUser() user: User,
   ): Promise<SubscriptionStatsDto> {
-    await this.verifyBotOwnership(botId, user);
+    await this.botOwnership.getBotWithOwnershipCheck(
+      botId,
+      user.id,
+      user.role === "admin",
+    );
 
     const subscriptions = await this.subscriptionRepository.findByBotId(botId);
     const now = new Date();
@@ -75,37 +83,34 @@ export class SubscriptionsController {
 
   @Get(":id")
   async findOne(
-    @Param("botId") botId: string,
-    @Param("id") id: string,
+    @Param("botId", ParseUUIDPipe) botId: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
   ): Promise<SubscriptionResponseDto> {
-    await this.verifyBotOwnership(botId, user);
+    await this.botOwnership.getBotWithOwnershipCheck(
+      botId,
+      user.id,
+      user.role === "admin",
+    );
 
-    const subscription = await this.subscriptionRepository.findById(id);
-    if (!subscription || subscription.bot_id !== botId) {
-      throw new NotFoundException(`Subscription ${id} not found`);
-    }
-
+    const subscription = await this.getSubscriptionOrThrow(id, botId);
     return this.toResponseDto(subscription);
   }
 
   @Post()
   async create(
-    @Param("botId") botId: string,
+    @Param("botId", ParseUUIDPipe) botId: string,
     @Body() dto: CreateSubscriptionDto,
     @CurrentUser() user: User,
   ): Promise<SubscriptionResponseDto> {
-    await this.verifyBotOwnership(botId, user);
+    await this.botOwnership.getBotWithOwnershipCheck(
+      botId,
+      user.id,
+      user.role === "admin",
+    );
 
     if (dto.tournament_id) {
-      const tournament = await this.tournamentRepository.findById(
-        dto.tournament_id,
-      );
-      if (!tournament) {
-        throw new NotFoundException(
-          `Tournament ${dto.tournament_id} not found`,
-        );
-      }
+      await this.tournamentRepository.findByIdOrThrow(dto.tournament_id);
 
       const existing = await this.subscriptionRepository.findByBotAndTournament(
         botId,
@@ -134,17 +139,18 @@ export class SubscriptionsController {
 
   @Put(":id")
   async update(
-    @Param("botId") botId: string,
-    @Param("id") id: string,
+    @Param("botId", ParseUUIDPipe) botId: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateSubscriptionDto,
     @CurrentUser() user: User,
   ): Promise<SubscriptionResponseDto> {
-    await this.verifyBotOwnership(botId, user);
+    await this.botOwnership.getBotWithOwnershipCheck(
+      botId,
+      user.id,
+      user.role === "admin",
+    );
 
-    const subscription = await this.subscriptionRepository.findById(id);
-    if (!subscription || subscription.bot_id !== botId) {
-      throw new NotFoundException(`Subscription ${id} not found`);
-    }
+    const subscription = await this.getSubscriptionOrThrow(id, botId);
 
     const updated = await this.subscriptionRepository.update(id, {
       tournament_type_filter:
@@ -169,34 +175,34 @@ export class SubscriptionsController {
 
   @Delete(":id")
   async delete(
-    @Param("botId") botId: string,
-    @Param("id") id: string,
+    @Param("botId", ParseUUIDPipe) botId: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
   ): Promise<{ success: boolean }> {
-    await this.verifyBotOwnership(botId, user);
+    await this.botOwnership.getBotWithOwnershipCheck(
+      botId,
+      user.id,
+      user.role === "admin",
+    );
 
-    const subscription = await this.subscriptionRepository.findById(id);
-    if (!subscription || subscription.bot_id !== botId) {
-      throw new NotFoundException(`Subscription ${id} not found`);
-    }
-
+    await this.getSubscriptionOrThrow(id, botId);
     await this.subscriptionRepository.delete(id);
     return { success: true };
   }
 
   @Post(":id/pause")
   async pause(
-    @Param("botId") botId: string,
-    @Param("id") id: string,
+    @Param("botId", ParseUUIDPipe) botId: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
   ): Promise<SubscriptionResponseDto> {
-    await this.verifyBotOwnership(botId, user);
+    await this.botOwnership.getBotWithOwnershipCheck(
+      botId,
+      user.id,
+      user.role === "admin",
+    );
 
-    const subscription = await this.subscriptionRepository.findById(id);
-    if (!subscription || subscription.bot_id !== botId) {
-      throw new NotFoundException(`Subscription ${id} not found`);
-    }
-
+    await this.getSubscriptionOrThrow(id, botId);
     await this.subscriptionRepository.updateStatus(id, "paused");
     const updated = await this.subscriptionRepository.findById(id);
     return this.toResponseDto(updated!);
@@ -204,30 +210,36 @@ export class SubscriptionsController {
 
   @Post(":id/resume")
   async resume(
-    @Param("botId") botId: string,
-    @Param("id") id: string,
+    @Param("botId", ParseUUIDPipe) botId: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
   ): Promise<SubscriptionResponseDto> {
-    await this.verifyBotOwnership(botId, user);
+    await this.botOwnership.getBotWithOwnershipCheck(
+      botId,
+      user.id,
+      user.role === "admin",
+    );
 
-    const subscription = await this.subscriptionRepository.findById(id);
-    if (!subscription || subscription.bot_id !== botId) {
-      throw new NotFoundException(`Subscription ${id} not found`);
-    }
-
+    await this.getSubscriptionOrThrow(id, botId);
     await this.subscriptionRepository.updateStatus(id, "active");
     const updated = await this.subscriptionRepository.findById(id);
     return this.toResponseDto(updated!);
   }
 
-  private async verifyBotOwnership(botId: string, user: User): Promise<void> {
-    const bot = await this.botRepository.findById(botId);
-    if (!bot) {
-      throw new NotFoundException(`Bot ${botId} not found`);
-    }
-    if (bot.user_id !== user.id && user.role !== "admin") {
-      throw new ForbiddenException("You do not own this bot");
-    }
+  /**
+   * Get subscription by ID and verify it belongs to the specified bot.
+   */
+  private async getSubscriptionOrThrow(
+    id: string,
+    botId: string,
+  ): Promise<BotSubscription> {
+    const subscription = await this.subscriptionRepository.findById(id);
+    assertFound(
+      subscription && subscription.bot_id === botId,
+      "Subscription",
+      id,
+    );
+    return subscription!;
   }
 
   private toResponseDto(

@@ -177,9 +177,3 @@ class Analytics {
 }
 
 export const analytics = new Analytics();
-
-export function usePageTracking(): void {
-  if (typeof window === "undefined") return;
-
-  analytics.trackPageView();
-}

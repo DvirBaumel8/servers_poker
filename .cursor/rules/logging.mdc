@@ -1,0 +1,76 @@
+---
+description: Logging conventions for debugging and observability
+alwaysApply: true
+---
+
+# Logging Conventions
+
+## Log Levels
+
+| Level | When to Use |
+|-------|-------------|
+| `debug` | Verbose info useful during development only |
+| `info` | Normal operations worth noting (startup, connections) |
+| `warn` | Recoverable issues, degraded performance |
+| `error` | Failures requiring attention |
+
+## Backend (NestJS Logger)
+
+```typescript
+import { Logger } from "@nestjs/common";
+
+@Injectable()
+export class MyService {
+  private readonly logger = new Logger(MyService.name);
+
+  async doSomething(): Promise<void> {
+    this.logger.debug("Starting operation");
+    this.logger.log("User registered", { userId });  // info level
+    this.logger.warn("Retrying bot connection", { botId, attempt });
+    this.logger.error("Database query failed", error.stack);
+  }
+}
+```
+
+## Frontend (logger utility)
+
+```typescript
+import { logger } from "../utils/logger";
+
+logger.debug("Rendering component", "GameView", { tableId });
+logger.info("Connected to WebSocket", "WebSocket");
+logger.warn("Reconnecting...", "WebSocket", { attempt: 3 });
+logger.error("Failed to load", error, "TournamentStore", { id });
+```
+
+## What to Log
+
+**Do log:**
+- Service startup/shutdown
+- External service connections (DB, Redis, WebSocket)
+- Authentication events (login, logout, failed attempts)
+- Business events (tournament started, game finished)
+- Errors with stack traces and context
+
+**Don't log:**
+- Sensitive data (passwords, tokens, full card hands)
+- Every routine operation (each HTTP request — use metrics instead)
+- Large objects (log IDs, not full entities)
+
+## Structured Context
+
+Include relevant IDs for tracing:
+
+```typescript
+// Good: includes context for debugging
+this.logger.log("Hand completed", { gameId, handNumber, winnerId });
+
+// Bad: no context
+this.logger.log("Hand completed");
+```
+
+## Production vs Development
+
+- Frontend: Debug logs only show in dev mode (`import.meta.env.DEV`)
+- Backend: Control via `LOG_LEVEL` env var
+- Errors in production should report to Sentry (when integrated)

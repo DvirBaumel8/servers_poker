@@ -10,7 +10,147 @@ Unlike unit tests, these simulations:
 - Exercise the full NestJS stack
 - Validate state consistency across services
 
-## Test Tiers
+## 🎯 Simulation Monster v2 - The Professional QA Tester
+
+**The most important testing tool in this project.** The Simulation Monster acts like a **senior QA engineer + product manager** who:
+
+1. Runs REAL poker games (not mocks) with various scenarios
+2. Validates poker invariants in real-time during gameplay
+3. Measures and critiques game timing, UX, and flow
+4. Tests edge cases that humans would find annoying
+5. Compares against industry best practices
+6. Generates actionable, prioritized findings
+
+### Quick Start
+
+```bash
+# Standard mode - runs 4 scenarios (~90 seconds)
+npm run monsters:simulation
+
+# Quick mode - just heads-up + all-in (~30 seconds, good for CI)
+npm run monsters:simulation:quick
+
+# Thorough mode - all 7 scenarios (~5-10 minutes)
+npm run monsters:simulation:thorough
+```
+
+### Simulation Scenarios
+
+| Scenario | Players | Description | Duration |
+|----------|---------|-------------|----------|
+| **Heads-Up** | 2 | Basic cash game validation | ~10s |
+| **Single-Table** | 6 | Core tournament mechanics | ~30s |
+| **Multi-Table** | 18 | Table balancing, breaks | ~60s |
+| **Chaos** | 4 | Inject failures, disconnects, timeouts | ~30s |
+| **Edge-Cases** | 3 | Specific poker edge cases | ~15s |
+| **All-In Showdown** | 2 | Force all-in, test showdown logic | ~10s |
+| **Split-Pot** | 4 | Multiple all-ins, side pot logic | ~20s |
+
+### Mode Configurations
+
+| Mode | Scenarios | Duration | Use Case |
+|------|-----------|----------|----------|
+| **quick** | heads-up, all-in-showdown | ~30s | CI, quick validation |
+| **standard** | + single-table, edge-cases | ~90s | Daily, PR validation |
+| **thorough** | all 7 scenarios | ~5-10min | Release, nightly |
+
+### Bot Personalities
+
+The monster uses various bot personalities to stress-test the game engine:
+
+| Personality | Behavior |
+|-------------|----------|
+| `tight-passive` | Check/fold, rarely bets |
+| `tight-aggressive` | Plays few hands but bets hard |
+| `loose-passive` | Calls almost everything |
+| `loose-aggressive` | Raises constantly |
+| `all-in-maniac` | Goes all-in frequently |
+| `timeout-bot` | Slow responses (tests timeouts) |
+| `disconnect-bot` | Disconnects mid-hand (chaos) |
+
+### What Gets Validated
+
+**Invariant Checks** (from `poker-invariants.ts`):
+- Chip conservation (no chips created/destroyed)
+- Card uniqueness (no duplicates)
+- Valid stage transitions (preflop → flop → turn → river)
+- No negative chips/pot values
+- Correct betting rules
+
+**UX/Timing Checks**:
+- Hand completion speed vs industry standards
+- Short stack warnings
+- Player count validations
+
+**Competitive Analysis**:
+- Compares timing to PokerStars/GGPoker standards
+- Flags performance deviations
+
+### Example Output
+
+```
+═══════════════════════════════════════════════════════════════════════
+                    PROFESSIONAL QA SIMULATION REPORT
+═══════════════════════════════════════════════════════════════════════
+
+📋 EXECUTIVE SUMMARY
+────────────────────────────────────────
+Mode: STANDARD
+Total Runtime: 87.3s
+Scenarios Run: 4
+Total Hands Played: 95
+Total States Validated: 1247
+Invariants Checked: 18705
+Invariant Violations: 0
+
+📊 SCENARIO RESULTS
+────────────────────────────────────────
+✅ Heads-Up Cash Game: 20 hands, 0 violations (12.1s)
+✅ Single Table Tournament: 45 hands, 0 violations (42.3s)
+✅ Edge Case Testing: 15 hands, 0 violations (15.8s)
+✅ All-In Showdown: 10 hands, 0 violations (8.1s)
+
+⏱️  PERFORMANCE METRICS
+────────────────────────────────────────
+Avg Hand Duration: 892ms
+Max Hand Duration: 2341ms
+
+📈 COMPETITIVE ANALYSIS (vs Industry Standards)
+────────────────────────────────────────
+Turn Timeout: 15000ms recommended
+Max Players/Table: 10 (industry standard)
+Error Rate Target: < 0.1%
+
+═══════════════════════════════════════════════════════════════════════
+All findings have been persisted to docs/MONSTERS_ISSUES.md
+═══════════════════════════════════════════════════════════════════════
+```
+
+### CI Integration
+
+The Simulation Monster runs as part of the Monster Army CI job:
+
+```yaml
+# In .github/workflows/ci.yml
+- name: Run Simulation Monster
+  run: npm run monsters:simulation:quick
+```
+
+### Findings Persistence
+
+All findings are automatically persisted to:
+- `tests/qa/monsters/shared/issues.json` (machine-readable)
+- `docs/MONSTERS_ISSUES.md` (human-readable)
+
+The unified issue tracker deduplicates by fingerprint.
+
+---
+
+## Legacy Simulations
+
+The original simulation framework is still available for specific scenarios:
+
+### Test Tiers
 
 | Tier | Players | Duration | Run When | Purpose |
 |------|---------|----------|----------|---------|
@@ -18,7 +158,7 @@ Unlike unit tests, these simulations:
 | **Single-Table** | 9 | ~2-5min | Daily/PR | Validate core tournament mechanics |
 | **Multi-Table** | 30 | ~10-15min | Weekly/Release | Complete tournament lifecycle |
 
-## Running Simulations
+### Running Legacy Simulations
 
 ```bash
 # Run basic simulation (fastest, for quick checks)
@@ -38,22 +178,21 @@ npm run sim:ci
 
 # With verbose logging
 npm run sim:basic -- --verbose
-npm run sim:multi -- --verbose
 
 # Smaller multi-table (18 players instead of 30)
 npm run sim:multi -- --small
 ```
 
-## What Each Simulation Tests
+### What Each Simulation Tests
 
-### Basic Simulation
+#### Basic Simulation
 - 2-player heads-up game starts and completes
 - Chip conservation across 10+ hands
 - Bot registration and validation
 - Game state consistency
 - No crashes or critical errors
 
-### Single-Table Simulation
+#### Single-Table Simulation
 - 9-player tournament lifecycle
 - Player elimination flow
 - Blind level advancement
@@ -61,7 +200,7 @@ npm run sim:multi -- --small
 - Prize distribution
 - Database state consistency
 
-### Multi-Table Simulation
+#### Multi-Table Simulation
 - 30+ player multi-table tournament
 - Table consolidation (breaking tables)
 - Player redistribution
@@ -70,141 +209,6 @@ npm run sim:multi -- --small
 - Error recovery
 - Full tournament completion
 - Comprehensive database validation
-
-## Assertions Checked
-
-Every simulation validates:
-
-1. **Chip Conservation**: Total chips remain constant throughout
-2. **State Consistency**: Database matches in-memory state
-3. **Event Propagation**: Tournament knows about eliminations
-4. **Error Handling**: Graceful recovery from failures
-5. **Completion**: Game/Tournament reaches proper end state
-
-## Output Format
-
-```
-======================================================================
-   POKER SIMULATION TEST SUITE
-======================================================================
-
-Mode: Interactive
-Verbose: false
-
-Simulations to run:
-  Basic (2-player):        ✓
-  Single-Table (9-player): ✓
-  Multi-Table (30-player): skip
-
-──────────────────────────────────────────────────────────────────────
-▶ Starting: Basic (2-Player Heads-Up)
-──────────────────────────────────────────────────────────────────────
-
-[123ms] [Basic-2Player-HeadsUp] Starting simulation...
-[456ms] [Basic-2Player-HeadsUp] Game started
-[2000ms] [Basic-2Player-HeadsUp] Hand 10 - Status: running
-...
-
-✓ Basic (2-Player Heads-Up): PASSED
-  Duration: 5234ms
-  Hands: 15
-
-======================================================================
-   SIMULATION RESULTS
-======================================================================
-
-Total Time: 5s
-
-Results:
-  ✓ Passed: 1
-  ✗ Failed: 0
-  Total:    1
-```
-
-## CI Integration
-
-Add to your GitHub Actions workflow:
-
-```yaml
-jobs:
-  simulation-tests:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: poker_test
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      
-      - run: npm ci
-      
-      # Basic simulation on every commit
-      - name: Run Basic Simulation
-        run: npm run sim:ci
-        env:
-          TEST_DB_HOST: localhost
-          TEST_DB_PASSWORD: postgres
-
-      # Full simulation on PR to main
-      - name: Run Full Simulation Suite
-        if: github.event_name == 'pull_request'
-        run: npm run sim:all
-```
-
-## Adding New Simulations
-
-1. Create a new file in `tests/simulations/`:
-
-```typescript
-import { SimulationRunner, SimulationConfig } from "./simulation-runner";
-
-const MY_CONFIG: SimulationConfig = {
-  name: "MyCustomSimulation",
-  playerCount: 6,
-  startingChips: 1000,
-  // ...
-};
-
-export class MySimulation extends SimulationRunner {
-  constructor(config: Partial<SimulationConfig> = {}) {
-    super({ ...MY_CONFIG, ...config });
-  }
-
-  protected async setupDatabase(): Promise<void> {
-    // Setup test database
-  }
-
-  protected async setupTestData(): Promise<void> {
-    // Create users, bots, tournaments
-  }
-
-  protected async executeSimulation(): Promise<void> {
-    // Run the simulation logic
-  }
-
-  protected async runCustomAssertions(): Promise<void> {
-    // Add custom assertions
-    this.assert("my_check", condition, "description", expected, actual);
-  }
-}
-```
-
-2. Add to `run-all.ts` if it should be part of the suite.
-
-3. Add npm script in `package.json`.
 
 ## Environment Variables
 
@@ -220,7 +224,7 @@ export class MySimulation extends SimulationRunner {
 
 ### Simulation hangs
 - Check if PostgreSQL is running
-- Check bot server ports aren't in use (7000-7100 range)
+- Check bot server ports aren't in use (7000-9000 range)
 - Try with `--verbose` to see where it stuck
 
 ### Database connection errors
@@ -235,8 +239,9 @@ export class MySimulation extends SimulationRunner {
 
 ## Best Practices
 
-1. **Run basic simulation before pushing**: Fast and catches most issues
-2. **Run single-table before PRs**: Validates tournament mechanics
-3. **Run multi-table weekly**: Comprehensive but time-consuming
-4. **Check assertions carefully**: Failed assertions indicate real bugs
-5. **Don't ignore warnings**: They often predict future failures
+1. **Use the Simulation Monster for all testing**: It's the most comprehensive
+2. **Run `monsters:simulation:quick` before pushing**: Fast and catches most issues
+3. **Run `monsters:simulation` before PRs**: Validates all core scenarios
+4. **Run `monsters:simulation:thorough` weekly**: Comprehensive but time-consuming
+5. **Check the issue tracker**: `docs/MONSTERS_ISSUES.md` for persistent findings
+6. **Don't ignore warnings**: They often predict future failures

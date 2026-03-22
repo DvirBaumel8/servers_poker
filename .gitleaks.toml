@@ -2,8 +2,11 @@
 useDefault = true
 
 [allowlist]
-description = "Allowlist for test fixtures"
+description = "Allowlist for test fixtures, QA monsters, and CI artifacts"
 paths = [
   '''tests/.*\.spec\.ts$''',
   '''tests/.*\.test\.ts$''',
+  '''tests/qa/monsters/.*\.ts$''',
+  '''work/.*''',
+  '''.*\.sarif$''',
 ]

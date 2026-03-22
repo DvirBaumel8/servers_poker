@@ -443,7 +443,7 @@ describe("AuthService", () => {
       await expect(
         service.resetPassword({
           email: "test@example.com",
-          code: "wrong-code",
+          code: "123456",
           newPassword: "newpassword",
         }),
       ).rejects.toThrow(BadRequestException);

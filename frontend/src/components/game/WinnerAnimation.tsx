@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import type { HandResult } from "../../types";
+import { WINNER_CHIP_PHASE_MS, WINNER_ANIMATION_MS } from "../../utils/timing";
 
 interface WinnerAnimationProps {
   result: HandResult | null;
@@ -27,12 +28,12 @@ export function WinnerAnimation({
     const chipTimer = setTimeout(() => {
       setChipsVisible(false);
       setPhase("info");
-    }, 1200);
+    }, WINNER_CHIP_PHASE_MS);
 
     const completeTimer = setTimeout(() => {
       setPhase("done");
       onComplete();
-    }, 4000);
+    }, WINNER_ANIMATION_MS);
 
     return () => {
       clearTimeout(chipTimer);
@@ -43,8 +44,7 @@ export function WinnerAnimation({
   if (!result || phase === "done") return null;
 
   const winner = result.winners[0];
-  const winnerName =
-    playerNames[winner?.botId] || winner?.botId?.slice(0, 8) || "Winner";
+  const winnerName = playerNames[winner?.botId] || "Winner";
 
   return (
     <AnimatePresence>
@@ -130,7 +130,7 @@ export function WinnerAnimation({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.7 }}
-                  className="mt-2 text-center text-gray-400 text-xs"
+                  className="mt-2 text-center text-muted text-xs"
                 >
                   Split pot with {result.winners.length} players
                 </motion.div>

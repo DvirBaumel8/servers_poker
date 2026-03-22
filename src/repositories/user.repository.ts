@@ -8,6 +8,10 @@ import * as crypto from "crypto";
 
 @Injectable()
 export class UserRepository extends BaseRepository<User> {
+  protected get entityName(): string {
+    return "User";
+  }
+
   private readonly apiKeyHashSecret: string;
   private static readonly API_KEY_HASH_ITERATIONS = 210000;
 
@@ -27,16 +31,16 @@ export class UserRepository extends BaseRepository<User> {
     email: string,
     manager?: EntityManager,
   ): Promise<User | null> {
-    const repo = manager ? manager.getRepository(User) : this.repository;
-    return repo.findOne({ where: { email } });
+    return this.getRepo(manager).findOne({ where: { email } });
   }
 
   async findByApiKeyHash(
     apiKeyHash: string,
     manager?: EntityManager,
   ): Promise<User | null> {
-    const repo = manager ? manager.getRepository(User) : this.repository;
-    return repo.findOne({ where: { api_key_hash: apiKeyHash, active: true } });
+    return this.getRepo(manager).findOne({
+      where: { api_key_hash: apiKeyHash, active: true },
+    });
   }
 
   async findByApiKey(

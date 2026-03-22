@@ -13,13 +13,16 @@ export class HandSeedRepository extends BaseRepository<HandSeed> {
     super();
   }
 
+  protected get entityName(): string {
+    return "HandSeed";
+  }
+
   async findByGameAndHand(
     gameId: string,
     handNumber: number,
     manager?: EntityManager,
   ): Promise<HandSeed | null> {
-    const repo = manager ? manager.getRepository(HandSeed) : this.repository;
-    return repo.findOne({
+    return this.getRepo(manager).findOne({
       where: { game_id: gameId, hand_number: handNumber },
     });
   }
@@ -28,8 +31,7 @@ export class HandSeedRepository extends BaseRepository<HandSeed> {
     gameId: string,
     manager?: EntityManager,
   ): Promise<HandSeed[]> {
-    const repo = manager ? manager.getRepository(HandSeed) : this.repository;
-    return repo.find({
+    return this.getRepo(manager).find({
       where: { game_id: gameId },
       order: { hand_number: "ASC" },
     });
@@ -47,7 +49,7 @@ export class HandSeedRepository extends BaseRepository<HandSeed> {
     },
     manager?: EntityManager,
   ): Promise<HandSeed> {
-    const repo = manager ? manager.getRepository(HandSeed) : this.repository;
+    const repo = this.getRepo(manager);
     const handSeed = repo.create({
       ...data,
       revealed: false,
@@ -60,7 +62,7 @@ export class HandSeedRepository extends BaseRepository<HandSeed> {
     handNumber: number,
     manager?: EntityManager,
   ): Promise<HandSeed | null> {
-    const repo = manager ? manager.getRepository(HandSeed) : this.repository;
+    const repo = this.getRepo(manager);
     const seed = await repo.findOne({
       where: { game_id: gameId, hand_number: handNumber },
     });
@@ -75,8 +77,7 @@ export class HandSeedRepository extends BaseRepository<HandSeed> {
     gameId: string,
     manager?: EntityManager,
   ): Promise<HandSeed[]> {
-    const repo = manager ? manager.getRepository(HandSeed) : this.repository;
-    return repo.find({
+    return this.getRepo(manager).find({
       where: { game_id: gameId, revealed: true },
       order: { hand_number: "ASC" },
     });

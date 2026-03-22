@@ -1,0 +1,71 @@
+---
+description: Keep documentation in sync with code changes
+alwaysApply: true
+---
+
+# Documentation Sync
+
+**After completing any code change, check if documentation needs updating.**
+
+## Mandatory Doc Updates
+
+| Code Change | Required Doc Update |
+|-------------|---------------------|
+| New API endpoint/controller | `docs/API.md` |
+| New NestJS module | `docs/ARCHITECTURE.md` (modules section) |
+| New entity | `docs/ARCHITECTURE.md` (entities section) |
+| New service | `docs/ARCHITECTURE.md` (services section) |
+| New frontend page | `docs/ARCHITECTURE.md` (pages section) |
+| New env variable | `.env.example` + `docs/guides/DEPLOYMENT.md` |
+| New npm script | `README.md` (scripts table) + `package.json` |
+| Architecture change | `docs/ARCHITECTURE.md` |
+| New poker rule/invariant | `docs/KNOWLEDGE.md` + `tests/qa/monsters/invariant-monster/poker-invariants.ts` |
+| New QA monster/test | `tests/qa/monsters/README.md` |
+| Security change | `docs/guides/SECURITY.md` |
+| Database migration | `docs/DATA_DICTIONARY.md` if schema changes |
+
+## QA Monster Updates
+
+| Code Change | Monster Update |
+|-------------|----------------|
+| New API endpoint | `tests/qa/monsters/api-monster/api-monster.config.ts` |
+| New frontend page/route | `tests/qa/monsters/visual-monster/visual-monster.config.ts` |
+| New poker invariant | `tests/qa/monsters/invariant-monster/poker-invariants.ts` |
+| New user flow | `tests/qa/monsters/flows/` |
+
+## Pre-Commit Checklist
+
+Before finishing a task, verify:
+
+1. **API changes** → Is `docs/API.md` updated?
+2. **New files in src/** → Is `docs/ARCHITECTURE.md` updated?
+3. **New features** → Is `docs/KNOWLEDGE.md` updated if there are design decisions?
+4. **New commands** → Is `README.md` updated?
+5. **QA coverage** → Are monster configs updated?
+
+## How to Update
+
+When adding a new module/entity/service/page:
+
+```bash
+# Check what's documented vs what exists
+ls src/modules/          # Compare with docs/ARCHITECTURE.md modules section
+ls src/entities/         # Compare with docs/ARCHITECTURE.md entities section
+ls frontend/src/pages/   # Compare with docs/ARCHITECTURE.md pages section
+```
+
+## Indicators That Docs Need Updating
+
+- Created a new file in `src/modules/`, `src/entities/`, `src/services/`, `frontend/src/pages/`
+- Added a new `@Controller`, `@Get`, `@Post`, etc.
+- Added a new `@Entity`
+- Added a new environment variable
+- Changed the directory structure
+- Added new npm scripts
+
+## Skip Documentation For
+
+- Internal refactors that don't change public APIs
+- Test file changes (unless adding new QA patterns)
+- Bug fixes that don't change behavior
+- Code style/formatting changes

@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import { analyticsApi, AdminStats } from "../api";
 import { useAuth } from "../hooks/useAuth";
-import { usePageTracking } from "../utils/analytics";
+import { usePageTracking } from "../hooks/usePageTracking";
 import {
   AlertBanner,
   Button,
@@ -67,7 +67,7 @@ function KPICard({
 }: KPICardProps) {
   return (
     <SurfaceCard className="p-6">
-      <div className="text-sm text-gray-400 mb-2">{title}</div>
+      <div className="text-sm text-muted mb-2">{title}</div>
       <div
         className={
           color === "accent"
@@ -77,7 +77,9 @@ function KPICard({
       >
         {typeof value === "number" ? formatNumber(value) : value}
       </div>
-      {subtitle && <div className="text-sm text-gray-500 mt-1">{subtitle}</div>}
+      {subtitle && (
+        <div className="text-sm text-muted-dark mt-1">{subtitle}</div>
+      )}
       {trend !== undefined && (
         <div
           className={`text-sm mt-2 ${trend >= 0 ? "text-green-400" : "text-red-400"}`}
@@ -106,7 +108,9 @@ export function AdminAnalytics() {
     analyticsApi
       .getAdminStats(days, token)
       .then(setStats)
-      .catch((err) => setError(err.message))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      )
       .finally(() => setIsLoading(false));
   }, [token, days]);
 
@@ -132,7 +136,7 @@ export function AdminAnalytics() {
       <PageShell>
         <SurfaceCard className="p-8 text-center">
           <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
-          <p className="text-gray-400">
+          <p className="text-muted">
             You need admin privileges to view this page.
           </p>
         </SurfaceCard>
@@ -146,10 +150,25 @@ export function AdminAnalytics() {
     );
   }
 
+  const handleRetryLoad = () => {
+    if (!token) return;
+    setError(null);
+    setIsLoading(true);
+    analyticsApi
+      .getAdminStats(days, token)
+      .then(setStats)
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      )
+      .finally(() => setIsLoading(false));
+  };
+
   if (error) {
     return (
       <PageShell>
-        <AlertBanner title="Analytics load failed">{error}</AlertBanner>
+        <AlertBanner title="Analytics load failed" onRetry={handleRetryLoad}>
+          {error}
+        </AlertBanner>
       </PageShell>
     );
   }
@@ -234,25 +253,25 @@ export function AdminAnalytics() {
         {/* Live Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="glass-panel p-4 text-center">
-            <div className="text-sm text-gray-400">Active Games</div>
+            <div className="text-sm text-muted">Active Games</div>
             <div className="text-2xl font-bold text-green-400">
               {stats.live.activeGames}
             </div>
           </div>
           <div className="glass-panel p-4 text-center">
-            <div className="text-sm text-gray-400">Active Tournaments</div>
+            <div className="text-sm text-muted">Active Tournaments</div>
             <div className="text-2xl font-bold text-green-400">
               {stats.live.activeTournaments}
             </div>
           </div>
           <div className="glass-panel p-4 text-center">
-            <div className="text-sm text-gray-400">Players in Games</div>
+            <div className="text-sm text-muted">Players in Games</div>
             <div className="text-2xl font-bold text-white">
               {stats.live.playersInGames}
             </div>
           </div>
           <div className="glass-panel p-4 text-center">
-            <div className="text-sm text-gray-400">Hands/Minute</div>
+            <div className="text-sm text-muted">Hands/Minute</div>
             <div className="text-2xl font-bold text-white">
               {stats.live.currentHandsPerMinute}
             </div>
@@ -342,13 +361,13 @@ export function AdminAnalytics() {
             </h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">Avg Bot Response Time</span>
+                <span className="text-muted">Avg Bot Response Time</span>
                 <span className="text-white font-mono">
                   {stats.health.avgBotResponseMs}ms
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">Bot Timeouts</span>
+                <span className="text-muted">Bot Timeouts</span>
                 <span
                   className={
                     stats.health.botTimeoutCount > 0
@@ -360,7 +379,7 @@ export function AdminAnalytics() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">Bot Errors</span>
+                <span className="text-muted">Bot Errors</span>
                 <span
                   className={
                     stats.health.botErrorCount > 0
@@ -372,16 +391,16 @@ export function AdminAnalytics() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-400">Error Rate</span>
+                <span className="text-muted">Error Rate</span>
                 <span className="text-white">{stats.health.errorRate}</span>
               </div>
               <div className="pt-4 border-t border-white/10">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Games Today</span>
+                  <span className="text-muted">Games Today</span>
                   <span className="text-white">{stats.today.gamesPlayed}</span>
                 </div>
                 <div className="flex justify-between items-center mt-2">
-                  <span className="text-gray-400">Tournaments Today</span>
+                  <span className="text-muted">Tournaments Today</span>
                   <span className="text-white">
                     {stats.today.tournamentsCompleted}
                   </span>
@@ -408,10 +427,10 @@ export function AdminAnalytics() {
                           index === 0
                             ? "bg-yellow-500/20 text-yellow-400"
                             : index === 1
-                              ? "bg-gray-400/20 text-gray-300"
+                              ? "bg-gray-400/20 text-muted-light"
                               : index === 2
                                 ? "bg-orange-500/20 text-orange-400"
-                                : "bg-surface-300 text-gray-400"
+                                : "bg-surface-300 text-muted"
                         }`}
                       >
                         {index + 1}
@@ -434,7 +453,7 @@ export function AdminAnalytics() {
                 ))}
               </div>
             ) : (
-              <div className="text-center text-gray-500 py-8">
+              <div className="text-center text-muted-dark py-8">
                 No bot activity in this period
               </div>
             )}
@@ -477,31 +496,31 @@ export function AdminAnalytics() {
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             <div>
-              <div className="text-sm text-gray-400">Total Users</div>
+              <div className="text-sm text-muted">Total Users</div>
               <div className="text-2xl font-bold text-white">
                 {formatNumber(stats.lifetime.totalUsers)}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-400">Total Bots</div>
+              <div className="text-sm text-muted">Total Bots</div>
               <div className="text-2xl font-bold text-white">
                 {formatNumber(stats.lifetime.totalBots)}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-400">Total Hands</div>
+              <div className="text-sm text-muted">Total Hands</div>
               <div className="text-2xl font-bold text-white">
                 {formatNumber(stats.lifetime.totalHandsDealt)}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-400">Total Games</div>
+              <div className="text-sm text-muted">Total Games</div>
               <div className="text-2xl font-bold text-white">
                 {formatNumber(stats.lifetime.totalGames)}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-400">Total Tournaments</div>
+              <div className="text-sm text-muted">Total Tournaments</div>
               <div className="text-2xl font-bold text-white">
                 {formatNumber(stats.lifetime.totalTournaments)}
               </div>
@@ -510,7 +529,7 @@ export function AdminAnalytics() {
         </div>
 
         {/* Footer */}
-        <div className="text-center text-sm text-gray-500">
+        <div className="text-center text-sm text-muted-dark">
           Last updated: {new Date(stats.generatedAt).toLocaleString()}
         </div>
       </motion.div>

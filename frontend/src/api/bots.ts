@@ -1,7 +1,6 @@
 import { api } from "./client";
 import type {
   Bot,
-  LeaderboardEntry,
   BotActivity,
   ActiveBotsResponse,
   BotSubscription,
@@ -34,8 +33,14 @@ function transformBot(raw: BotApiResponse): Bot {
 
 export const botsApi = {
   getAll: async (): Promise<Bot[]> => {
-    const raw = await api.get<BotApiResponse[]>("/bots");
-    return raw.map(transformBot);
+    const response = await api.get<{
+      data: BotApiResponse[];
+      total: number;
+      limit: number;
+      offset: number;
+      hasMore: boolean;
+    }>("/bots");
+    return response.data.map(transformBot);
   },
 
   getById: async (id: string): Promise<Bot> => {
@@ -44,12 +49,23 @@ export const botsApi = {
   },
 
   getMy: async (token: string): Promise<Bot[]> => {
-    const raw = await api.get<BotApiResponse[]>("/bots/my", token);
-    return raw.map(transformBot);
+    const response = await api.get<{
+      data: BotApiResponse[];
+      total: number;
+      limit: number;
+      offset: number;
+      hasMore: boolean;
+    }>("/bots/my", token);
+    return response.data.map(transformBot);
   },
 
   create: (
-    data: { name: string; endpoint: string; description?: string },
+    data: {
+      name: string;
+      endpoint: string;
+      description?: string;
+      skip_validation?: boolean;
+    },
     token: string,
   ) => api.post<Bot>("/bots", data, token),
 
@@ -90,8 +106,6 @@ export const botsApi = {
       pfr: number;
       aggression: number;
     }>(`/bots/${id}/profile`),
-
-  getLeaderboard: () => api.get<LeaderboardEntry[]>("/analytics/leaderboard"),
 
   getActivity: (id: string): Promise<BotActivity> =>
     api.get<BotActivity>(`/bots/${id}/activity`),

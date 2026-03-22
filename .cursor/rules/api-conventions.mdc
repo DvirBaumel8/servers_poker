@@ -1,0 +1,76 @@
+---
+description: REST API endpoint conventions
+globs: src/**/*.controller.ts
+alwaysApply: false
+---
+
+# API Conventions
+
+## URL Structure
+
+All endpoints are prefixed with `/api/v1` (set in `main.ts`).
+
+```typescript
+@Controller("tournaments")  // => /api/v1/tournaments
+export class TournamentsController {}
+```
+
+## Authentication
+
+Routes require JWT by default. Use `@Public()` for unauthenticated access:
+
+```typescript
+import { Public } from "../common/decorators/public.decorator";
+
+@Get("health")
+@Public()  // No JWT required
+healthCheck() {}
+
+@Get("profile")  // JWT required (default)
+getProfile() {}
+```
+
+## Request Validation
+
+Use DTOs with class-validator decorators:
+
+```typescript
+export class CreateTournamentDto {
+  @IsString()
+  @MinLength(3)
+  name: string;
+
+  @IsInt()
+  @Min(2)
+  @Max(10)
+  max_players: number;
+
+  @IsOptional()
+  @IsDateString()
+  scheduled_start_at?: string;
+}
+```
+
+## Response Format
+
+**Success:**
+```typescript
+return { id: entity.id, ...data };  // 200/201
+```
+
+**Errors:**
+```typescript
+throw new NotFoundException("Tournament not found");
+throw new BadRequestException("Invalid bet amount");
+throw new UnauthorizedException("Invalid credentials");
+throw new ConflictException("Bot already registered");
+```
+
+## Controller Responsibilities
+
+Controllers handle:
+- Request/response transformation
+- HTTP status codes
+- Route decorators
+
+Controllers do NOT contain business logic — delegate to services.

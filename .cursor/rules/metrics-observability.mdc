@@ -1,0 +1,65 @@
+---
+description: Prometheus metrics and observability patterns
+globs: src/modules/metrics/**/*.ts
+alwaysApply: false
+---
+
+# Metrics & Observability
+
+## Adding New Metrics
+
+1. Define in `metrics.module.ts`:
+
+```typescript
+makeCounterProvider({
+  name: "poker_new_metric_total",
+  help: "Description of what this counts",
+  labelNames: ["label1", "label2"],
+}),
+```
+
+2. Inject in `metrics.service.ts`:
+
+```typescript
+@InjectMetric("poker_new_metric_total")
+public readonly newMetric: Counter<string>,
+```
+
+3. Add helper method:
+
+```typescript
+incrementNewMetric(label1: string): void {
+  this.newMetric.inc({ label1, label2: "value" });
+}
+```
+
+## Metric Types
+
+- **Counter**: Only goes up (requests, errors, events)
+- **Gauge**: Can go up/down (active connections, queue size)
+- **Histogram**: Distributions (response times, sizes)
+
+## Initialize Counters
+
+Counters with labels don't appear until incremented. Initialize in `onModuleInit`:
+
+```typescript
+onModuleInit(): void {
+  this.myCounter.inc({ type: "init" }, 0);
+}
+```
+
+## Event-Based Collection
+
+Use `@OnEvent` in `MetricsCollectorService` for decoupled metric collection:
+
+```typescript
+@OnEvent("game.finished")
+handleGameFinished(event: GameFinishedEvent): void {
+  this.metricsService.incrementGamesCompleted();
+}
+```
+
+## Public Endpoints
+
+The `/metrics` endpoint must be public for Prometheus scraping. Use `@Public()` decorator.

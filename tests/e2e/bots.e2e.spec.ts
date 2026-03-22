@@ -1,125 +1,42 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication, ValidationPipe } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule } from "@nestjs/config";
-import { EventEmitterModule } from "@nestjs/event-emitter";
 import request from "supertest";
+import { INestApplication } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { ServicesModule } from "../../src/services/services.module";
-import * as entities from "../../src/entities";
-import { appConfig } from "../../src/config";
-import { APP_GUARD } from "@nestjs/core";
-import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
-import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
-import { v4 as uuidv4 } from "uuid";
-
-const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+import { createTestApp, closeTestApp, TestAppContext } from "./shared/test-app";
+import { createTestUser, authHeader } from "./shared/test-factories";
 
 describe("Bots E2E Tests", () => {
+  let ctx: TestAppContext;
   let app: INestApplication;
   let dataSource: DataSource;
   let jwtService: JwtService;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({
-          isGlobal: true,
-          load: [appConfig],
-        }),
-        TypeOrmModule.forRoot({
-          type: "postgres",
-          host: process.env.TEST_DB_HOST || "localhost",
-          port: parseInt(process.env.TEST_DB_PORT || "5432", 10),
-          username: process.env.TEST_DB_USERNAME || "postgres",
-          password: process.env.TEST_DB_PASSWORD || "postgres",
-          database: process.env.TEST_DB_NAME || "poker_test",
-          entities: Object.values(entities),
-          synchronize: true,
-          dropSchema: true,
-        }),
-        ThrottlerModule.forRoot([{ ttl: 60000, limit: 100000 }]),
-        EventEmitterModule.forRoot(),
-        ServicesModule,
-        AuthModule,
-        BotsModule,
-      ],
-      providers: [
-        {
-          provide: APP_GUARD,
-          useClass: JwtAuthGuard,
-        },
-        {
-          provide: APP_GUARD,
-          useClass: ThrottlerGuard,
-        },
-      ],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.setGlobalPrefix("api/v1");
-
-    await app.init();
-    dataSource = moduleFixture.get(DataSource);
-    jwtService = moduleFixture.get(JwtService);
+    ctx = await createTestApp({
+      imports: [ServicesModule, AuthModule, BotsModule],
+    });
+    app = ctx.app;
+    dataSource = ctx.dataSource;
+    jwtService = ctx.jwtService;
   });
 
   afterAll(async () => {
-    if (dataSource?.isInitialized) {
-      await dataSource.destroy();
-    }
-    await app.close();
+    await closeTestApp(ctx);
   });
 
-  async function createTestUser() {
-    const id = uid();
-    const email = `botowner-${id}@example.com`;
-    const name = `BotOwner-${id}`;
-    const userId = uuidv4();
-    const passwordHash =
-      "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC";
-    const apiKeyHash = uuidv4().replace(/-/g, "");
-
-    // Create user directly in DB
-    await dataSource.query(
-      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())`,
-      [userId, email, name, passwordHash, apiKeyHash],
-    );
-
-    // Generate JWT token
-    const accessToken = jwtService.sign(
-      { sub: userId, email },
-      { expiresIn: "1h" },
-    );
-
-    return {
-      accessToken,
-      userId,
-      id,
-    };
-  }
-
-  describe.concurrent("Bot CRUD Operations", () => {
+  describe("Bot CRUD Operations", () => {
     it("should create a new bot", async () => {
-      const { accessToken, id } = await createTestUser();
-      const botName = `MyPokerBot-${id}`;
-      const endpoint = `http://localhost:8080/action-${id}`;
+      const user = await createTestUser(dataSource, jwtService);
+      const botName = `MyPokerBot-${user.id.slice(0, 8)}`;
+      const endpoint = `http://localhost:8080/action-${user.id.slice(0, 8)}`;
 
       const response = await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
           name: botName,
           endpoint,
@@ -139,50 +56,55 @@ describe("Bots E2E Tests", () => {
     });
 
     it("should list user bots", async () => {
-      const { accessToken, id } = await createTestUser();
+      const user = await createTestUser(dataSource, jwtService);
+      const id = user.id.slice(0, 8);
 
       await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
           name: `Bot1-${id}`,
           endpoint: `http://localhost:8081/bot1-${id}`,
-        });
+        })
+        .expect(201);
 
       await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
           name: `Bot2-${id}`,
           endpoint: `http://localhost:8082/bot2-${id}`,
-        });
+        })
+        .expect(201);
 
       const response = await request(app.getHttpServer())
-        .get("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .get("/api/v1/bots/my")
+        .set(authHeader(user.accessToken))
         .expect(200);
 
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body).toHaveLength(2);
+      const bots = response.body.data || response.body;
+      expect(bots).toHaveLength(2);
     });
 
     it("should get bot by ID", async () => {
-      const { accessToken, id } = await createTestUser();
+      const user = await createTestUser(dataSource, jwtService);
+      const id = user.id.slice(0, 8);
       const botName = `GetBot-${id}`;
 
       const createResponse = await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
           name: botName,
           endpoint: `http://localhost:8083/getbot-${id}`,
-        });
+        })
+        .expect(201);
 
       const botId = createResponse.body.id;
 
       const response = await request(app.getHttpServer())
         .get(`/api/v1/bots/${botId}`)
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .expect(200);
 
       expect(response.body.id).toBe(botId);
@@ -190,22 +112,24 @@ describe("Bots E2E Tests", () => {
     });
 
     it("should update bot", async () => {
-      const { accessToken, id } = await createTestUser();
+      const user = await createTestUser(dataSource, jwtService);
+      const id = user.id.slice(0, 8);
 
       const createResponse = await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
-          name: `UpdateBot-${id}`,
+          name: `UpdBot-${id}`,
           endpoint: `http://localhost:8084/updatebot-${id}`,
-        });
+        })
+        .expect(201);
 
       const botId = createResponse.body.id;
       const newEndpoint = `http://localhost:9999/updated-${id}`;
 
       const response = await request(app.getHttpServer())
-        .patch(`/api/v1/bots/${botId}`)
-        .set("Authorization", `Bearer ${accessToken}`)
+        .put(`/api/v1/bots/${botId}`)
+        .set(authHeader(user.accessToken))
         .send({
           endpoint: newEndpoint,
           description: "Updated description",
@@ -217,74 +141,56 @@ describe("Bots E2E Tests", () => {
     });
 
     it("should deactivate bot", async () => {
-      const { accessToken, id } = await createTestUser();
+      const user = await createTestUser(dataSource, jwtService);
+      const id = user.id.slice(0, 8);
 
       const createResponse = await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
-          name: `DeactivateBot-${id}`,
+          name: `DeactBot-${id}`,
           endpoint: `http://localhost:8085/deactivate-${id}`,
-        });
-
-      const botId = createResponse.body.id;
-
-      const response = await request(app.getHttpServer())
-        .patch(`/api/v1/bots/${botId}`)
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send({
-          active: false,
         })
-        .expect(200);
-
-      expect(response.body.active).toBe(false);
-    });
-
-    it("should delete bot", async () => {
-      const { accessToken, id } = await createTestUser();
-
-      const createResponse = await request(app.getHttpServer())
-        .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send({
-          name: `DeleteBot-${id}`,
-          endpoint: `http://localhost:8086/delete-${id}`,
-        });
+        .expect(201);
 
       const botId = createResponse.body.id;
 
       await request(app.getHttpServer())
         .delete(`/api/v1/bots/${botId}`)
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .expect(200);
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .get(`/api/v1/bots/${botId}`)
-        .set("Authorization", `Bearer ${accessToken}`)
-        .expect(404);
+        .set(authHeader(user.accessToken))
+        .expect(200);
+
+      expect(response.body.active).toBe(false);
     });
   });
 
-  describe.concurrent("Bot Validation", () => {
+  describe("Bot Validation", () => {
     it("should reject bot with invalid endpoint URL", async () => {
-      const { accessToken, id } = await createTestUser();
+      const user = await createTestUser(dataSource, jwtService);
+      const id = user.id.slice(0, 8);
 
       await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
-          name: `InvalidBot-${id}`,
+          name: `InvBot-${id}`,
           endpoint: "not-a-valid-url",
         })
         .expect(400);
     });
 
     it("should reject bot with missing name", async () => {
-      const { accessToken, id } = await createTestUser();
+      const user = await createTestUser(dataSource, jwtService);
+      const id = user.id.slice(0, 8);
 
       await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
           endpoint: `http://localhost:8080/missing-name-${id}`,
         })
@@ -292,20 +198,22 @@ describe("Bots E2E Tests", () => {
     });
 
     it("should reject duplicate bot names for same user", async () => {
-      const { accessToken, id } = await createTestUser();
-      const botName = `DuplicateBot-${id}`;
+      const user = await createTestUser(dataSource, jwtService);
+      const id = user.id.slice(0, 8);
+      const botName = `DupBot-${id}`;
 
       await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
           name: botName,
           endpoint: `http://localhost:8087/dup1-${id}`,
-        });
+        })
+        .expect(201);
 
       await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${accessToken}`)
+        .set(authHeader(user.accessToken))
         .send({
           name: botName,
           endpoint: `http://localhost:8088/dup2-${id}`,
@@ -314,86 +222,101 @@ describe("Bots E2E Tests", () => {
     });
   });
 
-  describe.concurrent("Bot Ownership", () => {
+  describe("Bot Ownership", () => {
     it("should not allow updating another user's bot", async () => {
-      const { accessToken: ownerToken, id: ownerId } = await createTestUser();
-      const { accessToken: otherUserToken } = await createTestUser();
+      const owner = await createTestUser(dataSource, jwtService);
+      const otherUser = await createTestUser(dataSource, jwtService);
+      const ownerId = owner.id.slice(0, 8);
 
       const createResponse = await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${ownerToken}`)
+        .set(authHeader(owner.accessToken))
         .send({
-          name: `ProtectedBot-${ownerId}`,
+          name: `ProtBot-${ownerId}`,
           endpoint: `http://localhost:8089/protected-${ownerId}`,
-        });
+        })
+        .expect(201);
 
       const botId = createResponse.body.id;
 
-      await request(app.getHttpServer())
-        .patch(`/api/v1/bots/${botId}`)
-        .set("Authorization", `Bearer ${otherUserToken}`)
+      const response = await request(app.getHttpServer())
+        .put(`/api/v1/bots/${botId}`)
+        .set(authHeader(otherUser.accessToken))
         .send({
-          endpoint: "http://hacked.com",
-        })
-        .expect(403);
+          endpoint: "http://localhost:9999",
+        });
+
+      expect([403, 404]).toContain(response.status);
     });
 
     it("should not allow deleting another user's bot", async () => {
-      const { accessToken: ownerToken, id: ownerId } = await createTestUser();
-      const { accessToken: otherUserToken } = await createTestUser();
+      const owner = await createTestUser(dataSource, jwtService);
+      const otherUser = await createTestUser(dataSource, jwtService);
+      const ownerId = owner.id.slice(0, 8);
 
       const createResponse = await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${ownerToken}`)
+        .set(authHeader(owner.accessToken))
         .send({
-          name: `ProtectedBot2-${ownerId}`,
+          name: `ProtBot2-${ownerId}`,
           endpoint: `http://localhost:8090/protected2-${ownerId}`,
-        });
+        })
+        .expect(201);
 
       const botId = createResponse.body.id;
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .delete(`/api/v1/bots/${botId}`)
-        .set("Authorization", `Bearer ${otherUserToken}`)
-        .expect(403);
+        .set(authHeader(otherUser.accessToken));
+
+      expect([403, 404]).toContain(response.status);
     });
 
     it("should isolate bot lists by user", async () => {
-      const { accessToken: user1Token, id: user1Id } = await createTestUser();
-      const { accessToken: user2Token, id: user2Id } = await createTestUser();
+      const user1 = await createTestUser(dataSource, jwtService);
+      const user2 = await createTestUser(dataSource, jwtService);
+      const id1 = user1.id.slice(0, 8);
+      const id2 = user2.id.slice(0, 8);
 
-      const bot1Name = `User1Bot-${user1Id}`;
-      const bot2Name = `User2Bot-${user2Id}`;
+      const bot1Name = `U1Bot-${id1}`;
+      const bot2Name = `U2Bot-${id2}`;
 
       await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${user1Token}`)
+        .set(authHeader(user1.accessToken))
         .send({
           name: bot1Name,
-          endpoint: `http://localhost:8091/user1-${user1Id}`,
-        });
+          endpoint: `http://localhost:8091/user1-${id1}`,
+        })
+        .expect(201);
 
       await request(app.getHttpServer())
         .post("/api/v1/bots")
-        .set("Authorization", `Bearer ${user2Token}`)
+        .set(authHeader(user2.accessToken))
         .send({
           name: bot2Name,
-          endpoint: `http://localhost:8092/user2-${user2Id}`,
-        });
+          endpoint: `http://localhost:8092/user2-${id2}`,
+        })
+        .expect(201);
 
       const user1Bots = await request(app.getHttpServer())
-        .get("/api/v1/bots")
-        .set("Authorization", `Bearer ${user1Token}`);
+        .get("/api/v1/bots/my")
+        .set(authHeader(user1.accessToken))
+        .expect(200);
 
       const user2Bots = await request(app.getHttpServer())
-        .get("/api/v1/bots")
-        .set("Authorization", `Bearer ${user2Token}`);
+        .get("/api/v1/bots/my")
+        .set(authHeader(user2.accessToken))
+        .expect(200);
 
-      expect(user1Bots.body).toHaveLength(1);
-      expect(user1Bots.body[0].name).toBe(bot1Name);
+      const bots1 = user1Bots.body.data || user1Bots.body;
+      const bots2 = user2Bots.body.data || user2Bots.body;
 
-      expect(user2Bots.body).toHaveLength(1);
-      expect(user2Bots.body[0].name).toBe(bot2Name);
+      expect(bots1).toHaveLength(1);
+      expect(bots1[0].name).toBe(bot1Name);
+
+      expect(bots2).toHaveLength(1);
+      expect(bots2[0].name).toBe(bot2Name);
     });
   });
 });

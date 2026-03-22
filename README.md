@@ -93,6 +93,12 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for a full 5-minute getting-started
 | `npm run test:e2e` | Run end-to-end tests |
 | `npm run typecheck` | TypeScript type checking |
 | `npm run migration:run` | Run database migrations |
+| `npm run ci:local` | **Run local CI simulation before PRs** |
+| `npm run ci:local:quick` | Quick local CI (lint + types + unit tests) |
+| `npm run ci:local:fix` | Auto-fix lint/format issues |
+| `npm run monsters:quick` | Quick QA validation (API + Invariant) |
+| `npm run monsters:pr` | PR validation (Layers 1+2) |
+| `npm run monsters:nightly` | Full QA coverage |
 
 ## Bot Protocol
 
@@ -141,13 +147,15 @@ frontend/
 
 - [Architecture](docs/ARCHITECTURE.md) — system design and module structure
 - [API Reference](docs/API.md) — REST API endpoints
-- [Bot Developer Guide](docs/BOT_DEVELOPER_GUIDE.md) — build your bot
-- [Quick Start](docs/QUICKSTART.md) — get playing in 5 minutes
+- [Bot Developer Guide](docs/guides/BOT_DEVELOPER_GUIDE.md) — build your bot
+- [Quick Start](docs/guides/QUICKSTART.md) — get playing in 5 minutes
 - [Game Rules](docs/GAME_RULES.md) — No-Limit Hold'em rules
 - [Tournament Rules](docs/TOURNAMENT_RULES.md) — tournament format and payouts
 - [Testing](docs/TESTING.md) — test strategy and running tests
-- [Deployment](docs/DEPLOYMENT.md) — production deployment guide
-- [Security](docs/SECURITY.md) — security measures and best practices
+- [Deployment](docs/guides/DEPLOYMENT.md) — production deployment guide
+- [Security](docs/guides/SECURITY.md) — security measures and best practices
+- [Monitoring](docs/MONITORING.md) — observability and metrics
+- [QA Monster Army](tests/qa/monsters/README.md) — comprehensive QA system
 
 ## Docker
 
@@ -161,6 +169,28 @@ docker compose --profile dev up
 # Run migrations
 docker compose --profile migrate up
 ```
+
+## Monitoring
+
+The platform includes a full observability stack:
+
+- **Prometheus** — metrics collection (`/metrics` endpoint)
+- **Grafana** — dashboards and visualization
+- **Alertmanager** — alerting and notifications
+
+Configuration files are in the `monitoring/` directory. See [docs/MONITORING.md](docs/MONITORING.md) for setup details.
+
+## QA Testing
+
+The Monster Army is a comprehensive, self-improving QA system:
+
+```bash
+npm run monsters:quick    # Fast validation before commits
+npm run monsters:pr       # Full PR validation
+npm run monsters:nightly  # Comprehensive nightly tests
+```
+
+See [tests/qa/monsters/README.md](tests/qa/monsters/README.md) for the complete QA architecture.
 
 ## License
 

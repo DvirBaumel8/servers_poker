@@ -20,6 +20,7 @@ import request from "supertest";
 import * as http from "http";
 import { DataSource } from "typeorm";
 import { io, Socket } from "socket.io-client";
+import { v4 as uuidv4 } from "uuid";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { GamesModule } from "../../src/modules/games/games.module";
@@ -120,12 +121,16 @@ describe("WebSocket Real-time E2E Tests", () => {
     for (const socket of sockets) {
       try {
         socket.disconnect();
-      } catch {}
+      } catch {
+        // Ignore errors when disconnecting sockets during cleanup
+      }
     }
     for (const bot of botServers) {
       try {
         await bot.close();
-      } catch {}
+      } catch {
+        // Ignore errors when closing bot servers during cleanup
+      }
     }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
@@ -153,6 +158,17 @@ describe("WebSocket Real-time E2E Tests", () => {
       .expect(201);
 
     return { ...response.body, botServer };
+  }
+
+  async function createTable(): Promise<{ id: string; name: string }> {
+    const tableId = uuidv4();
+    const name = `WSTable${uid()}`;
+    await dataSource.query(
+      `INSERT INTO tables (id, name, small_blind, big_blind, starting_chips, max_players, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'waiting', NOW(), NOW())`,
+      [tableId, name, 10, 20, 1000, 2],
+    );
+    return { id: tableId, name };
   }
 
   function createSocket(token?: string): Socket {
@@ -225,22 +241,11 @@ describe("WebSocket Real-time E2E Tests", () => {
         });
       });
 
-      // Create a table
-      const tableRes = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${player.accessToken}`)
-        .send({
-          name: `WSTable${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
+      // Create a table directly in database (table creation requires admin)
+      const table = await createTable();
 
       // Subscribe to table
-      socket.emit("subscribeToTable", { tableId: tableRes.body.id });
+      socket.emit("subscribeToTable", { tableId: table.id });
 
       // Wait for acknowledgment or state update
       await new Promise((r) => setTimeout(r, 1000));
@@ -277,31 +282,20 @@ describe("WebSocket Real-time E2E Tests", () => {
         receivedEvents.push({ type: "handStarted", data }),
       );
 
-      // Create table and subscribe
-      const tableRes = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({
-          name: `EventTable${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
+      // Create table and subscribe (table creation requires admin)
+      const table = await createTable();
 
-      socket.emit("subscribeToTable", { tableId: tableRes.body.id });
+      socket.emit("subscribeToTable", { tableId: table.id });
 
       // Join with both players
       await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
+        .post(`/api/v1/games/${table.id}/join`)
         .set("Authorization", `Bearer ${player1.accessToken}`)
         .send({ bot_id: player1.bot.id })
         .expect(201);
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
+        .post(`/api/v1/games/${table.id}/join`)
         .set("Authorization", `Bearer ${player2.accessToken}`)
         .send({ bot_id: player2.bot.id })
         .expect(201);
@@ -332,23 +326,12 @@ describe("WebSocket Real-time E2E Tests", () => {
         new Promise<void>((resolve) => socket2.on("connect", resolve)),
       ]);
 
-      // Create table
-      const tableRes = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({
-          name: `MultiClientTable${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
+      // Create table (table creation requires admin)
+      const table = await createTable();
 
       // Subscribe both to same table
-      socket1.emit("subscribeToTable", { tableId: tableRes.body.id });
-      socket2.emit("subscribeToTable", { tableId: tableRes.body.id });
+      socket1.emit("subscribeToTable", { tableId: table.id });
+      socket2.emit("subscribeToTable", { tableId: table.id });
 
       // Listen for events
       socket1.on("gameState", (data) => events1.push(data));
@@ -356,13 +339,13 @@ describe("WebSocket Real-time E2E Tests", () => {
 
       // Join with both players to trigger events
       await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
+        .post(`/api/v1/games/${table.id}/join`)
         .set("Authorization", `Bearer ${player1.accessToken}`)
         .send({ bot_id: player1.bot.id })
         .expect(201);
 
       await request(app.getHttpServer())
-        .post(`/api/v1/games/${tableRes.body.id}/join`)
+        .post(`/api/v1/games/${table.id}/join`)
         .set("Authorization", `Bearer ${player2.accessToken}`)
         .send({ bot_id: player2.bot.id })
         .expect(201);
@@ -382,28 +365,17 @@ describe("WebSocket Real-time E2E Tests", () => {
 
       await new Promise<void>((resolve) => socket.on("connect", resolve));
 
-      // Create table
-      const tableRes = await request(app.getHttpServer())
-        .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${player.accessToken}`)
-        .send({
-          name: `UnsubTable${uid()}`,
-          small_blind: 10,
-          big_blind: 20,
-          starting_chips: 1000,
-          max_players: 2,
-          turn_timeout_ms: 5000,
-        })
-        .expect(201);
+      // Create table (table creation requires admin)
+      const table = await createTable();
 
       socket.on("gameState", () => eventCount++);
 
       // Subscribe
-      socket.emit("subscribeToTable", { tableId: tableRes.body.id });
+      socket.emit("subscribeToTable", { tableId: table.id });
       await new Promise((r) => setTimeout(r, 500));
 
       // Unsubscribe
-      socket.emit("unsubscribeFromTable", { tableId: tableRes.body.id });
+      socket.emit("unsubscribeFromTable", { tableId: table.id });
       await new Promise((r) => setTimeout(r, 500));
 
       const countAfterUnsub = eventCount;

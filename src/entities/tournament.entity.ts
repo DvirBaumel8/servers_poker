@@ -27,6 +27,7 @@ export class Tournament extends BaseEntity {
   @Column({ type: "varchar", length: 20 })
   type: TournamentType;
 
+  @Index()
   @Column({ type: "varchar", length: 20, default: "registering" })
   status: TournamentStatus;
 

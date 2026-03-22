@@ -1,0 +1,48 @@
+---
+description: PR workflow - run local CI before creating PRs
+alwaysApply: true
+---
+
+# PR Workflow
+
+## Before Creating a PR
+
+**ALWAYS run the local CI simulation before creating or pushing to a PR:**
+
+```bash
+npm run ci:local
+# or for quick checks:
+npm run ci:local:quick
+```
+
+This catches most CI failures locally, avoiding the push-check-fix-push cycle.
+
+## When User Reports PR Build Failure
+
+1. **Investigate the failure** - check the specific error
+2. **Fix the code issue** first
+3. **Update `scripts/ci-local.sh`** to catch this type of failure in the future
+4. **Document the improvement** in this rule if it's a new check category
+
+## CI Script Improvements
+
+When adding new checks to `scripts/ci-local.sh`:
+- Keep checks fast (< 30s each ideally)
+- Use `--quiet` flags where possible
+- Mirror CI workflow settings exactly (same ESLint/Prettier configs)
+
+## Current CI Coverage
+
+The local CI script checks:
+- Backend ESLint (strict)
+- Frontend ESLint (max-warnings 0)
+- Backend Prettier
+- Frontend Prettier
+- Backend TypeScript (noEmit)
+- Frontend TypeScript (noEmit)
+- Backend Unit Tests
+- Frontend Unit Tests
+
+## Goal
+
+**100% of PRs should be green on first push.** Every CI failure is an opportunity to improve the local CI script.

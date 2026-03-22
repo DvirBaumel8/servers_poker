@@ -1,0 +1,55 @@
+---
+description: Consider adding new files to coverage exclusions when appropriate
+globs: src/**/*.ts
+alwaysApply: false
+---
+
+# Test Coverage Exclusions
+
+When creating new files in `src/`, evaluate if they should be added to coverage exclusions in `vitest.config.ts`.
+
+## Files to EXCLUDE from coverage
+
+Add to `vitest.config.ts` coverage.exclude if the file is:
+
+| Category | Pattern | Reason |
+|----------|---------|--------|
+| Framework boilerplate | `*.module.ts`, `*.dto.ts`, `*.entity.ts`, `*.controller.ts`, `*.gateway.ts` | Minimal logic, covered by E2E |
+| Config/Infrastructure | `src/config/**`, `src/migrations/**` | Static configuration |
+| Data access | `src/repositories/**`, `src/common/redis/**` | Requires DB/Redis, use integration tests |
+| Framework integrations | `src/**/strategies/**`, `src/common/pipes/**` | Framework glue code |
+| External system services | Bot callers, Redis services, persistence services | Better for integration/E2E tests |
+| Scripts | `src/simulation/**`, `src/workers/**` | Not production code |
+
+## Files to INCLUDE in coverage
+
+Keep in coverage (do NOT exclude):
+
+- **Pure business logic** - Game engine, hand evaluation, betting logic
+- **Utility functions** - Helpers, formatters, validators with no external deps
+- **Domain services** - Services with testable business rules
+
+## When adding a new file
+
+```typescript
+// Ask yourself:
+// 1. Does this file contain business logic that can be unit tested?
+// 2. Does it require external systems (DB, Redis, HTTP) to test meaningfully?
+// 3. Is it framework boilerplate or wiring code?
+
+// If #2 or #3 → add to exclusions
+// If #1 with no external deps → keep in coverage
+```
+
+## Adding to exclusions
+
+Place new exclusions in the appropriate section of `vitest.config.ts`:
+
+```typescript
+coverage: {
+  exclude: [
+    // ... existing sections ...
+    // Add to the matching category section
+  ]
+}
+```

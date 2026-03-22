@@ -1,6 +1,27 @@
 import { api } from "./client";
 import type { Tournament, TournamentEntry } from "../types";
 
+export interface CreateTournamentRequest {
+  name: string;
+  type: "rolling" | "scheduled";
+  buy_in: number;
+  starting_chips: number;
+  min_players: number;
+  max_players: number;
+  players_per_table?: number;
+  turn_timeout_ms?: number;
+  late_reg_ends_level?: number;
+  rebuys_allowed?: boolean;
+  scheduled_start_at?: string;
+}
+
+export interface SchedulerStatus {
+  enabled: boolean;
+  cronExpression: string;
+  nextRun: string | null;
+  lastRun: string | null;
+}
+
 interface TournamentApiResponse {
   id: string;
   name: string;
@@ -91,15 +112,18 @@ export const tournamentsApi = {
   getLeaderboard: (id: string) =>
     api
       .get<TournamentLeaderboardApiResponse[]>(`/tournaments/${id}/leaderboard`)
-      .then((leaderboard): TournamentEntry[] =>
-        leaderboard.map((entry) => ({
+      .then((leaderboard): TournamentEntry[] => {
+        if (!Array.isArray(leaderboard)) {
+          return [];
+        }
+        return leaderboard.map((entry) => ({
           position: entry.position,
           botId: entry.bot_id,
           botName: entry.bot_name,
           chips: entry.chips,
           busted: entry.busted,
-        })),
-      ),
+        }));
+      }),
 
   create: (data: Partial<Tournament>, token: string) =>
     api.post<Tournament>("/tournaments", data, token),
@@ -130,4 +154,36 @@ export const tournamentsApi = {
       undefined,
       token,
     ),
+
+  // Admin endpoints
+  createTournament: (data: CreateTournamentRequest, token: string) =>
+    api
+      .post<TournamentApiResponse>("/tournaments", data, token)
+      .then(transformTournament),
+
+  updateSchedule: (
+    id: string,
+    scheduledStartAt: string | null,
+    token: string,
+  ) =>
+    api.patch<{ success: boolean; scheduled_start_at: string | null }>(
+      `/tournaments/${id}/schedule`,
+      { scheduled_start_at: scheduledStartAt },
+      token,
+    ),
+
+  getSchedulerStatus: (token: string) =>
+    api.get<SchedulerStatus>("/tournaments/admin/scheduler", token),
+
+  updateSchedulerConfig: (cronExpression: string, token: string) =>
+    api.patch<SchedulerStatus & { success: boolean }>(
+      "/tournaments/admin/scheduler",
+      { cron_expression: cronExpression },
+      token,
+    ),
+
+  getUpcomingScheduled: () =>
+    api
+      .get<TournamentApiResponse[]>("/tournaments/scheduled/upcoming")
+      .then((raw) => raw.map(transformTournament)),
 };

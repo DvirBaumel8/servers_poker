@@ -2,6 +2,7 @@ import {
   IsString,
   IsUrl,
   IsOptional,
+  IsBoolean,
   MinLength,
   MaxLength,
   Matches,
@@ -31,6 +32,10 @@ export class CreateBotDto {
     message: "Description must not contain HTML tags",
   })
   description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  skip_validation?: boolean;
 }
 
 export class UpdateBotDto {

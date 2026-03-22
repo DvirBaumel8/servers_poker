@@ -12,6 +12,11 @@ describe("GamesService", () => {
     getHandWithDetails: ReturnType<typeof vi.fn>;
     getLeaderboard: ReturnType<typeof vi.fn>;
   };
+  let mockBotRepository: Record<string, never>;
+  let mockHandSeedRepository: Record<string, never>;
+  let mockCacheService: {
+    getOrSet: ReturnType<typeof vi.fn>;
+  };
 
   const mockGame = {
     id: "game-123",
@@ -61,7 +66,17 @@ describe("GamesService", () => {
       getHandWithDetails: vi.fn(),
       getLeaderboard: vi.fn(),
     };
-    service = new GamesService(mockGameRepository as never);
+    mockBotRepository = {};
+    mockHandSeedRepository = {};
+    mockCacheService = {
+      getOrSet: vi.fn().mockImplementation((_key, fn) => fn()),
+    };
+    service = new GamesService(
+      mockGameRepository as never,
+      mockBotRepository as never,
+      mockHandSeedRepository as never,
+      mockCacheService as never,
+    );
   });
 
   describe("findById", () => {
@@ -209,8 +224,11 @@ describe("GamesService", () => {
 
       const result = await service.getLeaderboard();
 
-      expect(result).toEqual(leaderboard);
-      expect(mockGameRepository.getLeaderboard).toHaveBeenCalledWith(20);
+      expect(result).toHaveLength(1);
+      expect(result[0].bot_id).toBe("bot-1");
+      expect(result[0].bot_name).toBe("Bot1");
+      expect(result[0].total_winnings).toBe(1000);
+      expect(mockGameRepository.getLeaderboard).toHaveBeenCalledWith(20, "all");
     });
 
     it("should return leaderboard with custom limit", async () => {
@@ -218,7 +236,7 @@ describe("GamesService", () => {
 
       await service.getLeaderboard(10);
 
-      expect(mockGameRepository.getLeaderboard).toHaveBeenCalledWith(10);
+      expect(mockGameRepository.getLeaderboard).toHaveBeenCalledWith(10, "all");
     });
   });
 });

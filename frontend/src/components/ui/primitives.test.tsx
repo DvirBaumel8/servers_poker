@@ -35,7 +35,7 @@ describe("UI primitives", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /beta/i }));
+    await user.click(screen.getByRole("tab", { name: /beta/i }));
     expect(onChange).toHaveBeenCalledWith("b");
   });
 

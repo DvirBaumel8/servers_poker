@@ -6,19 +6,25 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   UseGuards,
-  NotFoundException,
-  ForbiddenException,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { UpdateUserDto, AdminUpdateUserDto } from "./dto/user.dto";
+import { PaginationDto } from "../../common/dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
-import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { User } from "../../entities/user.entity";
+import { RolesGuard } from "../../common/guards/roles.guard";
+import {
+  SelfOrAdminGuard,
+  RequireSelfOrAdmin,
+} from "../../common/guards/self-or-admin.guard";
+import { Roles } from "../../common/decorators/roles.decorator";
 import { ApiKeyRotationService } from "../../common/security";
+import { assertFound } from "../../common/utils";
 
 @Controller("users")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, SelfOrAdminGuard)
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
@@ -26,64 +32,50 @@ export class UsersController {
   ) {}
 
   @Get()
-  async findAll(@CurrentUser() user: User) {
-    if (user.role !== "admin") {
-      throw new ForbiddenException("Admin access required");
-    }
-    return this.usersService.findAll();
+  @Roles("admin")
+  async findAll(@Query() pagination: PaginationDto) {
+    return this.usersService.findAllPaginated(
+      pagination.limit ?? 20,
+      pagination.offset ?? 0,
+    );
   }
 
   @Get(":id")
-  async findOne(@Param("id") id: string, @CurrentUser() user: User) {
-    if (user.id !== id && user.role !== "admin") {
-      throw new ForbiddenException("Access denied");
-    }
+  @RequireSelfOrAdmin("id")
+  async findOne(@Param("id", ParseUUIDPipe) id: string) {
     const result = await this.usersService.findById(id);
-    if (!result) {
-      throw new NotFoundException(`User ${id} not found`);
-    }
+    assertFound(result, "User", id);
     return result;
   }
 
   @Put(":id")
+  @RequireSelfOrAdmin("id")
   async update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
-    @CurrentUser() user: User,
   ) {
-    if (user.id !== id && user.role !== "admin") {
-      throw new ForbiddenException("Access denied");
-    }
     return this.usersService.update(id, dto);
   }
 
   @Put(":id/admin")
+  @Roles("admin")
   async adminUpdate(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: AdminUpdateUserDto,
-    @CurrentUser() user: User,
   ) {
-    if (user.role !== "admin") {
-      throw new ForbiddenException("Admin access required");
-    }
     return this.usersService.adminUpdate(id, dto);
   }
 
   @Delete(":id")
-  async deactivate(@Param("id") id: string, @CurrentUser() user: User) {
-    if (user.id !== id && user.role !== "admin") {
-      throw new ForbiddenException("Access denied");
-    }
+  @RequireSelfOrAdmin("id")
+  async deactivate(@Param("id", ParseUUIDPipe) id: string) {
     await this.usersService.deactivate(id);
     return { success: true };
   }
 
   @Post(":id/rotate-api-key")
-  async rotateApiKey(@Param("id") id: string, @CurrentUser() user: User) {
-    if (user.id !== id && user.role !== "admin") {
-      throw new ForbiddenException("Access denied");
-    }
-
+  @RequireSelfOrAdmin("id")
+  async rotateApiKey(@Param("id", ParseUUIDPipe) id: string) {
     const result = await this.apiKeyRotationService.rotateApiKey(id);
 
     return {
@@ -97,11 +89,8 @@ export class UsersController {
   }
 
   @Get(":id/api-key-status")
-  async getApiKeyStatus(@Param("id") id: string, @CurrentUser() user: User) {
-    if (user.id !== id && user.role !== "admin") {
-      throw new ForbiddenException("Access denied");
-    }
-
+  @RequireSelfOrAdmin("id")
+  async getApiKeyStatus(@Param("id", ParseUUIDPipe) id: string) {
     const status = await this.apiKeyRotationService.getRotationStatus(id);
 
     return {
@@ -111,11 +100,8 @@ export class UsersController {
   }
 
   @Post(":id/revoke-api-keys")
-  async revokeApiKeys(@Param("id") id: string, @CurrentUser() user: User) {
-    if (user.role !== "admin") {
-      throw new ForbiddenException("Admin access required");
-    }
-
+  @Roles("admin")
+  async revokeApiKeys(@Param("id", ParseUUIDPipe) id: string) {
     await this.apiKeyRotationService.revokeAllKeys(id);
 
     return {

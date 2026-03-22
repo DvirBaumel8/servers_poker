@@ -14,6 +14,9 @@
  * - Basic: 2-player, fast, run on every commit
  * - SingleTable: 9-player tournament, run on PR
  * - MultiTable: 30+ player, run weekly/before release
+ *
+ * For live invariant validation during gameplay, use the SimulationMonster
+ * from the Monster Army (tests/qa/monsters/simulation-monster/).
  */
 
 import { Test, TestingModule } from "@nestjs/testing";

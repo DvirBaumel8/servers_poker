@@ -8,7 +8,14 @@ import {
   ConnectedSocket,
   MessageBody,
 } from "@nestjs/websockets";
-import { Logger, OnModuleInit, Optional, Inject } from "@nestjs/common";
+import {
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+  Optional,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
 import { Server, Socket } from "socket.io";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
@@ -22,7 +29,10 @@ import {
   RedisEventBusService,
   RedisGameEvent,
 } from "../../services/redis/redis-event-bus.service";
+import { RedisSocketStateService } from "../../services/redis/redis-socket-state.service";
 import { BotActivityService } from "../../services/bot/bot-activity.service";
+import { MetricsService } from "../metrics/metrics.service";
+import { DEFAULT_CORS_ORIGINS } from "../../config/app.config";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -79,10 +89,7 @@ interface PrivatePlayerState {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(",") || [
-      "http://localhost:3001",
-      "http://localhost:3002",
-    ],
+    origin: process.env.CORS_ORIGINS?.split(",") || DEFAULT_CORS_ORIGINS,
     credentials: true,
   },
   namespace: "/game",
@@ -92,18 +99,32 @@ export class GamesGateway
     OnGatewayInit,
     OnGatewayConnection,
     OnGatewayDisconnect,
-    OnModuleInit
+    OnModuleInit,
+    OnModuleDestroy
 {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(GamesGateway.name);
-  private readonly connectedClients = new Map<string, AuthenticatedSocket>();
-  private readonly tableSubscriptions = new Map<string, Set<string>>();
-  private readonly playerSockets = new Map<string, string>();
-  private readonly botActivitySubscriptions = new Map<string, Set<string>>();
-
+  private readonly localConnectedClients = new Map<
+    string,
+    AuthenticatedSocket
+  >();
   private readonly useWorkerThreads: boolean;
+  private readonly useRedisSocketState: boolean;
+  private readonly eventHandlers: Array<{
+    event: string;
+    handler: (...args: unknown[]) => void;
+  }> = [];
+
+  /**
+   * Track WebSocket message for metrics (GAP-6 fix)
+   */
+  private trackMessage(eventType: string): void {
+    if (this.metricsService) {
+      this.metricsService.recordWebSocketMessage(eventType);
+    }
+  }
 
   /**
    * Check if a client is rate limited.
@@ -145,10 +166,17 @@ export class GamesGateway
     @Inject(RedisEventBusService)
     private readonly redisEventBus: RedisEventBusService | null,
     @Optional()
+    @Inject(RedisSocketStateService)
+    private readonly redisSocketState: RedisSocketStateService | null,
+    @Optional()
     @Inject(BotActivityService)
     private readonly botActivityService: BotActivityService | null,
+    @Optional()
+    @Inject(forwardRef(() => MetricsService))
+    private readonly metricsService: MetricsService | null,
   ) {
     this.useWorkerThreads = this.gameWorkerManager.isEnabled();
+    this.useRedisSocketState = this.redisSocketState !== null;
   }
 
   onModuleInit() {
@@ -157,15 +185,31 @@ export class GamesGateway
     this.logger.log("Game event listeners registered");
   }
 
+  onModuleDestroy() {
+    for (const { event, handler } of this.eventHandlers) {
+      this.eventEmitter.off(event, handler);
+    }
+    this.eventHandlers.length = 0;
+    this.logger.log("Game event listeners cleaned up");
+  }
+
+  private registerEventHandler(
+    event: string,
+    handler: (...args: unknown[]) => void,
+  ): void {
+    this.eventEmitter.on(event, handler);
+    this.eventHandlers.push({ event, handler });
+  }
+
   private setupLocalEventListeners(): void {
-    this.eventEmitter.on(
+    this.registerEventHandler(
       "game.stateUpdated",
       (event: { tableId: string; state: GameStateSnapshot }) => {
         this.broadcastGameState(event.tableId, event.state as any);
       },
     );
 
-    this.eventEmitter.on(
+    this.registerEventHandler(
       "game.handStarted",
       (event: {
         tableId: string;
@@ -184,7 +228,7 @@ export class GamesGateway
       },
     );
 
-    this.eventEmitter.on("game.handComplete", (event: any) => {
+    this.registerEventHandler("game.handComplete", (event: any) => {
       this.broadcastHandResult(event.tableId, {
         handNumber: event.handNumber,
         winners: event.winners.map((w: any) => ({
@@ -197,7 +241,7 @@ export class GamesGateway
       });
     });
 
-    this.eventEmitter.on(
+    this.registerEventHandler(
       "game.playerAction",
       (event: {
         tableId: string;
@@ -215,7 +259,7 @@ export class GamesGateway
       },
     );
 
-    this.eventEmitter.on(
+    this.registerEventHandler(
       "game.finished",
       (event: { tableId: string; winnerId?: string; winnerName?: string }) => {
         this.broadcastGameFinished(event.tableId, {
@@ -226,7 +270,7 @@ export class GamesGateway
       },
     );
 
-    this.eventEmitter.on(
+    this.registerEventHandler(
       "game.playerRemoved",
       (event: { tableId: string; playerId: string }) => {
         const state = this.getGameState(event.tableId);
@@ -243,7 +287,7 @@ export class GamesGateway
       },
     );
 
-    this.eventEmitter.on(
+    this.registerEventHandler(
       "game.playerJoined",
       (event: { tableId: string; gameId: string; player: { id: string } }) => {
         this.broadcastBotActivityUpdate(event.player.id).catch((e) =>
@@ -380,14 +424,12 @@ export class GamesGateway
     try {
       const token = this.extractToken(client);
       if (!token) {
-        this.logger.warn(
-          `Connection rejected for client ${client.id}: No authentication token`,
-        );
-        client.emit("error", {
-          code: "UNAUTHORIZED",
-          message: "Authentication required. Please provide a valid JWT token.",
-        });
-        client.disconnect(true);
+        client.userId = undefined;
+        this.localConnectedClients.set(client.id, client);
+        if (this.redisSocketState) {
+          await this.redisSocketState.registerSocket(client.id);
+        }
+        this.logger.log(`Spectator connected: ${client.id} (no auth)`);
         return;
       }
 
@@ -396,35 +438,30 @@ export class GamesGateway
       });
       client.userId = payload.sub;
 
-      this.connectedClients.set(client.id, client);
+      this.localConnectedClients.set(client.id, client);
+      if (this.redisSocketState) {
+        await this.redisSocketState.registerSocket(client.id, client.userId);
+      }
       this.logger.log(
         `Client connected: ${client.id} (user: ${client.userId})`,
       );
-    } catch (error) {
-      this.logger.warn(
-        `Connection rejected for client ${client.id}: Invalid token`,
+    } catch {
+      client.userId = undefined;
+      this.localConnectedClients.set(client.id, client);
+      if (this.redisSocketState) {
+        await this.redisSocketState.registerSocket(client.id);
+      }
+      this.logger.log(
+        `Spectator connected: ${client.id} (invalid token, spectating)`,
       );
-      client.emit("error", {
-        code: "UNAUTHORIZED",
-        message: "Invalid or expired authentication token.",
-      });
-      client.disconnect(true);
     }
   }
 
-  handleDisconnect(client: AuthenticatedSocket) {
-    this.connectedClients.delete(client.id);
+  async handleDisconnect(client: AuthenticatedSocket) {
+    this.localConnectedClients.delete(client.id);
 
-    for (const [tableId, subscribers] of this.tableSubscriptions) {
-      if (subscribers.delete(client.id)) {
-        if (subscribers.size === 0) {
-          this.tableSubscriptions.delete(tableId);
-        }
-      }
-    }
-
-    if (client.botId) {
-      this.playerSockets.delete(client.botId);
+    if (this.redisSocketState) {
+      await this.redisSocketState.unregisterSocket(client.id);
     }
 
     this.logger.log(`Client disconnected: ${client.id}`);
@@ -435,16 +472,16 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tableId: string },
   ) {
+    this.trackMessage("subscribe");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
 
     const { tableId } = data;
 
-    if (!this.tableSubscriptions.has(tableId)) {
-      this.tableSubscriptions.set(tableId, new Set());
+    if (this.redisSocketState) {
+      await this.redisSocketState.subscribeToTable(client.id, tableId);
     }
-    this.tableSubscriptions.get(tableId)!.add(client.id);
 
     client.join(`table:${tableId}`);
     this.logger.debug(`Client ${client.id} subscribed to table ${tableId}`);
@@ -475,22 +512,19 @@ export class GamesGateway
   }
 
   @SubscribeMessage("unsubscribe")
-  handleUnsubscribe(
+  async handleUnsubscribe(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tableId: string },
   ) {
+    this.trackMessage("unsubscribe");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
 
     const { tableId } = data;
 
-    const subscribers = this.tableSubscriptions.get(tableId);
-    if (subscribers) {
-      subscribers.delete(client.id);
-      if (subscribers.size === 0) {
-        this.tableSubscriptions.delete(tableId);
-      }
+    if (this.redisSocketState) {
+      await this.redisSocketState.unsubscribeFromTable(client.id, tableId);
     }
 
     client.leave(`table:${tableId}`);
@@ -500,17 +534,21 @@ export class GamesGateway
   }
 
   @SubscribeMessage("registerBot")
-  handleRegisterBot(
+  async handleRegisterBot(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
+    this.trackMessage("registerBot");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
 
     const { botId } = data;
     client.botId = botId;
-    this.playerSockets.set(botId, client.id);
+
+    if (this.redisSocketState) {
+      await this.redisSocketState.registerBotSocket(client.id, botId);
+    }
 
     this.logger.log(`Bot ${botId} registered on socket ${client.id}`);
     return { success: true, botId };
@@ -521,16 +559,16 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
+    this.trackMessage("subscribeBotActivity");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
 
     const { botId } = data;
 
-    if (!this.botActivitySubscriptions.has(botId)) {
-      this.botActivitySubscriptions.set(botId, new Set());
+    if (this.redisSocketState) {
+      await this.redisSocketState.subscribeToBotActivity(client.id, botId);
     }
-    this.botActivitySubscriptions.get(botId)!.add(client.id);
 
     client.join(`bot:${botId}`);
     this.logger.debug(
@@ -548,22 +586,19 @@ export class GamesGateway
   }
 
   @SubscribeMessage("unsubscribeBotActivity")
-  handleUnsubscribeBotActivity(
+  async handleUnsubscribeBotActivity(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
+    this.trackMessage("unsubscribeBotActivity");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
 
     const { botId } = data;
 
-    const subscribers = this.botActivitySubscriptions.get(botId);
-    if (subscribers) {
-      subscribers.delete(client.id);
-      if (subscribers.size === 0) {
-        this.botActivitySubscriptions.delete(botId);
-      }
+    if (this.redisSocketState) {
+      await this.redisSocketState.unsubscribeFromBotActivity(client.id, botId);
     }
 
     client.leave(`bot:${botId}`);
@@ -578,6 +613,7 @@ export class GamesGateway
   async handleSubscribeActiveBots(
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
+    this.trackMessage("subscribeActiveBots");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -599,12 +635,75 @@ export class GamesGateway
 
   @SubscribeMessage("unsubscribeActiveBots")
   handleUnsubscribeActiveBots(@ConnectedSocket() client: AuthenticatedSocket) {
+    this.trackMessage("unsubscribeActiveBots");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
 
     client.leave("activeBots");
     this.logger.debug(`Client ${client.id} unsubscribed from active bots`);
+    return { success: true };
+  }
+
+  @SubscribeMessage("subscribeTournaments")
+  async handleSubscribeTournaments(
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    this.trackMessage("subscribeTournaments");
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
+    client.join("tournaments");
+    this.logger.debug(`Client ${client.id} subscribed to tournaments`);
+    return { success: true };
+  }
+
+  @SubscribeMessage("unsubscribeTournaments")
+  handleUnsubscribeTournaments(@ConnectedSocket() client: AuthenticatedSocket) {
+    this.trackMessage("unsubscribeTournaments");
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
+    client.leave("tournaments");
+    this.logger.debug(`Client ${client.id} unsubscribed from tournaments`);
+    return { success: true };
+  }
+
+  @SubscribeMessage("subscribeTournament")
+  async handleSubscribeTournament(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { tournamentId: string },
+  ) {
+    this.trackMessage("subscribeTournament");
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
+    const { tournamentId } = data;
+    client.join(`tournament:${tournamentId}`);
+    this.logger.debug(
+      `Client ${client.id} subscribed to tournament ${tournamentId}`,
+    );
+    return { success: true };
+  }
+
+  @SubscribeMessage("unsubscribeTournament")
+  handleUnsubscribeTournament(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { tournamentId: string },
+  ) {
+    this.trackMessage("unsubscribeTournament");
+    if (this.isRateLimited(client)) {
+      return { success: false, error: "Rate limit exceeded" };
+    }
+
+    const { tournamentId } = data;
+    client.leave(`tournament:${tournamentId}`);
+    this.logger.debug(
+      `Client ${client.id} unsubscribed from tournament ${tournamentId}`,
+    );
     return { success: true };
   }
 
@@ -618,6 +717,7 @@ export class GamesGateway
       amount?: number;
     },
   ) {
+    this.trackMessage("action");
     if (this.isRateLimited(client)) {
       return { error: "Rate limit exceeded", code: "RATE_LIMITED" };
     }
@@ -638,15 +738,22 @@ export class GamesGateway
     };
   }
 
-  sendError(
+  async sendError(
     botId: string,
     error: { code: string; message: string; currentPlayerId?: string },
   ) {
-    const socketId = this.playerSockets.get(botId);
+    let socketId: string | null = null;
+
+    if (this.redisSocketState) {
+      socketId = await this.redisSocketState.getSocketIdForBot(botId);
+    }
+
     if (socketId) {
-      const socket = this.connectedClients.get(socketId);
+      const socket = this.localConnectedClients.get(socketId);
       if (socket) {
         socket.emit("error", error);
+      } else {
+        this.server.to(socketId).emit("error", error);
       }
     }
   }
@@ -697,12 +804,19 @@ export class GamesGateway
     return dealerIndex >= 0 ? dealerIndex : 0;
   }
 
-  sendPrivateState(botId: string, state: PrivatePlayerState) {
-    const socketId = this.playerSockets.get(botId);
+  async sendPrivateState(botId: string, state: PrivatePlayerState) {
+    let socketId: string | null = null;
+
+    if (this.redisSocketState) {
+      socketId = await this.redisSocketState.getSocketIdForBot(botId);
+    }
+
     if (socketId) {
-      const socket = this.connectedClients.get(socketId);
+      const socket = this.localConnectedClients.get(socketId);
       if (socket) {
         socket.emit("privateState", state);
+      } else {
+        this.server.to(socketId).emit("privateState", state);
       }
     }
   }
@@ -746,8 +860,17 @@ export class GamesGateway
   broadcastTournamentUpdate(
     tournamentId: string,
     update: {
-      type: "player_bust" | "table_break" | "level_change" | "final_table";
-      data: Record<string, any>;
+      type:
+        | "player_bust"
+        | "table_break"
+        | "level_change"
+        | "final_table"
+        | "playerRegistered"
+        | "stateUpdate"
+        | "levelChanged"
+        | "playerBusted"
+        | "finished";
+      data: Record<string, unknown>;
     },
   ) {
     this.server
@@ -771,12 +894,31 @@ export class GamesGateway
     });
   }
 
-  getConnectedCount(): number {
-    return this.connectedClients.size;
+  broadcastTournamentListUpdate(tournament: {
+    id: string;
+    name: string;
+    status: string;
+    entries_count: number;
+    [key: string]: unknown;
+  }): void {
+    this.server.to("tournaments").emit("tournamentListUpdate", {
+      tournament,
+      timestamp: new Date().toISOString(),
+    });
   }
 
-  getTableSubscriberCount(tableId: string): number {
-    return this.tableSubscriptions.get(tableId)?.size || 0;
+  async getConnectedCount(): Promise<number> {
+    if (this.redisSocketState) {
+      return this.redisSocketState.getConnectedCount();
+    }
+    return this.localConnectedClients.size;
+  }
+
+  async getTableSubscriberCount(tableId: string): Promise<number> {
+    if (this.redisSocketState) {
+      return this.redisSocketState.getTableSubscriberCount(tableId);
+    }
+    return 0;
   }
 
   private snapshotToGameState(snapshot: GameStateSnapshot): GameState {

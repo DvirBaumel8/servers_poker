@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { UserRepository } from "../../repositories/user.repository";
 import { User } from "../../entities/user.entity";
 import {
@@ -6,6 +6,8 @@ import {
   AdminUpdateUserDto,
   UserResponseDto,
 } from "./dto/user.dto";
+import { PaginatedResponse } from "../../common/dto";
+import { assertFound, toPaginatedResponse } from "../../common/utils";
 
 @Injectable()
 export class UsersService {
@@ -22,11 +24,23 @@ export class UsersService {
     return users.map((u) => this.toResponseDto(u));
   }
 
+  async findAllPaginated(
+    limit: number,
+    offset: number,
+  ): Promise<PaginatedResponse<UserResponseDto>> {
+    const [users, total] = await this.userRepository.findAndCount({
+      take: limit,
+      skip: offset,
+      order: { created_at: "DESC" },
+    });
+    return toPaginatedResponse(users, total, limit, offset, (u) =>
+      this.toResponseDto(u),
+    );
+  }
+
   async update(id: string, dto: UpdateUserDto): Promise<UserResponseDto> {
     const user = await this.userRepository.update(id, dto);
-    if (!user) {
-      throw new NotFoundException(`User ${id} not found`);
-    }
+    assertFound(user, "User", id);
     return this.toResponseDto(user);
   }
 
@@ -35,9 +49,7 @@ export class UsersService {
     dto: AdminUpdateUserDto,
   ): Promise<UserResponseDto> {
     const user = await this.userRepository.update(id, dto);
-    if (!user) {
-      throw new NotFoundException(`User ${id} not found`);
-    }
+    assertFound(user, "User", id);
     return this.toResponseDto(user);
   }
 

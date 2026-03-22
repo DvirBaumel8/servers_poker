@@ -4,13 +4,36 @@
 @config "../tailwind.config.js";
 
 :root {
+  /* Core palette */
   --poker-green: #0d3b2e;
   --poker-felt: #1b5e45;
   --poker-gold: #d2b15f;
+  --poker-gold-light: #f2df9b;
+  --poker-gold-dark: #9f7d31;
+  
+  /* Surfaces */
   --surface: #0a1220;
   --surface-light: #192334;
+  --surface-elevated: #1e2d42;
   --panel: rgba(16, 24, 38, 0.78);
   --line: rgba(255, 255, 255, 0.1);
+  
+  /* Text colors - WCAG AA compliant */
+  --text-primary: #f1f5f9;      /* High contrast: 12.6:1 */
+  --text-secondary: #cbd5e1;    /* Good contrast: 8.5:1 */
+  --text-muted: #94a3b8;        /* Acceptable: 5.4:1 */
+  --text-subtle: #64748b;       /* Decorative only: 3.8:1 */
+  
+  /* Semantic colors */
+  --success: #36d399;
+  --warning: #f7c948;
+  --error: #f87171;
+  --info: #60a5fa;
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
 }
 
 * {
@@ -21,20 +44,63 @@
 
 html {
   color-scheme: dark;
+  overflow-x: hidden;
 }
 
 body {
   font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background:
     radial-gradient(circle at top, rgba(210, 177, 95, 0.06), transparent 22%),
     linear-gradient(180deg, #070b12 0%, #0a1220 44%, #0b1423 100%);
-  color: #e8edf6;
+  color: var(--text-primary);
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  line-height: 1.6;
+}
+
+/* Typography scale with proper weights */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+h1 { font-size: 2.5rem; font-weight: 700; }
+h2 { font-size: 2rem; font-weight: 700; }
+h3 { font-size: 1.5rem; font-weight: 600; }
+h4 { font-size: 1.25rem; font-weight: 600; }
+h5 { font-size: 1rem; font-weight: 600; }
+h6 { font-size: 0.875rem; font-weight: 600; }
+
+p {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+strong, b {
+  font-weight: 700;
+}
+
+small {
+  font-size: 0.875rem;
+  color: var(--text-muted);
 }
 
 a {
   color: inherit;
+  transition: color var(--transition-normal), opacity var(--transition-normal), transform var(--transition-fast);
+}
+
+a:hover {
+  color: var(--poker-gold);
+}
+
+a:active {
+  transform: scale(0.98);
 }
 
 button,
@@ -42,6 +108,29 @@ input,
 select,
 textarea {
   font: inherit;
+  transition: all var(--transition-normal);
+}
+
+/* Global interactive element transitions */
+button,
+[role="button"],
+.interactive {
+  transition: 
+    background-color var(--transition-normal),
+    border-color var(--transition-normal),
+    color var(--transition-normal),
+    transform var(--transition-fast),
+    box-shadow var(--transition-normal),
+    opacity var(--transition-normal);
+}
+
+input,
+select,
+textarea {
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    background-color var(--transition-normal);
 }
 
 *::-webkit-scrollbar {
@@ -71,6 +160,15 @@ textarea {
   border-color: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  transition: 
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
+}
+
+.glass-panel:hover,
+.surface-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .glass-panel-light {
@@ -79,6 +177,14 @@ textarea {
   border-color: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  transition: 
+    border-color var(--transition-normal),
+    background-color var(--transition-normal);
+}
+
+.glass-panel-light:hover {
+  border-color: rgba(210, 177, 95, 0.2);
+  background: rgba(24, 35, 52, 0.65);
 }
 
 .app-shell {
@@ -86,7 +192,14 @@ textarea {
 }
 
 .page-shell {
-  @apply mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8;
+  @apply mx-auto w-full max-w-7xl px-3 py-6 sm:px-6 sm:py-8 lg:px-8;
+}
+
+@media (max-width: 320px) {
+  .page-shell {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
 }
 
 .surface-card {
@@ -97,36 +210,68 @@ textarea {
   @apply rounded-3xl border p-5;
   background: rgba(14, 21, 34, 0.78);
   border-color: rgba(255, 255, 255, 0.06);
+  transition: 
+    border-color var(--transition-normal),
+    transform var(--transition-normal),
+    box-shadow var(--transition-normal);
+}
+
+.surface-card-muted:hover {
+  border-color: rgba(210, 177, 95, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
 }
 
 .eyebrow-label {
-  @apply text-[11px] font-semibold uppercase tracking-[0.28em] text-accent/80;
+  @apply text-[11px] uppercase tracking-[0.28em];
+  font-weight: 600;
+  color: var(--poker-gold);
+  opacity: 0.85;
 }
 
 .section-title {
-  @apply text-3xl font-display font-semibold tracking-tight text-white md:text-4xl;
+  @apply text-3xl font-display tracking-tight md:text-4xl;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .section-subtitle {
-  @apply text-sm leading-6 text-slate-400 md:text-base;
+  @apply text-sm leading-6 md:text-base;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* Text utility classes with proper contrast */
+.text-high-contrast {
+  color: var(--text-primary);
+}
+
+.text-medium-contrast {
+  color: var(--text-secondary);
+}
+
+.text-low-contrast {
+  color: var(--text-muted);
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-surface-400 disabled:pointer-events-none disabled:opacity-50;
+  @apply inline-flex min-h-[44px] items-center justify-center gap-2.5 rounded-2xl px-6 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-surface-400 disabled:pointer-events-none disabled:opacity-50;
   background: linear-gradient(135deg, #e7cb84 0%, #d2b15f 48%, #b38d3d 100%);
   color: #08101a;
   box-shadow: 0 16px 30px rgba(210, 177, 95, 0.2);
+  cursor: pointer;
 }
 
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 20px 34px rgba(210, 177, 95, 0.28);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 34px rgba(210, 177, 95, 0.32);
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-5 py-3 text-sm font-semibold text-slate-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-2 focus:ring-offset-surface-400 disabled:pointer-events-none disabled:opacity-50;
+  @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border px-5 py-3 text-sm font-semibold text-slate-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-2 focus:ring-offset-surface-400 disabled:pointer-events-none disabled:opacity-50;
   background: rgba(24, 35, 52, 0.72);
   border-color: rgba(255, 255, 255, 0.09);
+  cursor: pointer;
 }
 
 .btn-secondary:hover {
@@ -135,20 +280,55 @@ textarea {
 }
 
 .btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-white/5 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/10;
+  @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-white/5 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/10;
+  cursor: pointer;
 }
 
 .btn-danger {
-  @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-5 py-3 text-sm font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50;
-  background: rgba(127, 29, 29, 0.22);
+  @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border px-5 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:ring-offset-2 focus:ring-offset-surface-400 disabled:pointer-events-none disabled:opacity-50;
+  background: rgba(185, 28, 28, 0.65);
   color: #fecaca;
-  border-color: rgba(248, 113, 113, 0.26);
+  border-color: rgba(248, 113, 113, 0.45);
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: rgba(220, 38, 38, 0.75);
+  border-color: rgba(248, 113, 113, 0.65);
+  transform: translateY(-1px);
+}
+
+.btn-text {
+  @apply inline-flex min-h-[44px] items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-400 transition-all duration-200 hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent/20;
+  cursor: pointer;
+  background: transparent;
+}
+
+.btn-text:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-text:active {
+  transform: scale(0.98);
+}
+
+.btn-text:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .input-field {
-  @apply w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition-all duration-200 placeholder:text-slate-500 focus:ring-2 focus:ring-accent/20;
+  @apply min-h-[44px] w-full rounded-2xl border px-4 py-3 text-sm text-slate-100 outline-none transition-all duration-200 placeholder:text-slate-500 focus:ring-2 focus:ring-accent/20;
   background: rgba(10, 16, 28, 0.88);
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* WCAG 2.1 touch target sizing for select options */
+select.input-field option {
+  min-height: 44px;
+  padding: 12px 16px;
 }
 
 .input-field:focus {
@@ -190,10 +370,374 @@ textarea {
   transform: translateY(-2px);
 }
 
+/* WCAG 2.1 touch target utility - minimum 44x44px for interactive elements */
+@utility touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* CTA spacing utilities for visual hierarchy */
+@utility cta-section {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+@utility cta-prominent {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
 @utility text-shadow {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 @utility text-shadow-lg {
   text-shadow: 0 4px 8px rgba(0, 0, 0, 0.7);
+}
+
+/* React DatePicker Dark Theme Styles */
+.react-datepicker {
+  font-family: "Inter", sans-serif;
+  background: linear-gradient(180deg, rgba(24, 35, 52, 0.95) 0%, rgba(12, 18, 30, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  color: #e8edf6;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.react-datepicker__header {
+  background: rgba(24, 35, 52, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem 1rem 0 0;
+  padding: 12px;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker__day-name {
+  color: #e8edf6;
+}
+
+.react-datepicker__day {
+  color: #cbd5e1;
+  border-radius: 0.5rem;
+}
+
+.react-datepicker__day:hover {
+  background: rgba(210, 177, 95, 0.2);
+  color: #fff;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: #d2b15f !important;
+  color: #0a1220 !important;
+  font-weight: 600;
+}
+
+.react-datepicker__day--today {
+  border: 1px solid rgba(210, 177, 95, 0.5);
+}
+
+.react-datepicker__day--disabled {
+  color: #475569;
+}
+
+.react-datepicker__time-container {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.react-datepicker__time-list-item {
+  color: #cbd5e1;
+}
+
+.react-datepicker__time-list-item:hover {
+  background: rgba(210, 177, 95, 0.2) !important;
+  color: #fff;
+}
+
+.react-datepicker__time-list-item--selected {
+  background: #d2b15f !important;
+  color: #0a1220 !important;
+  font-weight: 600;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: #d2b15f;
+}
+
+.react-datepicker__navigation:hover *::before {
+  border-color: #f2df9b;
+}
+
+.react-datepicker-popper[data-placement^="bottom"] .react-datepicker__triangle::before,
+.react-datepicker-popper[data-placement^="bottom"] .react-datepicker__triangle::after {
+  border-bottom-color: rgba(24, 35, 52, 0.95);
+}
+
+.react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle::before,
+.react-datepicker-popper[data-placement^="top"] .react-datepicker__triangle::after {
+  border-top-color: rgba(12, 18, 30, 0.98);
+}
+
+/* ============================================================================
+   GLOBAL TRANSITIONS & INTERACTIVITY
+   ============================================================================ */
+
+/* Base transition for all interactive elements */
+button,
+[role="button"],
+.clickable,
+input,
+select,
+textarea {
+  transition: all 0.2s ease;
+}
+
+/* Focus visible styles for keyboard accessibility */
+:focus-visible {
+  outline: 2px solid var(--poker-gold);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--poker-gold);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(210, 177, 95, 0.2);
+}
+
+/* Remove default focus outline when not keyboard navigating */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ============================================================================
+   ENHANCED HOVER STATES
+   ============================================================================ */
+
+/* Card hover effects */
+.surface-card-muted {
+  transition: all 0.25s ease;
+}
+
+.surface-card-muted:hover {
+  border-color: rgba(210, 177, 95, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Glass panel hover */
+.glass-panel:hover,
+.glass-panel-light:hover {
+  border-color: rgba(210, 177, 95, 0.15);
+  transition: border-color 0.25s ease;
+}
+
+/* Status badge hover */
+.status-badge:hover,
+.status-running:hover,
+.status-waiting:hover,
+.status-finished:hover {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
+}
+
+/* ============================================================================
+   KEYFRAME ANIMATIONS
+   ============================================================================ */
+
+/* Pulse animation for live indicators */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(54, 211, 153, 0.4);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 8px rgba(54, 211, 153, 0);
+  }
+}
+
+/* Fade in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide in from right */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Chip stack animation */
+@keyframes chip-stack {
+  0% {
+    transform: translateY(-20px) scale(0.8);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(2px) scale(1.02);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Win celebration */
+@keyframes celebrate {
+  0%, 100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.05) rotate(-2deg);
+  }
+  75% {
+    transform: scale(1.05) rotate(2deg);
+  }
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Spin animation (for loading) */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Bounce animation */
+@keyframes bounce-subtle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* Animation utility classes */
+.animate-fade-in {
+  animation: fade-in 0.3s ease forwards;
+}
+
+.animate-slide-in {
+  animation: slide-in-right 0.3s ease forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease infinite;
+}
+
+.animate-chip-stack {
+  animation: chip-stack 0.4s ease forwards;
+}
+
+.animate-celebrate {
+  animation: celebrate 0.5s ease;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s ease infinite;
+}
+
+/* ============================================================================
+   ENHANCED BUTTON STATES
+   ============================================================================ */
+
+/* Active/pressed state for all buttons */
+.btn-primary:active,
+.btn-secondary:active,
+.btn-ghost:active,
+.btn-danger:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Disabled state improvements */
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-ghost:disabled,
+.btn-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
+/* ============================================================================
+   LOADING STATES
+   ============================================================================ */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0.5) 0%,
+    rgba(51, 65, 85, 0.5) 50%,
+    rgba(30, 41, 59, 0.5) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+/* ============================================================================
+   LIVE INDICATOR
+   ============================================================================ */
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.live-indicator::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #36d399;
+  animation: pulse-glow 2s ease infinite;
 }

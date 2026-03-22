@@ -1,0 +1,90 @@
+---
+description: Database migration conventions and safety
+globs: src/migrations/**/*.ts
+alwaysApply: false
+---
+
+# Migration Guidelines
+
+## Timestamp Convention
+
+Migration timestamps MUST be sequential and greater than all existing ones.
+
+Current highest: `1710864004000` (AddPlatformAnalytics)
+
+```typescript
+// Next migration should be:
+// 1710864005000-AddNewFeature.ts
+export class AddNewFeature1710864005000 implements MigrationInterface {
+  // ...
+}
+```
+
+## Migration Structure
+
+Always implement both `up()` and `down()`:
+
+```typescript
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddUserPreferences1710864005000 implements MigrationInterface {
+  name = "AddUserPreferences1710864005000";
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      ALTER TABLE "users" 
+      ADD COLUMN "preferences" jsonb DEFAULT '{}'
+    `);
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      ALTER TABLE "users" 
+      DROP COLUMN "preferences"
+    `);
+  }
+}
+```
+
+## Safety Rules
+
+1. **Test migrations locally first** — run against a fresh DB
+2. **Never modify existing migrations** — create a new one instead
+3. **Use transactions** for multi-statement migrations (TypeORM wraps by default)
+4. **Avoid data loss** — prefer adding nullable columns, then backfilling
+
+## Adding Columns
+
+```typescript
+// Safe: nullable with default
+await queryRunner.query(`
+  ALTER TABLE "tournaments" 
+  ADD COLUMN "max_rebuys" integer DEFAULT 0
+`);
+
+// Then optionally add NOT NULL after backfill
+await queryRunner.query(`
+  ALTER TABLE "tournaments" 
+  ALTER COLUMN "max_rebuys" SET NOT NULL
+`);
+```
+
+## Known Issue: Migration Auto-Execution
+
+The `src/migrations/run.ts` is caught by TypeORM's glob patterns. Ensure all migrations are marked as complete in the `migrations` table before starting the app:
+
+```sql
+INSERT INTO migrations (timestamp, name) VALUES
+(1710864005000, 'AddNewFeature1710864005000')
+ON CONFLICT DO NOTHING;
+```
+
+## Running Migrations
+
+```bash
+# Generate from entity changes (dev only)
+npx typeorm migration:generate -d dist/src/data-source.js src/migrations/NewMigration
+
+# Run pending migrations
+npx typeorm migration:run -d dist/src/data-source.js
+```

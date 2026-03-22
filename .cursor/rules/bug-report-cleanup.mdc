@@ -1,0 +1,36 @@
+---
+description: Clean up fixed bugs from report files
+globs: 
+  - docs/reports/**/*.md
+  - docs/MONSTERS_ISSUES.md
+  - docs/qa_report.md
+alwaysApply: true
+---
+
+# Bug Report Cleanup
+
+**⚠️ NEVER document resolved issues. NEVER add "Recently Fixed" sections. DELETE fixed items entirely.**
+
+When fixing bugs, gaps, or issues documented in files under `docs/reports/`:
+
+## Rules
+
+1. **Remove fixed items entirely** - Don't mark as "FIXED", strikethrough, or add to a "Recently Fixed" section. Delete the entire section.
+2. **No history tracking in reports** - Reports are not changelogs. Git history tracks what was fixed.
+3. **Update recommendations** - Remove any recommendations that reference fixed items.
+4. **Renumber if needed** - Keep numbering sequential (GAP-1, GAP-2, etc.) after removals.
+5. **Update test coverage tables** - Change ⚠️ to ✅ when issues are resolved, update notes.
+6. **Delete empty sections** - If all GAPs or BUGs are fixed, remove the section header entirely.
+
+## What Reports Should Contain
+
+- **Only open/unresolved issues**
+- **Only actionable recommendations**
+- **Current state, not history**
+
+## What to Avoid
+
+- "Recently Fixed" sections
+- Strikethrough text for completed items
+- "FIXED" or "RESOLVED" labels
+- Comments like "was GAP-3, now fixed"

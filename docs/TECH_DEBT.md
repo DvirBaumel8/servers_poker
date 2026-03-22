@@ -63,6 +63,14 @@ This file tracks technical debt, security hardening items, and improvements to a
 
 ## Testing Infrastructure
 
+### 🟢 Mobile/Tablet Viewport Testing
+**Added:** 2026-03-21
+**Context:** Browser QA Monster currently only tests desktop viewport (1920x1080) to speed up test runs.
+**Action Required:**
+- [ ] Add mobile viewport testing when responsive design is prioritized
+- [ ] Suggested viewports: iPhone 16 (393x852), iPad (768x1024)
+- [ ] Update `tests/qa/monsters/browser-monster/browser-qa-monster.ts` VIEWPORTS array
+
 ### 🟠 E2E Tests Stability
 **Added:** 2026-03-21
 **Context:** E2E tests have intermittent failures related to:
@@ -131,9 +139,15 @@ This file tracks technical debt, security hardening items, and improvements to a
 - [x] Updated `TournamentDirectorService` with tournament ownership
 - [x] Updated `GameRecoveryService` to recover from Redis state
 - [x] Redis added to `docker-compose.yml`
+- [x] `@socket.io/redis-adapter` for cross-instance WebSocket broadcasts
+- [x] `RedisIoAdapter` configured in `main.ts`
+- [x] `RedisSocketStateService` for WebSocket connection state in Redis
+- [x] Sticky sessions no longer required for horizontal scaling
 
 **Architecture:**
 - Single executor model: one instance owns each game's execution loop
 - Other instances sync state via Redis and can take over on failover
+- Socket.IO Redis adapter enables broadcasts to clients on any instance
 - Ownership TTL: 10 seconds, renewal every 3 seconds
+- Socket state TTL: 1 hour with automatic refresh
 - Backward compatible: works without Redis (falls back to in-memory)

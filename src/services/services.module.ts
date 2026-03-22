@@ -1,6 +1,5 @@
 import { Module, Global, OnModuleInit } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { JwtModule } from "@nestjs/jwt";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { BotCallerService } from "./bot/bot-caller.service";
@@ -19,6 +18,7 @@ import { GameOwnershipService } from "./game/game-ownership.service";
 import { RedisGameStateService } from "./redis/redis-game-state.service";
 import { RedisEventBusService } from "./redis/redis-event-bus.service";
 import { RedisHealthService } from "./redis/redis-health.service";
+import { RedisSocketStateService } from "./redis/redis-socket-state.service";
 import { BotActivityService } from "./bot/bot-activity.service";
 import { BotAutoRegistrationService } from "./bot/bot-auto-registration.service";
 import { PlatformAnalyticsService } from "./platform-analytics.service";
@@ -51,25 +51,14 @@ import { BotRepository } from "../repositories/bot.repository";
 import { Bot } from "../entities/bot.entity";
 import { SecurityModule } from "../common/security/security.module";
 import { RedisModule } from "../common/redis";
+import { JwtConfigModule } from "../common/jwt";
 
 @Global()
 @Module({
   imports: [
     ConfigModule,
     EventEmitterModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>(
-          "JWT_SECRET",
-          "change-me-in-production",
-        ),
-        signOptions: {
-          expiresIn: "24h" as const,
-        },
-      }),
-      inject: [ConfigService],
-    }),
+    JwtConfigModule,
     TypeOrmModule.forFeature([
       GameStateSnapshot,
       Bot,
@@ -113,6 +102,7 @@ import { RedisModule } from "../common/redis";
     RedisGameStateService,
     RedisEventBusService,
     RedisHealthService,
+    RedisSocketStateService,
     BotActivityService,
     BotAutoRegistrationService,
     PlatformAnalyticsService,
@@ -138,6 +128,7 @@ import { RedisModule } from "../common/redis";
     RedisGameStateService,
     RedisEventBusService,
     RedisHealthService,
+    RedisSocketStateService,
     BotActivityService,
     BotAutoRegistrationService,
     PlatformAnalyticsService,

@@ -28,6 +28,7 @@ interface CreateTableForm {
 
 export function Tables() {
   const { user, token } = useAuthStore();
+  const isAdmin = user?.role === "admin";
   const [tables, setTables] = useState<Table[]>([]);
   const [myBots, setMyBots] = useState<Bot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -163,7 +164,7 @@ export function Tables() {
             <Button variant="secondary" onClick={loadData}>
               Refresh
             </Button>
-            {user && (
+            {isAdmin && (
               <Button
                 onClick={() => {
                   setCreateError(null);
@@ -202,6 +203,7 @@ export function Tables() {
         <AlertBanner
           dismissible
           onDismiss={() => setError(null)}
+          onRetry={() => loadData()}
           title="Unable to load table data"
         >
           {error}
@@ -221,14 +223,15 @@ export function Tables() {
 
       {tables.length === 0 ? (
         <EmptyState
+          illustration="table"
           title="No live tables available"
           description={
-            user
+            isAdmin
               ? "Create the first live table and start routing bots into gameplay."
-              : "No tables are currently running. Return shortly or sign in to create one."
+              : "No tables are currently running. Check back shortly."
           }
           action={
-            user ? (
+            isAdmin ? (
               <Button
                 onClick={() => {
                   setCreateError(null);
@@ -237,11 +240,7 @@ export function Tables() {
               >
                 Create first table
               </Button>
-            ) : (
-              <Button variant="secondary" asLink="/login">
-                Sign in to create a table
-              </Button>
-            )
+            ) : undefined
           }
         />
       ) : (
@@ -491,6 +490,7 @@ export function Tables() {
           )}
           {myBots.length === 0 ? (
             <EmptyState
+              illustration="bot"
               title="No active bots available"
               description="Create and activate a bot before trying to join a live table."
               action={

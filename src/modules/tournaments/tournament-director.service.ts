@@ -16,6 +16,9 @@ import {
   Optional,
   Inject,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { SchedulerRegistry } from "@nestjs/schedule";
+import { CronJob } from "cron";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { DataSource } from "typeorm";
 import { TournamentRepository } from "../../repositories/tournament.repository";
@@ -86,7 +89,7 @@ export class TournamentDirectorService
 {
   private readonly logger = new Logger(TournamentDirectorService.name);
   private readonly activeDirectors = new Map<string, ActiveTournament>();
-  private schedulerInterval: ReturnType<typeof setInterval> | null = null;
+  private schedulerJob: CronJob | null = null;
 
   constructor(
     private readonly eventEmitter: EventEmitter2,
@@ -95,6 +98,8 @@ export class TournamentDirectorService
     private readonly liveGameManager: LiveGameManagerService,
     private readonly botCaller: BotCallerService,
     private readonly dataSource: DataSource,
+    private readonly configService: ConfigService,
+    private readonly schedulerRegistry: SchedulerRegistry,
     @Optional()
     @Inject(GameOwnershipService)
     private readonly gameOwnershipService: GameOwnershipService | null,
@@ -115,15 +120,43 @@ export class TournamentDirectorService
   }
 
   onModuleInit(): void {
-    this.schedulerInterval = setInterval(() => {
+    const enabled = this.configService.get<boolean>(
+      "tournamentScheduler.enabled",
+      true,
+    );
+    if (!enabled) {
+      this.logger.log("Tournament scheduler is disabled");
+      return;
+    }
+
+    const cronExpression = this.configService.get<string>(
+      "tournamentScheduler.cronExpression",
+      "*/30 * * * * *",
+    );
+
+    this.schedulerJob = new CronJob(cronExpression, () => {
       this.checkScheduledTournaments();
-    }, 30000);
-    this.logger.log("Tournament scheduler started");
+    });
+
+    this.schedulerRegistry.addCronJob(
+      "tournament-scheduler",
+      this.schedulerJob,
+    );
+    this.schedulerJob.start();
+
+    this.logger.log(
+      `Tournament scheduler started with cron: ${cronExpression}`,
+    );
   }
 
   onModuleDestroy(): void {
-    if (this.schedulerInterval) {
-      clearInterval(this.schedulerInterval);
+    if (this.schedulerJob) {
+      this.schedulerJob.stop();
+      try {
+        this.schedulerRegistry.deleteCronJob("tournament-scheduler");
+      } catch {
+        // Job might not exist
+      }
     }
 
     for (const [id, director] of this.activeDirectors) {
@@ -131,6 +164,56 @@ export class TournamentDirectorService
       director.stop();
     }
     this.activeDirectors.clear();
+  }
+
+  /**
+   * Update the scheduler cron expression at runtime.
+   * Useful for admin configuration changes.
+   */
+  updateSchedulerCron(cronExpression: string): void {
+    if (this.schedulerJob) {
+      this.schedulerJob.stop();
+      try {
+        this.schedulerRegistry.deleteCronJob("tournament-scheduler");
+      } catch {
+        // Ignore
+      }
+    }
+
+    this.schedulerJob = new CronJob(cronExpression, () => {
+      this.checkScheduledTournaments();
+    });
+
+    this.schedulerRegistry.addCronJob(
+      "tournament-scheduler",
+      this.schedulerJob,
+    );
+    this.schedulerJob.start();
+
+    this.logger.log(`Tournament scheduler updated to cron: ${cronExpression}`);
+  }
+
+  /**
+   * Get current scheduler status for admin dashboard.
+   */
+  getSchedulerStatus(): {
+    enabled: boolean;
+    cronExpression: string;
+    nextRun: Date | null;
+    lastRun: Date | null;
+  } {
+    const isRunning = this.schedulerJob !== null;
+    return {
+      enabled: isRunning,
+      cronExpression: this.configService.get<string>(
+        "tournamentScheduler.cronExpression",
+        "*/30 * * * * *",
+      ),
+      nextRun: isRunning
+        ? (this.schedulerJob!.nextDate()?.toJSDate() ?? null)
+        : null,
+      lastRun: isRunning ? (this.schedulerJob!.lastDate() ?? null) : null,
+    };
   }
 
   private async checkScheduledTournaments(): Promise<void> {

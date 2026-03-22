@@ -1,19 +1,51 @@
 npx lint-staged
 
-# QA Monster: Check if new pages have coverage
-# Only runs if frontend routes are modified
-if git diff --cached --name-only | grep -qE '(pages/|routes).*\.(tsx?|jsx?)$'; then
-  echo "🦖 QA Monster: Checking new page coverage..."
-  
-  # Extract potential new routes from staged files
-  for file in $(git diff --cached --name-only | grep -E '(pages/|routes).*\.(tsx?|jsx?)$'); do
-    if [ -f "$file" ]; then
-      echo "   Checking: $file"
-    fi
-  done
-  
+# ═══════════════════════════════════════════════════════════════════════════
+# 🔍 TypeScript Check (matching CI strictness)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Check if frontend files are staged
+if git diff --cached --name-only | grep -qE '^frontend/src/.*\.(ts|tsx)$'; then
   echo ""
-  echo "💡 Reminder: If you added a new page, run:"
-  echo "   npm run qa:coverage:check /your-route"
+  echo "🔍 Running TypeScript check on frontend..."
+  if (cd frontend && npx tsc --noEmit); then
+    echo "✅ TypeScript check passed"
+  else
+    echo ""
+    echo "❌ TypeScript errors found in frontend!"
+    echo "   Fix the errors above before committing."
+    echo "   Skip (emergency): git commit --no-verify"
+    echo ""
+    exit 1
+  fi
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 🦖 MONSTER ARMY: Pre-commit validation (~10 seconds)
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "🦖 Monster Army: Running fast validation..."
+echo ""
+
+# Run fast monsters (invariant + API contract + quick checks)
+# These are fast (~8-10s) and catch the most common issues
+if npm run monsters:all:fast --silent 2>/dev/null; then
+  echo "✅ Monster Army: All checks passed"
+else
+  echo ""
+  echo "❌ Monster Army found issues!"
+  echo ""
+  echo "   View report: cat docs/MONSTERS_ISSUES.md"
+  echo "   Skip (emergency): git commit --no-verify"
+  echo ""
+  exit 1
+fi
+
+# Extra reminder if new pages were added
+if git diff --cached --name-only | grep -qE '(pages/|routes).*\.(tsx?|jsx?)$'; then
+  echo ""
+  echo "💡 New page detected - full monster run recommended:"
+  echo "   npm run monsters:all"
   echo ""
 fi

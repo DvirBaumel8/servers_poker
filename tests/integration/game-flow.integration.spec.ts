@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigModule } from "@nestjs/config";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
-import { LiveGameManagerService } from "../../src/services/live-game-manager.service";
-import { BotCallerService } from "../../src/services/bot-caller.service";
-import { BotResilienceService } from "../../src/services/bot-resilience.service";
+import { LiveGameManagerService } from "../../src/services/game/live-game-manager.service";
+import { BotCallerService } from "../../src/services/bot/bot-caller.service";
+import { BotResilienceService } from "../../src/services/bot/bot-resilience.service";
 import { ProvablyFairService } from "../../src/services/provably-fair.service";
 import { v4 as uuidv4 } from "uuid";
 
@@ -74,7 +74,7 @@ describe("Game Flow Integration Tests", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
 
-      const game = liveGameManager.createGame({
+      const game = liveGameManager.createGameSync({
         tableId,
         gameDbId,
         smallBlind: 10,
@@ -91,7 +91,7 @@ describe("Game Flow Integration Tests", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
 
-      const game = liveGameManager.createGame({
+      const game = liveGameManager.createGameSync({
         tableId,
         gameDbId,
         smallBlind: 10,
@@ -121,14 +121,14 @@ describe("Game Flow Integration Tests", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
 
-      const game1 = liveGameManager.createGame({
+      const game1 = liveGameManager.createGameSync({
         tableId,
         gameDbId,
         smallBlind: 10,
         bigBlind: 20,
       });
 
-      const game2 = liveGameManager.createGame({
+      const game2 = liveGameManager.createGameSync({
         tableId,
         gameDbId: "different-id",
         smallBlind: 50,
@@ -144,7 +144,7 @@ describe("Game Flow Integration Tests", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
 
-      const game = liveGameManager.createGame({
+      const game = liveGameManager.createGameSync({
         tableId,
         gameDbId,
         smallBlind: 10,
@@ -168,12 +168,12 @@ describe("Game Flow Integration Tests", () => {
       const tableId1 = `test-table-${uuidv4()}`;
       const tableId2 = `test-table-${uuidv4()}`;
 
-      liveGameManager.createGame({
+      liveGameManager.createGameSync({
         tableId: tableId1,
         gameDbId: `game-${uuidv4()}`,
       });
 
-      liveGameManager.createGame({
+      liveGameManager.createGameSync({
         tableId: tableId2,
         gameDbId: `game-${uuidv4()}`,
       });
@@ -193,7 +193,7 @@ describe("Game Flow Integration Tests", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
 
-      const game = liveGameManager.createGame({
+      const game = liveGameManager.createGameSync({
         tableId,
         gameDbId,
         smallBlind: 10,
@@ -223,7 +223,7 @@ describe("Game Flow Integration Tests", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
 
-      liveGameManager.createGame({
+      liveGameManager.createGameSync({
         tableId,
         gameDbId,
       });
@@ -240,7 +240,7 @@ describe("Game Flow Integration Tests", () => {
       const tableId = `test-table-${uuidv4()}`;
       const gameDbId = `test-game-${uuidv4()}`;
 
-      liveGameManager.createGame({
+      liveGameManager.createGameSync({
         tableId,
         gameDbId,
         smallBlind: 10,
@@ -266,7 +266,7 @@ describe("Game Flow Integration Tests", () => {
       const gameDbId = `test-game-${uuidv4()}`;
       const tournamentId = `test-tournament-${uuidv4()}`;
 
-      const game = liveGameManager.createGame({
+      const game = liveGameManager.createGameSync({
         tableId,
         gameDbId,
         tournamentId,

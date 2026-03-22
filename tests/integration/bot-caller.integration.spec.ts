@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
-import { BotCallerService } from "../../src/services/bot-caller.service";
+import { BotCallerService } from "../../src/services/bot/bot-caller.service";
 import { HmacSigningService } from "../../src/common/security/hmac-signing.service";
 import {
   MockBotServer,

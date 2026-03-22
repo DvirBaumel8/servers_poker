@@ -1,0 +1,174 @@
+groups:
+  - name: poker-server-alerts
+    rules:
+      # Service availability
+      - alert: ServiceDown
+        expr: up{job="poker-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Poker server is down"
+          description: "Poker server has been unreachable for more than 1 minute."
+
+      # HTTP error rate
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(poker_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(poker_http_requests_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP error rate"
+          description: "HTTP 5xx error rate is above 1% for the last 5 minutes. Current rate: {{ $value | humanizePercentage }}"
+
+      # High latency
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(poker_http_request_duration_seconds_bucket[5m])) by (le))
+          > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency"
+          description: "95th percentile latency is above 1 second. Current P95: {{ $value | humanizeDuration }}"
+
+      # Memory usage (Node.js process)
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes{job="poker-server"}
+          /
+          (512 * 1024 * 1024)
+          > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 80% of 512MB limit. Current: {{ $value | humanizePercentage }}"
+
+      # Bot errors
+      - alert: BotErrorSpike
+        expr: |
+          sum(rate(poker_bot_errors_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bot error spike detected"
+          description: "Bot error rate is elevated. Errors per second: {{ $value | printf \"%.2f\" }}"
+
+      # No active games during expected hours (optional, adjust schedule)
+      - alert: NoActiveGames
+        expr: poker_active_games == 0
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "No active games"
+          description: "No games have been active for 30 minutes."
+
+      # Active games dropping unexpectedly (sudden drop)
+      - alert: ActiveGamesDropped
+        expr: |
+          (
+            poker_active_games offset 5m - poker_active_games
+          ) 
+          / 
+          (poker_active_games offset 5m)
+          > 0.5
+          and
+          poker_active_games offset 5m >= 3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Active games dropped unexpectedly"
+          description: "Active games dropped by more than 50% in the last 5 minutes. Previous: {{ with query \"poker_active_games offset 5m\" }}{{ . | first | value }}{{ end }}, Current: {{ $value }}"
+
+      # WebSocket connection drop
+      - alert: WebSocketConnectionsDrop
+        expr: |
+          (
+            poker_websocket_connections 
+            - 
+            poker_websocket_connections offset 5m
+          ) 
+          / 
+          (poker_websocket_connections offset 5m) 
+          < -0.5
+          and
+          poker_websocket_connections offset 5m > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WebSocket connections dropped significantly"
+          description: "WebSocket connections dropped by more than 50% in the last 5 minutes."
+
+      # Database pool exhaustion
+      - alert: DatabasePoolExhausted
+        expr: |
+          poker_database_pool_active 
+          / 
+          poker_database_pool_size 
+          > 0.8
+          and
+          poker_database_pool_size > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "Database pool is {{ $value | humanizePercentage }} utilized."
+
+      # Tournament stuck
+      - alert: TournamentStuck
+        expr: |
+          poker_active_tournaments > 0
+          and
+          increase(poker_hands_dealt_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tournament may be stuck"
+          description: "Active tournaments exist but no hands have been dealt in 10 minutes."
+
+      # High WebSocket message rate (potential abuse)
+      - alert: HighWebSocketMessageRate
+        expr: |
+          sum(rate(poker_websocket_messages_total[1m])) > 1000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High WebSocket message rate detected"
+          description: "WebSocket message rate is unusually high ({{ $value | printf \"%.0f\" }} messages/second). This could indicate client abuse or a chatty implementation."
+
+      # High error rate by type
+      - alert: HighValidationErrorRate
+        expr: |
+          sum(rate(poker_errors_total{type="validation"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "High validation error rate"
+          description: "Validation errors are elevated. This might indicate API misuse or frontend bugs."
+
+      # Auth errors spike
+      - alert: AuthErrorSpike
+        expr: |
+          sum(rate(poker_errors_total{type="auth"}[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Authentication error spike"
+          description: "Authentication errors are elevated. This could indicate a brute force attempt or session issues."

@@ -1,13 +1,14 @@
 import {
   Injectable,
-  NotFoundException,
   BadRequestException,
   ForbiddenException,
   Logger,
 } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { BotRepository } from "../../repositories/bot.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
+import { RedisCacheService } from "../../common/redis/redis-cache.service";
 import { Tournament, TournamentStatus } from "../../entities/tournament.entity";
 import {
   CreateTournamentDto,
@@ -24,6 +25,8 @@ export class TournamentsService {
     private readonly tournamentRepository: TournamentRepository,
     private readonly botRepository: BotRepository,
     private readonly analyticsRepository: AnalyticsRepository,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   async create(dto: CreateTournamentDto): Promise<TournamentResponseDto> {
@@ -55,6 +58,11 @@ export class TournamentsService {
       }
     }
 
+    this.eventEmitter.emit("tournament.created", {
+      tournamentId: tournament.id,
+      tournament: this.toResponseDto(tournament, 0),
+    });
+
     return this.toResponseDto(tournament, 0);
   }
 
@@ -75,12 +83,17 @@ export class TournamentsService {
       ? await this.tournamentRepository.findByStatus(status)
       : await this.tournamentRepository.findAll();
 
-    const results: TournamentResponseDto[] = [];
-    for (const t of tournaments) {
-      const entries = await this.tournamentRepository.getEntries(t.id);
-      results.push(this.toResponseDto(t, entries.length));
+    if (tournaments.length === 0) {
+      return [];
     }
-    return results;
+
+    const entryCounts = await this.tournamentRepository.getEntryCounts(
+      tournaments.map((t) => t.id),
+    );
+
+    return tournaments.map((t) =>
+      this.toResponseDto(t, entryCounts.get(t.id) || 0),
+    );
   }
 
   async register(
@@ -89,10 +102,8 @@ export class TournamentsService {
     userId: string,
     currentLevel?: number,
   ): Promise<void> {
-    const tournament = await this.tournamentRepository.findById(tournamentId);
-    if (!tournament) {
-      throw new NotFoundException(`Tournament ${tournamentId} not found`);
-    }
+    const tournament =
+      await this.tournamentRepository.findByIdOrThrow(tournamentId);
 
     // Check registration eligibility
     const isRegistering = tournament.status === "registering";
@@ -113,10 +124,7 @@ export class TournamentsService {
       );
     }
 
-    const bot = await this.botRepository.findById(botId);
-    if (!bot) {
-      throw new NotFoundException(`Bot ${botId} not found`);
-    }
+    const bot = await this.botRepository.findByIdOrThrow(botId);
 
     if (bot.user_id !== userId) {
       throw new ForbiddenException("You do not own this bot");
@@ -154,14 +162,19 @@ export class TournamentsService {
       entry_type: "initial",
     });
 
+    this.eventEmitter.emit("tournament.botRegistered", {
+      tournamentId,
+      botId,
+      botName: bot.name,
+      userId,
+    });
+
     this.logger.log(`Bot ${botId} registered for tournament ${tournamentId}`);
   }
 
   async unregister(tournamentId: string, botId: string): Promise<void> {
-    const tournament = await this.tournamentRepository.findById(tournamentId);
-    if (!tournament) {
-      throw new NotFoundException(`Tournament ${tournamentId} not found`);
-    }
+    const tournament =
+      await this.tournamentRepository.findByIdOrThrow(tournamentId);
 
     if (tournament.status !== "registering") {
       throw new BadRequestException(
@@ -184,10 +197,7 @@ export class TournamentsService {
   }
 
   async start(id: string): Promise<void> {
-    const tournament = await this.tournamentRepository.findById(id);
-    if (!tournament) {
-      throw new NotFoundException(`Tournament ${id} not found`);
-    }
+    const tournament = await this.tournamentRepository.findByIdOrThrow(id);
 
     if (tournament.status !== "registering") {
       throw new BadRequestException("Tournament cannot be started");
@@ -205,10 +215,7 @@ export class TournamentsService {
   }
 
   async cancel(id: string): Promise<void> {
-    const tournament = await this.tournamentRepository.findById(id);
-    if (!tournament) {
-      throw new NotFoundException(`Tournament ${id} not found`);
-    }
+    const tournament = await this.tournamentRepository.findByIdOrThrow(id);
 
     if (tournament.status === "finished" || tournament.status === "cancelled") {
       throw new BadRequestException("Tournament is already finished");
@@ -216,6 +223,17 @@ export class TournamentsService {
 
     await this.tournamentRepository.updateStatus(id, "cancelled");
     this.logger.log(`Tournament ${id} cancelled`);
+
+    const entries = await this.tournamentRepository.getEntries(id);
+    const updatedTournament: Tournament = Object.assign(
+      Object.create(Object.getPrototypeOf(tournament)),
+      tournament,
+      { status: "cancelled" as const },
+    );
+    this.eventEmitter.emit("tournament.cancelled", {
+      tournamentId: id,
+      tournament: this.toResponseDto(updatedTournament, entries.length),
+    });
   }
 
   async getResults(id: string): Promise<TournamentResultDto[]> {
@@ -231,19 +249,59 @@ export class TournamentsService {
   }
 
   async getLeaderboard(id: string): Promise<TournamentLeaderboardEntryDto[]> {
-    const entries = await this.tournamentRepository.getEntries(id);
-    const seats = await this.tournamentRepository.getSeatsOrderedByChips(id);
+    const cacheKey = `tournament:${id}:leaderboard`;
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const entries = await this.tournamentRepository.getEntries(id);
+        const seats =
+          await this.tournamentRepository.getSeatsOrderedByChips(id);
 
-    return seats.map((s, idx) => ({
-      position: idx + 1,
-      bot_id: s.bot_id,
-      bot_name:
-        entries.find((e) => e.bot_id === s.bot_id)?.bot?.name ||
-        s.bot?.name ||
-        "Unknown",
-      chips: Number(s.chips),
-      busted: s.busted,
-    }));
+        return seats.map((s, idx) => ({
+          position: idx + 1,
+          bot_id: s.bot_id,
+          bot_name:
+            entries.find((e) => e.bot_id === s.bot_id)?.bot?.name ||
+            s.bot?.name ||
+            "Unknown",
+          chips: Number(s.chips),
+          busted: s.busted,
+        }));
+      },
+      { ttlSeconds: 10 }, // Short TTL for live tournaments
+    );
+  }
+
+  /**
+   * Update the scheduled start time for a tournament.
+   */
+  async updateSchedule(
+    id: string,
+    scheduledStartAt: Date | null,
+  ): Promise<void> {
+    await this.tournamentRepository.updateSchedule(id, scheduledStartAt);
+    this.logger.log(
+      `Tournament ${id} schedule updated to ${scheduledStartAt?.toISOString() ?? "null"}`,
+    );
+  }
+
+  /**
+   * Get upcoming scheduled tournaments (within the next 7 days).
+   */
+  async getUpcomingScheduled(): Promise<TournamentResponseDto[]> {
+    const tournaments = await this.tournamentRepository.findUpcomingScheduled();
+
+    if (tournaments.length === 0) {
+      return [];
+    }
+
+    const entryCounts = await this.tournamentRepository.getEntryCounts(
+      tournaments.map((t) => t.id),
+    );
+
+    return tournaments.map((t) =>
+      this.toResponseDto(t, entryCounts.get(t.id) || 0),
+    );
   }
 
   private toResponseDto(

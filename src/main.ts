@@ -2,8 +2,14 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import helmet from "helmet";
+import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { SanitizePipe } from "./common/pipes/sanitize.pipe";
+import { RedisIoAdapter } from "./common/redis/redis-io.adapter";
+import {
+  DEFAULT_CORS_ORIGINS,
+  DEFAULT_DEV_CONNECT_SRC,
+} from "./config/app.config";
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -12,10 +18,12 @@ async function bootstrap() {
   const isProduction = nodeEnv === "production";
 
   const app = await NestFactory.create(AppModule, {
-    logger: isProduction
-      ? ["error", "warn", "log"]
-      : ["error", "warn", "log", "debug", "verbose"],
+    bufferLogs: true,
   });
+
+  if (isProduction) {
+    app.useLogger(app.get(PinoLogger));
+  }
 
   const configService = app.get(ConfigService);
 
@@ -28,23 +36,29 @@ async function bootstrap() {
     process.exit(1);
   }
 
-  // Security: Helmet for HTTP security headers
+  // Security: Helmet for HTTP security headers (including hiding X-Powered-By)
   app.use(
     helmet({
-      contentSecurityPolicy: isProduction
-        ? {
-            directives: {
-              defaultSrc: ["'self'"],
-              scriptSrc: ["'self'"],
-              styleSrc: ["'self'", "'unsafe-inline'"],
-              imgSrc: ["'self'", "data:", "https:"],
-              connectSrc: ["'self'", "wss:", "ws:"],
-              fontSrc: ["'self'"],
-              objectSrc: ["'none'"],
-              frameAncestors: ["'none'"],
-            },
-          }
-        : false, // Disable CSP in development for easier debugging
+      hidePoweredBy: true,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: isProduction
+            ? ["'self'"]
+            : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: [
+            "'self'",
+            "wss:",
+            "ws:",
+            ...(isProduction ? [] : DEFAULT_DEV_CONNECT_SRC),
+          ],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
       crossOriginEmbedderPolicy: false, // Can break legitimate embedding
       hsts: isProduction
         ? { maxAge: 31536000, includeSubDomains: true, preload: true }
@@ -85,9 +99,8 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigins = configService.get<string[]>("corsOrigins") || [
-    "http://localhost:3001",
-  ];
+  const corsOrigins =
+    configService.get<string[]>("corsOrigins") || DEFAULT_CORS_ORIGINS;
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
@@ -96,6 +109,21 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix("api/v1");
+
+  // Setup Socket.IO Redis adapter for horizontal scaling
+  const redisAdapter = new RedisIoAdapter(app, configService);
+  try {
+    await redisAdapter.connectToRedis();
+    app.useWebSocketAdapter(redisAdapter);
+    logger.log("Socket.IO Redis adapter enabled for horizontal scaling");
+  } catch (err) {
+    logger.warn(
+      `Failed to connect Socket.IO Redis adapter: ${err instanceof Error ? err.message : err}`,
+    );
+    logger.warn(
+      "Falling back to in-memory adapter (not suitable for horizontal scaling)",
+    );
+  }
 
   const port = configService.get<number>("port") || 3000;
 

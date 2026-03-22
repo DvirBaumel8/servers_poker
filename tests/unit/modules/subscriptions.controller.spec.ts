@@ -13,11 +13,12 @@ describe("SubscriptionsController", () => {
     updateStatus: ReturnType<typeof vi.fn>;
     findByBotAndTournament: ReturnType<typeof vi.fn>;
   };
-  let mockBotRepository: {
-    findById: ReturnType<typeof vi.fn>;
+  let mockBotOwnershipService: {
+    getBotWithOwnershipCheck: ReturnType<typeof vi.fn>;
   };
   let mockTournamentRepository: {
     findById: ReturnType<typeof vi.fn>;
+    findByIdOrThrow: ReturnType<typeof vi.fn>;
   };
 
   const mockUser = {
@@ -70,24 +71,29 @@ describe("SubscriptionsController", () => {
       findByBotAndTournament: vi.fn().mockResolvedValue(null),
     };
 
-    mockBotRepository = {
-      findById: vi.fn().mockResolvedValue(mockBot),
+    mockBotOwnershipService = {
+      getBotWithOwnershipCheck: vi.fn().mockResolvedValue(mockBot),
     };
 
     mockTournamentRepository = {
       findById: vi.fn().mockResolvedValue(null),
+      findByIdOrThrow: vi
+        .fn()
+        .mockResolvedValue({ id: "tournament-123", name: "Test Tournament" }),
     };
 
     controller = new SubscriptionsController(
       mockSubscriptionRepository as never,
-      mockBotRepository as never,
       mockTournamentRepository as never,
+      mockBotOwnershipService as never,
     );
   });
 
   describe("findAll", () => {
     it("should throw NotFoundException when bot not found", async () => {
-      mockBotRepository.findById.mockResolvedValue(null);
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockRejectedValue(
+        new NotFoundException("Bot invalid-bot not found"),
+      );
 
       await expect(
         controller.findAll("invalid-bot", mockUser as never),
@@ -95,10 +101,9 @@ describe("SubscriptionsController", () => {
     });
 
     it("should throw ForbiddenException when user does not own bot", async () => {
-      mockBotRepository.findById.mockResolvedValue({
-        ...mockBot,
-        user_id: "other-user",
-      });
+      mockBotOwnershipService.getBotWithOwnershipCheck.mockRejectedValue(
+        new ForbiddenException("You do not own this bot"),
+      );
 
       await expect(
         controller.findAll("bot-123", mockUser as never),
@@ -160,7 +165,9 @@ describe("SubscriptionsController", () => {
     });
 
     it("should validate tournament exists when tournament_id provided", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(null);
+      mockTournamentRepository.findByIdOrThrow.mockRejectedValue(
+        new NotFoundException("Tournament invalid-tourn not found"),
+      );
 
       await expect(
         controller.create(

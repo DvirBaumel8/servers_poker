@@ -10,7 +10,37 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  IsIn,
 } from "class-validator";
+import { Transform } from "class-transformer";
+
+export class LeaderboardQueryDto {
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20;
+
+  @IsOptional()
+  @IsIn(["all", "month", "week"])
+  period?: "all" | "month" | "week" = "all";
+}
+
+export class PaginationQueryDto {
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 50;
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  @Min(0)
+  offset?: number = 0;
+}
 
 export class CreateGameDto {
   @IsString()
@@ -98,6 +128,8 @@ export class LeaderboardEntryDto {
   total_wins: number;
   total_winnings: number;
   win_rate_pct: number | null;
+  tournament_wins: number;
+  total_tournaments: number;
 }
 
 export class BotActionDto {

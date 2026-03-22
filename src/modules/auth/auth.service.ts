@@ -9,6 +9,7 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 import * as bcrypt from "bcrypt";
+import { timingSafeEqual } from "crypto";
 import { UserRepository } from "../../repositories/user.repository";
 import { BotRepository } from "../../repositories/bot.repository";
 import { User } from "../../entities/user.entity";
@@ -27,6 +28,7 @@ import { JwtPayload } from "./strategies/jwt.strategy";
 import { EmailService } from "../../services/email.service";
 import { UrlValidatorService } from "../../common/validators/url-validator.service";
 import { getLikelyEmailSuggestion, normalizeEmail } from "./email-guard";
+import { mapPostgresError, PG_ERROR_CODES } from "../../common/utils";
 
 interface RegisterResponse {
   message: string;
@@ -36,7 +38,6 @@ interface RegisterResponse {
 }
 
 const SALT_ROUNDS = 12;
-const _MAX_BOTS_PER_ACCOUNT = 10;
 
 // Account lockout configuration
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
@@ -107,17 +108,13 @@ export class AuthService {
         );
       });
     } catch (error) {
-      // Catch database unique constraint violation (PostgreSQL error code 23505)
-      if (
-        error instanceof ConflictException ||
-        (error as any)?.code === "23505" ||
-        (error as any)?.message?.includes("duplicate key")
-      ) {
-        throw new ConflictException(
-          "Email already registered. Please verify your email or resend the verification code.",
-        );
+      if (error instanceof ConflictException) {
+        throw error;
       }
-      throw error;
+      throw mapPostgresError(error, {
+        [PG_ERROR_CODES.UNIQUE_VIOLATION]:
+          "Email already registered. Please verify your email or resend the verification code.",
+      });
     }
 
     await this.emailService.sendVerificationCode(user.email, verificationCode);
@@ -360,7 +357,11 @@ export class AuthService {
       );
     }
 
-    if (user.password_reset_code !== dto.code) {
+    const codeBuffer = Buffer.from(dto.code.padEnd(6, "0"));
+    const storedBuffer = Buffer.from(
+      (user.password_reset_code || "").padEnd(6, "0"),
+    );
+    if (!timingSafeEqual(codeBuffer, storedBuffer)) {
       throw new BadRequestException("Invalid reset code");
     }
 
@@ -462,25 +463,19 @@ export class AuthService {
       user = result.user;
       bot = result.bot;
     } catch (error) {
-      // Catch database unique constraint violations
-      if (
-        error instanceof ConflictException ||
-        (error as any)?.code === "23505"
-      ) {
-        if ((error as any)?.message?.includes("email")) {
-          throw new ConflictException("Email already registered");
-        }
-        if (
-          (error as any)?.message?.includes("bot") ||
-          (error as any)?.message?.includes("name")
-        ) {
-          throw new ConflictException(
-            `Bot name '${dto.botName}' already exists`,
-          );
-        }
+      if (error instanceof ConflictException) {
         throw error;
       }
-      throw error;
+      const errorMessage =
+        error instanceof Error ? error.message.toLowerCase() : "";
+      if (errorMessage.includes("bot") || errorMessage.includes("name")) {
+        throw mapPostgresError(error, {
+          [PG_ERROR_CODES.UNIQUE_VIOLATION]: `Bot name '${dto.botName}' already exists`,
+        });
+      }
+      throw mapPostgresError(error, {
+        [PG_ERROR_CODES.UNIQUE_VIOLATION]: "Email already registered",
+      });
     }
 
     // 4. Generate JWT tokens

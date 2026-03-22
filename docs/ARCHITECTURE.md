@@ -31,7 +31,7 @@ A No-Limit Texas Hold'em tournament platform where developers build bot servers 
 - **Runtime:** Node.js 22+
 - **Framework:** NestJS
 - **Database:** PostgreSQL with TypeORM
-- **Cache/State:** Redis (optional, for horizontal scaling)
+- **Cache/State:** Redis (for horizontal scaling, WebSocket sync)
 - **Authentication:** JWT (users), API Key (bots)
 - **WebSocket:** Socket.IO via @nestjs/websockets
 - **Testing:** Vitest
@@ -56,20 +56,39 @@ servers_poker/
 │   ├── app.module.ts                — Root module
 │   ├── config/
 │   │   ├── database.config.ts       — TypeORM/PostgreSQL configuration
+│   │   ├── typeorm.config.ts        — TypeORM CLI configuration
+│   │   ├── tournaments.config.ts    — Tournament settings
 │   │   └── app.config.ts            — Application settings
+│   ├── domain/
+│   │   ├── handEvaluator.ts         — Poker hand evaluation
+│   │   ├── betting.ts               — Pot manager and betting round logic
+│   │   └── deck.ts                  — Card deck utilities
 │   ├── entities/
 │   │   ├── user.entity.ts           — User account
 │   │   ├── bot.entity.ts            — Bot registration
+│   │   ├── bot-stats.entity.ts      — Bot performance statistics
+│   │   ├── bot-event.entity.ts      — Bot activity events
+│   │   ├── bot-subscription.entity.ts — Bot auto-registration subscriptions
 │   │   ├── tournament.entity.ts     — Tournament definition
+│   │   ├── tournament-entry.entity.ts — Tournament registrations
+│   │   ├── tournament-table.entity.ts — Tournament table assignments
+│   │   ├── tournament-seat.entity.ts — Tournament seat assignments
+│   │   ├── tournament-seat-history.entity.ts — Seat movement history
+│   │   ├── tournament-blind-level.entity.ts — Blind structure
 │   │   ├── game.entity.ts           — Game session
+│   │   ├── game-player.entity.ts    — Game player assignments
 │   │   ├── table.entity.ts          — Table configuration
 │   │   ├── table-seat.entity.ts     — Table seat assignments
 │   │   ├── hand.entity.ts           — Individual hand
+│   │   ├── hand-player.entity.ts    — Hand participant details
+│   │   ├── hand-seed.entity.ts      — Provably fair hand seeds
 │   │   ├── action.entity.ts         — Player action
 │   │   ├── audit-log.entity.ts      — Request audit trail
 │   │   ├── chip-movement.entity.ts  — Chip transaction log
 │   │   ├── game-state-snapshot.entity.ts — Persisted game state for recovery
-│   │   └── hand-seed.entity.ts      — Provably fair hand seeds
+│   │   ├── analytics-event.entity.ts — Frontend event tracking
+│   │   ├── platform-metrics.entity.ts — Daily platform statistics
+│   │   └── daily-summary.entity.ts  — Daily email summary records
 │   ├── common/
 │   │   ├── validators/
 │   │   │   └── url-validator.service.ts — Bot endpoint URL validation
@@ -86,32 +105,49 @@ servers_poker/
 │   ├── modules/
 │   │   ├── auth/                    — JWT & API key auth
 │   │   ├── users/                   — User management
-│   │   ├── bots/                    — Bot registration/validation
+│   │   ├── bots/                    — Bot registration/validation/subscriptions
 │   │   ├── tournaments/             — Tournament lifecycle (incl. TournamentDirectorService)
-│   │   └── games/                   — Tables, game joining, WebSocket
+│   │   ├── games/                   — Tables, game joining, WebSocket
+│   │   ├── analytics/               — Platform analytics and event tracking
+│   │   ├── health/                  — Health check endpoints
+│   │   ├── metrics/                 — Prometheus metrics collection
+│   │   └── preview/                 — Preview/demo functionality
 │   ├── services/
-│   │   ├── live-game-manager.service.ts — Game state management (supports Redis sync)
-│   │   ├── game-worker-manager.service.ts — Worker thread game isolation
-│   │   ├── game-state-persistence.service.ts — Periodic state persistence to DB
-│   │   ├── game-recovery.service.ts — Auto-recovery on server restart
-│   │   ├── game-ownership.service.ts — Distributed locking for multi-instance
-│   │   ├── redis-game-state.service.ts — Redis state persistence
-│   │   ├── redis-event-bus.service.ts — Cross-instance event pub/sub
-│   │   ├── redis-health.service.ts  — Redis health monitoring
-│   │   ├── bot-caller.service.ts    — Resilient bot API calls
-│   │   ├── bot-resilience.service.ts — Fallback strategies
-│   │   ├── bot-health-scheduler.service.ts — Periodic health checks
-│   │   ├── bot-metrics.gateway.ts   — Real-time bot monitoring
-│   │   ├── bot-activity.service.ts  — Real-time bot activity tracking
-│   │   ├── bot-auto-registration.service.ts — Auto-register bots in tournaments
+│   │   ├── game/
+│   │   │   ├── live-game-manager.service.ts — Game state management (supports Redis sync)
+│   │   │   ├── game-worker-manager.service.ts — Worker thread game isolation
+│   │   │   ├── game-data-persistence.service.ts — Periodic state persistence to DB
+│   │   │   ├── game-state-persistence.service.ts — Game state snapshots
+│   │   │   ├── game-recovery.service.ts — Auto-recovery on server restart
+│   │   │   └── game-ownership.service.ts — Distributed locking for multi-instance
+│   │   ├── redis/
+│   │   │   ├── redis-game-state.service.ts — Redis state persistence
+│   │   │   ├── redis-event-bus.service.ts — Cross-instance event pub/sub
+│   │   │   ├── redis-health.service.ts — Redis health monitoring
+│   │   │   └── redis-socket-state.service.ts — WebSocket connection state
+│   │   ├── bot/
+│   │   │   ├── bot-caller.service.ts — Resilient bot API calls
+│   │   │   ├── bot-resilience.service.ts — Fallback strategies
+│   │   │   ├── bot-validator.service.ts — Bot endpoint validation
+│   │   │   ├── bot-health-scheduler.service.ts — Periodic health checks
+│   │   │   ├── bot-activity.service.ts — Real-time bot activity tracking
+│   │   │   └── bot-auto-registration.service.ts — Auto-register bots in tournaments
 │   │   ├── provably-fair.service.ts — HMAC commit-reveal deck shuffling
-│   │   └── hand-seed-persistence.service.ts — Persist seeds to database
+│   │   ├── hand-seed-persistence.service.ts — Persist seeds to database
+│   │   ├── platform-analytics.service.ts — Platform-wide analytics
+│   │   ├── daily-summary.service.ts — Daily email reports
+│   │   └── email.service.ts         — Email sending service
 │   ├── workers/
 │   │   ├── game.worker.ts           — Isolated game execution in worker thread
 │   │   └── messages.ts              — Worker message protocol types
 │   ├── migrations/
+│   │   ├── 1710000000003-AddEmailVerification.ts — Email verification fields
+│   │   ├── 1710000000004-AddPasswordAndResetFields.ts — Password reset support
 │   │   ├── 1710864000000-InitialSchema.ts — Initial database schema
 │   │   ├── 1710864001000-AddGameStateSnapshots.ts — Game state persistence
+│   │   ├── 1710864002000-AddHandSeeds.ts — Provably fair seeds
+│   │   ├── AddPlatformAnalytics.ts  — Analytics tables
+│   │   ├── AddBotSubscriptions.ts   — Bot auto-registration
 │   │   └── run.ts                   — Migration runner script
 │   ├── common/
 │   │   ├── guards/                  — JWT, API key, roles guards
@@ -123,7 +159,8 @@ servers_poker/
 │   │   ├── redis/                   — Redis client infrastructure
 │   │   │   ├── redis.module.ts      — NestJS module
 │   │   │   ├── redis.service.ts     — Core Redis client wrapper
-│   │   │   └── redis-pubsub.service.ts — Pub/sub connections
+│   │   │   ├── redis-pubsub.service.ts — Pub/sub connections
+│   │   │   └── redis-io.adapter.ts  — Socket.IO Redis adapter
 │   │   └── security/                — Security services
 │   │       ├── hmac-signing.service.ts — HMAC-SHA256 payload signing
 │   │       ├── api-key-rotation.service.ts — Key rotation with grace period
@@ -141,9 +178,10 @@ servers_poker/
 │   │   ├── main.tsx                 — React entry point
 │   │   ├── components/              — React components
 │   │   │   ├── game/                — Gameplay HUD, table, seats, result surfaces
-│   │   │   ├── common/              — PlayingCard, PokerChipStack, Timer
+│   │   │   │   ├── common/              — PlayingCard, PokerChipStack, Timer, ErrorBoundary
 │   │   │   ├── tournament/          — TournamentCard, LeaderboardTable
 │   │   │   ├── ui/                  — Shared FE primitives
+│   │   │   ├── auth/                — Authentication components
 │   │   │   └── layout/              — Marketing, auth, product, and game shells
 │   │   ├── pages/                   — Route pages
 │   │   │   ├── Home.tsx             — Marketing landing page
@@ -156,8 +194,12 @@ servers_poker/
 │   │   │   ├── Leaderboard.tsx      — Rankings workspace
 │   │   │   ├── Profile.tsx          — Account + API key workspace
 │   │   │   ├── AdminAnalytics.tsx   — Admin analytics workspace
+│   │   │   ├── AdminTournaments.tsx — Admin tournament management
 │   │   │   ├── Login.tsx            — Authentication
-│   │   │   └── Register.tsx         — Registration
+│   │   │   ├── Register.tsx         — Registration
+│   │   │   ├── VerifyEmail.tsx      — Email verification
+│   │   │   ├── ForgotPassword.tsx   — Password reset request
+│   │   │   └── ResetPassword.tsx    — Password reset form
 │   │   ├── hooks/                   — Custom hooks
 │   │   │   └── useWebSocket.ts      — Socket.IO connection to /game
 │   │   ├── stores/                  — Zustand stores
@@ -168,24 +210,53 @@ servers_poker/
 │   │   │   ├── client.ts            — Base fetch wrapper
 │   │   │   ├── auth.ts              — Login/register/me
 │   │   │   ├── games.ts             — Tables/state/history
-│   │   │   ├── bots.ts              — Bot CRUD
-│   │   │   └── tournaments.ts       — Tournament CRUD
+│   │   │   ├── bots.ts              — Bot CRUD and subscriptions
+│   │   │   ├── tournaments.ts       — Tournament CRUD
+│   │   │   └── analytics.ts         — Analytics API client
+│   │   ├── utils/
+│   │   │   ├── logger.ts            — Frontend logging utility
+│   │   │   ├── analytics.ts         — Event tracking utility
+│   │   │   └── timing.ts            — Centralized timing constants for UI
 │   │   ├── test/                    — Frontend test setup utilities
 │   │   └── types/                   — TypeScript types
 │   └── public/                      — Static assets
 ├── tests/
 │   ├── unit/                        — Vitest unit tests
-│   └── e2e/                         — End-to-end tests
+│   ├── integration/                 — Integration tests
+│   ├── e2e/                         — End-to-end tests
+│   └── qa/
+│       ├── monsters/                — Monster Army QA system (see tests/qa/monsters/README.md)
+│       ├── simulations/             — Game simulation tests
+│       ├── performance/             — Load and performance tests
+│       └── chaos/                   — Chaos engineering tests
 ├── docs/
 │   ├── ARCHITECTURE.md              — This file
 │   ├── KNOWLEDGE.md                 — Design decisions
 │   ├── DATA_DICTIONARY.md           — Database schema
 │   ├── API.md                       — API reference
 │   ├── GAME_RULES.md                — Poker rules
-│   ├── SECURITY.md                  — Security architecture
-│   ├── DEPLOYMENT.md                — Production deployment
-│   ├── QUICKSTART.md                — 5-minute getting started
+│   ├── TOURNAMENT_RULES.md          — Tournament format
+│   ├── TESTING.md                   — Test strategy
+│   ├── TECH_DEBT.md                 — Technical debt tracking
+│   ├── MONITORING.md                — Observability setup
+│   ├── guides/
+│   │   ├── QUICKSTART.md            — 5-minute getting started
+│   │   ├── DEPLOYMENT.md            — Production deployment
+│   │   ├── SECURITY.md              — Security architecture
+│   │   ├── BOT_DEVELOPER_GUIDE.md   — Bot development guide
+│   │   └── MONITORING.md            — Monitoring guide
+│   ├── adr/                         — Architecture Decision Records
+│   ├── reports/                     — QA and audit reports
 │   └── AI_CONTEXT.md                — Context for AI assistants
+├── monitoring/
+│   ├── prometheus/                  — Prometheus configuration
+│   │   ├── prometheus.yml           — Scrape configuration
+│   │   └── alert.rules.yml          — Alerting rules
+│   ├── grafana/
+│   │   ├── dashboards/              — Dashboard JSON files
+│   │   └── provisioning/            — Auto-provisioning config
+│   └── alertmanager/
+│       └── alertmanager.yml         — Alert routing
 └── bots/
     ├── bot.js                       — Node.js full boilerplate
     ├── bot.py                       — Python full boilerplate
@@ -311,6 +382,29 @@ Game engine and real-time communication.
 - WebSocket Gateway for live updates
 - Action processing
 - Hand history retrieval
+
+#### AnalyticsModule
+Platform-wide analytics and reporting.
+- Platform statistics (public and admin)
+- Frontend event tracking
+- Daily summary emails
+- Metrics history
+
+#### HealthModule
+Application health monitoring.
+- `GET /health` — Overall health status
+- Redis connectivity check
+- Database connectivity check
+
+#### MetricsModule
+Prometheus metrics collection.
+- `GET /metrics` — Prometheus-compatible metrics
+- Request/response timing
+- Game and tournament counters
+- Bot performance metrics
+
+#### PreviewModule
+Demo and preview functionality for unauthenticated users.
 
 ### Game Engine (`src/game/`)
 

@@ -216,17 +216,28 @@ server {
 }
 ```
 
-### WebSocket Sticky Sessions
+### WebSocket Horizontal Scaling
 
-For WebSocket connections, enable sticky sessions:
+The application uses `@socket.io/redis-adapter` for cross-instance WebSocket broadcasts. This means **sticky sessions are not required** — clients can connect to any server instance and receive broadcasts from games running on other instances.
+
+**How it works:**
+1. Socket.IO uses Redis pub/sub to relay broadcasts across instances
+2. `RedisSocketStateService` tracks client connections in Redis
+3. When a game emits an event, all instances with subscribed clients receive it
+
+**Optional: Sticky Sessions for Performance**
+
+While not required, sticky sessions can reduce Redis traffic:
 
 ```nginx
 upstream poker {
-    ip_hash;  # Sticky sessions
+    ip_hash;  # Optional: reduces Redis pub/sub traffic
     server poker-1:3000;
     server poker-2:3000;
 }
 ```
+
+Without sticky sessions, the system is fully functional but generates more Redis pub/sub messages.
 
 ## Monitoring
 

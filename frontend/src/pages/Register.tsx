@@ -112,6 +112,8 @@ export function Register() {
                 dismissible
                 onDismiss={clearError}
                 title="Registration failed"
+                helpLink="/login"
+                helpText="Already have an account?"
               >
                 <div className="space-y-3">
                   <p>{displayError}</p>
@@ -131,7 +133,9 @@ export function Register() {
             <TextField
               label="Email"
               id="email"
+              name="email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
                 setEmail(e.target.value);
@@ -148,7 +152,9 @@ export function Register() {
             <TextField
               label="Display name"
               id="username"
+              name="username"
               type="text"
+              autoComplete="username"
               value={username}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setUsername(e.target.value)
@@ -160,6 +166,8 @@ export function Register() {
             <PasswordField
               label="Password"
               id="password"
+              name="password"
+              autoComplete="new-password"
               value={password}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setPassword(e.target.value)
@@ -171,6 +179,8 @@ export function Register() {
             <PasswordField
               label="Confirm password"
               id="confirmPassword"
+              name="confirmPassword"
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setConfirmPassword(e.target.value)

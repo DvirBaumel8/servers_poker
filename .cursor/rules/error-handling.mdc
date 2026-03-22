@@ -1,0 +1,107 @@
+---
+description: Unified error handling patterns across frontend and backend
+alwaysApply: true
+---
+
+# Error Handling
+
+## Backend (NestJS)
+
+Use NestJS built-in exceptions with meaningful messages:
+
+```typescript
+// Good: specific exception with context
+throw new NotFoundException(`Tournament ${id} not found`);
+throw new BadRequestException("Bet amount exceeds stack size");
+throw new ConflictException("Bot already registered for this tournament");
+
+// Bad: generic errors
+throw new Error("Not found");
+throw new HttpException("Error", 400);
+```
+
+The `HttpExceptionFilter` transforms these into user-friendly responses automatically.
+
+### Async Operations
+
+Always handle errors in async code:
+
+```typescript
+// Service method
+async processAction(gameId: string, action: Action): Promise<void> {
+  const game = await this.gameRepo.findById(gameId);
+  if (!game) {
+    throw new NotFoundException(`Game ${gameId} not found`);
+  }
+  // ... business logic
+}
+```
+
+### External Service Calls (Bots)
+
+Wrap with timeout and specific error handling:
+
+```typescript
+try {
+  const response = await this.httpService.axiosRef.post(bot.endpoint, payload, {
+    timeout: this.config.botTimeoutMs,
+  });
+  return response.data;
+} catch (error) {
+  if (error.code === "ECONNABORTED") {
+    throw new GatewayTimeoutException(`Bot ${bot.id} timed out`);
+  }
+  throw new ServiceUnavailableException(`Bot ${bot.id} unreachable`);
+}
+```
+
+## Frontend (React)
+
+### API Calls in Stores
+
+```typescript
+fetchTournament: async (id) => {
+  set({ loading: true, error: null });
+  try {
+    const tournament = await api.getById(id);
+    set({ currentTournament: tournament, loading: false });
+  } catch (error) {
+    set({ error: String(error), loading: false });
+  }
+},
+```
+
+### Display Errors to Users
+
+```tsx
+const { error, clearError } = useTournamentStore();
+
+{error && (
+  <div className="bg-red-500/10 text-red-400 p-4 rounded">
+    {error}
+    <button onClick={clearError}>Dismiss</button>
+  </div>
+)}
+```
+
+### Use ErrorBoundary for Crashes
+
+Wrap feature sections to prevent full-page crashes:
+
+```tsx
+<ErrorBoundary>
+  <GameView />
+</ErrorBoundary>
+```
+
+## Logging
+
+Use the logger with context:
+
+```typescript
+// Backend
+this.logger.error(`Failed to process action`, error.stack);
+
+// Frontend
+logger.error("Failed to fetch data", error, "TournamentStore", { id });
+```

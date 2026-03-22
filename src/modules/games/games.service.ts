@@ -1,9 +1,25 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { GameRepository } from "../../repositories/game.repository";
 import { BotRepository } from "../../repositories/bot.repository";
+import { HandSeedRepository } from "../../repositories/hand-seed.repository";
+import { RedisCacheService } from "../../common/redis/redis-cache.service";
 import { Game } from "../../entities/game.entity";
 import { Hand } from "../../entities/hand.entity";
+import { HandSeed } from "../../entities/hand-seed.entity";
 import { HandHistoryDto, LeaderboardEntryDto } from "./dto/game.dto";
+
+export interface HandSeedDto {
+  handNumber: number;
+  serverSeed: string;
+  serverSeedHash: string;
+  clientSeed: string | null;
+  combinedHash: string | null;
+  deckOrder: number[] | null;
+  revealed: boolean;
+  revealedAt: Date | null;
+  createdAt: Date;
+  verificationUrl?: string;
+}
 
 @Injectable()
 export class GamesService {
@@ -12,6 +28,8 @@ export class GamesService {
   constructor(
     private readonly gameRepository: GameRepository,
     private readonly botRepository: BotRepository,
+    private readonly handSeedRepository: HandSeedRepository,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   async findById(id: string): Promise<Game | null> {
@@ -73,8 +91,29 @@ export class GamesService {
     };
   }
 
-  async getLeaderboard(limit: number = 20): Promise<LeaderboardEntryDto[]> {
-    return this.gameRepository.getLeaderboard(limit);
+  async getLeaderboard(
+    limit: number = 20,
+    period: "all" | "month" | "week" = "all",
+  ): Promise<LeaderboardEntryDto[]> {
+    const cacheKey = `leaderboard:${period}:${limit}`;
+    const results = await this.cacheService.getOrSet(
+      cacheKey,
+      () => this.gameRepository.getLeaderboard(limit, period),
+      { ttlSeconds: 60 }, // Cache for 1 minute
+    );
+    // pg driver returns bigints as strings; convert to numbers
+    return results.map((entry) => ({
+      ...entry,
+      games_played: Number(entry.games_played),
+      total_hands: Number(entry.total_hands),
+      total_wins: Number(entry.total_wins),
+      total_winnings: Number(entry.total_winnings),
+      net_profit: Number(entry.net_profit),
+      win_rate_pct:
+        entry.win_rate_pct !== null ? Number(entry.win_rate_pct) : null,
+      tournament_wins: Number(entry.tournament_wins),
+      total_tournaments: Number(entry.total_tournaments),
+    }));
   }
 
   /**
@@ -118,6 +157,40 @@ export class GamesService {
 
     const userBotIds = new Set(userBots.map((b) => b.id));
     return (hand.players || []).some((p) => userBotIds.has(p.bot_id));
+  }
+
+  async getGameSeeds(gameId: string): Promise<HandSeedDto[]> {
+    const seeds = await this.handSeedRepository.findByGame(gameId);
+    return seeds.map((seed) => this.toHandSeedDto(seed));
+  }
+
+  async getHandSeed(
+    gameId: string,
+    handNumber: number,
+  ): Promise<HandSeedDto | null> {
+    const seed = await this.handSeedRepository.findByGameAndHand(
+      gameId,
+      handNumber,
+    );
+    if (!seed) return null;
+    return {
+      ...this.toHandSeedDto(seed),
+      verificationUrl: `/api/v1/games/verify-hand`,
+    };
+  }
+
+  private toHandSeedDto(seed: HandSeed): HandSeedDto {
+    return {
+      handNumber: seed.hand_number,
+      serverSeed: seed.server_seed,
+      serverSeedHash: seed.server_seed_hash,
+      clientSeed: seed.client_seed,
+      combinedHash: seed.combined_hash,
+      deckOrder: seed.deck_order,
+      revealed: seed.revealed,
+      revealedAt: seed.revealed_at,
+      createdAt: seed.created_at,
+    };
   }
 
   private toHandHistoryDto(hand: Hand): HandHistoryDto {

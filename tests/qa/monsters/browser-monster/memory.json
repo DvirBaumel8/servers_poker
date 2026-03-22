@@ -1,0 +1,891 @@
+{
+  "lastRun": "2026-03-22T01:52:23.945Z",
+  "totalRuns": 32,
+  "knownIssues": [
+    {
+      "fingerprint": "general:\ude80-launching-browser...:unknown",
+      "category": "GENERAL",
+      "title": "\ude80 Launching browser...",
+      "firstSeen": "2026-03-21T21:20:14.267Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc4-testing:-home-(/):/login",
+      "category": "GENERAL",
+      "title": "\udcc4 Testing: Home (/)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc4-testing:-register-(/register):/forgot-password",
+      "category": "GENERAL",
+      "title": "\udcc4 Testing: Register (/register)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc4-testing:-tournaments-list-(/tournaments):/bots",
+      "category": "GENERAL",
+      "title": "\udcc4 Testing: Tournaments List (/tournaments)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc4-testing:-tables-list-(/tables):/leaderboard",
+      "category": "GENERAL",
+      "title": "\udcc4 Testing: Tables List (/tables)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udd10-testing-login-flow...:unknown",
+      "category": "GENERAL",
+      "title": "\udd10 Testing login flow...",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udd11-testing-forgot-password-flow...:unknown",
+      "category": "GENERAL",
+      "title": "\udd11 Testing forgot password flow...",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udd12-testing:-user-profile:unknown",
+      "category": "GENERAL",
+      "title": "\udd12 Testing: User Profile",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "auth:\udd12-testing:-bots-(auth):unknown",
+      "category": "AUTH",
+      "title": "\udd12 Testing: Bots (Auth)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udc51-testing:-admin-tournaments:unknown",
+      "category": "GENERAL",
+      "title": "\udc51 Testing: Admin Tournaments",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\uddb1️-testing-interactions-on:-/:unknown",
+      "category": "GENERAL",
+      "title": "\uddb1️ Testing interactions on: /",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\uddb1️-testing-interactions-on:-/tournaments:unknown",
+      "category": "GENERAL",
+      "title": "\uddb1️ Testing interactions on: /tournaments",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\uddb1️-testing-interactions-on:-/bots:unknown",
+      "category": "GENERAL",
+      "title": "\uddb1️ Testing interactions on: /bots",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\uddb1️-testing-interactions-on:-/tables:unknown",
+      "category": "GENERAL",
+      "title": "\uddb1️ Testing interactions on: /tables",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\uddb1️-testing-interactions-on:-/leaderboard:unknown",
+      "category": "GENERAL",
+      "title": "\uddb1️ Testing interactions on: /leaderboard",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udd13-fuzzing-inputs-on:-/login:/register",
+      "category": "GENERAL",
+      "title": "\udd13 Fuzzing inputs on: /login",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udd13-fuzzing-tournament-name...:unknown",
+      "category": "GENERAL",
+      "title": "\udd13 Fuzzing tournament name...",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcf1-testing-viewport:-iphone-se-(small)-(320x568):unknown",
+      "category": "GENERAL",
+      "title": "\udcf1 Testing viewport: iPhone SE (small) (320x568)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcf1-testing-viewport:-iphone-11-pro-max-(414x896):unknown",
+      "category": "GENERAL",
+      "title": "\udcf1 Testing viewport: iPhone 11 Pro Max (414x896)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcf1-testing-viewport:-ipad-landscape-(1024x768):unknown",
+      "category": "GENERAL",
+      "title": "\udcf1 Testing viewport: iPad Landscape (1024x768)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcf1-testing-viewport:-desktop-full-hd-(1920x1080):unknown",
+      "category": "GENERAL",
+      "title": "\udcf1 Testing viewport: Desktop Full HD (1920x1080)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udea7-testing-edge-case-routes...:unknown",
+      "category": "GENERAL",
+      "title": "\udea7 Testing edge case routes...",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\uded1-browser-closed:unknown",
+      "category": "GENERAL",
+      "title": "\uded1 Browser closed",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udd34-critical:-2:unknown",
+      "category": "GENERAL",
+      "title": "\udd34 Critical: 2",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 3,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udfe1-medium:-44:unknown",
+      "category": "GENERAL",
+      "title": "\udfe1 Medium:   44",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-network-(21):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 NETWORK (21)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "network:\udfe1-request-failed://localhost",
+      "category": "NETWORK",
+      "title": "\udfe1 Request Failed",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 5,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "network:\udfe1-request-failed://localhost",
+      "category": "NETWORK",
+      "title": "\udfe1 Request Failed",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "network:\udfe1-request-failed://localhost",
+      "category": "NETWORK",
+      "title": "\udfe1 Request Failed",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "network:\udfe1-request-failed://localhost",
+      "category": "NETWORK",
+      "title": "\udfe1 Request Failed",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-validation-(1):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 VALIDATION (1)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-crash-(5):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 CRASH (5)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "crash:\udfe0-registration-flow-crashed:unknown",
+      "category": "CRASH",
+      "title": "\udfe0 Registration Flow Crashed",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "crash:\udd34-react-crash:-admin-tournaments:unknown",
+      "category": "CRASH",
+      "title": "\udd34 React Crash: Admin Tournaments",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "crash:\udd34-react-crash:-admin-analytics:unknown",
+      "category": "CRASH",
+      "title": "\udd34 React Crash: Admin Analytics",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "crash:\udfe0-crash-on-invalid-route:/tournaments",
+      "category": "CRASH",
+      "title": "\udfe0 Crash on Invalid Route",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-console-(20):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 CONSOLE (20)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "console:\udfe1-console-error:-forgot-password:unknown",
+      "category": "CONSOLE",
+      "title": "\udfe1 Console Error: Forgot Password",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "console:\udfe1-console-error:-admin-tournaments:unknown",
+      "category": "CONSOLE",
+      "title": "\udfe1 Console Error: Admin Tournaments",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "console:\udfe0-console-error:-admin-tournaments:unknown",
+      "category": "CONSOLE",
+      "title": "\udfe0 Console Error: Admin Tournaments",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 3,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "console:\udfe0-console-error:-admin-tournaments:unknown",
+      "category": "CONSOLE",
+      "title": "\udfe0 Console Error: Admin Tournaments",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-auth-(3):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 AUTH (3)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udfe0-admin-not-accessible:-admin-tournaments:unknown",
+      "category": "GENERAL",
+      "title": "\udfe0 Admin Not Accessible: Admin Tournaments",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udfe0-admin-not-accessible:-admin-analytics:unknown",
+      "category": "GENERAL",
+      "title": "\udfe0 Admin Not Accessible: Admin Analytics",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-responsive-(10):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 RESPONSIVE (10)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "responsive:\udfe2-horizontal-overflow:-iphone-se-(small):/bots",
+      "category": "RESPONSIVE",
+      "title": "\udfe2 Horizontal Overflow: iPhone SE (small)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "responsive:\udfe2-horizontal-overflow:-iphone-8:/tournaments",
+      "category": "RESPONSIVE",
+      "title": "\udfe2 Horizontal Overflow: iPhone 8",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "responsive:\udfe2-horizontal-overflow:-iphone-8:/bots",
+      "category": "RESPONSIVE",
+      "title": "\udfe2 Horizontal Overflow: iPhone 8",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "responsive:\udfe2-horizontal-overflow:-iphone-11-pro-max:/tournaments",
+      "category": "RESPONSIVE",
+      "title": "\udfe2 Horizontal Overflow: iPhone 11 Pro Max",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-ux-(1):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 UX (1)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "a11y:\udcc1-a11y-(2):/login",
+      "category": "A11Y",
+      "title": "\udcc1 A11Y (2)",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "a11y:\udfe1-buttons-without-labels:-/tournaments:unknown",
+      "category": "A11Y",
+      "title": "\udfe1 Buttons Without Labels: /tournaments",
+      "firstSeen": "2026-03-21T21:20:14.268Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcdd-testing-registration-flow...:unknown",
+      "category": "GENERAL",
+      "title": "\udcdd Testing registration flow...",
+      "firstSeen": "2026-03-21T22:11:13.422Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udeaa-testing-logout-flow...:unknown",
+      "category": "GENERAL",
+      "title": "\udeaa Testing logout flow...",
+      "firstSeen": "2026-03-21T22:11:13.423Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcf1-testing-viewport:-desktop-(1920x1080):unknown",
+      "category": "GENERAL",
+      "title": "\udcf1 Testing viewport: Desktop (1920x1080)",
+      "firstSeen": "2026-03-21T22:11:13.423Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udfe1-medium:-28:unknown",
+      "category": "GENERAL",
+      "title": "\udfe1 Medium:   28",
+      "firstSeen": "2026-03-21T22:11:13.423Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-network-(15):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 NETWORK (15)",
+      "firstSeen": "2026-03-21T22:11:13.423Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-console-(12):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 CONSOLE (12)",
+      "firstSeen": "2026-03-21T22:11:13.423Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "console:\udfe1-console-error:-user-profile:unknown",
+      "category": "CONSOLE",
+      "title": "\udfe1 Console Error: User Profile",
+      "firstSeen": "2026-03-21T22:11:13.423Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc1-form-(1):unknown",
+      "category": "GENERAL",
+      "title": "\udcc1 FORM (1)",
+      "firstSeen": "2026-03-21T22:11:13.423Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\ude80-running-parallel-test-groups...:unknown",
+      "category": "GENERAL",
+      "title": "\ude80 Running parallel test groups...",
+      "firstSeen": "2026-03-21T22:13:50.197Z",
+      "occurrences": 30,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udd10-testing-auth-flows...:unknown",
+      "category": "GENERAL",
+      "title": "\udd10 Testing auth flows...",
+      "firstSeen": "2026-03-21T22:13:50.198Z",
+      "occurrences": 24,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\uddb1️-testing-interactive-elements...:unknown",
+      "category": "GENERAL",
+      "title": "\uddb1️  Testing interactive elements...",
+      "firstSeen": "2026-03-21T22:13:50.198Z",
+      "occurrences": 20,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcdd-running-sequential-tests...:unknown",
+      "category": "GENERAL",
+      "title": "\udcdd Running sequential tests...",
+      "firstSeen": "2026-03-21T22:13:50.198Z",
+      "occurrences": 30,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udccb-tests:-13-run,-12-passed,-0-failed:unknown",
+      "category": "GENERAL",
+      "title": "\udccb Tests: 13 run, 12 passed, 0 failed",
+      "firstSeen": "2026-03-21T22:13:50.198Z",
+      "occurrences": 24,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udd34-critical:-0:unknown",
+      "category": "GENERAL",
+      "title": "\udd34 Critical: 0",
+      "firstSeen": "2026-03-21T22:13:50.198Z",
+      "occurrences": 29,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udfe1-medium:-1:unknown",
+      "category": "GENERAL",
+      "title": "\udfe1 Medium: 1",
+      "firstSeen": "2026-03-21T22:13:50.198Z",
+      "occurrences": 2,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udc51-testing-admin-pages...:unknown",
+      "category": "GENERAL",
+      "title": "\udc51 Testing admin pages...",
+      "firstSeen": "2026-03-21T22:21:01.773Z",
+      "occurrences": 12,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udfe1-medium:-0:unknown",
+      "category": "GENERAL",
+      "title": "\udfe1 Medium: 0",
+      "firstSeen": "2026-03-21T22:21:01.773Z",
+      "occurrences": 28,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udcc4-testing-public-pages...:unknown",
+      "category": "GENERAL",
+      "title": "\udcc4 Testing public pages...",
+      "firstSeen": "2026-03-22T00:38:50.592Z",
+      "occurrences": 4,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udccb-tests:-15-run,-12-passed,-2-failed:unknown",
+      "category": "GENERAL",
+      "title": "\udccb Tests: 15 run, 12 passed, 2 failed",
+      "firstSeen": "2026-03-22T01:20:52.601Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udccb-using-game-450bbb17...-with-0-players:unknown",
+      "category": "GENERAL",
+      "title": "\udccb Using game 450bbb17... with 0 players",
+      "firstSeen": "2026-03-22T01:34:25.823Z",
+      "occurrences": 5,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udccb-tests:-15-run,-14-passed,-0-failed:unknown",
+      "category": "GENERAL",
+      "title": "\udccb Tests: 15 run, 14 passed, 0 failed",
+      "firstSeen": "2026-03-22T01:34:25.824Z",
+      "occurrences": 5,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    }
+  ],
+  "fixedIssues": [],
+  "patterns": [],
+  "improvements": [
+    {
+      "iteration": 1,
+      "date": "2026-03-21T21:20:14.268Z",
+      "findingsBefore": 52,
+      "findingsAfter": 52,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T22:11:13.423Z",
+      "findingsBefore": 47,
+      "findingsAfter": 47,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T22:13:50.198Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T22:19:25.736Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T22:21:01.773Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:16:40.599Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:17:42.485Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:20:17.386Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:24:32.746Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:41:03.483Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:42:47.406Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-21T23:57:18.030Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:06:36.008Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:11:49.419Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:12:31.511Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:30:23.412Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:34:40.907Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:36:08.619Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:37:51.362Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:38:50.592Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:40:19.746Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:51:52.214Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T00:57:41.081Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:05:00.405Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:06:16.618Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:07:44.183Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:20:52.602Z",
+      "findingsBefore": 7,
+      "findingsAfter": 7,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:34:25.824Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:38:37.006Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:46:48.640Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:48:55.967Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:52:23.945Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    }
+  ]
+}

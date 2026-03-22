@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import type { Tournament } from "../../types";
 import { Button, StatusPill, SurfaceCard } from "../ui/primitives";
+import { TOURNAMENT_COUNTDOWN_MS } from "../../utils/timing";
 
 interface TournamentCardProps {
   tournament: Tournament;
@@ -75,7 +76,7 @@ export function TournamentCard({
     };
 
     calculateRemaining();
-    const interval = setInterval(calculateRemaining, 1000);
+    const interval = setInterval(calculateRemaining, TOURNAMENT_COUNTDOWN_MS);
 
     return () => clearInterval(interval);
   }, [tournament.startedAt, tournament.status, tournament.lateRegEndsLevel]);
@@ -164,7 +165,7 @@ export function TournamentCard({
         </Link>
 
         {(canRegister || myRegisteredBotId || onStart || onCancel) && (
-          <div className="flex flex-wrap gap-2 border-t border-white/6 pt-4">
+          <div className="flex flex-wrap gap-3 border-t border-white/6 pt-5 mt-1">
             {canRegister && (
               <Button
                 onClick={(e) => {

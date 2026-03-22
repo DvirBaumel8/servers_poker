@@ -17,6 +17,7 @@ import {
   HealthCheckRound,
   HealthCheckResult,
 } from "./bot/bot-health-scheduler.service";
+import { DEFAULT_CORS_ORIGINS } from "../config/app.config";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -48,10 +49,7 @@ export interface BotMetricDetail {
 @WebSocketGateway({
   namespace: "/metrics",
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(",") || [
-      "http://localhost:3001",
-      "http://localhost:3002",
-    ],
+    origin: process.env.CORS_ORIGINS?.split(",") || DEFAULT_CORS_ORIGINS,
     credentials: true,
   },
 })

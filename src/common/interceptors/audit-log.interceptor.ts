@@ -99,7 +99,9 @@ export class AuditLogInterceptor implements NestInterceptor {
           duration,
           req,
           responseBody,
-        }).catch(() => {});
+        }).catch((err) => {
+          this.logger.warn(`Failed to save audit log: ${err.message}`);
+        });
       }),
       catchError((error) => {
         const duration = Date.now() - startTime;
@@ -111,7 +113,9 @@ export class AuditLogInterceptor implements NestInterceptor {
           duration,
           req,
           error: error.message,
-        }).catch(() => {});
+        }).catch((err) => {
+          this.logger.warn(`Failed to save audit log: ${err.message}`);
+        });
         return throwError(() => error);
       }),
     );

@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Tournaments } from "./Tournaments";
 
 const authState = {
-  user: { id: "user-1", role: "user" },
+  user: { id: "user-1", role: "admin" },
   token: "token-123",
 };
 

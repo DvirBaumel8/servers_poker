@@ -10,6 +10,7 @@ describe("TournamentsService", () => {
   let service: TournamentsService;
   let mockTournamentRepository: {
     findById: ReturnType<typeof vi.fn>;
+    findByIdOrThrow: ReturnType<typeof vi.fn>;
     findAll: ReturnType<typeof vi.fn>;
     findByStatus: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
@@ -21,12 +22,17 @@ describe("TournamentsService", () => {
     deleteEntry: ReturnType<typeof vi.fn>;
     updateStatus: ReturnType<typeof vi.fn>;
     startBlindLevel: ReturnType<typeof vi.fn>;
+    getEntryCounts: ReturnType<typeof vi.fn>;
   };
   let mockBotRepository: {
     findById: ReturnType<typeof vi.fn>;
+    findByIdOrThrow: ReturnType<typeof vi.fn>;
     findByIds: ReturnType<typeof vi.fn>;
   };
   let mockAnalyticsRepository: Record<string, never>;
+  let mockEventEmitter: {
+    emit: ReturnType<typeof vi.fn>;
+  };
 
   const mockTournament = {
     id: "tourney-123",
@@ -57,6 +63,7 @@ describe("TournamentsService", () => {
   beforeEach(() => {
     mockTournamentRepository = {
       findById: vi.fn(),
+      findByIdOrThrow: vi.fn(),
       findAll: vi.fn(),
       findByStatus: vi.fn(),
       create: vi.fn(),
@@ -68,19 +75,31 @@ describe("TournamentsService", () => {
       deleteEntry: vi.fn(),
       updateStatus: vi.fn(),
       startBlindLevel: vi.fn(),
+      getEntryCounts: vi.fn().mockResolvedValue(new Map()),
     };
 
     mockBotRepository = {
       findById: vi.fn(),
+      findByIdOrThrow: vi.fn(),
       findByIds: vi.fn(),
     };
 
     mockAnalyticsRepository = {};
 
+    mockEventEmitter = {
+      emit: vi.fn(),
+    };
+
+    const mockCacheService = {
+      getOrSet: vi.fn().mockImplementation((_key, fn) => fn()),
+    };
+
     service = new TournamentsService(
       mockTournamentRepository as never,
       mockBotRepository as never,
       mockAnalyticsRepository as never,
+      mockEventEmitter as never,
+      mockCacheService as never,
     );
   });
 
@@ -167,8 +186,10 @@ describe("TournamentsService", () => {
 
   describe("register", () => {
     it("should register bot successfully", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
+      mockBotRepository.findByIdOrThrow.mockResolvedValue(mockBot);
       mockTournamentRepository.getEntries.mockResolvedValue([]);
       mockTournamentRepository.createEntry.mockResolvedValue({});
 
@@ -178,7 +199,9 @@ describe("TournamentsService", () => {
     });
 
     it("should throw NotFoundException when tournament not found", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(null);
+      mockTournamentRepository.findByIdOrThrow.mockRejectedValue(
+        new NotFoundException("Tournament nonexistent not found"),
+      );
 
       await expect(
         service.register("nonexistent", "bot-123", "user-123"),
@@ -186,7 +209,7 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when tournament not accepting registrations", async () => {
-      mockTournamentRepository.findById.mockResolvedValue({
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
         ...mockTournament,
         status: "running",
         late_reg_ends_level: 4,
@@ -199,12 +222,12 @@ describe("TournamentsService", () => {
     });
 
     it("should allow late registration when within late_reg_ends_level", async () => {
-      mockTournamentRepository.findById.mockResolvedValue({
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
         ...mockTournament,
         status: "running",
         late_reg_ends_level: 4,
       });
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockBotRepository.findByIdOrThrow.mockResolvedValue(mockBot);
       mockTournamentRepository.getEntries.mockResolvedValue([]);
       mockTournamentRepository.createEntry.mockResolvedValue({});
 
@@ -215,7 +238,7 @@ describe("TournamentsService", () => {
     });
 
     it("should reject late registration when past late_reg_ends_level", async () => {
-      mockTournamentRepository.findById.mockResolvedValue({
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
         ...mockTournament,
         status: "running",
         late_reg_ends_level: 4,
@@ -228,8 +251,12 @@ describe("TournamentsService", () => {
     });
 
     it("should throw NotFoundException when bot not found", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
-      mockBotRepository.findById.mockResolvedValue(null);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
+      mockBotRepository.findByIdOrThrow.mockRejectedValue(
+        new NotFoundException("Bot nonexistent not found"),
+      );
 
       await expect(
         service.register("tourney-123", "nonexistent", "user-123"),
@@ -237,8 +264,10 @@ describe("TournamentsService", () => {
     });
 
     it("should throw ForbiddenException when user does not own bot", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
-      mockBotRepository.findById.mockResolvedValue({
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
+      mockBotRepository.findByIdOrThrow.mockResolvedValue({
         ...mockBot,
         user_id: "other-user",
       });
@@ -249,8 +278,10 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when bot is not active", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
-      mockBotRepository.findById.mockResolvedValue({
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
+      mockBotRepository.findByIdOrThrow.mockResolvedValue({
         ...mockBot,
         active: false,
       });
@@ -261,11 +292,11 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when tournament is full", async () => {
-      mockTournamentRepository.findById.mockResolvedValue({
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
         ...mockTournament,
         max_players: 1,
       });
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockBotRepository.findByIdOrThrow.mockResolvedValue(mockBot);
       mockTournamentRepository.getEntries.mockResolvedValue([
         { bot_id: "other" },
       ]);
@@ -276,8 +307,10 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when bot already registered", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
+      mockBotRepository.findByIdOrThrow.mockResolvedValue(mockBot);
       mockTournamentRepository.getEntries.mockResolvedValue([
         { bot_id: "bot-123" },
       ]);
@@ -288,8 +321,10 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when same user already has bot registered", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
-      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
+      mockBotRepository.findByIdOrThrow.mockResolvedValue(mockBot);
       mockTournamentRepository.getEntries.mockResolvedValue([
         { bot_id: "other-bot" },
       ]);
@@ -305,7 +340,9 @@ describe("TournamentsService", () => {
 
   describe("unregister", () => {
     it("should unregister bot successfully", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
       mockTournamentRepository.findEntryByBotId.mockResolvedValue({
         id: "entry-1",
       });
@@ -319,7 +356,7 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when tournament started", async () => {
-      mockTournamentRepository.findById.mockResolvedValue({
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
         ...mockTournament,
         status: "running",
       });
@@ -330,7 +367,9 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when bot not registered", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
       mockTournamentRepository.findEntryByBotId.mockResolvedValue(null);
 
       await expect(
@@ -341,7 +380,9 @@ describe("TournamentsService", () => {
 
   describe("start", () => {
     it("should start tournament successfully", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
       mockTournamentRepository.getEntries.mockResolvedValue([
         { bot_id: "bot-1" },
         { bot_id: "bot-2" },
@@ -357,7 +398,9 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when not enough players", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
       mockTournamentRepository.getEntries.mockResolvedValue([]);
 
       await expect(service.start("tourney-123")).rejects.toThrow(
@@ -368,8 +411,11 @@ describe("TournamentsService", () => {
 
   describe("cancel", () => {
     it("should cancel tournament successfully", async () => {
-      mockTournamentRepository.findById.mockResolvedValue(mockTournament);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue(
+        mockTournament,
+      );
       mockTournamentRepository.updateStatus.mockResolvedValue({});
+      mockTournamentRepository.getEntries.mockResolvedValue([]);
 
       await service.cancel("tourney-123");
 
@@ -380,7 +426,7 @@ describe("TournamentsService", () => {
     });
 
     it("should throw BadRequestException when already finished", async () => {
-      mockTournamentRepository.findById.mockResolvedValue({
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
         ...mockTournament,
         status: "finished",
       });

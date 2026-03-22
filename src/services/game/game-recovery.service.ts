@@ -335,7 +335,14 @@ export class GameRecoveryService implements OnModuleInit {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const botRecoveryTimeout = this.configService.get<number>(
+        "botRecoveryTimeoutMs",
+        5000,
+      );
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        botRecoveryTimeout,
+      );
 
       await fetch(`${endpoint}/recovery`, {
         method: "POST",

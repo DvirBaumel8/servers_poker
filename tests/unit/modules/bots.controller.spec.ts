@@ -80,24 +80,47 @@ describe("BotsController", () => {
   });
 
   describe("findAll", () => {
-    it("should return active bots", async () => {
-      mockBotsService.findActive.mockResolvedValue([mockBot]);
+    it("should return active bots with pagination", async () => {
+      const paginatedResult = {
+        data: [mockBot],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      };
+      mockBotsService.findActivePaginated = vi
+        .fn()
+        .mockResolvedValue(paginatedResult);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll({ limit: 20, offset: 0 });
 
-      expect(result).toEqual([mockBot]);
-      expect(mockBotsService.findActive).toHaveBeenCalled();
+      expect(result).toEqual(paginatedResult);
+      expect(mockBotsService.findActivePaginated).toHaveBeenCalledWith(20, 0);
     });
   });
 
   describe("findMy", () => {
-    it("should return bots owned by current user", async () => {
-      mockBotsService.findByUserId.mockResolvedValue([mockBot]);
+    it("should return bots owned by current user with pagination", async () => {
+      const paginatedResult = {
+        data: [mockBot],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      };
+      mockBotsService.findByUserIdPaginated = vi
+        .fn()
+        .mockResolvedValue(paginatedResult);
 
-      const result = await controller.findMy(mockUser as never);
+      const result = await controller.findMy(mockUser as never, {
+        limit: 20,
+        offset: 0,
+      });
 
-      expect(result).toEqual([mockBot]);
-      expect(mockBotsService.findByUserId).toHaveBeenCalledWith("user-123");
+      expect(result).toEqual(paginatedResult);
+      expect(mockBotsService.findByUserIdPaginated).toHaveBeenCalledWith(
+        "user-123",
+        20,
+        0,
+      );
     });
   });
 

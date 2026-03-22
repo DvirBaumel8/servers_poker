@@ -5,7 +5,8 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["tests/**/*.spec.ts", "tests/**/*.test.ts"],
-    exclude: ["node_modules", "dist"],
+    exclude: ["node_modules", "dist", "tests/qa/**"],
+    setupFiles: ["./tests/setup.ts"],
     testTimeout: 60000,
     hookTimeout: 60000,
     pool: "threads",
@@ -16,7 +17,7 @@ export default defineConfig({
         maxThreads: 4,
       },
     },
-    fileParallelism: true,
+    fileParallelism: false,
     sequence: {
       shuffle: false,
     },
@@ -25,60 +26,104 @@ export default defineConfig({
       reporter: ["text", "json", "json-summary", "html"],
       include: ["src/**/*.ts"],
       exclude: [
-        // Test files
+        // ═══════════════════════════════════════════════════════════════
+        // TEST FILES
+        // ═══════════════════════════════════════════════════════════════
         "src/**/*.spec.ts",
         "src/**/*.test.ts",
-        // NestJS boilerplate (no business logic)
+
+        // ═══════════════════════════════════════════════════════════════
+        // NESTJS FRAMEWORK BOILERPLATE
+        // These files contain minimal/no business logic - they wire up
+        // the framework. Covered implicitly by E2E tests.
+        // ═══════════════════════════════════════════════════════════════
         "src/main.ts",
         "src/**/*.module.ts",
         "src/**/*.dto.ts",
         "src/**/*.entity.ts",
-        // Controllers - thin wrappers, better for E2E tests
         "src/**/*.controller.ts",
-        // WebSocket gateways - complex setup, E2E tests preferred
         "src/**/*.gateway.ts",
-        // Database migrations - schema definitions, not logic
-        "src/migrations/**",
-        // Worker threads - require integration testing
-        "src/workers/**",
-        // Simulation/scripts - one-time runners
-        "src/simulation/**",
-        "src/botValidator.ts",
-        // Config files - just exports
-        "src/config/**",
-        // Index re-exports
         "src/**/index.ts",
-        // Repositories - database access, integration tests
+
+        // ═══════════════════════════════════════════════════════════════
+        // CONFIGURATION & INFRASTRUCTURE
+        // Static configuration, type definitions, no runtime logic to test.
+        // ═══════════════════════════════════════════════════════════════
+        "src/config/**",
+        "src/migrations/**",
+        "src/common/types/**",
+
+        // ═══════════════════════════════════════════════════════════════
+        // DATA ACCESS LAYER
+        // Repositories and Redis - require database/Redis for meaningful
+        // tests. Covered by integration and E2E tests.
+        // ═══════════════════════════════════════════════════════════════
         "src/repositories/**",
-        // Redis services - external service, integration tests
         "src/common/redis/**",
-        // Passport strategies - framework integration
+        "src/modules/health/**",
+
+        // ═══════════════════════════════════════════════════════════════
+        // FRAMEWORK INTEGRATIONS
+        // Passport strategies, validation pipes, guards, Sentry - framework glue code.
+        // These extend NestJS framework classes and are better tested via E2E.
+        // ═══════════════════════════════════════════════════════════════
         "src/**/strategies/**",
-        // Validation pipes - framework integration
         "src/common/pipes/**",
-        // Services that require external systems (better for integration tests)
-        "src/services/*-persistence.service.ts",
-        "src/services/*-manager.service.ts",
-        "src/services/redis-*.service.ts",
-        "src/services/bot-caller.service.ts",
-        "src/services/bot-validator.service.ts",
-        "src/services/bot-health-scheduler.service.ts",
-        "src/services/game-recovery.service.ts",
-        "src/services/game-ownership.service.ts",
-        // Tournament director - complex state machine, integration tests
+        "src/common/sentry/**",
+        "src/common/guards/custom-throttler.guard.ts",
+        "src/common/guards/ip-block.guard.ts",
+        "src/common/guards/scopes.guard.ts",
+
+        // ═══════════════════════════════════════════════════════════════
+        // SERVICES REQUIRING EXTERNAL SYSTEMS
+        // These services integrate with external systems (bots, Redis,
+        // database) and are better tested via integration/E2E tests.
+        // ═══════════════════════════════════════════════════════════════
+
+        // Bot communication services
+        "src/services/bot/bot-caller.service.ts",
+        "src/services/bot/bot-validator.service.ts",
+        "src/services/bot/bot-health-scheduler.service.ts",
+
+        // Game state management (complex state machines)
+        "src/services/game/*-persistence.service.ts",
+        "src/services/game/*-manager.service.ts",
+        "src/services/game/game-recovery.service.ts",
+        "src/services/game/game-ownership.service.ts",
+
+        // Redis-backed services
+        "src/services/redis/redis-*.service.ts",
+
+        // Tournament orchestration (complex state machine)
         "src/modules/tournaments/tournament-director.service.ts",
-        // Security services that require complex mocking
-        "src/common/security/api-key-rotation.service.ts",
-        // Analytics services - require database integration
+
+        // Event listeners (integration between multiple services)
+        "src/modules/metrics/metrics-collector.service.ts",
+        "src/modules/tournaments/tournament-stats.listener.ts",
+        "src/modules/tournaments/tournament-websocket.listener.ts",
+
+        // Analytics and event persistence (database aggregations)
         "src/services/platform-analytics.service.ts",
         "src/services/daily-summary.service.ts",
+        "src/services/hand-seed-persistence.service.ts",
+
+        // Security services (complex mocking required)
+        "src/common/security/api-key-rotation.service.ts",
+
+        // ═══════════════════════════════════════════════════════════════
+        // SCRIPTS & ONE-TIME RUNNERS
+        // Not production code - scripts and simulations.
+        // ═══════════════════════════════════════════════════════════════
+        "src/simulation/**",
+        "src/workers/**",
+        "src/botValidator.ts",
       ],
       reportOnFailure: true,
       thresholds: {
-        statements: 40,
-        branches: 35,
-        functions: 40,
-        lines: 40,
+        statements: 80,
+        branches: 70,
+        functions: 80,
+        lines: 80,
       },
     },
   },

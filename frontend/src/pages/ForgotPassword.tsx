@@ -90,14 +90,16 @@ export function ForgotPassword() {
                 If SMTP is not configured, the backend logs the reset code
                 instead of sending an email.
               </AlertBanner>
-              <p className="mt-4 text-gray-400">Redirecting to reset page...</p>
+              <p className="mt-4 text-muted">Redirecting to reset page...</p>
             </div>
           ) : (
             <form noValidate onSubmit={handleSubmit} className="space-y-6">
               <TextField
                 label="Email address"
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
                   setEmail(e.target.value);

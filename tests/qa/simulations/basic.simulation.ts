@@ -11,6 +11,9 @@
  * - Bot registration and validation
  * - Game state consistency
  *
+ * For live invariant validation during gameplay, use the SimulationMonster
+ * from the Monster Army (npm run monsters:simulation).
+ *
  * This is the fastest simulation and should catch fundamental breaks.
  */
 
@@ -23,11 +26,11 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { DataSource } from "typeorm";
 import * as crypto from "crypto";
 
-import { appConfig } from "../../src/config";
-import * as entities from "../../src/entities";
-import { LiveGameManagerService } from "../../src/services/live-game-manager.service";
-import { ServicesModule } from "../../src/services/services.module";
-import { GamesModule } from "../../src/modules/games/games.module";
+import { appConfig } from "../../../src/config";
+import * as entities from "../../../src/entities";
+import { LiveGameManagerService } from "../../../src/services/game/live-game-manager.service";
+import { ServicesModule } from "../../../src/services/services.module";
+import { GamesModule } from "../../../src/modules/games/games.module";
 
 const BASIC_CONFIG: SimulationConfig = {
   name: "Basic-2Player-HeadsUp",
@@ -173,7 +176,6 @@ export class BasicSimulation extends SimulationRunner {
             (sum: number, p: any) => sum + Number(p.chips),
             0,
           );
-          // After showdown, pot should be 0 (distributed to winner)
 
           const expected = this.config.playerCount * this.config.startingChips;
 
@@ -297,6 +299,9 @@ export class BasicSimulation extends SimulationRunner {
 // CLI Runner
 async function main() {
   console.log("\n🎰 Starting Basic Simulation Test\n");
+  console.log(
+    "For live invariant validation, use: npm run monsters:simulation\n",
+  );
 
   const simulation = new BasicSimulation({
     verboseLogging: process.argv.includes("--verbose"),

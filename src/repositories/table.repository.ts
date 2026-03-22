@@ -17,12 +17,19 @@ export class TableRepository extends BaseRepository<Table> {
     super();
   }
 
+  protected get entityName(): string {
+    return "Table";
+  }
+
+  private getSeatRepo(manager?: EntityManager): Repository<TableSeat> {
+    return manager ? manager.getRepository(TableSeat) : this.seatRepository;
+  }
+
   async findByStatus(
     status: TableStatus,
     manager?: EntityManager,
   ): Promise<Table[]> {
-    const repo = manager ? manager.getRepository(Table) : this.repository;
-    return repo.find({ where: { status } });
+    return this.getRepo(manager).find({ where: { status } });
   }
 
   async updateStatus(
@@ -101,10 +108,7 @@ export class TableRepository extends BaseRepository<Table> {
     tableId: string,
     manager?: EntityManager,
   ): Promise<TableSeat[]> {
-    const repo = manager
-      ? manager.getRepository(TableSeat)
-      : this.seatRepository;
-    return repo.find({
+    return this.getSeatRepo(manager).find({
       where: { table_id: tableId, disconnected: false },
       relations: ["bot"],
     });
@@ -115,10 +119,7 @@ export class TableRepository extends BaseRepository<Table> {
     botId: string,
     manager?: EntityManager,
   ): Promise<void> {
-    const repo = manager
-      ? manager.getRepository(TableSeat)
-      : this.seatRepository;
-    await repo.update(
+    await this.getSeatRepo(manager).update(
       { table_id: tableId, bot_id: botId },
       { disconnected: true, disconnected_at: new Date() },
     );
@@ -128,9 +129,8 @@ export class TableRepository extends BaseRepository<Table> {
     tableId: string,
     manager?: EntityManager,
   ): Promise<number> {
-    const repo = manager
-      ? manager.getRepository(TableSeat)
-      : this.seatRepository;
-    return repo.count({ where: { table_id: tableId, disconnected: false } });
+    return this.getSeatRepo(manager).count({
+      where: { table_id: tableId, disconnected: false },
+    });
   }
 }

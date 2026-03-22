@@ -6,17 +6,22 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   UseGuards,
-  NotFoundException,
+  ParseUUIDPipe,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { BotsService } from "./bots.service";
 import { BotActivityService } from "../../services/bot/bot-activity.service";
 import { CreateBotDto, UpdateBotDto } from "./dto/bot.dto";
+import { PaginationDto } from "../../common/dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { ScopesGuard } from "../../common/guards/scopes.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequireScopes } from "../../common/decorators/scopes.decorator";
+import { Public } from "../../common/decorators/public.decorator";
 import { User } from "../../entities/user.entity";
+import { assertFound } from "../../common/utils";
 
 @Controller("bots")
 @UseGuards(JwtAuthGuard, ScopesGuard)
@@ -26,16 +31,23 @@ export class BotsController {
     private readonly botActivityService: BotActivityService,
   ) {}
 
+  @Public()
   @Get()
-  @RequireScopes("spectate:tables")
-  async findAll() {
-    return this.botsService.findActive();
+  async findAll(@Query() pagination: PaginationDto) {
+    return this.botsService.findActivePaginated(
+      pagination.limit ?? 20,
+      pagination.offset ?? 0,
+    );
   }
 
   @Get("my")
   @RequireScopes("operate:bots")
-  async findMy(@CurrentUser() user: User) {
-    return this.botsService.findByUserId(user.id);
+  async findMy(@CurrentUser() user: User, @Query() pagination: PaginationDto) {
+    return this.botsService.findByUserIdPaginated(
+      user.id,
+      pagination.limit ?? 20,
+      pagination.offset ?? 0,
+    );
   }
 
   @Get("my/activity")
@@ -51,8 +63,8 @@ export class BotsController {
     };
   }
 
+  @Public()
   @Get("active")
-  @RequireScopes("spectate:tables")
   async getActiveBots() {
     const activities = await this.botActivityService.getAllActiveBots();
     return {
@@ -62,34 +74,31 @@ export class BotsController {
     };
   }
 
+  @Public()
   @Get(":id")
-  @RequireScopes("spectate:tables")
-  async findOne(@Param("id") id: string) {
+  async findOne(@Param("id", ParseUUIDPipe) id: string) {
     const bot = await this.botsService.findById(id);
-    if (!bot) {
-      throw new NotFoundException(`Bot ${id} not found`);
-    }
+    assertFound(bot, "Bot", id);
     return bot;
   }
 
+  @Public()
   @Get(":id/profile")
-  @RequireScopes("spectate:tables")
-  async getProfile(@Param("id") id: string) {
+  async getProfile(@Param("id", ParseUUIDPipe) id: string) {
     return this.botsService.getProfile(id);
   }
 
+  @Public()
   @Get(":id/activity")
-  @RequireScopes("spectate:tables")
-  async getBotActivity(@Param("id") id: string) {
+  async getBotActivity(@Param("id", ParseUUIDPipe) id: string) {
     const activity = await this.botActivityService.getBotActivity(id);
-    if (!activity) {
-      throw new NotFoundException(`Bot ${id} not found`);
-    }
+    assertFound(activity, "Bot", id);
     return activity;
   }
 
   @Post()
   @RequireScopes("operate:bots")
+  @Throttle({ default: { ttl: 3600000, limit: 10 } }) // 10 bots per hour
   async create(@Body() dto: CreateBotDto, @CurrentUser() user: User) {
     return this.botsService.create(user.id, dto);
   }
@@ -97,7 +106,7 @@ export class BotsController {
   @Put(":id")
   @RequireScopes("operate:bots")
   async update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateBotDto,
     @CurrentUser() user: User,
   ) {
@@ -106,20 +115,27 @@ export class BotsController {
 
   @Post(":id/validate")
   @RequireScopes("operate:bots")
-  async validate(@Param("id") id: string) {
+  @Throttle({ default: { ttl: 60000, limit: 10 } }) // 10 validations per minute (makes external HTTP calls)
+  async validate(@Param("id", ParseUUIDPipe) id: string) {
     return this.botsService.validate(id);
   }
 
   @Post(":id/activate")
   @RequireScopes("operate:bots")
-  async activate(@Param("id") id: string, @CurrentUser() user: User) {
+  async activate(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
     await this.botsService.activate(id, user.id, user.role === "admin");
     return { success: true };
   }
 
   @Delete(":id")
   @RequireScopes("operate:bots")
-  async deactivate(@Param("id") id: string, @CurrentUser() user: User) {
+  async deactivate(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
     await this.botsService.deactivate(id, user.id, user.role === "admin");
     return { success: true };
   }
