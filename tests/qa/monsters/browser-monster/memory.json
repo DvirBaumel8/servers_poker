@@ -1,6 +1,6 @@
 {
-  "lastRun": "2026-03-22T01:38:37.007Z",
-  "totalRuns": 29,
+  "lastRun": "2026-03-22T01:52:23.945Z",
+  "totalRuns": 32,
   "knownIssues": [
     {
       "fingerprint": "general:\ude80-launching-browser...:unknown",
@@ -547,7 +547,7 @@
       "category": "GENERAL",
       "title": "\ude80 Running parallel test groups...",
       "firstSeen": "2026-03-21T22:13:50.197Z",
-      "occurrences": 27,
+      "occurrences": 30,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -556,7 +556,7 @@
       "category": "GENERAL",
       "title": "\udd10 Testing auth flows...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 22,
+      "occurrences": 24,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -565,7 +565,7 @@
       "category": "GENERAL",
       "title": "\uddb1️  Testing interactive elements...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 17,
+      "occurrences": 20,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -574,7 +574,7 @@
       "category": "GENERAL",
       "title": "\udcdd Running sequential tests...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 27,
+      "occurrences": 30,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -592,7 +592,7 @@
       "category": "GENERAL",
       "title": "\udd34 Critical: 0",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 26,
+      "occurrences": 29,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -619,7 +619,7 @@
       "category": "GENERAL",
       "title": "\udfe1 Medium: 0",
       "firstSeen": "2026-03-21T22:21:01.773Z",
-      "occurrences": 25,
+      "occurrences": 28,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -628,7 +628,7 @@
       "category": "GENERAL",
       "title": "\udcc4 Testing public pages...",
       "firstSeen": "2026-03-22T00:38:50.592Z",
-      "occurrences": 3,
+      "occurrences": 4,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -646,7 +646,7 @@
       "category": "GENERAL",
       "title": "\udccb Using game 450bbb17... with 0 players",
       "firstSeen": "2026-03-22T01:34:25.823Z",
-      "occurrences": 2,
+      "occurrences": 5,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -655,7 +655,7 @@
       "category": "GENERAL",
       "title": "\udccb Tests: 15 run, 14 passed, 0 failed",
       "firstSeen": "2026-03-22T01:34:25.824Z",
-      "occurrences": 2,
+      "occurrences": 5,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     }
@@ -862,6 +862,27 @@
     {
       "iteration": 1,
       "date": "2026-03-22T01:38:37.006Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:46:48.640Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:48:55.967Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T01:52:23.945Z",
       "findingsBefore": 8,
       "findingsAfter": 8,
       "fixesApplied": []

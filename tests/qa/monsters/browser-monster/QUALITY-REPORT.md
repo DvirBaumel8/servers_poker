@@ -1,6 +1,6 @@
 # 🎯 Product Quality Report
 
-**Generated:** 3/22/2026, 3:38:00 AM
+**Generated:** 3/22/2026, 3:51:45 AM
 **Overall Score:** 7/10 (B)
 
 ## Executive Summary
@@ -39,10 +39,10 @@ Functional but not impressive. Weakest area: game.
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Page Load Time | 0.90s | < 3s | ✅ |
-| First Contentful Paint | 0.07s | < 1.8s | ✅ |
-| Largest Contentful Paint | 0.04s | < 2.5s | ✅ |
-| Time to Interactive | 0.04s | < 3.8s | ✅ |
+| Page Load Time | 0.91s | < 3s | ✅ |
+| First Contentful Paint | 0.08s | < 1.8s | ✅ |
+| Largest Contentful Paint | 0.05s | < 2.5s | ✅ |
+| Time to Interactive | 0.05s | < 3.8s | ✅ |
 | Cumulative Layout Shift | 0.000 | < 0.1 | ✅ |
 
 ---
@@ -116,10 +116,10 @@ Functional but not impressive. Weakest area: game.
 
 ## 📸 Screenshots
 
-- `home-2026-03-22T01-37-55-227Z.png`
-- `tournaments-2026-03-22T01-37-55-227Z.png`
-- `login-2026-03-22T01-37-55-227Z.png`
-- `home-mobile-2026-03-22T01-37-55-227Z.png`
+- `home-2026-03-22T01-51-40-648Z.png`
+- `tournaments-2026-03-22T01-51-40-648Z.png`
+- `login-2026-03-22T01-51-40-648Z.png`
+- `home-mobile-2026-03-22T01-51-40-648Z.png`
 
 _Screenshots saved to: tests/qa/monsters/browser-monster/screenshots/_
 
@@ -135,7 +135,7 @@ _Screenshots saved to: tests/qa/monsters/browser-monster/screenshots/_
 | Minor Issues | 12 |
 | Suggestions | 0 |
 | Pass Rate | 92% |
-| Page Load | 0.90s |
+| Page Load | 0.91s |
 | Accessibility | 98/100 |
 
 ---

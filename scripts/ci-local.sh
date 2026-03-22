@@ -42,6 +42,7 @@ echo ""
 
 FAILED=0
 PASSED=0
+FRONTEND_DIR="$PWD/frontend"
 
 run_step() {
   local name=$1
@@ -66,10 +67,16 @@ run_step() {
   fi
 }
 
-echo -e "${BLUE}📋 STEP 1: LINT & FORMAT${NC}"
+echo -e "${BLUE}📋 STEP 0: DEPENDENCY CHECK${NC}"
 echo ""
 
-FRONTEND_DIR="$PWD/frontend"
+run_step "Backend dependencies installed" "npm ls --depth=0 > /dev/null 2>&1"
+run_step "ts-node available (used by qa scripts)" "test -d node_modules/ts-node"
+run_step "Frontend dependencies installed" "test -d $FRONTEND_DIR/node_modules"
+
+echo ""
+echo -e "${BLUE}📋 STEP 1: LINT & FORMAT${NC}"
+echo ""
 
 if [ "$FIX_MODE" = true ]; then
   echo "  🔧 Auto-fix mode enabled"
@@ -110,6 +117,12 @@ if [ "$QUICK_MODE" = false ]; then
   echo ""
   
   run_step "Monster Quick Check" "npm run monsters:quick 2>&1 | tail -20"
+
+  echo ""
+  echo -e "${BLUE}📋 STEP 5: QA SUITE (mirrors CI test-all job)${NC}"
+  echo ""
+
+  run_step "QA All (unit + integration + monsters)" "npm run qa:all 2>&1 | tail -30"
 fi
 
 echo ""

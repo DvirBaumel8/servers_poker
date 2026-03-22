@@ -1,237 +1,237 @@
 {
   "version": 1,
-  "lastUpdated": "2026-03-22T01:40:35.178Z",
+  "lastUpdated": "2026-03-22T01:52:23.958Z",
   "monsters": {
     "layout-lint": {
       "id": "layout-lint",
       "name": "Layout Lint",
-      "totalRuns": 75,
-      "successfulRuns": 70,
-      "failedRuns": 5,
+      "totalRuns": 85,
+      "successfulRuns": 77,
+      "failedRuns": 8,
       "totalIssuesFound": 4,
-      "lastRun": "2026-03-22T01:40:29.922Z",
+      "lastRun": "2026-03-22T01:51:57.797Z",
       "lastIssuesFound": 0,
-      "avgDuration": 6568
+      "avgDuration": 7189
     },
     "css-lint": {
       "id": "css-lint",
       "name": "CSS Lint",
-      "totalRuns": 75,
-      "successfulRuns": 70,
-      "failedRuns": 5,
+      "totalRuns": 85,
+      "successfulRuns": 77,
+      "failedRuns": 8,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:40:29.910Z",
+      "lastRun": "2026-03-22T01:51:57.796Z",
       "lastIssuesFound": 0,
-      "avgDuration": 6587
+      "avgDuration": 7200
     },
     "fast-quality": {
       "id": "fast-quality",
       "name": "Fast Quality",
-      "totalRuns": 75,
-      "successfulRuns": 70,
-      "failedRuns": 5,
+      "totalRuns": 85,
+      "successfulRuns": 77,
+      "failedRuns": 8,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:40:31.729Z",
+      "lastRun": "2026-03-22T01:51:57.796Z",
       "lastIssuesFound": 0,
-      "avgDuration": 7838
+      "avgDuration": 8406
     },
     "fast-browser": {
       "id": "fast-browser",
       "name": "Fast Browser",
-      "totalRuns": 75,
-      "successfulRuns": 70,
-      "failedRuns": 5,
+      "totalRuns": 85,
+      "successfulRuns": 77,
+      "failedRuns": 8,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:40:31.778Z",
+      "lastRun": "2026-03-22T01:51:57.795Z",
       "lastIssuesFound": 0,
-      "avgDuration": 7886
+      "avgDuration": 8454
     },
     "quick-check": {
       "id": "quick-check",
       "name": "Quick Check",
-      "totalRuns": 75,
-      "successfulRuns": 70,
-      "failedRuns": 5,
+      "totalRuns": 85,
+      "successfulRuns": 77,
+      "failedRuns": 8,
       "totalIssuesFound": 352,
-      "lastRun": "2026-03-22T01:40:35.178Z",
+      "lastRun": "2026-03-22T01:51:57.795Z",
       "lastIssuesFound": 0,
-      "avgDuration": 10862
+      "avgDuration": 11394
     },
     "live-ui": {
       "id": "live-ui",
       "name": "Live UI Monster",
-      "totalRuns": 41,
-      "successfulRuns": 39,
+      "totalRuns": 44,
+      "successfulRuns": 42,
       "failedRuns": 2,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:44.660Z",
+      "lastRun": "2026-03-22T01:51:33.869Z",
       "lastIssuesFound": 0,
-      "avgDuration": 12837
+      "avgDuration": 12387
     },
     "design-critic": {
       "id": "design-critic",
       "name": "Design Critic",
-      "totalRuns": 41,
-      "successfulRuns": 39,
+      "totalRuns": 44,
+      "successfulRuns": 42,
       "failedRuns": 2,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:44.683Z",
+      "lastRun": "2026-03-22T01:51:34.370Z",
       "lastIssuesFound": 0,
-      "avgDuration": 13248
+      "avgDuration": 12799
     },
     "guardian": {
       "id": "guardian",
       "name": "Guardian Monster",
-      "totalRuns": 41,
-      "successfulRuns": 39,
+      "totalRuns": 44,
+      "successfulRuns": 42,
       "failedRuns": 2,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:46.034Z",
+      "lastRun": "2026-03-22T01:51:34.930Z",
       "lastIssuesFound": 0,
-      "avgDuration": 13750
+      "avgDuration": 13308
     },
     "code-quality": {
       "id": "code-quality",
       "name": "Code Quality",
-      "totalRuns": 41,
-      "successfulRuns": 38,
+      "totalRuns": 44,
+      "successfulRuns": 41,
       "failedRuns": 3,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:46.192Z",
+      "lastRun": "2026-03-22T01:51:35.322Z",
       "lastIssuesFound": 0,
-      "avgDuration": 13730
+      "avgDuration": 13309
     },
     "visual": {
       "id": "visual",
       "name": "Visual Monster",
-      "totalRuns": 41,
-      "successfulRuns": 39,
+      "totalRuns": 44,
+      "successfulRuns": 42,
       "failedRuns": 2,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:46.550Z",
+      "lastRun": "2026-03-22T01:51:35.487Z",
       "lastIssuesFound": 0,
-      "avgDuration": 14365
+      "avgDuration": 13927
     },
     "chaos": {
       "id": "chaos",
       "name": "Chaos Monster",
-      "totalRuns": 28,
-      "successfulRuns": 28,
+      "totalRuns": 31,
+      "successfulRuns": 31,
       "failedRuns": 0,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:47.086Z",
+      "lastRun": "2026-03-22T01:51:36.223Z",
       "lastIssuesFound": 0,
-      "avgDuration": 9035
+      "avgDuration": 8973
     },
     "e2e": {
       "id": "e2e",
       "name": "E2E Monster",
-      "totalRuns": 28,
-      "successfulRuns": 28,
+      "totalRuns": 31,
+      "successfulRuns": 31,
       "failedRuns": 0,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:48.235Z",
+      "lastRun": "2026-03-22T01:51:36.249Z",
       "lastIssuesFound": 0,
-      "avgDuration": 8955
+      "avgDuration": 8909
     },
     "contract": {
       "id": "contract",
       "name": "Contract Monster",
-      "totalRuns": 41,
-      "successfulRuns": 39,
+      "totalRuns": 44,
+      "successfulRuns": 42,
       "failedRuns": 2,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:52.329Z",
+      "lastRun": "2026-03-22T01:51:37.493Z",
       "lastIssuesFound": 0,
-      "avgDuration": 15872
+      "avgDuration": 15458
     },
     "browser": {
       "id": "browser",
       "name": "Browser Monster",
-      "totalRuns": 28,
-      "successfulRuns": 28,
+      "totalRuns": 31,
+      "successfulRuns": 31,
       "failedRuns": 0,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:48.203Z",
+      "lastRun": "2026-03-22T01:51:37.164Z",
       "lastIssuesFound": 0,
-      "avgDuration": 9876
+      "avgDuration": 9824
     },
     "api": {
       "id": "api",
       "name": "API Monster",
-      "totalRuns": 41,
-      "successfulRuns": 39,
+      "totalRuns": 44,
+      "successfulRuns": 42,
       "failedRuns": 2,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:54.091Z",
+      "lastRun": "2026-03-22T01:51:39.545Z",
       "lastIssuesFound": 0,
-      "avgDuration": 17224
+      "avgDuration": 16836
     },
     "invariant": {
       "id": "invariant",
       "name": "Invariant Monster",
-      "totalRuns": 41,
-      "successfulRuns": 39,
+      "totalRuns": 44,
+      "successfulRuns": 42,
       "failedRuns": 2,
       "totalIssuesFound": 260,
-      "lastRun": "2026-03-22T01:37:45.966Z",
+      "lastRun": "2026-03-22T01:51:34.883Z",
       "lastIssuesFound": 0,
-      "avgDuration": 15187
+      "avgDuration": 14647
     },
     "product-quality": {
       "id": "product-quality",
       "name": "Product Quality",
-      "totalRuns": 41,
-      "successfulRuns": 35,
+      "totalRuns": 44,
+      "successfulRuns": 38,
       "failedRuns": 6,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:38:00.668Z",
+      "lastRun": "2026-03-22T01:51:45.986Z",
       "lastIssuesFound": 0,
-      "avgDuration": 21634
+      "avgDuration": 21379
     },
     "game-flow": {
       "id": "game-flow",
       "name": "Game Flow",
-      "totalRuns": 28,
-      "successfulRuns": 28,
+      "totalRuns": 31,
+      "successfulRuns": 31,
       "failedRuns": 0,
       "totalIssuesFound": 116,
-      "lastRun": "2026-03-22T01:37:46.110Z",
+      "lastRun": "2026-03-22T01:51:34.936Z",
       "lastIssuesFound": 0,
-      "avgDuration": 11996
+      "avgDuration": 11530
     },
     "tournament-flow": {
       "id": "tournament-flow",
       "name": "Tournament Flow",
-      "totalRuns": 28,
-      "successfulRuns": 28,
+      "totalRuns": 31,
+      "successfulRuns": 31,
       "failedRuns": 0,
       "totalIssuesFound": 0,
-      "lastRun": "2026-03-22T01:37:46.035Z",
+      "lastRun": "2026-03-22T01:51:34.887Z",
       "lastIssuesFound": 0,
-      "avgDuration": 16258
+      "avgDuration": 15386
     },
     "browser-qa": {
       "id": "browser-qa",
       "name": "Browser QA",
-      "totalRuns": 28,
-      "successfulRuns": 28,
+      "totalRuns": 31,
+      "successfulRuns": 31,
       "failedRuns": 0,
       "totalIssuesFound": 73,
-      "lastRun": "2026-03-22T01:38:34.261Z",
+      "lastRun": "2026-03-22T01:52:23.248Z",
       "lastIssuesFound": 0,
-      "avgDuration": 34373
+      "avgDuration": 36402
     },
     "superhero": {
       "id": "superhero",
       "name": "Superhero Monster",
-      "totalRuns": 28,
-      "successfulRuns": 28,
+      "totalRuns": 31,
+      "successfulRuns": 31,
       "failedRuns": 0,
       "totalIssuesFound": 21,
-      "lastRun": "2026-03-22T01:38:37.021Z",
+      "lastRun": "2026-03-22T01:52:23.958Z",
       "lastIssuesFound": 0,
-      "avgDuration": 36059
+      "avgDuration": 38042
     }
   }
 }
