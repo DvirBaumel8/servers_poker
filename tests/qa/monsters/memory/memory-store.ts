@@ -11,7 +11,7 @@
  * - Detect regressions automatically
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import {
   Finding,
@@ -88,25 +88,23 @@ export class MemoryStore {
 
   private load(): MemoryData {
     try {
-      if (existsSync(this.dataPath)) {
-        const raw = readFileSync(this.dataPath, "utf-8");
-        const parsed = JSON.parse(raw);
+      const raw = readFileSync(this.dataPath, "utf-8");
+      const parsed = JSON.parse(raw);
 
-        // Convert findings array to Map
-        const findingsMap = new Map<string, StoredFinding>();
-        if (Array.isArray(parsed.findings)) {
-          for (const f of parsed.findings) {
-            findingsMap.set(f.fingerprint, f);
-          }
+      // Convert findings array to Map
+      const findingsMap = new Map<string, StoredFinding>();
+      if (Array.isArray(parsed.findings)) {
+        for (const f of parsed.findings) {
+          findingsMap.set(f.fingerprint, f);
         }
-
-        return {
-          ...parsed,
-          findings: findingsMap,
-        };
       }
-    } catch (e) {
-      console.warn(`Could not load memory store: ${e}`);
+
+      return {
+        ...parsed,
+        findings: findingsMap,
+      };
+    } catch {
+      // File doesn't exist or is invalid, return defaults
     }
 
     // Default empty state
@@ -121,9 +119,8 @@ export class MemoryStore {
 
   save(): void {
     const dir = dirname(this.dataPath);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+    // Use recursive:true which handles race condition safely
+    mkdirSync(dir, { recursive: true });
 
     // Auto-cleanup before save
     this.autoCleanup();
