@@ -4,15 +4,15 @@
 
 | Monster | Issues Found | Runs | Success Rate | Avg Duration | Last Run Issues |
 |---------|--------------|------|--------------|--------------|-----------------|
-| Quick Check | 365 | 106 | 87% | 12.2s | 1 |
+| Quick Check | 366 | 107 | 87% | 12.1s | 1 |
 | Invariant Monster | 260 | 50 | 84% | 13.8s | 0 |
 | Game Flow | 116 | 37 | 84% | 10.9s | 0 |
 | Browser QA | 73 | 37 | 100% | 39.6s | 0 |
 | Superhero Monster | 22 | 35 | 100% | 40.2s | 0 |
-| Layout Lint | 4 | 106 | 75% | 8.1s | 0 |
-| CSS Lint | 0 | 106 | 75% | 8.1s | 0 |
-| Fast Quality | 0 | 106 | 87% | 9.2s | 0 |
-| Fast Browser | 0 | 106 | 87% | 9.3s | 0 |
+| Layout Lint | 4 | 107 | 75% | 8.0s | 0 |
+| CSS Lint | 0 | 107 | 75% | 8.0s | 0 |
+| Fast Quality | 0 | 107 | 87% | 9.2s | 0 |
+| Fast Browser | 0 | 107 | 87% | 9.2s | 0 |
 | Live UI Monster | 0 | 50 | 96% | 11.8s | 0 |
 | Design Critic | 0 | 50 | 96% | 12.2s | 0 |
 | Guardian Monster | 0 | 50 | 84% | 12.6s | 0 |
@@ -28,17 +28,17 @@
 
 ## Summary
 
-- **Total Issues Found:** 840
-- **Total Monster Runs:** 1237
+- **Total Issues Found:** 841
+- **Total Monster Runs:** 1242
 - **Active Monsters:** 6/21 (finding issues)
 
 ## Monsters Needing Attention
 
 These monsters have found 0 issues - they may need tuning:
 
-- **CSS Lint** (106 runs, 75% success)
-- **Fast Quality** (106 runs, 87% success)
-- **Fast Browser** (106 runs, 87% success)
+- **CSS Lint** (107 runs, 75% success)
+- **Fast Quality** (107 runs, 87% success)
+- **Fast Browser** (107 runs, 87% success)
 - **Live UI Monster** (50 runs, 96% success)
 - **Design Critic** (50 runs, 96% success)
 - **Guardian Monster** (50 runs, 84% success)
@@ -52,4 +52,4 @@ These monsters have found 0 issues - they may need tuning:
 - **Product Quality** (50 runs, 88% success)
 - **Tournament Flow** (37 runs, 84% success)
 
-*Last Updated: 3/22/2026, 11:23:05 AM*
+*Last Updated: 3/22/2026, 11:24:09 AM*
