@@ -1,22 +1,22 @@
 # 🗂️ Monster Issues Report
 
-**Last Updated:** 3/22/2026, 11:24:09 AM
+**Last Updated:** 3/22/2026, 1:58:36 PM
 **Database Version:** 1
 
 ## Summary
 
 | Metric | Count |
 |--------|-------|
-| Total Issues Found | 11 |
+| Total Issues Found | 21 |
 | Open Issues | 1 |
-| Resolved Issues | 10 |
+| Resolved Issues | 20 |
 
 ### By Severity (Open Only)
 
 | Severity | Count |
 |----------|-------|
-| 🔴 Critical | 1 |
-| 🟠 High | 0 |
+| 🔴 Critical | 0 |
+| 🟠 High | 1 |
 | 🟡 Medium | 0 |
 | 🟢 Low | 0 |
 
@@ -25,35 +25,30 @@
 | Monster | Issues Found |
 |---------|--------------|
 | browser-qa | 6 |
+| api | 3 |
 | product-quality | 2 |
 | browser | 1 |
 | code-quality | 1 |
 | analyzer-pipeline | 1 |
+| quick-check | 1 |
+| visual | 1 |
+| contract | 1 |
+| invariant | 1 |
+| chaos | 1 |
+| guardian | 1 |
+| e2e | 1 |
 
 ---
 
 ## 🔴 Critical Issues
 
-
-### ISS-55E334A4: Analyzer Pipeline Monster crashed
-
-- **Category:** BUG
-- **Location:** tests/qa/monsters/analyzer-pipeline
-- **Found by:** analyzer-pipeline
-- **Occurrences:** 1
-- **First Seen:** 3/22/2026
-
-The monster itself failed to complete: Nest could not find StrategyTunerService element (this provider does not exist in the current context)
-
-
-
-
+*No critical issues! 🎉*
 
 ---
 
 ## 🟠 High Priority Issues
 
-*No high priority issues!*
+- **ISS-51AA4F6B** [BUG] Page load error — /
 
 ---
 

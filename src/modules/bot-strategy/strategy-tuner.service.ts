@@ -3,8 +3,9 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, MoreThan } from "typeorm";
 import { execSync } from "child_process";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
+import { tmpdir } from "os";
 import { StrategyAnalysisReport } from "../../entities/strategy-analysis-report.entity";
 import { StrategyTunerRun } from "../../entities/strategy-tuner-run.entity";
 import { STRATEGY_TUNABLES } from "./strategy-tunables";
@@ -357,8 +358,18 @@ export class StrategyTunerService {
       }
 
       const commitMsg = this.buildCommitMessage(opportunities);
-      this.exec("git add src/modules/bot-strategy/strategy-tunables.ts");
-      this.exec(`git commit -m "${commitMsg.replace(/"/g, '\\"')}"`);
+      const commitMsgFile = join(tmpdir(), `tuner-commit-${Date.now()}.txt`);
+      writeFileSync(commitMsgFile, commitMsg, "utf-8");
+      try {
+        this.exec("git add src/modules/bot-strategy/strategy-tunables.ts");
+        this.exec(`git commit --file="${commitMsgFile}"`);
+      } finally {
+        try {
+          unlinkSync(commitMsgFile);
+        } catch {
+          /* best-effort cleanup */
+        }
+      }
       this.exec(`git push -u origin ${branchName}`);
 
       const prBody = this.buildPRBody(run, opportunities);
@@ -400,7 +411,7 @@ export class StrategyTunerService {
   }
 
   private escapeRegex(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return s.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
   }
 
   private runTests(): boolean {
@@ -431,15 +442,23 @@ export class StrategyTunerService {
       return null;
     }
 
+    const bodyFile = join(tmpdir(), `tuner-pr-body-${Date.now()}.md`);
+    writeFileSync(bodyFile, body, "utf-8");
     try {
       const result = this.exec(
-        `gh pr create --base main --head ${branchName} --title "Auto-tune: strategy engine parameter adjustments" --body "${body.replace(/"/g, '\\"')}" --draft --label auto-tune`,
+        `gh pr create --base main --head ${branchName} --title "Auto-tune: strategy engine parameter adjustments" --body-file "${bodyFile}" --draft --label auto-tune`,
       );
       const urlMatch = result.match(/https:\/\/github\.com\/[^\s]+/);
       return urlMatch ? urlMatch[0] : null;
     } catch (error: any) {
       this.logger.warn(`Failed to create PR: ${error.message}`);
       return null;
+    } finally {
+      try {
+        unlinkSync(bodyFile);
+      } catch {
+        /* best-effort cleanup */
+      }
     }
   }
 

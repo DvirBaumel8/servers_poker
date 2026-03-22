@@ -29,6 +29,8 @@ interface MonsterDef {
   command: string;
   category: "fast" | "medium" | "slow";
   description: string;
+  needsBrowser?: boolean;
+  needsServer?: boolean;
 }
 
 const ALL_MONSTERS: MonsterDef[] = [
@@ -41,6 +43,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/browser-monster/quick-check.ts",
     category: "fast",
     description: "Combined bugs + quality check",
+    needsBrowser: true,
   },
   {
     id: "fast-browser",
@@ -49,6 +52,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/browser-monster/fast-browser-monster.ts",
     category: "fast",
     description: "Fast bug detection",
+    needsBrowser: true,
   },
   {
     id: "fast-quality",
@@ -57,6 +61,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/browser-monster/fast-quality-monster.ts",
     category: "fast",
     description: "Fast quality score",
+    needsBrowser: true,
   },
   {
     id: "css-lint",
@@ -85,6 +90,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/invariant-monster/invariant-monster.ts",
     category: "medium",
     description: "Poker rule validation",
+    needsServer: true,
   },
   {
     id: "api",
@@ -92,6 +98,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/api-monster/api-monster.ts",
     category: "medium",
     description: "API endpoint testing",
+    needsServer: true,
   },
   {
     id: "contract",
@@ -100,6 +107,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/contract-monster/contract-monster.ts",
     category: "medium",
     description: "API contract validation",
+    needsServer: true,
   },
   {
     id: "visual",
@@ -107,6 +115,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/visual-monster/visual-monster.ts",
     category: "medium",
     description: "Visual regression",
+    needsServer: true,
   },
   {
     id: "guardian",
@@ -115,6 +124,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/guardian-monster/guardian-monster.ts",
     category: "medium",
     description: "Security checks",
+    needsServer: true,
   },
   {
     id: "code-quality",
@@ -131,6 +141,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/browser-monster/design-critic-monster.ts",
     category: "medium",
     description: "UI/UX critique",
+    needsBrowser: true,
   },
   {
     id: "product-quality",
@@ -139,6 +150,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/browser-monster/product-quality-monster.ts",
     category: "medium",
     description: "Full quality critique",
+    needsBrowser: true,
   },
   {
     id: "live-ui",
@@ -146,6 +158,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/browser-monster/live-ui-monster.ts",
     category: "medium",
     description: "Live UI interaction testing",
+    needsBrowser: true,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -158,6 +171,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/browser-monster/browser-qa-monster.ts",
     category: "slow",
     description: "Comprehensive 14-phase UI testing",
+    needsBrowser: true,
   },
   {
     id: "e2e",
@@ -165,6 +179,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/e2e-monster/e2e-monster.ts",
     category: "slow",
     description: "End-to-end flows",
+    needsServer: true,
   },
   {
     id: "game-flow",
@@ -172,6 +187,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/flows/game-flow-monster.ts",
     category: "slow",
     description: "Complete game scenarios",
+    needsServer: true,
   },
   {
     id: "tournament-flow",
@@ -179,6 +195,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/flows/tournament-flow-monster.ts",
     category: "slow",
     description: "Tournament lifecycle",
+    needsServer: true,
   },
   {
     id: "chaos",
@@ -186,6 +203,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/chaos-monster/chaos-monster.ts",
     category: "slow",
     description: "Stress testing",
+    needsServer: true,
   },
   {
     id: "superhero",
@@ -194,6 +212,7 @@ const ALL_MONSTERS: MonsterDef[] = [
       "npx ts-node tests/qa/monsters/browser-monster/superhero-monster.ts --quick",
     category: "slow",
     description: "Self-improving QA loop",
+    needsBrowser: true,
   },
   {
     id: "browser",
@@ -201,6 +220,7 @@ const ALL_MONSTERS: MonsterDef[] = [
     command: "npx ts-node tests/qa/monsters/browser-monster/browser-monster.ts",
     category: "slow",
     description: "Browser interaction testing",
+    needsBrowser: true,
   },
 ];
 
@@ -665,6 +685,8 @@ async function main(): Promise<void> {
 
   // Determine which monsters to run
   let monstersToRun: MonsterDef[];
+  const noBrowser = args.includes("--no-browser");
+  const staticOnly = args.includes("--static");
 
   if (args.includes("--fast")) {
     monstersToRun = ALL_MONSTERS.filter((m) => m.category === "fast");
@@ -678,9 +700,20 @@ async function main(): Promise<void> {
     monstersToRun = ALL_MONSTERS;
     console.log("\n  Mode: 🔴 FULL SUITE (all 21 monsters)");
   } else {
-    // Default: run ALL monsters for comprehensive coverage
     monstersToRun = ALL_MONSTERS;
     console.log("\n  Mode: 🔴 FULL SUITE (all 21 monsters)");
+  }
+
+  if (staticOnly) {
+    monstersToRun = monstersToRun.filter(
+      (m) => !m.needsBrowser && !m.needsServer,
+    );
+    console.log(
+      "  Filter: 📦 Static analysis only (no browser/server required)",
+    );
+  } else if (noBrowser) {
+    monstersToRun = monstersToRun.filter((m) => !m.needsBrowser);
+    console.log("  Filter: 🚫 Excluding browser-dependent monsters");
   }
 
   console.log(`  Monsters: ${monstersToRun.length}/${ALL_MONSTERS.length}`);
