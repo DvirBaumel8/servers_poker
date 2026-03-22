@@ -6,11 +6,12 @@ import type { LeaderboardEntry } from "../types";
 import {
   AlertBanner,
   EmptyState,
-  LoadingBlock,
   MetricCard,
   PageHeader,
   PageShell,
   SegmentedTabs,
+  SkeletonMetricCards,
+  SkeletonTable,
   SurfaceCard,
 } from "../components/ui/primitives";
 
@@ -81,7 +82,10 @@ export function Leaderboard() {
       )}
 
       {showLoadingState ? (
-        <LoadingBlock label="Loading leaderboard" />
+        <div className="space-y-8">
+          <SkeletonMetricCards count={3} />
+          <SkeletonTable rows={5} />
+        </div>
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-3">

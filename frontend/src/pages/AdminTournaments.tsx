@@ -443,6 +443,7 @@ function CreateTournamentForm({
           name="starting_chips"
           type="number"
           min="100"
+          max="10000000"
           value={form.starting_chips}
           onChange={handleChange}
         />
@@ -452,6 +453,7 @@ function CreateTournamentForm({
           name="min_players"
           type="number"
           min="2"
+          max="10000"
           value={form.min_players}
           onChange={handleChange}
           hint="Minimum to start"
@@ -522,6 +524,7 @@ function CreateTournamentForm({
                   name="late_reg_ends_level"
                   type="number"
                   min="1"
+                  max="20"
                   value={form.late_reg_ends_level}
                   onChange={handleChange}
                   hint="Last level for late registration"

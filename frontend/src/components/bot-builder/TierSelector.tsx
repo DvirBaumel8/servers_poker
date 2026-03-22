@@ -38,7 +38,11 @@ const TIERS: Array<{
   },
 ];
 
-export function TierSelector() {
+interface TierSelectorProps {
+  onSelect?: (tier: StrategyTier) => void;
+}
+
+export function TierSelector({ onSelect }: TierSelectorProps) {
   const { tier, setTier } = useBotBuilderStore();
 
   return (
@@ -48,7 +52,10 @@ export function TierSelector() {
         return (
           <button
             key={t.id}
-            onClick={() => setTier(t.id)}
+            onClick={() => {
+              setTier(t.id);
+              onSelect?.(t.id);
+            }}
             className={`p-4 rounded-lg border text-left transition-all
               ${
                 isSelected

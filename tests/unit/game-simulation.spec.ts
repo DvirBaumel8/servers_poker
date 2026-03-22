@@ -38,14 +38,32 @@ describe("Game Simulation - Complete Hand Flows", () => {
       game.addPlayer({
         id: "p1",
         name: "Player1",
-        endpoint: "http://localhost:4001",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
         chips: 1000,
         currentBet: 0,
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
-        endpoint: "http://localhost:4002",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
         chips: 1000,
         currentBet: 0,
       });
@@ -93,21 +111,48 @@ describe("Game Simulation - Complete Hand Flows", () => {
       game.addPlayer({
         id: "p1",
         name: "Player1",
-        endpoint: "http://localhost:4001",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
         chips: 1000,
         currentBet: 0,
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
-        endpoint: "http://localhost:4002",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
         chips: 1000,
         currentBet: 0,
       });
       game.addPlayer({
         id: "p3",
         name: "Player3",
-        endpoint: "http://localhost:4003",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
         chips: 1000,
         currentBet: 0,
       });

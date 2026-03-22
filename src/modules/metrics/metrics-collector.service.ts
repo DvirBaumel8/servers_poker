@@ -30,7 +30,10 @@ export class MetricsCollectorService implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     this.updateInterval = setInterval(() => {
       this.updateGaugeMetrics().catch((err) => {
-        this.logger.error(`Failed to update gauge metrics: ${err.message}`);
+        this.logger.error(
+          `Failed to update gauge metrics: ${err.message}`,
+          err instanceof Error ? err.stack : undefined,
+        );
       });
     }, 5000);
     this.logger.log("Metrics collector initialized");
@@ -129,6 +132,7 @@ export class MetricsCollectorService implements OnModuleInit, OnModuleDestroy {
     this.updateGaugeMetrics().catch((err) => {
       this.logger.error(
         `Failed to update metrics on game finish: ${err.message}`,
+        err instanceof Error ? err.stack : undefined,
       );
     });
   }
@@ -171,6 +175,7 @@ export class MetricsCollectorService implements OnModuleInit, OnModuleDestroy {
     this.updateGaugeMetrics().catch((err) => {
       this.logger.error(
         `Failed to update metrics on tournament finish: ${err.message}`,
+        err instanceof Error ? err.stack : undefined,
       );
     });
     this.logger.debug(
@@ -188,89 +193,5 @@ export class MetricsCollectorService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(
       `Bot ${event.botName} registered for tournament ${event.tournamentId}`,
     );
-  }
-
-  @OnEvent("bot.callFailed")
-  handleBotCallFailed(event: {
-    botId: string;
-    endpoint: string;
-    error: string;
-    latencyMs?: number;
-  }): void {
-    this.metricsService.recordBotError("call_failed", event.botId);
-
-    if (event.latencyMs !== undefined) {
-      const failureType = event.error?.includes("Timeout")
-        ? "timeout"
-        : "error";
-      this.metricsService.recordBotTimeout(
-        event.botId,
-        failureType,
-        event.latencyMs / 1000,
-      );
-    }
-
-    this.metricsService.addBreadcrumb(
-      "bot",
-      "Bot call failed",
-      {
-        botId: event.botId,
-        error: event.error,
-        latencyMs: event.latencyMs,
-      },
-      "warning",
-    );
-  }
-
-  @OnEvent("bot.circuitOpened")
-  handleBotCircuitOpened(event: { botId: string; failures: number }): void {
-    this.metricsService.recordBotError("circuit_opened", event.botId);
-
-    this.metricsService.addBreadcrumb(
-      "bot",
-      "Circuit breaker opened",
-      {
-        botId: event.botId,
-        failures: event.failures,
-      },
-      "error",
-    );
-
-    this.logger.warn(
-      `Circuit breaker opened for bot ${event.botId} after ${event.failures} failures`,
-    );
-  }
-
-  @OnEvent("bot.usedFallback")
-  handleBotUsedFallback(event: {
-    botId: string;
-    fallbackAction: string;
-    reason: string;
-  }): void {
-    this.metricsService.recordBotError("used_fallback", event.botId);
-  }
-
-  @OnEvent("bot.healthCheckRoundCompleted")
-  handleHealthCheckRoundCompleted(event: {
-    results: Array<{ botId: string; healthy: boolean; latencyMs?: number }>;
-  }): void {
-    let healthyCount = 0;
-    for (const result of event.results) {
-      if (result.healthy) {
-        healthyCount++;
-        if (result.latencyMs !== undefined) {
-          this.metricsService.recordBotResponseTime(
-            result.botId,
-            result.latencyMs / 1000,
-          );
-        }
-      }
-    }
-    this.metricsService.setConnectedBots(healthyCount);
-  }
-
-  @OnEvent("bot.activeGameBotUnhealthy")
-  handleActiveGameBotUnhealthy(event: { botId: string; gameId: string }): void {
-    this.metricsService.recordBotError("unhealthy_in_game", event.botId);
   }
 }

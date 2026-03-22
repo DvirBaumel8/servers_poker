@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useBotBuilderStore } from "../stores/botBuilderStore";
+import {
+  useBotBuilderStore,
+  type StrategyTier,
+} from "../stores/botBuilderStore";
 import { useAuthStore } from "../stores/authStore";
 import { TierSelector } from "../components/bot-builder/TierSelector";
 import { PersonalitySliders } from "../components/bot-builder/PersonalitySliders";
@@ -17,6 +20,7 @@ import {
   AlertBanner,
   TextField,
 } from "../components/ui/primitives";
+import { toast } from "../stores/toastStore";
 
 export function BotBuilder() {
   const navigate = useNavigate();
@@ -46,23 +50,31 @@ export function BotBuilder() {
   }, []);
 
   const steps = getSteps(tier);
-  const currentStepIndex = steps.indexOf(step);
+  const activeStep = steps.includes(step) ? step : steps[steps.length - 1];
+  const currentStepIndex = steps.indexOf(activeStep);
+
+  const handleTierSelected = (selectedTier: StrategyTier) => {
+    useBotBuilderStore.getState().setTier(selectedTier);
+    setStep("personality");
+  };
 
   const handleSave = async () => {
     if (!token) return;
     try {
       await saveBot(token);
+      toast(`Bot "${name}" created successfully`);
       navigate("/bots");
-    } catch {
-      // error is set in store
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to create bot";
+      toast(msg, "error");
     }
   };
 
   const canProceed = () => {
-    if (step === "tier") return true;
-    if (step === "personality") return true;
-    if (step === "rules") return true;
-    if (step === "review") return name.length >= 2;
+    if (activeStep === "tier") return true;
+    if (activeStep === "personality") return true;
+    if (activeStep === "rules") return true;
+    if (activeStep === "review") return name.length >= 2;
     return false;
   };
 
@@ -86,8 +98,10 @@ export function BotBuilder() {
         eyebrow="Bot Builder"
         title="Create Your Bot"
         description="Design a poker bot using personality sliders, rules, and range charts — no coding required."
-        backHref="/bots"
-        backLabel="Back to Bots"
+        breadcrumbs={[
+          { label: "Bots", href: "/bots" },
+          { label: "Build a Bot" },
+        ]}
       />
 
       {/* Progress */}
@@ -110,7 +124,7 @@ export function BotBuilder() {
             </div>
             <span
               className={`text-sm hidden sm:block ${
-                step === s
+                activeStep === s
                   ? "text-[var(--text-primary)] font-medium"
                   : "text-[var(--text-muted)]"
               }`}
@@ -141,18 +155,18 @@ export function BotBuilder() {
 
       {/* Step content */}
       <div className="mb-8">
-        {step === "tier" && (
+        {activeStep === "tier" && (
           <SurfaceCard>
             <h2 className="section-title mb-4">Choose Complexity Level</h2>
             <p className="text-sm text-[var(--text-muted)] mb-6">
               Start simple with personality sliders, or go deeper with rules and
               range charts.
             </p>
-            <TierSelector />
+            <TierSelector onSelect={handleTierSelected} />
           </SurfaceCard>
         )}
 
-        {step === "personality" && (
+        {activeStep === "personality" && (
           <div className="space-y-6">
             <SurfaceCard>
               <h2 className="section-title mb-4">Preset Profiles</h2>
@@ -174,7 +188,7 @@ export function BotBuilder() {
           </div>
         )}
 
-        {step === "rules" && (
+        {activeStep === "rules" && (
           <div className="space-y-6">
             <SurfaceCard>
               <h2 className="section-title mb-4">Strategy Rules</h2>
@@ -204,7 +218,7 @@ export function BotBuilder() {
           </div>
         )}
 
-        {step === "review" && (
+        {activeStep === "review" && (
           <div className="space-y-6">
             <SurfaceCard>
               <h2 className="section-title mb-4">Name & Save</h2>
@@ -285,7 +299,7 @@ export function BotBuilder() {
           Back
         </Button>
 
-        {step === "review" ? (
+        {activeStep === "review" ? (
           <Button
             variant="primary"
             onClick={handleSave}

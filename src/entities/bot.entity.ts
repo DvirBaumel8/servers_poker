@@ -20,14 +20,14 @@ export class Bot extends BaseEntity {
   @Column({ type: "varchar", length: 100 })
   name: string;
 
-  @Column({ type: "varchar", length: 500 })
-  endpoint: string;
-
   @Column({ type: "text", nullable: true })
   description: string | null;
 
   @Column({ type: "boolean", default: true })
   active: boolean;
+
+  @Column({ type: "jsonb" })
+  strategy: Record<string, any>;
 
   @Column({ type: "varchar", length: 36 })
   user_id: string;
@@ -35,12 +35,6 @@ export class Bot extends BaseEntity {
   @ManyToOne(() => User, (user) => user.bots, { onDelete: "CASCADE" })
   @JoinColumn({ name: "user_id" })
   user: User;
-
-  @Column({ type: "jsonb", nullable: true })
-  last_validation: Record<string, any> | null;
-
-  @Column({ type: "integer", nullable: true })
-  last_validation_score: number | null;
 
   @OneToMany(() => TournamentEntry, (entry) => entry.bot)
   tournament_entries: TournamentEntry[];

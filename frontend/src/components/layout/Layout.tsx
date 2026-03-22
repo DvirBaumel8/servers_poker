@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import { useAuthStore } from "../../stores/authStore";
 import { botsApi } from "../../api/bots";
-import { Button } from "../ui/primitives";
+import { Button, ToastContainer } from "../ui/primitives";
 import { ACTIVE_BOTS_POLL_MS } from "../../utils/timing";
+import { useKeyboardNav } from "../../hooks/useKeyboardNav";
 
 const NAV_ITEMS = [
   { path: "/tables", label: "Tables", icon: "tables" },
@@ -130,6 +132,7 @@ export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, token, logout } = useAuthStore();
+  useKeyboardNav();
   const isAuthenticated = !!token; // Use token for auth check (immediately available from localStorage)
   const [activeBotsCount, setActiveBotsCount] = useState(getCachedBotsCount);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -161,6 +164,7 @@ export function Layout() {
 
   return (
     <div className="app-shell">
+      <ToastContainer />
       <header className="sticky top-0 z-50 border-b border-white/6 bg-surface-400/80 backdrop-blur-xl">
         <div className="page-shell flex flex-col gap-3 py-3 sm:gap-4 sm:py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
@@ -414,7 +418,17 @@ export function Layout() {
       </header>
 
       <main className="pb-12">
-        <Outlet />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <footer className="border-t border-white/6 bg-black/10">

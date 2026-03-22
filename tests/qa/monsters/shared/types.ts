@@ -41,6 +41,17 @@ export type MonsterType =
   | "player-flow"
   | "simulation" // Live game simulation with invariant validation
   | "analyzer-pipeline" // Strategy decision audit & analysis pipeline
+  | "regression" // Verifies historical bugs stay fixed
+  | "strategy" // Bot strategy testing
+  | "data-integrity" // Data layer integrity checks
+  | "data-analytics" // Analytics pipeline verification
+  | "explorer" // Autonomous UI crawler
+  | "superhero" // Self-improving browser QA loop
+  | "quick-check" // Fast combined bug + quality check
+  | "fast-browser" // Speed-optimized browser monster
+  | "fast-quality" // Speed-optimized quality scorer
+  | "product-quality" // Product quality assessment
+  | "log-analyzer" // Backend/frontend log analysis
   // E2E (Layer 4)
   | "e2e";
 
@@ -181,8 +192,14 @@ export interface RunResult {
   testsFailed: number;
   testsSkipped: number;
 
+  checksPerformed?: number;
+
   // Error if monster itself failed
   error?: string;
+
+  // Skip tracking for unavailable dependencies
+  skipped?: boolean;
+  skipReason?: string;
 }
 
 export interface AggregatedRunResult {

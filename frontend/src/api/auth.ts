@@ -20,13 +20,13 @@ interface AuthApiResponse {
   user: UserApiResponse;
   access_token: string;
   accessToken?: string;
-  apiKey?: string;
+  refreshToken?: string;
 }
 
 export interface AuthResponse {
   user: User;
   access_token: string;
-  apiKey?: string;
+  refreshToken?: string;
 }
 
 export interface RegisterResponse {
@@ -71,7 +71,7 @@ export const authApi = {
     return {
       user: transformUser(response.user),
       access_token: response.accessToken || response.access_token,
-      apiKey: response.apiKey,
+      refreshToken: response.refreshToken,
     };
   },
 
@@ -106,14 +106,27 @@ export const authApi = {
     return {
       user: transformUser(response.user),
       access_token: response.accessToken || response.access_token,
+      refreshToken: response.refreshToken,
     };
+  },
+
+  refresh: async (refreshToken: string): Promise<AuthResponse> => {
+    const response = await api.post<AuthApiResponse>("/auth/refresh", {
+      refreshToken,
+    });
+    return {
+      user: transformUser(response.user),
+      access_token: response.accessToken || response.access_token,
+      refreshToken: response.refreshToken,
+    };
+  },
+
+  logout: async (token: string): Promise<{ message: string }> => {
+    return api.post<{ message: string }>("/auth/logout", {}, token);
   },
 
   me: async (token: string): Promise<User> => {
     const raw = await api.get<UserApiResponse>("/auth/me", token);
     return transformUser(raw);
   },
-
-  regenerateApiKey: (token: string) =>
-    api.post<{ api_key: string }>("/auth/regenerate-api-key", undefined, token),
 };

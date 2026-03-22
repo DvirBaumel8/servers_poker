@@ -1,15 +1,3 @@
-/**
- * UI Navigation E2E Tests
- * =======================
- * Tests for all UI pages and navigation flows.
- * These tests use HTTP requests to verify frontend API contracts.
- *
- * For full browser-based testing, see the browser automation scripts.
- *
- * NOTE: Tests are designed for parallel execution - each test creates
- * its own isolated data using unique identifiers.
- */
-
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
@@ -19,7 +7,6 @@ import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
 import request from "supertest";
-import * as http from "http";
 import { DataSource } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { AuthModule } from "../../src/modules/auth/auth.module";
@@ -32,13 +19,9 @@ import * as entities from "../../src/entities";
 import { appConfig } from "../../src/config";
 import { APP_GUARD } from "@nestjs/core";
 import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
+import { createDefaultStrategy } from "../utils/strategy-bot-factory";
 
 const uid = () => Math.random().toString(36).slice(2, 8);
-
-let portCounter = 22000;
-function getUniquePort(): number {
-  return portCounter++;
-}
 
 interface TestUserData {
   email: string;
@@ -55,37 +38,9 @@ function createTestUser(prefix: string): TestUserData {
   };
 }
 
-interface BotServer {
-  server: http.Server;
-  port: number;
-  close: () => Promise<void>;
-}
-
-function createMockBotServer(port: number): Promise<BotServer> {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      if (req.method === "GET") {
-        res.end(JSON.stringify({ status: "ok" }));
-      } else {
-        res.end(JSON.stringify({ type: "call" }));
-      }
-    });
-    server.on("error", reject);
-    server.listen(port, () => {
-      resolve({
-        server,
-        port,
-        close: () => new Promise<void>((res) => server.close(() => res())),
-      });
-    });
-  });
-}
-
 describe("UI Navigation & API Contract E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
-  const botServers: BotServer[] = [];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -133,16 +88,12 @@ describe("UI Navigation & API Contract E2E Tests", () => {
   });
 
   afterAll(async () => {
-    for (const bot of botServers) await bot.close();
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
   });
 
   async function registerDeveloper(userData?: TestUserData) {
     const { email, name, botName } = userData || createTestUser("dev");
-    const botPort = getUniquePort();
-    const botServer = await createMockBotServer(botPort);
-    botServers.push(botServer);
     const response = await request(app.getHttpServer())
       .post("/api/v1/auth/register-developer")
       .send({
@@ -150,28 +101,24 @@ describe("UI Navigation & API Contract E2E Tests", () => {
         name,
         password: "SecurePass123!",
         botName,
-        botEndpoint: `http://localhost:${botPort}`,
       })
       .expect(201);
-    return { ...response.body, botServer };
+    return response.body;
   }
 
   async function createAdditionalBot(
     accessToken: string,
     namePrefix: string = "Extra",
   ) {
-    const botPort = getUniquePort();
-    const botServer = await createMockBotServer(botPort);
-    botServers.push(botServer);
     const response = await request(app.getHttpServer())
-      .post("/api/v1/bots")
+      .post("/api/v1/bots/internal")
       .set("Authorization", `Bearer ${accessToken}`)
       .send({
         name: `${namePrefix}Bot-${uid()}`,
-        endpoint: `http://localhost:${botPort}`,
+        strategy: createDefaultStrategy(),
       })
       .expect(201);
-    return { ...response.body, botServer };
+    return response.body;
   }
 
   async function createTableDirect(
@@ -227,7 +174,6 @@ describe("UI Navigation & API Contract E2E Tests", () => {
     it("should list all available tables", async () => {
       const tableIdSuffix = uid();
 
-      // Create tables directly in DB (table creation requires admin)
       await createTableDirect({
         name: `Test Table 1-${tableIdSuffix}`,
         smallBlind: 10,
@@ -254,7 +200,6 @@ describe("UI Navigation & API Contract E2E Tests", () => {
     it("should return table details with player info", async () => {
       const user1 = await registerDeveloper(createTestUser("detail1"));
 
-      // Create table directly in DB (table creation requires admin)
       const table = await createTableDirect({
         name: `Detail Test Table-${uid()}`,
         smallBlind: 10,
@@ -312,33 +257,16 @@ describe("UI Navigation & API Contract E2E Tests", () => {
       expect(response.body.bot).toHaveProperty("name");
     });
 
-    it("should validate bot endpoint", async () => {
-      const user = await registerDeveloper(createTestUser("validate"));
-
-      const response = await request(app.getHttpServer())
-        .post(`/api/v1/bots/${user.bot.id}/validate`)
-        .set("Authorization", `Bearer ${user.accessToken}`);
-
-      expect([200, 201]).toContain(response.status);
-    });
-
-    it("should create bot with all required fields", async () => {
+    it("should create internal bot with all required fields", async () => {
       const user = await registerDeveloper(createTestUser("create"));
       const newBotName = `NewTestBot${uid()}`;
 
-      const botPort = getUniquePort();
-      const newBotServer = await createMockBotServer(botPort);
-      botServers.push(newBotServer);
-
-      // Small delay to ensure bot server is ready
-      await new Promise((r) => setTimeout(r, 100));
-
       const response = await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set("Authorization", `Bearer ${user.accessToken}`)
         .send({
           name: newBotName,
-          endpoint: `http://localhost:${botPort}`,
+          strategy: createDefaultStrategy(),
           description: "A test bot for validation",
         });
 
@@ -501,18 +429,6 @@ describe("UI Navigation & API Contract E2E Tests", () => {
       expect(response.body).toHaveProperty("email");
       expect(response.body.email).toBe(userData.email);
     });
-
-    it("should regenerate API key", async () => {
-      const user = await registerDeveloper(createTestUser("apikey"));
-
-      const response = await request(app.getHttpServer())
-        .post("/api/v1/auth/regenerate-api-key")
-        .set("Authorization", `Bearer ${user.accessToken}`)
-        .expect(200);
-
-      expect(response.body).toHaveProperty("apiKey");
-      expect(response.body.apiKey).toBeDefined();
-    });
   });
 
   describe("Game State APIs", () => {
@@ -520,7 +436,6 @@ describe("UI Navigation & API Contract E2E Tests", () => {
       const user1 = await registerDeveloper(createTestUser("state1"));
       const user2 = await registerDeveloper(createTestUser("state2"));
 
-      // Create table directly in DB (table creation requires admin)
       const table = await createTableDirect({
         name: `State Test Table-${uid()}`,
         smallBlind: 10,
@@ -543,8 +458,6 @@ describe("UI Navigation & API Contract E2E Tests", () => {
         .send({ bot_id: user2.bot.id })
         .expect(201);
 
-      await new Promise((r) => setTimeout(r, 1000));
-
       const stateResponse = await request(app.getHttpServer())
         .get(`/api/v1/games/${tableId}/state`)
         .set("Authorization", `Bearer ${user1.accessToken}`)
@@ -558,7 +471,6 @@ describe("UI Navigation & API Contract E2E Tests", () => {
       const user1 = await registerDeveloper(createTestUser("history1"));
       const user2 = await registerDeveloper(createTestUser("history2"));
 
-      // Create table directly in DB (table creation requires admin)
       const table = await createTableDirect({
         name: `History Test Table-${uid()}`,
         smallBlind: 10,
@@ -574,20 +486,16 @@ describe("UI Navigation & API Contract E2E Tests", () => {
         .set("Authorization", `Bearer ${user1.accessToken}`)
         .send({ bot_id: user1.bot.id });
 
-      if (join1.status !== 201) {
-        return;
-      }
+      if (join1.status !== 201) return;
 
       const join2 = await request(app.getHttpServer())
         .post(`/api/v1/games/${tableId}/join`)
         .set("Authorization", `Bearer ${user2.accessToken}`)
         .send({ bot_id: user2.bot.id });
 
-      if (join2.status !== 201) {
-        return;
-      }
+      if (join2.status !== 201) return;
 
-      await new Promise((r) => setTimeout(r, 8000));
+      await new Promise((r) => setTimeout(r, 3000));
 
       const handsResponse = await request(app.getHttpServer())
         .get(`/api/v1/games/${tableId}/hands`)
@@ -598,28 +506,6 @@ describe("UI Navigation & API Contract E2E Tests", () => {
         expect(Array.isArray(handsResponse.body)).toBe(true);
       }
     }, 30000);
-  });
-
-  describe("Bot Connectivity APIs", () => {
-    it("should return bot health summary (admin only)", async () => {
-      const user = await registerDeveloper(createTestUser("health"));
-
-      const response = await request(app.getHttpServer())
-        .get("/api/v1/bots/connectivity/health/summary")
-        .set("Authorization", `Bearer ${user.accessToken}`);
-
-      expect([200, 403]).toContain(response.status);
-    });
-
-    it("should check specific bot health", async () => {
-      const user = await registerDeveloper(createTestUser("bothealth"));
-
-      const response = await request(app.getHttpServer())
-        .get(`/api/v1/bots/connectivity/health/${user.bot.id}`)
-        .set("Authorization", `Bearer ${user.accessToken}`);
-
-      expect([200, 403, 404]).toContain(response.status);
-    });
   });
 
   describe("Provably Fair APIs", () => {

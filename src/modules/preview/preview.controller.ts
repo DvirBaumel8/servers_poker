@@ -1,4 +1,4 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Logger } from "@nestjs/common";
 import { Public } from "../../common/decorators/public.decorator";
 import { Throttle } from "@nestjs/throttler";
 import { GamesService } from "../games/games.service";
@@ -12,6 +12,8 @@ import { TournamentsService } from "../tournaments/tournaments.service";
  */
 @Controller("preview")
 export class PreviewController {
+  private readonly logger = new Logger(PreviewController.name);
+
   constructor(
     private readonly gamesService: GamesService,
     private readonly tablesService: TablesService,

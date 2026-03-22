@@ -1,14 +1,3 @@
-/**
- * WebSocket Real-time E2E Tests
- * =============================
- * Tests for WebSocket communication and real-time events:
- * - Connection handling
- * - Game state broadcasts
- * - Player action events
- * - Reconnection scenarios
- * - Multiple client subscriptions
- */
-
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
@@ -17,7 +6,6 @@ import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
 import request from "supertest";
-import * as http from "http";
 import { DataSource } from "typeorm";
 import { io, Socket } from "socket.io-client";
 import { v4 as uuidv4 } from "uuid";
@@ -33,45 +21,10 @@ import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 let testCounter = 1;
 const uid = () => `${testCounter++}${Math.random().toString(36).slice(2, 6)}`;
 
-let portCounter = 42000;
-function getNextPort(): number {
-  return portCounter++;
-}
-
-interface BotServer {
-  server: http.Server;
-  port: number;
-  close: () => Promise<void>;
-}
-
-function createBotServer(port: number): Promise<BotServer> {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      if (req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok" }));
-        return;
-      }
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ type: "call" }));
-    });
-
-    server.on("error", reject);
-    server.listen(port, () => {
-      resolve({
-        server,
-        port,
-        close: () => new Promise<void>((res) => server.close(() => res())),
-      });
-    });
-  });
-}
-
 describe("WebSocket Real-time E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
   let appPort: number;
-  const botServers: BotServer[] = [];
   const sockets: Socket[] = [];
 
   beforeAll(async () => {
@@ -122,14 +75,7 @@ describe("WebSocket Real-time E2E Tests", () => {
       try {
         socket.disconnect();
       } catch {
-        // Ignore errors when disconnecting sockets during cleanup
-      }
-    }
-    for (const bot of botServers) {
-      try {
-        await bot.close();
-      } catch {
-        // Ignore errors when closing bot servers during cleanup
+        // ignore
       }
     }
     if (dataSource?.isInitialized) await dataSource.destroy();
@@ -139,12 +85,8 @@ describe("WebSocket Real-time E2E Tests", () => {
   async function registerPlayer(): Promise<{
     accessToken: string;
     bot: { id: string };
-    botServer: BotServer;
   }> {
     const id = uid();
-    const port = getNextPort();
-    const botServer = await createBotServer(port);
-    botServers.push(botServer);
 
     const response = await request(app.getHttpServer())
       .post("/api/v1/auth/register-developer")
@@ -153,11 +95,10 @@ describe("WebSocket Real-time E2E Tests", () => {
         name: `WSPlayer${id}`,
         password: "SecurePass123",
         botName: `WSBot${id}`,
-        botEndpoint: `http://localhost:${port}`,
       })
       .expect(201);
 
-    return { ...response.body, botServer };
+    return response.body;
   }
 
   async function createTable(): Promise<{ id: string; name: string }> {
@@ -220,7 +161,6 @@ describe("WebSocket Real-time E2E Tests", () => {
         });
       });
 
-      // Connection may or may not succeed depending on auth requirements
       socket.disconnect();
     });
   });
@@ -241,15 +181,9 @@ describe("WebSocket Real-time E2E Tests", () => {
         });
       });
 
-      // Create a table directly in database (table creation requires admin)
       const table = await createTable();
-
-      // Subscribe to table
       socket.emit("subscribeToTable", { tableId: table.id });
-
-      // Wait for acknowledgment or state update
       await new Promise((r) => setTimeout(r, 1000));
-
       socket.disconnect();
     });
 
@@ -271,7 +205,6 @@ describe("WebSocket Real-time E2E Tests", () => {
         });
       });
 
-      // Listen for game events
       socket.on("gameState", (data) =>
         receivedEvents.push({ type: "gameState", data }),
       );
@@ -282,12 +215,9 @@ describe("WebSocket Real-time E2E Tests", () => {
         receivedEvents.push({ type: "handStarted", data }),
       );
 
-      // Create table and subscribe (table creation requires admin)
       const table = await createTable();
-
       socket.emit("subscribeToTable", { tableId: table.id });
 
-      // Join with both players
       await request(app.getHttpServer())
         .post(`/api/v1/games/${table.id}/join`)
         .set("Authorization", `Bearer ${player1.accessToken}`)
@@ -300,11 +230,7 @@ describe("WebSocket Real-time E2E Tests", () => {
         .send({ bot_id: player2.bot.id })
         .expect(201);
 
-      // Wait for game events
       await new Promise((r) => setTimeout(r, 3000));
-
-      // Should have received some events
-      // Note: exact events depend on game progression
       socket.disconnect();
     }, 15000);
   });
@@ -317,27 +243,21 @@ describe("WebSocket Real-time E2E Tests", () => {
       const socket1 = createSocket(player1.accessToken);
       const socket2 = createSocket(player2.accessToken);
 
-      const events1: any[] = [];
-      const events2: any[] = [];
-
-      // Connect both sockets
       await Promise.all([
         new Promise<void>((resolve) => socket1.on("connect", resolve)),
         new Promise<void>((resolve) => socket2.on("connect", resolve)),
       ]);
 
-      // Create table (table creation requires admin)
       const table = await createTable();
 
-      // Subscribe both to same table
       socket1.emit("subscribeToTable", { tableId: table.id });
       socket2.emit("subscribeToTable", { tableId: table.id });
 
-      // Listen for events
+      const events1: any[] = [];
+      const events2: any[] = [];
       socket1.on("gameState", (data) => events1.push(data));
       socket2.on("gameState", (data) => events2.push(data));
 
-      // Join with both players to trigger events
       await request(app.getHttpServer())
         .post(`/api/v1/games/${table.id}/join`)
         .set("Authorization", `Bearer ${player1.accessToken}`)
@@ -365,26 +285,18 @@ describe("WebSocket Real-time E2E Tests", () => {
 
       await new Promise<void>((resolve) => socket.on("connect", resolve));
 
-      // Create table (table creation requires admin)
       const table = await createTable();
 
       socket.on("gameState", () => eventCount++);
 
-      // Subscribe
       socket.emit("subscribeToTable", { tableId: table.id });
       await new Promise((r) => setTimeout(r, 500));
 
-      // Unsubscribe
       socket.emit("unsubscribeFromTable", { tableId: table.id });
       await new Promise((r) => setTimeout(r, 500));
 
-      const countAfterUnsub = eventCount;
-
-      // Further events shouldn't increment count
       await new Promise((r) => setTimeout(r, 1000));
 
-      // Events after unsubscribe should not be received
-      // This is a soft check as timing may vary
       socket.disconnect();
     });
   });
@@ -407,15 +319,12 @@ describe("WebSocket Real-time E2E Tests", () => {
     it("should be able to reconnect after disconnection", async () => {
       const player = await registerPlayer();
 
-      // First connection
       const socket1 = createSocket(player.accessToken);
       await new Promise<void>((resolve) => socket1.on("connect", resolve));
       socket1.disconnect();
 
-      // Wait a bit
       await new Promise((r) => setTimeout(r, 500));
 
-      // Reconnect with new socket
       const socket2 = createSocket(player.accessToken);
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(

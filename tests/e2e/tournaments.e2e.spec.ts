@@ -52,13 +52,10 @@ describe("Tournaments E2E Tests", () => {
     const userId = uuidv4();
     const passwordHash =
       "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC";
-    const apiKeyHash = uuidv4().replace(/-/g, "");
-
-    // Create user directly in DB
     await dataSource.query(
-      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, true, true, NOW(), NOW())`,
-      [userId, email, name, passwordHash, apiKeyHash, role],
+      `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, true, true, NOW(), NOW())`,
+      [userId, email, name, passwordHash, role],
     );
 
     // Generate JWT token
@@ -78,14 +75,22 @@ describe("Tournaments E2E Tests", () => {
     namePrefix = "TourneyBot",
   ): Promise<TestBot> {
     const id = uid();
-    const port = 19000 + Math.floor(Math.random() * 1000);
     const botName = `${namePrefix}${id}`.replace(/-/g, "");
     const response = await request(app.getHttpServer())
-      .post("/api/v1/bots")
+      .post("/api/v1/bots/internal")
       .set("Authorization", `Bearer ${accessToken}`)
       .send({
         name: botName,
-        endpoint: `http://localhost:${port}`,
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
     if (response.status !== 201) {

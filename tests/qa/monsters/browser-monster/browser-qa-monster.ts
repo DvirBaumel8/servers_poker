@@ -12,12 +12,22 @@
  * Run: npm run monsters:browser-qa
  */
 
-import { chromium, Browser, Page, BrowserContext } from "playwright";
-import { addIssue, Severity } from "../shared/issue-tracker";
+import { Page } from "playwright";
+import {
+  addIssue,
+  generateReport as generateIssueReport,
+  Severity,
+} from "../shared/issue-tracker";
 import { ensureLiveGame } from "../shared/game-setup";
+import {
+  BrowserBaseMonster,
+  DESKTOP_VIEWPORT,
+} from "../shared/browser-base-monster";
+import { RunConfig } from "../shared/types";
+import { runMonsterCli } from "../shared/cli-runner";
+import { getEnv } from "../shared/env-config";
 
 const BASE_URL = process.env.FRONTEND_URL || "http://localhost:3001";
-const MAX_PARALLEL_CONTEXTS = 4;
 const PAGE_TIMEOUT_MS = 10000;
 
 // ============================================================================
@@ -531,32 +541,25 @@ const BATCH_GAME_CARD_CHECK = `(() => {
 // BROWSER QA MONSTER CLASS
 // ============================================================================
 
-export class BrowserQAMonster {
-  name = "Browser QA Monster";
-  type = "browser-qa";
-
-  private browser: Browser | null = null;
-  private findings: Finding[] = [];
-  private stats: TestStats = { run: 0, passed: 0, failed: 0 };
+export class BrowserQAMonster extends BrowserBaseMonster {
+  private qaFindings: Finding[] = [];
+  private qaStats: TestStats = { run: 0, passed: 0, failed: 0 };
   private consoleErrors: string[] = [];
 
-  async run(): Promise<{
-    passed: boolean;
-    findings: Finding[];
-    stats: TestStats;
-    duration: number;
-  }> {
-    const startTime = Date.now();
+  constructor() {
+    super({
+      name: "Browser QA Monster",
+      type: "browser-qa",
+      timeout: 120000,
+    });
+  }
+
+  protected async execute(_runConfig: RunConfig): Promise<void> {
     console.log("\n" + "═".repeat(70));
     console.log("  🧪 BROWSER QA MONSTER - FAST COMPREHENSIVE UI TESTING");
     console.log("═".repeat(70) + "\n");
 
     try {
-      this.browser = await chromium.launch({
-        headless: process.env.HEADLESS !== "false",
-      });
-
-      // Run test groups in parallel using multiple browser contexts
       console.log("  🚀 Running parallel test groups...\n");
 
       await Promise.all([
@@ -567,37 +570,17 @@ export class BrowserQAMonster {
         this.runGameViewTests(),
       ]);
 
-      // Sequential tests that need specific state
       console.log("\n  📝 Running sequential tests...\n");
       await this.runFormTests();
       await this.runNavigationTests();
 
-      await this.browser.close();
-
-      // Cleanup game setup (mock bot processes)
       if (this.gameCleanup) {
         await this.gameCleanup();
       }
     } catch (error) {
-      console.error("Monster crashed:", error);
-      if (this.browser) await this.browser.close();
       if (this.gameCleanup) await this.gameCleanup();
       throw error;
     }
-
-    // Print summary
-    this.printSummary(Date.now() - startTime);
-
-    const hasHighSeverity = this.findings.some(
-      (f) => f.severity === "critical" || f.severity === "high",
-    );
-
-    return {
-      passed: !hasHighSeverity,
-      findings: this.findings,
-      stats: this.stats,
-      duration: Date.now() - startTime,
-    };
   }
 
   // ============================================================================
@@ -605,11 +588,8 @@ export class BrowserQAMonster {
   // ============================================================================
 
   private async runPublicPagesTests(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
-    this.setupPageListeners(page);
+    const context = await this.createContext(DESKTOP_VIEWPORT);
+    const { page, getConsoleErrors } = await this.createPage(context);
 
     console.log("  📄 Testing public pages...");
 
@@ -622,11 +602,8 @@ export class BrowserQAMonster {
   }
 
   private async runAuthTests(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
-    this.setupPageListeners(page);
+    const context = await this.createContext(DESKTOP_VIEWPORT);
+    const { page } = await this.createPage(context);
 
     console.log("  🔐 Testing auth flows...");
 
@@ -716,11 +693,8 @@ export class BrowserQAMonster {
   }
 
   private async runAdminTests(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
-    this.setupPageListeners(page);
+    const context = await this.createContext(DESKTOP_VIEWPORT);
+    const { page } = await this.createPage(context);
 
     console.log("  👑 Testing admin pages...");
 
@@ -755,11 +729,8 @@ export class BrowserQAMonster {
   }
 
   private async runInteractiveTests(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
-    this.setupPageListeners(page);
+    const context = await this.createContext(DESKTOP_VIEWPORT);
+    const { page } = await this.createPage(context);
 
     console.log("  🖱️  Testing interactive elements...");
 
@@ -834,11 +805,8 @@ export class BrowserQAMonster {
   private gameCleanup: (() => Promise<void>) | null = null;
 
   private async runGameViewTests(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
-    this.setupPageListeners(page);
+    const context = await this.createContext(DESKTOP_VIEWPORT);
+    const { page } = await this.createPage(context);
 
     console.log("  🎰 Testing game view card rendering...");
 
@@ -1069,11 +1037,8 @@ export class BrowserQAMonster {
   // ============================================================================
 
   private async runFormTests(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
-    this.setupPageListeners(page);
+    const context = await this.createContext(DESKTOP_VIEWPORT);
+    const { page } = await this.createPage(context);
 
     console.log("  📝 Testing forms...");
 
@@ -1119,11 +1084,8 @@ export class BrowserQAMonster {
   }
 
   private async runNavigationTests(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
-    this.setupPageListeners(page);
+    const context = await this.createContext(DESKTOP_VIEWPORT);
+    const { page } = await this.createPage(context);
 
     console.log("  🧭 Testing navigation...");
 
@@ -1203,27 +1165,6 @@ export class BrowserQAMonster {
   // ============================================================================
   // HELPERS
   // ============================================================================
-
-  private setupPageListeners(page: Page): void {
-    page.on("console", (msg) => {
-      if (msg.type() === "error") {
-        const text = msg.text();
-        if (!text.includes("[vite]") && !text.includes("favicon")) {
-          this.consoleErrors.push(text);
-        }
-      }
-    });
-
-    page.on("pageerror", (error) => {
-      this.addFinding(
-        "CRASH",
-        "critical",
-        "JavaScript Crash",
-        error.message.slice(0, 200),
-        page.url(),
-      );
-    });
-  }
 
   private async testPage(page: Page, route: string): Promise<void> {
     try {
@@ -1401,17 +1342,4 @@ export class BrowserQAMonster {
 // CLI RUNNER
 // ============================================================================
 
-async function main(): Promise<void> {
-  const monster = new BrowserQAMonster();
-  const result = await monster.run();
-
-  console.log(`\nFindings: ${result.findings.length}`);
-  console.log(`Duration: ${result.duration}ms`);
-
-  process.exit(result.passed ? 0 : 1);
-}
-
-main().catch((err) => {
-  console.error("Browser QA Monster failed:", err);
-  process.exit(1);
-});
+runMonsterCli(new BrowserQAMonster(), "browser-qa");

@@ -245,24 +245,48 @@ export const PlayerSeat = memo(function PlayerSeat({
       <div className="flex gap-1 mt-2">
         {showCards && player.holeCards && player.holeCards.length > 0 ? (
           player.holeCards.map((card, i) => (
-            <PlayingCard
-              key={i}
-              card={card as Card}
-              size="sm"
-              animate={false}
-            />
+            <motion.div
+              key={`hole-${i}`}
+              initial={{ scale: 0.3, opacity: 0, y: -20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 260,
+                damping: 20,
+                delay: i * 0.1,
+              }}
+            >
+              <PlayingCard card={card as Card} size="sm" animate={false} />
+            </motion.div>
           ))
         ) : (
           <>
-            <PlayingCard hidden size="sm" animate={false} />
-            <PlayingCard hidden size="sm" animate={false} />
+            <motion.div
+              initial={{ scale: 0.3, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            >
+              <PlayingCard hidden size="sm" animate={false} />
+            </motion.div>
+            <motion.div
+              initial={{ scale: 0.3, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{
+                type: "spring",
+                stiffness: 260,
+                damping: 20,
+                delay: 0.1,
+              }}
+            >
+              <PlayingCard hidden size="sm" animate={false} />
+            </motion.div>
           </>
         )}
       </div>
 
       {/* Name plate */}
       <div
-        className="mt-2 px-3 py-2 rounded-xl text-center min-w-[100px] max-w-[130px] relative"
+        className="mt-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl text-center min-w-[80px] sm:min-w-[100px] max-w-[130px] relative"
         style={{
           background:
             "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)",

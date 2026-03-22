@@ -8,14 +8,13 @@ export interface TestUser {
   email: string;
   name: string;
   password: string;
-  apiKey: string;
   accessToken?: string;
 }
 
 export interface TestBot {
   id: string;
   name: string;
-  endpoint: string;
+  strategy: Record<string, any>;
   userId: string;
 }
 
@@ -34,7 +33,6 @@ export async function createTestUser(
     email: overrides.email || `test-${uniqueId}@example.com`,
     name: overrides.name || `TestUser_${uniqueId}`,
     password: overrides.password || "TestPassword123!",
-    apiKey: "",
   };
 
   // Step 1: Register user
@@ -72,7 +70,6 @@ export async function createTestUser(
 
   user.id = verifyResponse.body.user.id;
   user.accessToken = verifyResponse.body.accessToken;
-  user.apiKey = verifyResponse.body.apiKey || "";
 
   return user;
 }
@@ -90,13 +87,12 @@ export async function createTestUserDirect(
   const name = overrides.name || `TestUser_${uniqueId}`;
   const passwordHash =
     "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC"; // "TestPassword123!"
-  const apiKeyHash = uuidv4().replace(/-/g, "");
 
   const result = await dataSource.query(
-    `INSERT INTO users (email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, 'user', true, true, NOW(), NOW())
+    `INSERT INTO users (email, name, password_hash, role, active, email_verified, created_at, updated_at)
+     VALUES ($1, $2, $3, 'user', true, true, NOW(), NOW())
      RETURNING id, email, name`,
-    [email, name, passwordHash, apiKeyHash],
+    [email, name, passwordHash],
   );
 
   return result[0];
@@ -123,26 +119,35 @@ export async function createTestBot(
   accessToken: string,
   overrides: Partial<{
     name: string;
-    endpoint: string;
+    strategy: Record<string, any>;
     description: string;
   }> = {},
 ): Promise<TestBot> {
   const uniqueId = uuidv4().slice(0, 8);
 
   const response = await request(app.getHttpServer())
-    .post("/api/v1/bots")
+    .post("/api/v1/bots/internal")
     .set("Authorization", `Bearer ${accessToken}`)
     .send({
       name: overrides.name || `TestBot_${uniqueId}`,
-      endpoint: overrides.endpoint || `http://localhost:9999/bot-${uniqueId}`,
       description: overrides.description || "Test bot for E2E testing",
+      strategy: overrides.strategy || {
+        version: 1,
+        tier: "quick",
+        personality: {
+          aggression: 50,
+          bluffFrequency: 30,
+          riskTolerance: 50,
+          tightness: 50,
+        },
+      },
     })
     .expect(201);
 
   return {
     id: response.body.id,
     name: response.body.name,
-    endpoint: response.body.endpoint,
+    strategy: response.body.strategy,
     userId: response.body.user_id,
   };
 }
@@ -211,4 +216,27 @@ export function authHeader(accessToken: string): Record<string, string> {
 
 export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Polls a condition function until it returns true or timeout is reached.
+ * Preferred over fixed sleep() calls in E2E tests.
+ */
+export async function waitForCondition(
+  conditionFn: () => Promise<boolean> | boolean,
+  opts: { timeoutMs?: number; intervalMs?: number; label?: string } = {},
+): Promise<void> {
+  const { timeoutMs = 10000, intervalMs = 200, label = "condition" } = opts;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      if (await conditionFn()) return;
+    } catch {
+      // Condition threw — retry
+    }
+    await sleep(intervalMs);
+  }
+
+  throw new Error(`waitForCondition timed out after ${timeoutMs}ms: ${label}`);
 }

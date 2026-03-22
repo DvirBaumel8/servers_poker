@@ -1,4 +1,10 @@
-import { useEffect, useState, useCallback, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  type ChangeEvent,
+} from "react";
 import { motion } from "framer-motion";
 import { TournamentCard } from "../components/tournament/TournamentCard";
 import { useTournamentStore } from "../stores/tournamentStore";
@@ -14,14 +20,17 @@ import {
   Button,
   ConfirmDialog,
   EmptyState,
-  LoadingBlock,
   MetricCard,
   PageHeader,
   PageShell,
   SegmentedTabs,
+  SkeletonCard,
+  SkeletonMetricCards,
+  SkeletonPageHeader,
   SurfaceCard,
   TextField,
 } from "../components/ui/primitives";
+import { toast } from "../stores/toastStore";
 
 const STATUSES = [
   { value: "active", label: "Active" },
@@ -78,6 +87,8 @@ export function Tournaments() {
   } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
+  const hasAnimated = useRef(false);
+
   const loadBots = useCallback(async () => {
     if (token) {
       try {
@@ -94,7 +105,9 @@ export function Tournaments() {
   }, [loadBots]);
 
   useEffect(() => {
-    fetchTournaments(statusFilter);
+    fetchTournaments(statusFilter).then(() => {
+      hasAnimated.current = true;
+    });
 
     const pollInterval = setInterval(() => {
       fetchTournaments(statusFilter);
@@ -124,6 +137,7 @@ export function Tournaments() {
         token,
       );
       setShowCreateModal(false);
+      toast(`Tournament "${createForm.name}" created`);
       setCreateForm({
         name: "",
         buyIn: 100,
@@ -157,6 +171,7 @@ export function Tournaments() {
         token,
       );
       setShowRegisterModal(false);
+      toast("Bot registered for tournament");
       setRegisteringTournament(null);
       setSelectedBotId("");
       fetchTournaments(statusFilter || undefined);
@@ -232,7 +247,17 @@ export function Tournaments() {
   };
 
   if (loading) {
-    return <LoadingBlock label="Loading tournaments" className="page-shell" />;
+    return (
+      <PageShell className="space-y-8">
+        <SkeletonPageHeader />
+        <SkeletonMetricCards count={3} />
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+        </div>
+      </PageShell>
+    );
   }
 
   return (
@@ -326,9 +351,11 @@ export function Tournaments() {
           {tournaments.map((tournament, index) => (
             <motion.div
               key={tournament.id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={hasAnimated.current ? false : { opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.04 }}
+              transition={
+                hasAnimated.current ? { duration: 0 } : { delay: index * 0.04 }
+              }
             >
               <TournamentCard
                 tournament={tournament}
@@ -339,6 +366,7 @@ export function Tournaments() {
                     ? () => openRegisterModal(tournament)
                     : undefined
                 }
+                hasBots={myBots.length > 0}
                 onUnregister={
                   user && tournament.status === "registering"
                     ? (botId: string) =>
@@ -352,14 +380,14 @@ export function Tournaments() {
                     : undefined
                 }
                 onStart={
-                  user &&
+                  isAdmin &&
                   tournament.status === "registering" &&
                   tournament.registeredPlayers >= 2
                     ? () => handleStartTournament(tournament.id)
                     : undefined
                 }
                 onCancel={
-                  user && tournament.status === "registering"
+                  isAdmin && tournament.status === "registering"
                     ? () =>
                         setConfirmAction({
                           title: "Cancel tournament",
@@ -421,6 +449,7 @@ export function Tournaments() {
               label="Buy-in"
               type="number"
               min={0}
+              max={1000000}
               value={createForm.buyIn}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setCreateForm({
@@ -434,6 +463,7 @@ export function Tournaments() {
               label="Starting chips"
               type="number"
               min={100}
+              max={10000000}
               value={createForm.startingChips}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setCreateForm({
@@ -449,6 +479,7 @@ export function Tournaments() {
               label="Small blind"
               type="number"
               min={1}
+              max={100000}
               value={createForm.smallBlind}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setCreateForm({
@@ -462,6 +493,7 @@ export function Tournaments() {
               label="Big blind"
               type="number"
               min={1}
+              max={200000}
               value={createForm.bigBlind}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setCreateForm({
@@ -491,6 +523,7 @@ export function Tournaments() {
               label="Blind increase minutes"
               type="number"
               min={1}
+              max={120}
               value={createForm.blindIncreaseMinutes}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setCreateForm({

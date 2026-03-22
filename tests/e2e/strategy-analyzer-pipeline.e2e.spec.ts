@@ -129,23 +129,23 @@ describe("Strategy Analyzer Pipeline E2E", () => {
     const user = await createTestUser(dataSource, ctx.jwtService);
 
     await dataSource.query(
-      `INSERT INTO bots (id, user_id, name, bot_type, strategy, active, created_at, updated_at)
-       VALUES ($1, $2, $3, 'internal', $4, true, NOW(), NOW())`,
+      `INSERT INTO bots (id, user_id, name, strategy, active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
       [FOLDER_BOT_ID, user.id, "The Folder", JSON.stringify(folderStrategy)],
     );
     await dataSource.query(
-      `INSERT INTO bots (id, user_id, name, bot_type, strategy, active, created_at, updated_at)
-       VALUES ($1, $2, $3, 'internal', $4, true, NOW(), NOW())`,
+      `INSERT INTO bots (id, user_id, name, strategy, active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
       [MANIAC_BOT_ID, user.id, "The Maniac", JSON.stringify(maniacStrategy)],
     );
     await dataSource.query(
-      `INSERT INTO bots (id, user_id, name, bot_type, strategy, active, created_at, updated_at)
-       VALUES ($1, $2, $3, 'internal', $4, true, NOW(), NOW())`,
+      `INSERT INTO bots (id, user_id, name, strategy, active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
       [SOLID_BOT_1_ID, user.id, "Solid Bot 1", JSON.stringify(solidStrategy)],
     );
     await dataSource.query(
-      `INSERT INTO bots (id, user_id, name, bot_type, strategy, active, created_at, updated_at)
-       VALUES ($1, $2, $3, 'internal', $4, true, NOW(), NOW())`,
+      `INSERT INTO bots (id, user_id, name, strategy, active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
       [SOLID_BOT_2_ID, user.id, "Solid Bot 2", JSON.stringify(solidStrategy)],
     );
   }, 30_000);
@@ -230,6 +230,7 @@ describe("Strategy Analyzer Pipeline E2E", () => {
 
     // Flush the decision logger buffer (without stopping the timer)
     await decisionLogger.forceFlush();
+    await sleep(500);
 
     // ====================================================================
     // VERIFY: Decisions were logged
@@ -239,7 +240,15 @@ describe("Strategy Analyzer Pipeline E2E", () => {
       where: { game_id: gameDbId },
     });
 
-    expect(decisions.length).toBeGreaterThan(0);
+    if (decisions.length === 0) {
+      // Retry once — the flush may have raced with a previous test's teardown
+      await decisionLogger.forceFlush();
+      await sleep(1000);
+      const retryDecisions = await dataSource
+        .getRepository(StrategyDecision)
+        .find({ where: { game_id: gameDbId } });
+      expect(retryDecisions.length).toBeGreaterThan(0);
+    }
 
     const folderDecisions = decisions.filter((d) => d.bot_id === FOLDER_BOT_ID);
     const maniacDecisions = decisions.filter((d) => d.bot_id === MANIAC_BOT_ID);

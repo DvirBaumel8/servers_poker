@@ -16,6 +16,7 @@
 
 import { BaseMonster } from "../shared/base-monster";
 import { RunConfig, Severity } from "../shared/types";
+import { generateReport as generateIssueReport } from "../shared/issue-tracker";
 import {
   BROWSER_SCENARIOS,
   BrowserScenario,
@@ -82,9 +83,10 @@ export class BrowserMonster extends BaseMonster {
   constructor(browserConfig: Partial<BrowserMonsterConfig> = {}) {
     super({
       name: "Browser Explorer Monster",
-      type: "browser" as any,
+      type: "browser",
       timeout: 600000, // 10 minutes
       verbose: true,
+      needsBrowser: true,
     });
     this.browserConfig = { ...DEFAULT_CONFIG, ...browserConfig };
   }
@@ -772,6 +774,12 @@ Note: For full browser automation, run through Cursor agent.
             `  ${icon} [${finding.severity.toUpperCase()}] ${finding.title}`,
           );
         }
+      }
+
+      try {
+        generateIssueReport();
+      } catch {
+        // Best-effort
       }
 
       process.exit(result.passed ? 0 : 1);

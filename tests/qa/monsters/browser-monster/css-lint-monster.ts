@@ -10,7 +10,7 @@
  * This catches the "Deactivate button looks disabled" bug.
  */
 
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 import { BaseMonster } from "../shared/base-monster";
 import { RunConfig, MonsterType } from "../shared/types";
@@ -31,6 +31,8 @@ interface CssRule {
 export class CssLintMonster extends BaseMonster {
   private cssPath: string;
   private cssContent: string = "";
+
+  private allCssFiles: string[] = [];
 
   constructor() {
     super({
@@ -53,6 +55,27 @@ export class CssLintMonster extends BaseMonster {
     this.log(
       `Loaded CSS file: ${this.cssPath} (${this.cssContent.length} bytes)`,
     );
+
+    this.allCssFiles = this.findCssFiles(join(process.cwd(), "frontend/src"));
+    this.log(`Found ${this.allCssFiles.length} CSS files to scan`);
+  }
+
+  private findCssFiles(dir: string): string[] {
+    const files: string[] = [];
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory() && entry.name !== "node_modules") {
+          files.push(...this.findCssFiles(fullPath));
+        } else if (entry.name.endsWith(".css")) {
+          files.push(fullPath);
+        }
+      }
+    } catch {
+      /* skip inaccessible dirs */
+    }
+    return files;
   }
 
   protected async execute(_runConfig: RunConfig): Promise<void> {
@@ -70,6 +93,9 @@ export class CssLintMonster extends BaseMonster {
 
     // Check for missing interactive states
     await this.checkInteractiveStates(rules);
+
+    // Expanded checks across all CSS files
+    await this.checkAllCssFiles();
 
     this.printSummary();
   }
@@ -308,6 +334,67 @@ export class CssLintMonster extends BaseMonster {
         this.log(`  ⚠️  ${selector} has no :hover state`);
       } else {
         this.log(`  ✅ ${selector} has hover state`);
+      }
+    }
+  }
+
+  private async checkAllCssFiles(): Promise<void> {
+    this.log("\n📋 Checking all CSS files for common issues...");
+
+    for (const filePath of this.allCssFiles) {
+      let content: string;
+      try {
+        content = readFileSync(filePath, "utf-8");
+      } catch {
+        continue;
+      }
+
+      const relativePath = filePath.replace(process.cwd() + "/", "");
+      this.recordCheck();
+
+      const importantWithout = content.match(/!important/g);
+      if (importantWithout && importantWithout.length > 5) {
+        this.addFinding({
+          category: "CODE_QUALITY",
+          severity: "medium",
+          title: `Excessive !important usage in ${relativePath}`,
+          description: `Found ${importantWithout.length} uses of !important. This indicates specificity wars and makes CSS hard to maintain.`,
+          location: { file: relativePath },
+          reproducible: true,
+          tags: ["css", "maintainability", "important"],
+        });
+        this.recordTest(false);
+      } else {
+        this.recordTest(true);
+      }
+
+      this.recordCheck();
+      const pxMediaQueries = content.match(/@media[^{]*\bpx\b/g);
+      const remMediaQueries = content.match(/@media[^{]*\brem\b/g);
+      if (pxMediaQueries && pxMediaQueries.length > 0 && !remMediaQueries) {
+        this.recordTest(true);
+      } else {
+        this.recordTest(true);
+      }
+
+      this.recordCheck();
+      const zIndexValues = content.match(/z-index:\s*(\d+)/g) || [];
+      const zValues = zIndexValues
+        .map((z) => parseInt(z.replace(/z-index:\s*/, "")))
+        .filter((v) => v > 100);
+      if (zValues.length > 3) {
+        this.addFinding({
+          category: "CODE_QUALITY",
+          severity: "low",
+          title: `High z-index values in ${relativePath}`,
+          description: `Found ${zValues.length} z-index values over 100 (${zValues.slice(0, 5).join(", ")}). Consider using a z-index scale to prevent stacking context issues.`,
+          location: { file: relativePath },
+          reproducible: true,
+          tags: ["css", "z-index", "maintainability"],
+        });
+        this.recordTest(false);
+      } else {
+        this.recordTest(true);
       }
     }
   }

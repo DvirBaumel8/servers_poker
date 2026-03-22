@@ -52,17 +52,6 @@ groups:
           summary: "High memory usage"
           description: "Memory usage is above 80% of 512MB limit. Current: {{ $value | humanizePercentage }}"
 
-      # Bot errors
-      - alert: BotErrorSpike
-        expr: |
-          sum(rate(poker_bot_errors_total[5m])) > 0.1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Bot error spike detected"
-          description: "Bot error rate is elevated. Errors per second: {{ $value | printf \"%.2f\" }}"
-
       # No active games during expected hours (optional, adjust schedule)
       - alert: NoActiveGames
         expr: poker_active_games == 0

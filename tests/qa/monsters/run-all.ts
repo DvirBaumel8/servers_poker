@@ -2,25 +2,231 @@
 /**
  * 🦸 RUN ALL MONSTERS - Parallel Execution
  *
- * Runs ALL 21 monsters in the army simultaneously for maximum coverage.
+ * Runs ALL 25 monsters in the army simultaneously for maximum coverage.
+ * Automatically starts BE/FE servers if they aren't already running,
+ * and tears them down when finished (only the ones it started).
  *
  * Usage:
- *   npm run monsters:all          # Run ALL 21 monsters (default - full coverage)
- *   npm run monsters:all:fast     # Run only fast monsters (5) - quick validation
- *   npm run monsters:all -- --medium  # Run fast + medium (14) - faster iteration
+ *   npm run monsters:all                      # Full suite, auto-start servers
+ *   npm run monsters:all:fast                 # Fast monsters only
+ *   npm run monsters:all -- --medium          # Fast + medium
+ *   npm run monsters:all -- --static          # Static analysis only (no servers)
+ *   npm run monsters:all -- --no-auto-start   # Skip auto-start, fail if servers down
+ *   npm run monsters:all -- --no-browser      # Exclude browser-dependent monsters
  */
 
-import { spawn } from "child_process";
+import { spawn, ChildProcess } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { readJsonSafe } from "./shared/fs-utils";
 import {
   printSummary,
   generateReport,
   loadIssueDatabase,
+  compactDatabase,
 } from "./shared/issue-tracker";
+import {
+  parseResultFromOutput,
+  MonsterResultEnvelope,
+} from "./shared/cli-runner";
 
 // ============================================================================
-// MONSTER DEFINITIONS - ALL 21 MONSTERS
+// SERVER MANAGEMENT — auto-start BE/FE if not already running
+// ============================================================================
+
+interface ManagedServer {
+  name: string;
+  process: ChildProcess | null;
+  wasAlreadyRunning: boolean;
+  port: number;
+}
+
+const BE_PORT = parseInt(process.env.BE_PORT || "3000", 10);
+const FE_PORT = parseInt(process.env.FE_PORT || "3001", 10);
+const SERVER_STARTUP_TIMEOUT_MS = 60_000;
+const HEALTH_POLL_INTERVAL_MS = 1_000;
+
+async function isPortResponding(port: number, pathStr = "/"): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`http://localhost:${port}${pathStr}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return res.ok || res.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForServer(
+  port: number,
+  healthPath: string,
+  label: string,
+  timeoutMs: number = SERVER_STARTUP_TIMEOUT_MS,
+): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await isPortResponding(port, healthPath)) {
+      return true;
+    }
+    await new Promise((r) => setTimeout(r, HEALTH_POLL_INTERVAL_MS));
+  }
+  console.error(
+    `    ❌ ${label} did not become ready within ${timeoutMs / 1000}s`,
+  );
+  return false;
+}
+
+async function ensureBackend(): Promise<ManagedServer> {
+  const server: ManagedServer = {
+    name: "Backend",
+    process: null,
+    wasAlreadyRunning: false,
+    port: BE_PORT,
+  };
+
+  if (await isPortResponding(BE_PORT, "/health")) {
+    server.wasAlreadyRunning = true;
+    console.log(`  ✅ Backend already running on port ${BE_PORT}`);
+    return server;
+  }
+
+  console.log(`  🔄 Starting Backend on port ${BE_PORT}...`);
+
+  const beProc = spawn("node", ["dist/src/main.js"], {
+    cwd: process.cwd(),
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PORT: String(BE_PORT) },
+    detached: false,
+  });
+
+  server.process = beProc;
+
+  beProc.stdout?.on("data", () => {});
+  beProc.stderr?.on("data", () => {});
+
+  beProc.on("error", (err) => {
+    console.error(`    ❌ Backend process error: ${err.message}`);
+  });
+
+  beProc.on("exit", (code) => {
+    if (code !== null && code !== 0 && server.process) {
+      console.error(`    ❌ Backend exited with code ${code}`);
+    }
+  });
+
+  const ready = await waitForServer(BE_PORT, "/health", "Backend");
+  if (!ready) {
+    beProc.kill();
+    server.process = null;
+    throw new Error(
+      `Backend failed to start. Make sure you've run 'npx nest build' and PostgreSQL is running.`,
+    );
+  }
+
+  console.log(`  ✅ Backend started successfully`);
+  return server;
+}
+
+async function ensureFrontend(): Promise<ManagedServer> {
+  const server: ManagedServer = {
+    name: "Frontend",
+    process: null,
+    wasAlreadyRunning: false,
+    port: FE_PORT,
+  };
+
+  if (await isPortResponding(FE_PORT, "/")) {
+    server.wasAlreadyRunning = true;
+    console.log(`  ✅ Frontend already running on port ${FE_PORT}`);
+    return server;
+  }
+
+  console.log(`  🔄 Starting Frontend on port ${FE_PORT}...`);
+
+  const feProc = spawn(
+    "npx",
+    ["vite", "--host", "0.0.0.0", "--port", String(FE_PORT)],
+    {
+      cwd: path.join(process.cwd(), "frontend"),
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env },
+      detached: false,
+      shell: true,
+    },
+  );
+
+  server.process = feProc;
+
+  feProc.stdout?.on("data", () => {});
+  feProc.stderr?.on("data", () => {});
+
+  feProc.on("error", (err) => {
+    console.error(`    ❌ Frontend process error: ${err.message}`);
+  });
+
+  feProc.on("exit", (code) => {
+    if (code !== null && code !== 0 && server.process) {
+      console.error(`    ❌ Frontend exited with code ${code}`);
+    }
+  });
+
+  const ready = await waitForServer(FE_PORT, "/", "Frontend");
+  if (!ready) {
+    feProc.kill();
+    server.process = null;
+    throw new Error(
+      `Frontend failed to start. Make sure frontend dependencies are installed (cd frontend && npm install).`,
+    );
+  }
+
+  console.log(`  ✅ Frontend started successfully`);
+  return server;
+}
+
+function killManagedServer(server: ManagedServer): void {
+  if (server.process && !server.wasAlreadyRunning) {
+    console.log(`  🛑 Stopping ${server.name} (pid ${server.process.pid})...`);
+    try {
+      server.process.kill("SIGTERM");
+    } catch {
+      try {
+        server.process.kill("SIGKILL");
+      } catch {
+        // Already dead
+      }
+    }
+    server.process = null;
+  }
+}
+
+async function ensureServers(
+  needsServer: boolean,
+  needsBrowser: boolean,
+): Promise<ManagedServer[]> {
+  const servers: ManagedServer[] = [];
+
+  if (needsServer || needsBrowser) {
+    servers.push(await ensureBackend());
+  }
+
+  if (needsBrowser) {
+    servers.push(await ensureFrontend());
+  }
+
+  return servers;
+}
+
+function teardownServers(servers: ManagedServer[]): void {
+  for (const server of servers) {
+    killManagedServer(server);
+  }
+}
+
+// ============================================================================
+// MONSTER DEFINITIONS - ALL 25 MONSTERS
 // ============================================================================
 
 interface MonsterDef {
@@ -135,6 +341,38 @@ const ALL_MONSTERS: MonsterDef[] = [
     description: "Code analysis",
   },
   {
+    id: "data-integrity",
+    name: "Data Integrity Monster",
+    command:
+      "npx ts-node tests/qa/monsters/data-integrity-monster/data-integrity-monster.ts",
+    category: "medium",
+    description: "Data layer integrity validation",
+  },
+  {
+    id: "data-analytics",
+    name: "Data Analytics Monster",
+    command:
+      "npx ts-node tests/qa/monsters/data-analytics-monster/data-analytics-monster.ts",
+    category: "medium",
+    description: "Analytics pipeline verification per DATA.md",
+  },
+  {
+    id: "regression-check",
+    name: "Regression Monster",
+    command:
+      "npx ts-node tests/qa/monsters/regression-monster/regression-monster.ts",
+    category: "medium",
+    description: "Verifies historical bugs stay fixed",
+  },
+  {
+    id: "log-analyzer",
+    name: "Log Analyzer Monster",
+    command:
+      "npx ts-node tests/qa/monsters/log-analyzer-monster/log-analyzer-monster.ts",
+    category: "medium",
+    description: "Backend/frontend log health analysis",
+  },
+  {
     id: "design-critic",
     name: "Design Critic",
     command:
@@ -153,14 +391,14 @@ const ALL_MONSTERS: MonsterDef[] = [
     needsBrowser: true,
   },
   {
-    id: "live-ui",
-    name: "Live UI Monster",
-    command: "npx ts-node tests/qa/monsters/browser-monster/live-ui-monster.ts",
+    id: "explorer",
+    name: "Explorer Monster",
+    command:
+      "npx ts-node tests/qa/monsters/browser-monster/explorer-monster.ts",
     category: "medium",
-    description: "Live UI interaction testing",
+    description: "Autonomous UI exploration",
     needsBrowser: true,
   },
-
   // ═══════════════════════════════════════════════════════════════════════════
   // 🔴 SLOW (> 2 minutes) - Comprehensive validation
   // ═══════════════════════════════════════════════════════════════════════════
@@ -214,14 +452,8 @@ const ALL_MONSTERS: MonsterDef[] = [
     description: "Self-improving QA loop",
     needsBrowser: true,
   },
-  {
-    id: "browser",
-    name: "Browser Monster",
-    command: "npx ts-node tests/qa/monsters/browser-monster/browser-monster.ts",
-    category: "slow",
-    description: "Browser interaction testing",
-    needsBrowser: true,
-  },
+  // Browser Monster removed: MCP always unavailable, HTTP-only fallback
+  // can't detect JS errors or UI bugs. Use browser-qa or explorer instead.
 ];
 
 // ============================================================================
@@ -246,21 +478,16 @@ interface StatsDatabase {
   monsters: Record<string, MonsterStats>;
 }
 
-const STATS_PATH = path.join(process.cwd(), "docs/monster_stats.json");
+const STATS_PATH = path.join(process.cwd(), "docs/MONSTER_STATS.json");
 
 function loadStats(): StatsDatabase {
-  if (fs.existsSync(STATS_PATH)) {
-    try {
-      return JSON.parse(fs.readFileSync(STATS_PATH, "utf-8"));
-    } catch {
-      console.warn("Stats database corrupted, starting fresh");
+  return (
+    readJsonSafe<StatsDatabase>(STATS_PATH) ?? {
+      version: 1,
+      lastUpdated: new Date().toISOString(),
+      monsters: {},
     }
-  }
-  return {
-    version: 1,
-    lastUpdated: new Date().toISOString(),
-    monsters: {},
-  };
+  );
 }
 
 function saveStats(db: StatsDatabase): void {
@@ -368,7 +595,7 @@ These monsters have found 0 issues - they may need tuning:
   report += `\n*Last Updated: ${new Date().toLocaleString()}*\n`;
 
   // Save report
-  const reportPath = path.join(process.cwd(), "docs/monster_stats.md");
+  const reportPath = path.join(process.cwd(), "docs/MONSTER_STATS.md");
   fs.writeFileSync(reportPath, report);
 
   return report;
@@ -384,17 +611,9 @@ interface MonsterResult {
   duration: number;
   output: string;
   issuesFound: number;
+  checksPerformed: number;
+  envelope: MonsterResultEnvelope | null;
   error?: string;
-}
-
-function countIssuesInOutput(output: string): number {
-  // Try to extract issue count from output
-  const matches =
-    output.match(/Issues?:\s*(\d+)/i) ||
-    output.match(/Findings?:\s*(\d+)/i) ||
-    output.match(/Found\s+(\d+)\s+issues?/i) ||
-    output.match(/(\d+)\s+issues?\s+found/i);
-  return matches ? parseInt(matches[1], 10) : 0;
 }
 
 async function runMonster(monster: MonsterDef): Promise<MonsterResult> {
@@ -422,24 +641,23 @@ async function runMonster(monster: MonsterDef): Promise<MonsterResult> {
     proc.on("close", (code) => {
       const outputText = output.join("");
       const duration = Date.now() - startTime;
-      const issuesFound = countIssuesInOutput(outputText);
 
-      const isSuccessfulRun =
-        code === 0 ||
-        outputText.includes("PASSED") ||
-        outputText.includes("completed") ||
-        outputText.includes("✅") ||
-        (outputText.includes("Findings:") && !outputText.includes("crashed"));
+      const envelope = parseResultFromOutput(outputText);
 
-      // Update lifetime stats
-      updateMonsterStats(monster, isSuccessfulRun, duration, issuesFound);
+      const success = envelope ? envelope.passed : code === 0;
+      const issuesFound = envelope ? envelope.findings : 0;
+      const checksPerformed = envelope ? envelope.checks : 0;
+
+      updateMonsterStats(monster, success, duration, issuesFound);
 
       resolve({
         monster,
-        success: isSuccessfulRun,
+        success,
         duration,
         output: outputText,
         issuesFound,
+        checksPerformed,
+        envelope,
       });
     });
 
@@ -453,17 +671,18 @@ async function runMonster(monster: MonsterDef): Promise<MonsterResult> {
         duration,
         output: output.join(""),
         issuesFound: 0,
+        checksPerformed: 0,
+        envelope: null,
         error: err.message,
       });
     });
 
-    // Different timeouts by category
     const timeoutMs =
       monster.category === "slow"
-        ? 3 * 60 * 1000 // 3 minutes for slow (optimized monsters)
+        ? 3 * 60 * 1000
         : monster.category === "medium"
-          ? 2 * 60 * 1000 // 2 minutes for medium
-          : 30 * 1000; // 30 seconds for fast
+          ? 2 * 60 * 1000
+          : 30 * 1000;
 
     setTimeout(() => {
       proc.kill();
@@ -476,6 +695,8 @@ async function runMonster(monster: MonsterDef): Promise<MonsterResult> {
         duration,
         output: output.join(""),
         issuesFound: 0,
+        checksPerformed: 0,
+        envelope: null,
         error: `Timeout (${timeoutMs / 60000} minutes)`,
       });
     }, timeoutMs);
@@ -501,13 +722,20 @@ async function runMonstersParallel(
 
 const CATEGORY_TO_MONSTERS: Record<string, string[]> = {
   BUG: ["quick-check", "browser-qa", "e2e"],
-  QUALITY: ["product-quality", "design-critic", "fast-quality"],
+  CODE_QUALITY: [
+    "code-quality",
+    "product-quality",
+    "design-critic",
+    "fast-quality",
+  ],
   A11Y: ["browser-qa", "guardian"],
   SECURITY: ["guardian", "api"],
-  CODE_QUALITY: ["code-quality"],
-  INVARIANT: ["invariant"],
-  PERFORMANCE: ["browser-qa"],
-  API: ["api", "contract"],
+  BROWSER: ["browser-qa", "quick-check", "fast-browser"],
+  VISUAL: ["visual", "design-critic"],
+  UX: ["design-critic", "product-quality"],
+  REGRESSION: ["regression-check"],
+  CONCERN: ["code-quality", "data-integrity", "log-analyzer"],
+  OBSERVATION: ["data-analytics", "log-analyzer"],
 };
 
 interface EvolutionSuggestion {
@@ -615,7 +843,7 @@ function saveEvolutionReport(
   coverage: Record<string, string[]>,
   silentMonsters: string[],
 ): void {
-  const reportPath = path.join(process.cwd(), "docs/monster_evolution.md");
+  const reportPath = path.join(process.cwd(), "docs/MONSTER_EVOLUTION.md");
 
   const report = `# 🧬 Monster Evolution Report
 
@@ -658,6 +886,26 @@ ${
     : silentMonsters.map((m) => `- ${m}`).join("\n")
 }
 
+## Dead-Weight Analysis
+
+${(() => {
+  const statsDb = loadStats();
+  const allMonsters = Object.values(statsDb.monsters);
+  const deadWeightMonsters = allMonsters.filter(
+    (m) => m.totalRuns >= 5 && m.totalIssuesFound === 0,
+  );
+  if (deadWeightMonsters.length === 0) return "*All monsters are productive!*";
+  return deadWeightMonsters
+    .map((m) => {
+      const rate =
+        m.totalRuns > 0
+          ? Math.round((m.successfulRuns / m.totalRuns) * 100)
+          : 0;
+      return `- **${m.name}** — ${m.totalRuns} runs, ${rate}% success, 0 issues found`;
+    })
+    .join("\n");
+})()}
+
 ## Recommended Actions
 
 1. **Review silent monsters** - Are they checking the right things?
@@ -671,6 +919,55 @@ ${
   fs.writeFileSync(reportPath, report);
 }
 
+function analyzeDeadWeight(): void {
+  const db = loadStats();
+  const activeIds = new Set(ALL_MONSTERS.map((m) => m.id));
+  const monsters = Object.values(db.monsters).filter((m) =>
+    activeIds.has(m.id),
+  );
+
+  if (monsters.length === 0) return;
+
+  const deadWeight: MonsterStats[] = [];
+
+  for (const m of monsters) {
+    if (m.totalRuns >= 5 && m.totalIssuesFound === 0) {
+      deadWeight.push(m);
+    }
+  }
+
+  if (deadWeight.length === 0) return;
+
+  console.log("\n" + "─".repeat(56));
+  console.log("  ⚖️  DEAD-WEIGHT ANALYSIS");
+  console.log("─".repeat(56));
+  console.log(
+    `\n  ${deadWeight.length} monster(s) have found 0 issues across ${deadWeight.reduce((s, m) => s + m.totalRuns, 0)} total runs:\n`,
+  );
+
+  for (const m of deadWeight) {
+    const successRate =
+      m.totalRuns > 0 ? Math.round((m.successfulRuns / m.totalRuns) * 100) : 0;
+
+    let recommendation: string;
+    if (m.failedRuns > m.successfulRuns) {
+      recommendation = "BROKEN — crashes more than it succeeds. Fix or remove.";
+    } else if (m.totalRuns >= 10) {
+      recommendation =
+        "INEFFECTIVE — 10+ runs, 0 findings. Needs stronger checks or removal.";
+    } else {
+      recommendation = "WATCH — may need tuning to detect real issues.";
+    }
+
+    console.log(`    ${m.name}`);
+    console.log(
+      `      Runs: ${m.totalRuns} | Success: ${successRate}% | Avg: ${(m.avgDuration / 1000).toFixed(1)}s`,
+    );
+    console.log(`      → ${recommendation}`);
+  }
+  console.log("");
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -678,6 +975,7 @@ ${
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const startTime = Date.now();
+  let managedServers: ManagedServer[] = [];
 
   console.log("\n" + "═".repeat(60));
   console.log("  🦸 MONSTER ARMY - FULL DEPLOYMENT");
@@ -687,6 +985,7 @@ async function main(): Promise<void> {
   let monstersToRun: MonsterDef[];
   const noBrowser = args.includes("--no-browser");
   const staticOnly = args.includes("--static");
+  const noAutoStart = args.includes("--no-auto-start");
 
   if (args.includes("--fast")) {
     monstersToRun = ALL_MONSTERS.filter((m) => m.category === "fast");
@@ -698,10 +997,10 @@ async function main(): Promise<void> {
     console.log("\n  Mode: 🔶 FAST + MEDIUM");
   } else if (args.includes("--full")) {
     monstersToRun = ALL_MONSTERS;
-    console.log("\n  Mode: 🔴 FULL SUITE (all 21 monsters)");
+    console.log("\n  Mode: 🔴 FULL SUITE (all 25 monsters)");
   } else {
     monstersToRun = ALL_MONSTERS;
-    console.log("\n  Mode: 🔴 FULL SUITE (all 21 monsters)");
+    console.log("\n  Mode: 🔴 FULL SUITE (all 25 monsters)");
   }
 
   if (staticOnly) {
@@ -721,8 +1020,36 @@ async function main(): Promise<void> {
     `  Categories: ${[...new Set(monstersToRun.map((m) => m.category))].join(", ")}`,
   );
 
+  // Auto-start BE/FE if needed (unless --static or --no-auto-start)
+  if (!staticOnly && !noAutoStart) {
+    const needsServer = monstersToRun.some((m) => m.needsServer);
+    const needsBrowser = monstersToRun.some((m) => m.needsBrowser);
+
+    if (needsServer || needsBrowser) {
+      console.log("\n  " + "─".repeat(56));
+      console.log("  🖥️  SERVER MANAGEMENT");
+      console.log("  " + "─".repeat(56));
+
+      try {
+        managedServers = await ensureServers(needsServer, needsBrowser);
+        activeServers = managedServers;
+      } catch (err: any) {
+        console.error(`\n  ❌ Server startup failed: ${err.message}`);
+        console.error(
+          "  Use --static to skip server-dependent monsters, or --no-auto-start to disable auto-start.",
+        );
+        process.exit(1);
+      }
+    }
+  }
+
   // Run all in parallel
-  const results = await runMonstersParallel(monstersToRun);
+  let results: MonsterResult[];
+  try {
+    results = await runMonstersParallel(monstersToRun);
+  } finally {
+    teardownServers(managedServers);
+  }
 
   // Calculate stats
   const totalDuration = Date.now() - startTime;
@@ -747,9 +1074,12 @@ async function main(): Promise<void> {
     const icon = result.success ? "✅" : "❌";
     const time = (result.duration / 1000).toFixed(1).padStart(6);
     const name = result.monster.name.padEnd(20);
+    const checksInfo =
+      result.checksPerformed > 0 ? ` [${result.checksPerformed} checks]` : "";
     const issues =
       result.issuesFound > 0 ? ` (${result.issuesFound} issues)` : "";
-    console.log(`  ${icon} ${name} ${time}s${issues}`);
+    const source = result.envelope ? "" : " [no envelope]";
+    console.log(`  ${icon} ${name} ${time}s${checksInfo}${issues}${source}`);
   }
 
   // Show failed monsters
@@ -768,6 +1098,15 @@ async function main(): Promise<void> {
     }
   }
 
+  // Compact old issues before reporting
+  const compactResult = compactDatabase();
+  if (compactResult.expired > 0 || compactResult.autoResolved > 0) {
+    console.log(
+      `\n  🧹 Compacted: ${compactResult.expired} expired, ${compactResult.autoResolved} auto-resolved ` +
+        `(${compactResult.beforeSize} → ${compactResult.afterSize} issues)`,
+    );
+  }
+
   // Show issue tracker summary
   console.log("\n");
   printSummary();
@@ -777,12 +1116,14 @@ async function main(): Promise<void> {
   generateStatsReport();
 
   console.log("  📄 Issues Report: docs/MONSTERS_ISSUES.md");
-  console.log("  📊 Stats Report: docs/monster_stats.md");
+  console.log("  📊 Stats Report: docs/MONSTER_STATS.md");
 
   // Evolution Analysis - analyze if monsters should have caught issues they didn't
   if (totalIssues > 0) {
     await analyzeEvolution();
   }
+
+  analyzeDeadWeight();
 
   console.log("\n" + "═".repeat(60) + "\n");
 
@@ -790,7 +1131,26 @@ async function main(): Promise<void> {
   process.exit(failed > 0 ? 1 : 0);
 }
 
+// Ensure servers are cleaned up on unexpected exits
+let activeServers: ManagedServer[] = [];
+
+function cleanupOnExit(): void {
+  teardownServers(activeServers);
+}
+
+process.on("SIGINT", () => {
+  console.log("\n  Received SIGINT, cleaning up...");
+  cleanupOnExit();
+  process.exit(130);
+});
+process.on("SIGTERM", () => {
+  console.log("\n  Received SIGTERM, cleaning up...");
+  cleanupOnExit();
+  process.exit(143);
+});
+
 main().catch((err) => {
+  cleanupOnExit();
   console.error("Monster Army deployment failed:", err);
   process.exit(1);
 });

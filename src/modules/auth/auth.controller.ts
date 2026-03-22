@@ -14,11 +14,11 @@ import {
   RegisterDto,
   AuthResponseDto,
   UserDto,
-  RegenerateApiKeyResponseDto,
   VerifyEmailDto,
   ResendVerificationDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  RefreshTokenDto,
   RegisterDeveloperDto,
   RegisterDeveloperResponseDto,
 } from "./dto/login.dto";
@@ -49,7 +49,7 @@ export class AuthController {
 
   /**
    * Developer registration - register user + create bot in one API call.
-   * Returns JWT token, API key, and bot details immediately.
+   * Returns JWT token and bot details immediately.
    * No email verification required.
    * Rate limited: 3 requests per IP per hour (stricter since it bypasses verification).
    */
@@ -64,12 +64,12 @@ export class AuthController {
 
   /**
    * Verify email with 6-digit code.
-   * Rate limited: 10 attempts per IP per 15 minutes.
+   * Rate limited: 5 attempts per IP per 15 minutes.
    */
   @Public()
   @Post("verify-email")
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 900000, limit: 10 } }) // 10 per 15 minutes
+  @Throttle({ default: { ttl: 900000, limit: 5 } }) // 5 per 15 minutes
   async verifyEmail(@Body() dto: VerifyEmailDto): Promise<AuthResponseDto> {
     return this.authService.verifyEmail(dto);
   }
@@ -104,12 +104,12 @@ export class AuthController {
 
   /**
    * Reset password with code.
-   * Rate limited: 5 attempts per IP per 15 minutes.
+   * Rate limited: 3 attempts per IP per 15 minutes.
    */
   @Public()
   @Post("reset-password")
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 900000, limit: 5 } }) // 5 per 15 minutes
+  @Throttle({ default: { ttl: 900000, limit: 3 } }) // 3 per 15 minutes
   async resetPassword(
     @Body() dto: ResetPasswordDto,
   ): Promise<{ message: string }> {
@@ -128,6 +128,29 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  /**
+   * Refresh access token using a refresh token.
+   * Rate limited: 10 requests per IP per 15 minutes.
+   */
+  @Public()
+  @Post("refresh")
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 900000, limit: 10 } })
+  async refresh(@Body() dto: RefreshTokenDto): Promise<AuthResponseDto> {
+    return this.authService.refreshAccessToken(dto.refreshToken);
+  }
+
+  /**
+   * Logout - revokes the refresh token.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post("logout")
+  @HttpCode(HttpStatus.OK)
+  async logout(@CurrentUser() user: User): Promise<{ message: string }> {
+    await this.authService.revokeRefreshToken(user.id);
+    return { message: "Logged out successfully" };
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get("me")
   async me(@CurrentUser() user: User): Promise<UserDto> {
@@ -138,15 +161,5 @@ export class AuthController {
       role: user.role,
       created_at: user.created_at,
     };
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Post("regenerate-api-key")
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 3600000, limit: 5 } }) // 5 per hour
-  async regenerateApiKey(
-    @CurrentUser() user: User,
-  ): Promise<RegenerateApiKeyResponseDto> {
-    return this.authService.regenerateApiKey(user.id);
   }
 }

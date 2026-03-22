@@ -42,7 +42,10 @@ export class BotAutoRegistrationService implements OnModuleInit {
           event.type,
           event.buyIn,
         ).catch((e) =>
-          this.logger.error(`Auto-registration error: ${e.message}`),
+          this.logger.error(
+            `Auto-registration error: ${e.message}`,
+            e instanceof Error ? e.stack : undefined,
+          ),
         );
       },
     );
@@ -52,7 +55,11 @@ export class BotAutoRegistrationService implements OnModuleInit {
       (event: { tournamentId: string; status: string }) => {
         if (event.status === "registering") {
           this.processRegistrationsForTournament(event.tournamentId).catch(
-            (e) => this.logger.error(`Auto-registration error: ${e.message}`),
+            (e) =>
+              this.logger.error(
+                `Auto-registration error: ${e.message}`,
+                e instanceof Error ? e.stack : undefined,
+              ),
           );
         }
       },
@@ -73,7 +80,10 @@ export class BotAutoRegistrationService implements OnModuleInit {
       await this.processAllActiveSubscriptions();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Scheduled registration error: ${message}`);
+      this.logger.error(
+        `Scheduled registration error: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     } finally {
       this.isProcessing = false;
     }
@@ -275,6 +285,7 @@ export class BotAutoRegistrationService implements OnModuleInit {
       await this.subscriptionRepository.incrementFailed(subscription.id);
       this.logger.error(
         `Auto-registration failed for bot ${subscription.bot_id}: ${message}`,
+        error instanceof Error ? error.stack : undefined,
       );
       return result;
     }

@@ -24,6 +24,8 @@ import {
   getAuthRequiredContracts,
   ContractDefinition,
 } from "./contracts";
+import * as fs from "fs";
+import * as path from "path";
 
 interface ContractTestResult {
   endpoint: string;
@@ -37,6 +39,7 @@ export class ContractMonster extends BaseMonster {
   private baseUrl: string;
   private authHelper = createAuthHelper();
   private results: ContractTestResult[] = [];
+  private workspaceRoot = process.cwd();
 
   constructor() {
     super({
@@ -88,6 +91,10 @@ export class ContractMonster extends BaseMonster {
     // Test that public endpoints actually work WITHOUT auth
     this.log("\nVerifying public endpoints don't require auth...");
     await this.testPublicEndpointsWithoutAuth();
+
+    // Static analysis: compare frontend API types vs backend DTOs
+    this.log("\nRunning static contract analysis...");
+    this.checkStaticContracts();
 
     // Summary
     this.printSummary();
@@ -298,6 +305,144 @@ export class ContractMonster extends BaseMonster {
       return { type: "object", fields: summary };
     }
     return { type: typeof data, value: data };
+  }
+
+  private checkStaticContracts(): void {
+    const frontendApiDir = path.join(this.workspaceRoot, "frontend/src/api");
+    if (!fs.existsSync(frontendApiDir)) {
+      this.log("No frontend/src/api directory found, skipping static check");
+      return;
+    }
+
+    const apiFiles = fs
+      .readdirSync(frontendApiDir)
+      .filter((f) => f.endsWith(".ts"));
+
+    for (const file of apiFiles) {
+      this.recordCheck();
+      const content = fs.readFileSync(path.join(frontendApiDir, file), "utf-8");
+
+      const fetchCalls = [
+        ...content.matchAll(
+          /(?:get|post|put|delete|patch)\s*(?:<[^>]+>)?\s*\(\s*[`"']([^`"']+)[`"']/gi,
+        ),
+      ];
+
+      for (const match of fetchCalls) {
+        this.recordCheck();
+        const endpoint = match[1];
+        const lineIndex = content.indexOf(match[0]);
+        const surroundingCode = content.slice(lineIndex, lineIndex + 500);
+
+        if (
+          surroundingCode.match(/\.map\s*\(/) &&
+          !surroundingCode.match(/\.data\s*\.\s*map/)
+        ) {
+          this.recordTest(true);
+        }
+      }
+    }
+
+    this.checkResponseTypeMismatches();
+  }
+
+  private checkResponseTypeMismatches(): void {
+    const backendDir = path.join(this.workspaceRoot, "src/modules");
+    if (!fs.existsSync(backendDir)) return;
+
+    const controllerFiles = this.findFiles(backendDir, /\.controller\.ts$/);
+    const paginatedEndpoints: string[] = [];
+
+    for (const file of controllerFiles) {
+      this.recordCheck();
+      const content = fs.readFileSync(file, "utf-8");
+
+      if (
+        content.includes("PaginatedResponse") ||
+        content.includes("paginate") ||
+        content.includes("{ data:") ||
+        (content.includes("offset") && content.includes("limit"))
+      ) {
+        const endpoints = [
+          ...content.matchAll(
+            /@(Get|Post|Put|Delete|Patch)\s*\(\s*['"]([^'"]*)['"]\s*\)/g,
+          ),
+        ];
+        for (const ep of endpoints) {
+          const epIndex = content.indexOf(ep[0]);
+          const methodBlock = content.slice(
+            epIndex,
+            Math.min(epIndex + 1000, content.length),
+          );
+          if (
+            methodBlock.includes("paginate") ||
+            methodBlock.includes("PaginatedResponse") ||
+            methodBlock.includes("offset") ||
+            methodBlock.includes("{ data")
+          ) {
+            paginatedEndpoints.push(ep[2]);
+          }
+        }
+      }
+    }
+
+    const frontendApiDir = path.join(this.workspaceRoot, "frontend/src/api");
+    if (!fs.existsSync(frontendApiDir)) return;
+
+    const apiFiles = fs
+      .readdirSync(frontendApiDir)
+      .filter((f) => f.endsWith(".ts"));
+
+    for (const file of apiFiles) {
+      const content = fs.readFileSync(path.join(frontendApiDir, file), "utf-8");
+
+      for (const endpoint of paginatedEndpoints) {
+        this.recordCheck();
+        if (content.includes(endpoint)) {
+          const epIndex = content.indexOf(endpoint);
+          const surroundingCode = content.slice(
+            Math.max(0, epIndex - 200),
+            epIndex + 500,
+          );
+
+          if (
+            surroundingCode.match(/\.map\s*\(/) &&
+            !surroundingCode.match(/\.data/)
+          ) {
+            this.addFinding({
+              category: "BUG",
+              severity: "high",
+              title: `Frontend calls .map() on paginated endpoint ${endpoint}`,
+              description: `The backend endpoint ${endpoint} returns a paginated response (with .data array), but the frontend appears to call .map() directly without accessing .data first. This will cause "X.map is not a function" at runtime.`,
+              location: { file: `frontend/src/api/${file}`, endpoint },
+              reproducible: true,
+              tags: ["contract", "pagination", "type-mismatch"],
+            });
+            this.recordTest(false);
+          } else {
+            this.recordTest(true);
+          }
+        }
+      }
+    }
+  }
+
+  private findFiles(dir: string, pattern: RegExp): string[] {
+    const results: string[] = [];
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory() && !entry.name.startsWith(".")) {
+          results.push(...this.findFiles(fullPath, pattern));
+        } else if (entry.isFile() && pattern.test(entry.name)) {
+          results.push(fullPath);
+        }
+      }
+    } catch {
+      /* skip inaccessible directories */
+    }
+    return results;
   }
 
   private printSummary(): void {

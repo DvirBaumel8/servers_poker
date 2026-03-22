@@ -1,14 +1,3 @@
-/**
- * Performance & Load E2E Tests
- * ============================
- * Tests for system performance under load:
- * - Multiple concurrent games
- * - Many players joining simultaneously
- * - Rapid action sequences
- * - Memory and connection limits
- * - Response time verification
- */
-
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
@@ -17,7 +6,6 @@ import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
 import request from "supertest";
-import * as http from "http";
 import { DataSource } from "typeorm";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
@@ -31,63 +19,9 @@ import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 let testCounter = 1;
 const uid = () => `${testCounter++}${Math.random().toString(36).slice(2, 6)}`;
 
-let portCounter = 43000;
-function getNextPort(): number {
-  return portCounter++;
-}
-
-interface BotServer {
-  server: http.Server;
-  port: number;
-  requestCount: number;
-  close: () => Promise<void>;
-}
-
-function createBotServer(
-  port: number,
-  responseDelayMs: number = 0,
-): Promise<BotServer> {
-  return new Promise((resolve, reject) => {
-    let requestCount = 0;
-
-    const server = http.createServer((req, res) => {
-      requestCount++;
-
-      const respond = () => {
-        if (req.method === "GET") {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "ok" }));
-          return;
-        }
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ type: "call" }));
-      };
-
-      if (responseDelayMs > 0) {
-        setTimeout(respond, responseDelayMs);
-      } else {
-        respond();
-      }
-    });
-
-    server.on("error", reject);
-    server.listen(port, () => {
-      resolve({
-        server,
-        port,
-        get requestCount() {
-          return requestCount;
-        },
-        close: () => new Promise<void>((res) => server.close(() => res())),
-      });
-    });
-  });
-}
-
 describe("Performance & Load E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
-  const botServers: BotServer[] = [];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -130,26 +64,15 @@ describe("Performance & Load E2E Tests", () => {
   });
 
   afterAll(async () => {
-    for (const bot of botServers) {
-      try {
-        await bot.close();
-      } catch {
-        // Ignore errors when closing bot servers during cleanup
-      }
-    }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
   });
 
-  async function registerPlayer(delay: number = 0): Promise<{
+  async function registerPlayer(): Promise<{
     accessToken: string;
     bot: { id: string };
-    botServer: BotServer;
   }> {
     const id = uid();
-    const port = getNextPort();
-    const botServer = await createBotServer(port, delay);
-    botServers.push(botServer);
 
     const response = await request(app.getHttpServer())
       .post("/api/v1/auth/register-developer")
@@ -158,11 +81,10 @@ describe("Performance & Load E2E Tests", () => {
         name: `PerfPlayer${id}`,
         password: "SecurePass123",
         botName: `PerfBot${id}`,
-        botEndpoint: `http://localhost:${port}`,
       })
       .expect(201);
 
-    return { ...response.body, botServer };
+    return response.body;
   }
 
   describe("Response Time", () => {
@@ -174,7 +96,7 @@ describe("Performance & Load E2E Tests", () => {
       const duration = Date.now() - start;
 
       expect([200, 404]).toContain(response.status);
-      expect(duration).toBeLessThan(500); // Allow some leeway
+      expect(duration).toBeLessThan(500);
     });
 
     it("should respond to table list within reasonable time", async () => {
@@ -216,11 +138,8 @@ describe("Performance & Load E2E Tests", () => {
     it("should handle 5 concurrent user registrations", async () => {
       const registrations = Array(5)
         .fill(null)
-        .map(async (_, i) => {
+        .map(async () => {
           const id = uid();
-          const port = getNextPort();
-          const botServer = await createBotServer(port);
-          botServers.push(botServer);
 
           const start = Date.now();
           const response = await request(app.getHttpServer())
@@ -230,7 +149,6 @@ describe("Performance & Load E2E Tests", () => {
               name: `ConcurrentPlayer${id}`,
               password: "SecurePass123",
               botName: `ConcBot${id}`,
-              botEndpoint: `http://localhost:${port}`,
             });
           const duration = Date.now() - start;
 
@@ -239,11 +157,9 @@ describe("Performance & Load E2E Tests", () => {
 
       const results = await Promise.all(registrations);
 
-      // All should succeed
       const successCount = results.filter((r) => r.status === 201).length;
       expect(successCount).toBe(5);
 
-      // Average response time should be reasonable
       const avgDuration =
         results.reduce((sum, r) => sum + r.duration, 0) / results.length;
       expect(avgDuration).toBeLessThan(2000);
@@ -256,7 +172,7 @@ describe("Performance & Load E2E Tests", () => {
 
       const tableCreations = Array(3)
         .fill(null)
-        .map(async (_, i) => {
+        .map(async () => {
           const start = Date.now();
           const response = await request(app.getHttpServer())
             .post("/api/v1/games/tables")
@@ -279,11 +195,11 @@ describe("Performance & Load E2E Tests", () => {
       const successCount = results.filter((r) => r.status === 201).length;
       expect(successCount).toBe(3);
 
-      // All tables should have unique IDs
       const ids = results.filter((r) => r.id).map((r) => r.id);
       expect(new Set(ids).size).toBe(ids.length);
     });
   });
+
   describe("Rapid Actions", () => {
     it("should handle rapid sequential API calls", async () => {
       const player = await registerPlayer();
@@ -298,52 +214,50 @@ describe("Performance & Load E2E Tests", () => {
         results.push(Date.now() - start);
       }
 
-      // Average should be reasonable
       const avg = results.reduce((a, b) => a + b, 0) / results.length;
       expect(avg).toBeLessThan(500);
 
-      // No request should take too long
       expect(Math.max(...results)).toBeLessThan(2000);
     });
   });
 
-  describe("Bot Response Handling", () => {
-    it("should handle slow bot responses gracefully", async () => {
-      // Create a slow bot (500ms delay)
-      const slowPlayer = await registerPlayer(500);
-      const normalPlayer = await registerPlayer(0);
+  describe("In-Process Bot Performance", () => {
+    it("should handle game with in-process strategy evaluation", async () => {
+      const player1 = await registerPlayer();
+      const player2 = await registerPlayer();
 
       const tableRes = await request(app.getHttpServer())
         .post("/api/v1/games/tables")
-        .set("Authorization", `Bearer ${slowPlayer.accessToken}`)
+        .set("Authorization", `Bearer ${player1.accessToken}`)
         .send({
-          name: `SlowBotTable${uid()}`,
+          name: `PerfBotTable${uid()}`,
           small_blind: 10,
           big_blind: 20,
           starting_chips: 1000,
           max_players: 2,
-          turn_timeout_ms: 10000, // Higher timeout for slow bot
+          turn_timeout_ms: 10000,
         })
         .expect(201);
 
       await request(app.getHttpServer())
         .post(`/api/v1/games/${tableRes.body.id}/join`)
-        .set("Authorization", `Bearer ${slowPlayer.accessToken}`)
-        .send({ bot_id: slowPlayer.bot.id })
+        .set("Authorization", `Bearer ${player1.accessToken}`)
+        .send({ bot_id: player1.bot.id })
         .expect(201);
 
       await request(app.getHttpServer())
         .post(`/api/v1/games/${tableRes.body.id}/join`)
-        .set("Authorization", `Bearer ${normalPlayer.accessToken}`)
-        .send({ bot_id: normalPlayer.bot.id })
+        .set("Authorization", `Bearer ${player2.accessToken}`)
+        .send({ bot_id: player2.bot.id })
         .expect(201);
 
-      // Wait for some game activity
       await new Promise((r) => setTimeout(r, 5000));
 
-      // Both bots should have received requests
-      expect(slowPlayer.botServer.requestCount).toBeGreaterThan(0);
-      expect(normalPlayer.botServer.requestCount).toBeGreaterThan(0);
+      const state = await request(app.getHttpServer())
+        .get(`/api/v1/games/${tableRes.body.id}/state`)
+        .set("Authorization", `Bearer ${player1.accessToken}`);
+
+      expect(state.body.handNumber).toBeGreaterThan(0);
     }, 30000);
   });
 });

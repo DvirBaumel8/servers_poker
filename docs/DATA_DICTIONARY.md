@@ -17,16 +17,25 @@ The poker platform uses PostgreSQL as its primary database with TypeORM as the O
 | id | VARCHAR(36) | PRIMARY KEY | UUID v4 identifier |
 | email | VARCHAR(100) | UNIQUE, NOT NULL | User's email address |
 | name | VARCHAR(100) | NOT NULL | Display name |
-| api_key_hash | VARCHAR(64) | NOT NULL | SHA-256 hash of API key |
+| password_hash | VARCHAR(60) | NOT NULL | Bcrypt hashed password |
 | role | VARCHAR(20) | DEFAULT 'user' | admin, user |
 | active | BOOLEAN | DEFAULT true | Account status |
+| email_verified | BOOLEAN | DEFAULT false | Email verification status |
+| verification_code | VARCHAR(6) | NULLABLE | Email verification code |
+| verification_code_expires_at | TIMESTAMP WITH TZ | NULLABLE | Verification code expiry |
+| password_reset_code | VARCHAR(6) | NULLABLE | Password reset code |
+| password_reset_expires_at | TIMESTAMP WITH TZ | NULLABLE | Password reset code expiry |
 | last_login_at | TIMESTAMP WITH TZ | NULLABLE | Last authentication |
+| failed_login_attempts | INTEGER | DEFAULT 0 | Consecutive failed login count |
+| locked_until | TIMESTAMP WITH TZ | NULLABLE | Account lockout expiry |
+| last_failed_login_at | TIMESTAMP WITH TZ | NULLABLE | Time of last failed login |
+| refresh_token_hash | VARCHAR(64) | NULLABLE | SHA-256 hash of active refresh token |
+| refresh_token_expires_at | TIMESTAMP WITH TZ | NULLABLE | Refresh token expiry (7 days) |
 | created_at | TIMESTAMP WITH TZ | NOT NULL | Record creation |
 | updated_at | TIMESTAMP WITH TZ | NOT NULL | Last update |
 
 **Indexes:**
 - `idx_users_email` - UNIQUE on email
-- `idx_users_api_key_hash` - on api_key_hash (for auth lookups)
 
 ---
 
@@ -38,21 +47,15 @@ The poker platform uses PostgreSQL as its primary database with TypeORM as the O
 |--------|------|-------------|-------------|
 | id | VARCHAR(36) | PRIMARY KEY | UUID v4 identifier |
 | name | VARCHAR(100) | UNIQUE, NOT NULL | Bot display name |
-| endpoint | VARCHAR(500) | NOT NULL | HTTP(S) endpoint URL |
+| strategy | JSONB | NOT NULL | Bot strategy document |
 | description | TEXT | NULLABLE | Bot description |
 | active | BOOLEAN | DEFAULT true | Bot availability |
 | user_id | VARCHAR(36) | FK users.id | Owner reference |
-| last_validation | JSONB | NULLABLE | Last health check details |
-| last_validation_score | INTEGER | NULLABLE | 0-100 score |
 | created_at | TIMESTAMP WITH TZ | NOT NULL | Record creation |
 | updated_at | TIMESTAMP WITH TZ | NOT NULL | Last update |
 
 **Relationships:**
 - `user_id` → `users.id` (CASCADE DELETE)
-
-**Constraints:**
-- Endpoint must be valid public HTTP(S) URL
-- Internal/private IPs are blocked
 
 ---
 
@@ -64,7 +67,7 @@ The poker platform uses PostgreSQL as its primary database with TypeORM as the O
 |--------|------|-------------|-------------|
 | id | VARCHAR(36) | PRIMARY KEY | UUID v4 identifier |
 | name | VARCHAR(100) | NOT NULL | Tournament name |
-| type | VARCHAR(20) | NOT NULL | rolling, scheduled |
+| type | VARCHAR(20) | NOT NULL, CHECK IN (rolling, scheduled) | rolling, scheduled |
 | status | VARCHAR(20) | DEFAULT 'registering' | Current state |
 | buy_in | BIGINT | >= 0 | Entry cost |
 | starting_chips | BIGINT | > 0 | Initial stack |
@@ -144,7 +147,7 @@ The poker platform uses PostgreSQL as its primary database with TypeORM as the O
 | hand_id | VARCHAR(36) | FK hands.id | Hand reference |
 | bot_id | VARCHAR(36) | FK bots.id | Acting bot |
 | action_seq | INTEGER | >= 0 | Action sequence number |
-| action_type | VARCHAR(20) | NOT NULL | Action type |
+| action_type | VARCHAR(20) | NOT NULL, CHECK IN (see Enum Constraints) | Action type |
 | stage | VARCHAR(20) | NOT NULL | Stage when action occurred |
 | amount | BIGINT | >= 0, DEFAULT 0 | Chips involved |
 | pot_after | BIGINT | NULLABLE | Pot after action |
@@ -177,7 +180,7 @@ The poker platform uses PostgreSQL as its primary database with TypeORM as the O
 | game_id | VARCHAR(36) | NULLABLE | Game context |
 | hand_id | VARCHAR(36) | NULLABLE | Hand context |
 | tournament_id | VARCHAR(36) | NULLABLE | Tournament context |
-| movement_type | VARCHAR(30) | NOT NULL | Type of movement |
+| movement_type | VARCHAR(30) | NOT NULL, CHECK IN (see Enum Constraints) | Type of movement |
 | amount | BIGINT | NOT NULL | Absolute chip amount |
 | balance_before | BIGINT | NOT NULL | Balance before |
 | balance_after | BIGINT | >= 0 | Balance after |
@@ -256,7 +259,7 @@ The poker platform uses PostgreSQL as its primary database with TypeORM as the O
 ## Indexes Strategy
 
 ### High-Frequency Lookups
-- User authentication: `users(api_key_hash)`
+- User authentication: `users(email)`
 - Active bots: `bots(user_id, active)`
 - Tournament status: `tournaments(status)`
 
@@ -314,8 +317,8 @@ Tournament state can be reconstructed from:
 │ id (PK)     │──┬───>│ id (PK)     │
 │ email       │  │    │ user_id(FK) │
 │ name        │  │    │ name        │
-│ api_key_hash│  │    │ endpoint    │
-│ role        │  │    │ active      │
+│ role        │  │    │ strategy    │
+│             │  │    │ active      │
 └─────────────┘  │    └──────┬──────┘
                  │           │
                  │    ┌──────┴──────┐
@@ -347,3 +350,31 @@ Tournament state can be reconstructed from:
                              │ amount      │
                              └─────────────┘
 ```
+
+---
+
+## Database CHECK Constraints
+
+**Migration:** All tables, constraints, and indexes are defined in a single merged migration `1742600000000-FullSchema.ts` (replaces the previous 15 individual migration files). Enum checks are mirrored on entities via TypeORM `@Check`.
+
+### Enum Constraints
+
+| Table | Column | Allowed Values |
+|-------|--------|---------------|
+| tournaments | type | rolling, scheduled |
+| actions | action_type | fold, check, call, bet, raise, all_in, small_blind, big_blind, ante |
+| chip_movements | movement_type | ante, blind, bet, call, raise, all_in, win, refund, tournament_buyin, tournament_payout, rebuy |
+
+### Non-Negative Constraints
+
+| Table | Column | Constraint |
+|-------|--------|-----------|
+| chip_movements | balance_before | >= 0 |
+| game_state_snapshots | pot | >= 0 |
+| game_state_snapshots | current_bet | >= 0 |
+| game_state_snapshots | small_blind | >= 0 |
+| game_state_snapshots | big_blind | >= 0 |
+| game_state_snapshots | starting_chips | >= 0 |
+| hands | small_blind | >= 0 |
+| hands | big_blind | >= 0 |
+| tables | big_blind | >= 0 |

@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { Finding, Severity, MonsterType } from "../shared/types";
-import { getMemoryStore } from "../memory/memory-store";
+import { getOpenIssuesAsFindings } from "../shared/issue-tracker";
 
 // ============================================================================
 // TYPES
@@ -465,11 +465,10 @@ export function printTriageReport(report: TriageReport): void {
 
 // Entry point
 if (require.main === module) {
-  const memory = getMemoryStore();
-  const openFindings = memory.getOpenFindings();
+  const openFindings = getOpenIssuesAsFindings();
 
   const triage = new TriageEngine();
-  const triaged = triage.autoTriage(openFindings);
+  const triaged = triage.autoTriage(openFindings as any);
   const report = triage.generateReport();
 
   printTriageReport(report);

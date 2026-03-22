@@ -25,6 +25,17 @@ function createConfig(overrides: Partial<GameConfig> = {}): GameConfig {
   };
 }
 
+const defaultStrategy = {
+  version: 1,
+  tier: "quick",
+  personality: {
+    aggression: 50,
+    bluffFrequency: 30,
+    riskTolerance: 50,
+    tightness: 50,
+  },
+};
+
 function addPlayers(game: PokerGameService, count: number): string[] {
   const ids: string[] = [];
   for (let i = 1; i <= count; i++) {
@@ -32,7 +43,7 @@ function addPlayers(game: PokerGameService, count: number): string[] {
     game.addPlayer({
       id,
       name: `Player${i}`,
-      endpoint: `http://localhost:400${i}/action`,
+      strategy: defaultStrategy,
       chips: 1000,
       currentBet: 0,
     });
@@ -85,7 +96,7 @@ describe("PokerGameService", () => {
       game.addPlayer({
         id: "p1",
         name: "Player1",
-        endpoint: "http://localhost:4001",
+        strategy: defaultStrategy,
         chips: 1000,
         currentBet: 0,
       });
@@ -93,7 +104,7 @@ describe("PokerGameService", () => {
         game.addPlayer({
           id: "p1",
           name: "Player1",
-          endpoint: "http://localhost:4001",
+          strategy: defaultStrategy,
           chips: 1000,
           currentBet: 0,
         }),
@@ -104,7 +115,7 @@ describe("PokerGameService", () => {
       game.addPlayer({
         id: "p1",
         name: "Player1",
-        endpoint: "http://localhost:4001",
+        strategy: defaultStrategy,
         chips: 1000,
         currentBet: 0,
       });
@@ -113,7 +124,7 @@ describe("PokerGameService", () => {
       game.addPlayer({
         id: "p1",
         name: "Player1",
-        endpoint: "http://localhost:4001",
+        strategy: defaultStrategy,
         chips: 1000,
         currentBet: 0,
       });

@@ -3,7 +3,7 @@
  *
  * Integrates the existing chaos agents into the Monster Army.
  * Tests system resilience by injecting failures:
- * - Bot failures (crash, timeout, garbage responses)
+ * - Strategy evaluation failures (errors, slow evaluation, invalid responses)
  * - Network issues (latency, disconnects)
  * - State corruption scenarios
  *
@@ -25,7 +25,7 @@ interface ChaosScenario {
   name: string;
   description: string;
   severity: "light" | "medium" | "heavy";
-  type: "bot" | "network" | "state";
+  type: "strategy" | "network" | "state";
   execute: (monster: ChaosMonster) => Promise<ChaosResult>;
 }
 
@@ -50,7 +50,7 @@ export class ChaosMonster extends BaseMonster {
   private scenarios: ChaosScenario[] = [];
 
   constructor(config?: Partial<ChaosConfig>) {
-    super({ name: "Chaos Monster", type: "chaos" });
+    super({ name: "Chaos Monster", type: "chaos", needsServer: true });
     const env = getEnv();
     this.chaosConfig = {
       baseUrl: env.apiBaseUrl,
@@ -65,34 +65,34 @@ export class ChaosMonster extends BaseMonster {
 
   private initializeScenarios(): void {
     this.scenarios = [
-      // Bot Chaos Scenarios
+      // Strategy Evaluation Chaos Scenarios
       {
-        name: "single_bot_crash",
-        description: "Single bot crashes mid-game",
+        name: "single_strategy_error",
+        description: "Single bot strategy throws an error during evaluation",
         severity: "light",
-        type: "bot",
-        execute: async () => this.runBotCrashScenario(1),
+        type: "strategy",
+        execute: async () => this.runStrategyErrorScenario(1),
       },
       {
-        name: "multi_bot_crash",
-        description: "Multiple bots crash simultaneously",
+        name: "multi_strategy_error",
+        description: "Multiple bot strategies throw errors simultaneously",
         severity: "medium",
-        type: "bot",
-        execute: async () => this.runBotCrashScenario(3),
+        type: "strategy",
+        execute: async () => this.runStrategyErrorScenario(3),
       },
       {
-        name: "bot_timeout",
-        description: "Bot starts timing out on actions",
+        name: "strategy_evaluation_slow",
+        description: "Strategy evaluation takes longer than expected",
         severity: "light",
-        type: "bot",
-        execute: async () => this.runBotTimeoutScenario(),
+        type: "strategy",
+        execute: async () => this.runSlowStrategyScenario(),
       },
       {
-        name: "bot_garbage",
-        description: "Bot returns invalid/garbage responses",
+        name: "strategy_invalid_response",
+        description: "Strategy returns invalid/malformed action data",
         severity: "medium",
-        type: "bot",
-        execute: async () => this.runBotGarbageScenario(),
+        type: "strategy",
+        execute: async () => this.runInvalidStrategyResponseScenario(),
       },
 
       // Network Chaos Scenarios
@@ -250,19 +250,20 @@ export class ChaosMonster extends BaseMonster {
   // CHAOS SCENARIO IMPLEMENTATIONS
   // ============================================================================
 
-  private async runBotCrashScenario(botCount: number): Promise<ChaosResult> {
-    // Simulate bot crash by checking system response to bot failures
-    // In a real implementation, this would use the ControllableBot class
+  private async runStrategyErrorScenario(
+    botCount: number,
+  ): Promise<ChaosResult> {
+    // Verify the system handles strategy evaluation errors gracefully.
+    // When a bot's in-process strategy throws, the game should apply the
+    // default action (fold/check) and continue without crashing.
 
     try {
-      // Check if there are active games
       const gamesResponse = await this.fetch(
         `${this.chaosConfig.baseUrl}/games`,
       );
       const games = gamesResponse.ok ? gamesResponse.data : [];
 
       if (!games.length) {
-        // No active games, simulate the behavior
         return {
           success: true,
           recoveryTime: 0,
@@ -270,8 +271,7 @@ export class ChaosMonster extends BaseMonster {
         };
       }
 
-      // Verify system handles bot timeouts gracefully
-      // The game should continue with remaining players
+      // Verify game state is still queryable after potential strategy errors
       const gameId = games[0].id;
       const stateResponse = await this.fetch(
         `${this.chaosConfig.baseUrl}/games/${gameId}/state`,
@@ -281,6 +281,10 @@ export class ChaosMonster extends BaseMonster {
         success: stateResponse.ok || stateResponse.status === 404,
         recoveryTime: 100,
         dataLoss: false,
+        unexpectedBehavior:
+          stateResponse.status >= 500
+            ? `Game state unavailable after strategy error (count: ${botCount})`
+            : undefined,
       };
     } catch (error: any) {
       return {
@@ -291,26 +295,37 @@ export class ChaosMonster extends BaseMonster {
     }
   }
 
-  private async runBotTimeoutScenario(): Promise<ChaosResult> {
-    // Test that the system handles bot timeouts without breaking
+  private async runSlowStrategyScenario(): Promise<ChaosResult> {
+    // Test that the system remains responsive even when strategy evaluation
+    // is slow. Since strategies run in-process synchronously, a slow strategy
+    // blocks the event loop — the system should enforce evaluation time limits.
 
     try {
-      // Fetch tournaments and verify they're still responsive
-      const response = await this.fetch(
-        `${this.chaosConfig.baseUrl}/tournaments`,
-      );
-      if (!response.ok) {
+      const startTime = Date.now();
+
+      // Verify the API remains responsive under load (simulates the effect
+      // of event-loop blocking from slow strategy evaluation)
+      const responses = await Promise.all([
+        this.fetch(`${this.chaosConfig.baseUrl}/tournaments`),
+        this.fetch(`${this.chaosConfig.baseUrl}/games`),
+        this.fetch(`${this.chaosConfig.baseUrl}/games/health`),
+      ]);
+
+      const elapsed = Date.now() - startTime;
+      const allResponsive = responses.every((r) => r.ok || r.status === 404);
+
+      if (elapsed > 5000) {
         return {
           success: false,
+          recoveryTime: elapsed,
           dataLoss: false,
-          error: `Tournament endpoint unavailable: ${response.status}`,
+          unexpectedBehavior: `API response time ${elapsed}ms suggests event loop blocking`,
         };
       }
 
-      // The system should enforce turn timeouts and continue the game
       return {
-        success: true,
-        recoveryTime: 50,
+        success: allResponsive,
+        recoveryTime: elapsed,
         dataLoss: false,
       };
     } catch (error: any) {
@@ -322,11 +337,12 @@ export class ChaosMonster extends BaseMonster {
     }
   }
 
-  private async runBotGarbageScenario(): Promise<ChaosResult> {
-    // Test that invalid bot responses are handled gracefully
+  private async runInvalidStrategyResponseScenario(): Promise<ChaosResult> {
+    // Test that invalid/malformed strategy outputs are rejected gracefully.
+    // The system should validate strategy return values and fall back to
+    // a default action rather than corrupting game state.
 
     try {
-      // Send an invalid action to verify the system rejects it properly
       const response = await this.fetch(
         `${this.chaosConfig.baseUrl}/games/invalid-game-id/action`,
         {
@@ -339,7 +355,7 @@ export class ChaosMonster extends BaseMonster {
         },
       );
 
-      // Should return 4xx, not 5xx
+      // Should return 4xx (validation error), not 5xx (server crash)
       const isHandledGracefully =
         response.status >= 400 && response.status < 500;
 
@@ -349,7 +365,7 @@ export class ChaosMonster extends BaseMonster {
         dataLoss: false,
         unexpectedBehavior:
           response.status >= 500
-            ? `Server error: ${response.status}`
+            ? `Server error on invalid strategy data: ${response.status}`
             : undefined,
       };
     } catch (error: any) {

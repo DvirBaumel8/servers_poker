@@ -1,4 +1,3 @@
-export * from "./api-key.guard";
 export * from "./custom-throttler.guard";
 export * from "./ip-block.guard";
 export * from "./jwt-auth.guard";

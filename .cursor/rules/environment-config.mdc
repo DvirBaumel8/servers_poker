@@ -33,7 +33,6 @@ export const appConfig = (): AppConfig => ({
 | Database | DB_HOST, DB_PORT, DB_NAME | TypeORM config in `app.module.ts` |
 | Redis | REDIS_HOST, REDIS_PORT | `appConfig.redis.*` |
 | Rate Limiting | RATE_LIMIT_MAX | `appConfig.rateLimitMax` |
-| Bot Config | BOT_TIMEOUT_MS | `appConfig.botTimeoutMs` |
 
 ## Secrets vs Regular Config
 
@@ -59,7 +58,7 @@ export class MyService {
   constructor(private readonly config: ConfigService<AppConfig>) {}
 
   async doSomething(): Promise<void> {
-    const timeout = this.config.get("botTimeoutMs");
+    const timeout = this.config.get("turnTimeoutMs");
   }
 }
 ```

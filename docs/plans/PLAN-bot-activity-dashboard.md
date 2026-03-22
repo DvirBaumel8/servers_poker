@@ -75,7 +75,7 @@ At the top of the "My Bots" page, add an **"Active Now"** section:
 
 Create a new dedicated bot detail page (the API `GET /api/v1/bots/:id/profile` already exists but has no frontend page):
 
-- **Header**: bot name, endpoint, status, created date
+- **Header**: bot name, strategy tier, status, created date
 - **Live Status**: if currently in a game, show a prominent banner with "Watch Live" link
 - **Stats**: hands played, win rate, tournaments played, net profit (from `BotStats`)
 - **Recent Games**: list of recent tournament results and cash game sessions
@@ -162,7 +162,7 @@ Each bot card in "My Bots" gets a new "Auto-Register" toggle/section:
 ```
 ┌──────────────────────────────────────┐
 │ MyBot-v3                        🟢   │
-│ http://myserver.com:3002/action      │
+│ Strategy: Quick Tier (Aggression: 70)│
 │                                      │
 │ ⚙️ Auto-Registration         [ON]   │
 │  ├── Tournament types: Rolling, Scheduled  │
@@ -170,7 +170,7 @@ Each bot card in "My Bots" gets a new "Auto-Register" toggle/section:
 │  ├── Max concurrent: 3              │
 │  └── Active hours: 18:00 - 23:00    │
 │                                      │
-│ [Validate] [Edit] [Deactivate]       │
+│ [Edit] [Deactivate]                  │
 └──────────────────────────────────────┘
 ```
 
@@ -245,7 +245,7 @@ New `BotAutoRegistrationService`:
      - Buy-in within range?
      - Bot not already at `max_concurrent` active tournaments?
      - Current time within schedule window?
-     - Bot is active and healthy?
+     - Bot is active?
   3. If all checks pass, register the bot for the tournament.
   4. Emit a `bot.auto_registered` event for audit logging.
 
@@ -334,9 +334,8 @@ No new tables needed for Phase 1 — all activity data comes from existing `game
 ## Open Questions
 
 1. **Rate limiting on auto-registration**: Should we limit how many tournaments a bot can auto-register for per day? (Prevents runaway costs if someone sets max_buy_in too high.)
-2. **Health check before auto-join**: Should we verify the bot endpoint is healthy before auto-registering? (Prevents dead bots from occupying tournament slots.)
-3. **Notification preferences**: Should auto-registration events trigger email notifications? WebSocket push? Both?
-4. **Cash table auto-join priority**: If multiple bots want to auto-join the same table, should we use a queue/lottery system?
+2. **Notification preferences**: Should auto-registration events trigger email notifications? WebSocket push? Both?
+3. **Cash table auto-join priority**: If multiple bots want to auto-join the same table, should we use a queue/lottery system?
 
 ---
 

@@ -11,6 +11,7 @@ import {
   NotFoundException,
   BadRequestException,
   ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { TournamentsService } from "./tournaments.service";
@@ -33,6 +34,8 @@ import { assertFound } from "../../common/utils";
 
 @Controller("tournaments")
 export class TournamentsController {
+  private readonly logger = new Logger(TournamentsController.name);
+
   constructor(
     private readonly tournamentsService: TournamentsService,
     private readonly tournamentDirector: TournamentDirectorService,
@@ -216,6 +219,10 @@ export class TournamentsController {
       try {
         this.tournamentDirector.updateSchedulerCron(dto.cron_expression);
       } catch (error) {
+        this.logger.error(
+          `Invalid cron expression: ${dto.cron_expression}`,
+          error instanceof Error ? error.stack : String(error),
+        );
         throw new BadRequestException(
           `Invalid cron expression: ${dto.cron_expression}`,
         );

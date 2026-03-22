@@ -7,12 +7,9 @@ describe("MetricsService", () => {
   let mockHttpRequestDuration: any;
   let mockActiveGames: any;
   let mockActiveTournaments: any;
-  let mockConnectedBots: any;
   let mockWebsocketConnections: any;
   let mockHandsDealtTotal: any;
   let mockBotActionsTotal: any;
-  let mockBotErrorsTotal: any;
-  let mockBotResponseTime: any;
   let mockTournamentEntriesTotal: any;
   let mockTournamentCompletionsTotal: any;
   let mockDatabasePoolSize: any;
@@ -20,19 +17,15 @@ describe("MetricsService", () => {
   let mockWebsocketMessagesTotal: any;
   let mockErrorsTotal: any;
   let mockGamesStartedTotal: any;
-  let mockBotTimeoutSeconds: any;
 
   beforeEach(() => {
     mockHttpRequestsTotal = { inc: vi.fn() };
     mockHttpRequestDuration = { observe: vi.fn() };
     mockActiveGames = { set: vi.fn() };
     mockActiveTournaments = { set: vi.fn() };
-    mockConnectedBots = { set: vi.fn() };
     mockWebsocketConnections = { set: vi.fn() };
     mockHandsDealtTotal = { inc: vi.fn() };
     mockBotActionsTotal = { inc: vi.fn() };
-    mockBotErrorsTotal = { inc: vi.fn() };
-    mockBotResponseTime = { observe: vi.fn() };
     mockTournamentEntriesTotal = { inc: vi.fn() };
     mockTournamentCompletionsTotal = { inc: vi.fn() };
     mockDatabasePoolSize = { set: vi.fn() };
@@ -40,19 +33,15 @@ describe("MetricsService", () => {
     mockWebsocketMessagesTotal = { inc: vi.fn() };
     mockErrorsTotal = { inc: vi.fn() };
     mockGamesStartedTotal = { inc: vi.fn() };
-    mockBotTimeoutSeconds = { observe: vi.fn() };
 
     metricsService = new MetricsService(
       mockHttpRequestsTotal,
       mockHttpRequestDuration,
       mockActiveGames,
       mockActiveTournaments,
-      mockConnectedBots,
       mockWebsocketConnections,
       mockHandsDealtTotal,
       mockBotActionsTotal,
-      mockBotErrorsTotal,
-      mockBotResponseTime,
       mockTournamentEntriesTotal,
       mockTournamentCompletionsTotal,
       mockDatabasePoolSize,
@@ -60,7 +49,6 @@ describe("MetricsService", () => {
       mockWebsocketMessagesTotal,
       mockErrorsTotal,
       mockGamesStartedTotal,
-      mockBotTimeoutSeconds,
       null,
     );
   });
@@ -71,7 +59,6 @@ describe("MetricsService", () => {
 
       expect(mockActiveGames.set).toHaveBeenCalledWith(0);
       expect(mockActiveTournaments.set).toHaveBeenCalledWith(0);
-      expect(mockConnectedBots.set).toHaveBeenCalledWith(0);
       expect(mockWebsocketConnections.set).toHaveBeenCalledWith(0);
       expect(mockDatabasePoolSize.set).toHaveBeenCalledWith(0);
       expect(mockDatabasePoolActive.set).toHaveBeenCalledWith(0);
@@ -92,23 +79,6 @@ describe("MetricsService", () => {
       for (const action of expectedActions) {
         expect(mockBotActionsTotal.inc).toHaveBeenCalledWith(
           { action_type: action, bot_id: "_init_" },
-          0,
-        );
-      }
-    });
-
-    it("should initialize bot error counters for common errors", () => {
-      metricsService.onModuleInit();
-
-      const expectedErrors = [
-        "call_failed",
-        "circuit_opened",
-        "used_fallback",
-        "unhealthy_in_game",
-      ];
-      for (const errorType of expectedErrors) {
-        expect(mockBotErrorsTotal.inc).toHaveBeenCalledWith(
-          { error_type: errorType, bot_id: "_init_" },
           0,
         );
       }
@@ -180,33 +150,6 @@ describe("MetricsService", () => {
         bot_id: "bot-123",
       });
     });
-
-    it("should record bot error", () => {
-      metricsService.recordBotError("timeout", "bot-456");
-
-      expect(mockBotErrorsTotal.inc).toHaveBeenCalledWith({
-        error_type: "timeout",
-        bot_id: "bot-456",
-      });
-    });
-
-    it("should record bot response time", () => {
-      metricsService.recordBotResponseTime("bot-789", 0.234);
-
-      expect(mockBotResponseTime.observe).toHaveBeenCalledWith(
-        { bot_id: "bot-789" },
-        0.234,
-      );
-    });
-
-    it("should record bot timeout", () => {
-      metricsService.recordBotTimeout("bot-123", "timeout", 5.5);
-
-      expect(mockBotTimeoutSeconds.observe).toHaveBeenCalledWith(
-        { bot_id: "bot-123", failure_type: "timeout" },
-        5.5,
-      );
-    });
   });
 
   describe("counter increments", () => {
@@ -240,11 +183,6 @@ describe("MetricsService", () => {
     it("should set active tournaments", () => {
       metricsService.setActiveTournaments(3);
       expect(mockActiveTournaments.set).toHaveBeenCalledWith(3);
-    });
-
-    it("should set connected bots", () => {
-      metricsService.setConnectedBots(10);
-      expect(mockConnectedBots.set).toHaveBeenCalledWith(10);
     });
 
     it("should set websocket connections", () => {
@@ -304,12 +242,9 @@ describe("MetricsService", () => {
         mockHttpRequestDuration,
         mockActiveGames,
         mockActiveTournaments,
-        mockConnectedBots,
         mockWebsocketConnections,
         mockHandsDealtTotal,
         mockBotActionsTotal,
-        mockBotErrorsTotal,
-        mockBotResponseTime,
         mockTournamentEntriesTotal,
         mockTournamentCompletionsTotal,
         mockDatabasePoolSize,
@@ -317,7 +252,6 @@ describe("MetricsService", () => {
         mockWebsocketMessagesTotal,
         mockErrorsTotal,
         mockGamesStartedTotal,
-        mockBotTimeoutSeconds,
         { isInitialized: false } as any,
       );
 
@@ -343,12 +277,9 @@ describe("MetricsService", () => {
         mockHttpRequestDuration,
         mockActiveGames,
         mockActiveTournaments,
-        mockConnectedBots,
         mockWebsocketConnections,
         mockHandsDealtTotal,
         mockBotActionsTotal,
-        mockBotErrorsTotal,
-        mockBotResponseTime,
         mockTournamentEntriesTotal,
         mockTournamentCompletionsTotal,
         mockDatabasePoolSize,
@@ -356,7 +287,6 @@ describe("MetricsService", () => {
         mockWebsocketMessagesTotal,
         mockErrorsTotal,
         mockGamesStartedTotal,
-        mockBotTimeoutSeconds,
         mockDataSource as any,
       );
 

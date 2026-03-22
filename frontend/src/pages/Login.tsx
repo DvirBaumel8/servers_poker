@@ -27,6 +27,7 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearError();
     const normalizedEmail = normalizeEmail(email);
     const emailValidationMessage = getEmailValidationMessage(normalizedEmail);
 

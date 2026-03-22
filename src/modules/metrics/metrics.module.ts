@@ -48,10 +48,6 @@ import { GamesModule } from "../games/games.module";
       help: "Number of currently active tournaments",
     }),
     makeGaugeProvider({
-      name: "poker_connected_bots",
-      help: "Number of connected bots",
-    }),
-    makeGaugeProvider({
       name: "poker_websocket_connections",
       help: "Number of active WebSocket connections",
     }),
@@ -63,17 +59,6 @@ import { GamesModule } from "../games/games.module";
       name: "poker_bot_actions_total",
       help: "Total number of bot actions",
       labelNames: ["action_type", "bot_id"],
-    }),
-    makeCounterProvider({
-      name: "poker_bot_errors_total",
-      help: "Total number of bot errors",
-      labelNames: ["error_type", "bot_id"],
-    }),
-    makeHistogramProvider({
-      name: "poker_bot_response_time_seconds",
-      help: "Bot response time in seconds",
-      labelNames: ["bot_id"],
-      buckets: [0.1, 0.25, 0.5, 1, 2.5, 5, 10],
     }),
     makeCounterProvider({
       name: "poker_tournament_entries_total",
@@ -104,12 +89,6 @@ import { GamesModule } from "../games/games.module";
     makeCounterProvider({
       name: "poker_games_started_total",
       help: "Total number of games started",
-    }),
-    makeHistogramProvider({
-      name: "poker_bot_timeout_seconds",
-      help: "Bot timeout/failure response times in seconds",
-      labelNames: ["bot_id", "failure_type"],
-      buckets: [1, 2.5, 5, 10, 15, 30],
     }),
   ],
   exports: [MetricsService, MetricsCollectorService],

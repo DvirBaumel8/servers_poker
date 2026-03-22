@@ -21,10 +21,7 @@ vi.mock("../api/bots", () => ({
     getAll: () => getAll(),
     getActiveBots: () => getActiveBots(),
     getMy: () => getMy(),
-    create: vi.fn(),
-    update: vi.fn(),
     deactivate: vi.fn(),
-    validate: vi.fn(),
     activate: vi.fn(),
   },
 }));
@@ -39,7 +36,6 @@ describe("Bots page", () => {
       {
         id: "bot-1",
         name: "RiverPilot",
-        endpoint: "https://example.com/action",
         description: "Aggressive post-flop bot",
         active: true,
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -61,7 +57,6 @@ describe("Bots page", () => {
       {
         id: "bot-1",
         name: "RiverPilot",
-        endpoint: "https://example.com/action",
         description: "Aggressive post-flop bot",
         active: true,
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -95,7 +90,6 @@ describe("Bots page", () => {
       {
         id: "bot-1",
         name: "RiverPilot",
-        endpoint: "https://example.com/action",
         description: "Aggressive post-flop bot",
         active: true,
         createdAt: "2026-01-01T00:00:00.000Z",

@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Table } from "../components/game/Table";
-import { useActionFeed } from "../components/game/ActionFeed";
+import { ActionFeed, useActionFeed } from "../components/game/ActionFeed";
 import { HandResultToast } from "../components/game/HandResultToast";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useAuthStore } from "../stores/authStore";
@@ -18,7 +18,7 @@ export function GameView() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
-  const { addAction, clearActions } = useActionFeed();
+  const { actions, addAction, clearActions } = useActionFeed();
   const [activeHandResult, setActiveHandResult] = useState<HandResult | null>(
     null,
   );
@@ -223,6 +223,9 @@ export function GameView() {
 
   return (
     <div className="min-h-screen bg-shell-gradient">
+      {/* Live action feed sidebar */}
+      <ActionFeed actions={actions} />
+
       {/* Hand result toast - for notifications */}
       <HandResultToast
         result={activeHandResult}

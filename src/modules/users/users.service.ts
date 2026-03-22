@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { UserRepository } from "../../repositories/user.repository";
 import { User } from "../../entities/user.entity";
 import {
@@ -11,6 +11,8 @@ import { assertFound, toPaginatedResponse } from "../../common/utils";
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(private readonly userRepository: UserRepository) {}
 
   async findById(id: string): Promise<UserResponseDto | null> {

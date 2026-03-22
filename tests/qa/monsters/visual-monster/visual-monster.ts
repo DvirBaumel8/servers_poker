@@ -53,6 +53,7 @@ export class VisualMonster extends BaseMonster {
       type: "visual",
       timeout: 300000, // 5 minutes
       verbose: true,
+      needsBrowser: true,
     });
     this.screenshotDir = join(
       process.cwd(),

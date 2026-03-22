@@ -10,24 +10,20 @@ import type {
 interface BotApiResponse {
   id: string;
   name: string;
-  endpoint: string;
   description?: string;
   active: boolean;
   user_id: string;
   created_at: string;
-  last_validation_score?: number;
 }
 
 function transformBot(raw: BotApiResponse): Bot {
   return {
     id: raw.id,
     name: raw.name,
-    endpoint: raw.endpoint,
     description: raw.description,
     active: raw.active,
     userId: raw.user_id,
     createdAt: raw.created_at,
-    lastValidationScore: raw.last_validation_score,
   };
 }
 
@@ -40,7 +36,7 @@ export const botsApi = {
       offset: number;
       hasMore: boolean;
     }>("/bots");
-    return response.data.map(transformBot);
+    return (response.data ?? []).map(transformBot);
   },
 
   getById: async (id: string): Promise<Bot> => {
@@ -56,36 +52,8 @@ export const botsApi = {
       offset: number;
       hasMore: boolean;
     }>("/bots/my", token);
-    return response.data.map(transformBot);
+    return (response.data ?? []).map(transformBot);
   },
-
-  create: (
-    data: {
-      name: string;
-      endpoint: string;
-      description?: string;
-      skip_validation?: boolean;
-    },
-    token: string,
-  ) => api.post<Bot>("/bots", data, token),
-
-  update: (
-    id: string,
-    data: { endpoint?: string; description?: string },
-    token: string,
-  ) => api.put<Bot>(`/bots/${id}`, data, token),
-
-  validate: (id: string, token: string) =>
-    api.post<{
-      valid: boolean;
-      score: number;
-      details: {
-        reachable: boolean;
-        respondedCorrectly: boolean;
-        responseTimeMs: number;
-        errors: string[];
-      };
-    }>(`/bots/${id}/validate`, undefined, token),
 
   activate: (id: string, token: string) =>
     api.post<{ success: boolean }>(`/bots/${id}/activate`, undefined, token),

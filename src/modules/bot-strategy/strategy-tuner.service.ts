@@ -129,7 +129,7 @@ export class StrategyTunerService {
       run.summary = `Tuner run failed: ${error.message}`;
       run.completed_at = new Date();
       await this.runRepo.save(run);
-      this.logger.error(`Tuner run failed: ${error.message}`);
+      this.logger.error(`Tuner run failed: ${error.message}`, error.stack);
       return run;
     }
   }

@@ -32,7 +32,7 @@ Before you report a task as complete, you MUST:
 | New/changed npm script | `README.md` (scripts table) |
 | Architecture or directory structure change | `docs/ARCHITECTURE.md` |
 | New poker rule/invariant | `docs/KNOWLEDGE.md` + `tests/qa/monsters/invariant-monster/poker-invariants.ts` |
-| New QA monster/test pattern | `tests/qa/monsters/README.md` |
+| New QA monster/test pattern | `tests/qa/monsters/README.md` + follow `tests/qa/monsters/docs/CONTRIBUTING.md` checklist |
 | Security-related change | `docs/guides/SECURITY.md` |
 | Database migration or schema change | `docs/DATA_DICTIONARY.md` |
 | New design decision or feature | `docs/KNOWLEDGE.md` |
@@ -67,6 +67,7 @@ When you add a new frontend page or route, you MUST update ALL of these:
 | New poker invariant | `tests/qa/monsters/invariant-monster/poker-invariants.ts` |
 | New user flow | `tests/qa/monsters/flows/` |
 | Game logic changes | `tests/qa/monsters/simulation-monster/simulation-monster.ts` |
+| Entity/migration/DTO/schema changes | `tests/qa/monsters/data-integrity-monster/data-integrity-monster.ts` |
 
 ## Skip Documentation For
 

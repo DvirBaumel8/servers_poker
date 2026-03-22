@@ -74,13 +74,9 @@ tests/
 │   ├── betting.spec.ts
 │   ├── chip-conservation.spec.ts
 │   ├── edge-cases.spec.ts
-│   ├── critical-edge-cases.spec.ts
-│   ├── bot-resilience.spec.ts
-│   └── bot-connectivity.spec.ts
+│   └── critical-edge-cases.spec.ts
 ├── integration/              # Integration tests (may use mocks)
 │   ├── auth.integration.spec.ts
-│   ├── bots.integration.spec.ts
-│   ├── bot-caller.integration.spec.ts
 │   └── game-flow.integration.spec.ts
 ├── e2e/                      # End-to-end tests (requires database)
 │   ├── auth.e2e.spec.ts
@@ -91,7 +87,7 @@ tests/
 └── utils/                    # Test utilities
     ├── test-app.ts           # NestJS test app factory
     ├── test-helpers.ts       # Common test helpers
-    ├── mock-bot-server.ts    # Mock bot HTTP server
+    ├── strategy-bot-factory.ts # Factory for creating bots with strategies
     └── index.ts              # Exports
 ```
 
@@ -118,7 +114,6 @@ npm run test:unit
 Integration tests verify that multiple components work together correctly. They may use mock servers or services but don't require a database.
 
 **What they test:**
-- Bot caller service with mock HTTP servers
 - Game flow logic with mocked dependencies
 - Input validation
 - Authentication logic
@@ -234,28 +229,22 @@ docker rm -f poker-test-db
 
 ## Test Utilities
 
-### MockBotServer
+### Strategy Bot Factory
 
-For testing bot interactions without real bot servers:
+For creating bots with specific strategies in tests:
 
 ```typescript
-import { createCallingBot, createFoldingBot } from '../utils/mock-bot-server';
+import { createStrategyBot, registerUserWithBot } from '../utils/strategy-bot-factory';
 
-const bot = createCallingBot(8080);
-await bot.start();
+// Create a bot with a calling strategy
+const bot = createStrategyBot({ personality: 'caller' });
 
-// Bot will respond with { type: "call" } or { type: "check" }
-const endpoint = bot.getEndpoint(); // http://localhost:8080
-
-await bot.stop();
+// Register a user and bot in one step (for E2E tests)
+const { user, bot } = await registerUserWithBot(app, {
+  botName: 'TestBot',
+  strategy: { tier: 'quick', aggression: 0.5 }
+});
 ```
-
-Available mock bots:
-- `createCallingBot(port)` - Always calls or checks
-- `createFoldingBot(port)` - Always folds
-- `createAggressiveBot(port)` - Raises when possible
-- `createSlowBot(port, latencyMs)` - Responds with delay
-- `createUnreliableBot(port, failureRate)` - Randomly fails
 
 ### Test Helpers
 
@@ -280,6 +269,18 @@ const table = await createTestTable(app, user.accessToken);
 await request(app.getHttpServer())
   .get('/api/v1/bots')
   .set(authHeader(user.accessToken));
+
+// Poll until a condition is met (preferred over fixed sleep())
+import { waitForCondition } from '../utils/test-helpers';
+await waitForCondition(
+  async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/games/${tableId}/state`)
+      .set(authHeader(user.accessToken));
+    return res.body.handNumber > 0;
+  },
+  { timeoutMs: 15000, label: 'game hand started' }
+);
 ```
 
 ## Writing Tests
@@ -314,38 +315,29 @@ describe('Hand Evaluator', () => {
 ### Integration Test Example
 
 ```typescript
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { Test } from '@nestjs/testing';
-import { BotCallerService } from '../../src/services/bot-caller.service';
-import { createCallingBot } from '../utils/mock-bot-server';
+import { BotsService } from '../../src/modules/bots/bots.service';
 
-describe('BotCaller', () => {
-  let service: BotCallerService;
-  let mockBot: MockBotServer;
+describe('BotsService', () => {
+  let service: BotsService;
 
   beforeAll(async () => {
-    mockBot = createCallingBot(19300);
-    await mockBot.start();
-
     const module = await Test.createTestingModule({
-      providers: [BotCallerService],
+      providers: [BotsService, /* ... mock providers */],
     }).compile();
 
-    service = module.get(BotCallerService);
+    service = module.get(BotsService);
   });
 
-  afterAll(async () => {
-    await mockBot.stop();
-  });
+  it('should create a bot with strategy', async () => {
+    const bot = await service.create({
+      name: 'TestBot',
+      strategy: { tier: 'quick', aggression: 0.5 },
+    }, 'user-id');
 
-  it('should call bot and receive response', async () => {
-    const result = await service.callBot(
-      'test-bot',
-      mockBot.getEndpoint(),
-      { gameId: 'test' }
-    );
-
-    expect(result.success).toBe(true);
+    expect(bot.strategy).toBeDefined();
+    expect(bot.name).toBe('TestBot');
   });
 });
 ```

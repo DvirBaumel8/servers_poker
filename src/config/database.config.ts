@@ -14,7 +14,7 @@ export const getDatabaseConfig = (
     password: configService.get<string>("DB_PASSWORD", "postgres"),
     database: configService.get<string>("DB_NAME", "poker"),
     entities: [__dirname + "/../entities/*.entity{.ts,.js}"],
-    migrations: [__dirname + "/../migrations/*{.ts,.js}"],
+    migrations: [__dirname + "/../migrations/*-*{.ts,.js}"],
     migrationsRun: false,
     synchronize: false,
     logging: !isProduction,

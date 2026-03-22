@@ -31,6 +31,7 @@ import {
 } from "../../services/redis/redis-event-bus.service";
 import { RedisSocketStateService } from "../../services/redis/redis-socket-state.service";
 import { BotActivityService } from "../../services/bot/bot-activity.service";
+import { BotRepository } from "../../repositories/bot.repository";
 import { MetricsService } from "../metrics/metrics.service";
 import { DEFAULT_CORS_ORIGINS } from "../../config/app.config";
 
@@ -162,6 +163,7 @@ export class GamesGateway
     private readonly eventEmitter: EventEmitter2,
     private readonly liveGameManager: LiveGameManagerService,
     private readonly gameWorkerManager: GameWorkerManagerService,
+    private readonly botRepository: BotRepository,
     @Optional()
     @Inject(RedisEventBusService)
     private readonly redisEventBus: RedisEventBusService | null,
@@ -282,7 +284,10 @@ export class GamesGateway
             state?.players.filter((p) => !p.disconnected).length || 0,
         });
         this.broadcastBotActivityUpdate(event.playerId).catch((e) =>
-          this.logger.error(`Failed to broadcast bot activity: ${e.message}`),
+          this.logger.error(
+            `Failed to broadcast bot activity: ${e.message}`,
+            e instanceof Error ? e.stack : undefined,
+          ),
         );
       },
     );
@@ -291,7 +296,10 @@ export class GamesGateway
       "game.playerJoined",
       (event: { tableId: string; gameId: string; player: { id: string } }) => {
         this.broadcastBotActivityUpdate(event.player.id).catch((e) =>
-          this.logger.error(`Failed to broadcast bot activity: ${e.message}`),
+          this.logger.error(
+            `Failed to broadcast bot activity: ${e.message}`,
+            e instanceof Error ? e.stack : undefined,
+          ),
         );
       },
     );
@@ -543,7 +551,17 @@ export class GamesGateway
       return { success: false, error: "Rate limit exceeded" };
     }
 
+    if (!client.userId) {
+      return { success: false, error: "Authentication required" };
+    }
+
     const { botId } = data;
+
+    const bot = await this.botRepository.findById(botId);
+    if (!bot || bot.user_id !== client.userId) {
+      return { success: false, error: "Bot not found or access denied" };
+    }
+
     client.botId = botId;
 
     if (this.redisSocketState) {
@@ -564,7 +582,16 @@ export class GamesGateway
       return { success: false, error: "Rate limit exceeded" };
     }
 
+    if (!client.userId) {
+      return { success: false, error: "Authentication required" };
+    }
+
     const { botId } = data;
+
+    const bot = await this.botRepository.findById(botId);
+    if (!bot || bot.user_id !== client.userId) {
+      return { success: false, error: "Bot not found or access denied" };
+    }
 
     if (this.redisSocketState) {
       await this.redisSocketState.subscribeToBotActivity(client.id, botId);

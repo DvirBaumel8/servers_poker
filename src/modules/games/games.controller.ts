@@ -8,6 +8,7 @@ import {
   UseGuards,
   ForbiddenException,
   ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { GamesService } from "./games.service";
 import { TablesService } from "./tables.service";
@@ -31,6 +32,8 @@ import { assertFound } from "../../common/utils";
 
 @Controller("games")
 export class GamesController {
+  private readonly logger = new Logger(GamesController.name);
+
   constructor(
     private readonly gamesService: GamesService,
     private readonly tablesService: TablesService,

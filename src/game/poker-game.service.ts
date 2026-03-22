@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is superseded by GameInstance in live-game-manager.service.ts.
+ * It is NOT used in production — all live games use GameInstance.
+ * Retained only because unit tests (edge-cases, game-simulation) exercise its logic.
+ * Do NOT add new features here. All game engine work belongs in GameInstance.
+ */
 import { Injectable, Logger } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ChipInvariantChecker, TransactionAuditLog } from "./invariants";
@@ -14,7 +20,7 @@ export interface Card {
 export interface Player {
   id: string;
   name: string;
-  endpoint: string;
+  strategy: Record<string, any>;
   chips: number;
   holeCards: Card[];
   folded: boolean;
@@ -159,7 +165,7 @@ export class PokerGameService {
       }
       existing.disconnected = false;
       existing.strikes = 0;
-      existing.endpoint = player.endpoint;
+      existing.strategy = player.strategy;
       this.logger.log(`Player ${player.name} reconnected`);
       return;
     }
@@ -323,6 +329,12 @@ export class PokerGameService {
       gameId: this.config.gameId,
       playerId,
       strikes: player.strikes,
+      ...(this.handInProgress && {
+        handNumber: this.handNumber,
+        stage: this.stage,
+        pot: this.pot,
+        chipsAfter: player.chips,
+      }),
     });
 
     if (player.strikes >= (this.config.maxStrikes || 3)) {

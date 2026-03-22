@@ -1,6 +1,6 @@
 # 🎯 Product Quality Report
 
-**Generated:** 3/22/2026, 11:21:10 AM
+**Generated:** 3/22/2026, 10:23:07 PM
 **Overall Score:** 7/10 (B)
 
 ## Executive Summary
@@ -39,10 +39,10 @@ Functional but not impressive. Weakest area: game.
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Page Load Time | 0.93s | < 3s | ✅ |
-| First Contentful Paint | 0.09s | < 1.8s | ✅ |
-| Largest Contentful Paint | 0.07s | < 2.5s | ✅ |
-| Time to Interactive | 0.07s | < 3.8s | ✅ |
+| Page Load Time | 0.41s | < 3s | ✅ |
+| First Contentful Paint | 0.08s | < 1.8s | ✅ |
+| Largest Contentful Paint | 0.05s | < 2.5s | ✅ |
+| Time to Interactive | 0.05s | < 3.8s | ✅ |
 | Cumulative Layout Shift | 0.000 | < 0.1 | ✅ |
 
 ---
@@ -65,24 +65,25 @@ Functional but not impressive. Weakest area: game.
 
 
 
-### 🟡 Minor Issues (12)
+### 🟡 Minor Issues (1)
 
 | Criterion | Score | Observation | Suggestion |
 |-----------|-------|-------------|------------|
-| typography | 8/10 | Premium fonts detected (Inter/Playfair) | No specific suggestion. |
-| colorScheme | 8/10 | Dark theme detected (good for poker) | No specific suggestion. |
-| animations | 8/10 | Animations and transitions detected | Add card flip animations and chip stack effects for wins |
-| consistency | 8/10 | Good button variant system | No specific suggestion. |
 | navigation | 6/10 | Basic navigation | Add icons + text for Lobby, Tables, Tournaments, Leaderboard |
-| ctas | 8/10 | Has call-to-action buttons | No specific suggestion. |
-| loading | 8/10 | Has loading indicators | No specific suggestion. |
-| firstImpression | 8/10 | Strong first impression with headline and visuals | No specific suggestion. |
-| spacing | 8/10 | Using design system spacing | No specific suggestion. |
-| emptyStates | 8/10 | Page has content (empty states not needed) | No specific suggestion. |
-| mobileReady | 8/10 | Viewport meta tag present | No specific suggestion. |
-| errorHandling | 7/10 | Standard error handling | No specific suggestion. |
 
+### 💡 Suggestions (11)
 
+- **typography:** No specific suggestion.
+- **colorScheme:** No specific suggestion.
+- **animations:** Add card flip animations and chip stack effects for wins
+- **consistency:** No specific suggestion.
+- **ctas:** No specific suggestion.
+- **loading:** No specific suggestion.
+- **firstImpression:** No specific suggestion.
+- **spacing:** No specific suggestion.
+- **emptyStates:** No specific suggestion.
+- **mobileReady:** No specific suggestion.
+- **errorHandling:** No specific suggestion.
 
 ---
 
@@ -116,11 +117,12 @@ Functional but not impressive. Weakest area: game.
 
 ## 📸 Screenshots
 
-- `home-2026-03-22T09-21-03-760Z.png`
-- `tournaments-2026-03-22T09-21-03-760Z.png`
-- `login-2026-03-22T09-21-03-760Z.png`
-- `bot-builder-2026-03-22T09-21-03-760Z.png`
-- `home-mobile-2026-03-22T09-21-03-760Z.png`
+- `home-2026-03-22T20-23-00-750Z.png`
+- `tournaments-2026-03-22T20-23-00-750Z.png`
+- `bots-2026-03-22T20-23-00-750Z.png`
+- `login-2026-03-22T20-23-00-750Z.png`
+- `bot-builder-2026-03-22T20-23-00-750Z.png`
+- `home-mobile-2026-03-22T20-23-00-750Z.png`
 
 _Screenshots saved to: tests/qa/monsters/browser-monster/screenshots/_
 
@@ -133,10 +135,10 @@ _Screenshots saved to: tests/qa/monsters/browser-monster/screenshots/_
 | Total Checks | 12 |
 | Critical Issues | 0 |
 | Major Issues | 0 |
-| Minor Issues | 12 |
-| Suggestions | 0 |
+| Minor Issues | 1 |
+| Suggestions | 11 |
 | Pass Rate | 92% |
-| Page Load | 0.93s |
+| Page Load | 0.41s |
 | Accessibility | 98/100 |
 
 ---

@@ -210,7 +210,10 @@ export class RedisSocketStateService implements OnModuleDestroy {
     this.cleanupInterval = setInterval(
       () => {
         this.refreshInstanceSockets().catch((err) => {
-          this.logger.error(`Socket refresh error: ${err.message}`);
+          this.logger.error(
+            `Socket refresh error: ${err.message}`,
+            err instanceof Error ? err.stack : undefined,
+          );
         });
       },
       SOCKET_TTL_SECONDS * 500, // Refresh at half the TTL

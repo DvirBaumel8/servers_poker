@@ -31,7 +31,6 @@ export const API_CONTRACTS: Record<string, ContractDefinition> = {
     itemShape: {
       id: "string",
       name: "string",
-      endpoint: "string",
       active: "boolean",
       user_id: "string",
       created_at: "string",
@@ -63,8 +62,8 @@ export const API_CONTRACTS: Record<string, ContractDefinition> = {
     shape: {
       id: "string",
       name: "string",
-      endpoint: "string",
       active: "boolean",
+      user_id: "string",
     },
   },
   "GET /bots/:id/profile": {
@@ -161,6 +160,51 @@ export const API_CONTRACTS: Record<string, ContractDefinition> = {
   "GET /games/:id/hands": {
     auth: true, // Requires auth - hand history is only available to participants
     responseType: "array",
+  },
+
+  // ============================================================================
+  // BOT BUILDER - Internal endpoints
+  // ============================================================================
+  "GET /bots/internal/presets": {
+    auth: false,
+    responseType: "object",
+    shape: {
+      presets: "array",
+    },
+  },
+  "GET /bots/internal/condition-fields": {
+    auth: false,
+    responseType: "object",
+    shape: {
+      fields: "array",
+    },
+  },
+  "POST /bots/internal/simulate": {
+    auth: true,
+    responseType: "object",
+    shape: {
+      action: "object",
+      source: "string",
+      explanation: "string",
+    },
+    validate: (response: unknown) => {
+      const res = response as Record<string, unknown>;
+      if (!res.action || typeof res.action !== "object") {
+        return { valid: false, error: "Missing action object" };
+      }
+      const action = res.action as Record<string, unknown>;
+      if (typeof action.type !== "string") {
+        return { valid: false, error: "action.type must be a string" };
+      }
+      const validTypes = ["fold", "check", "call", "raise", "all_in"];
+      if (!validTypes.includes(action.type)) {
+        return {
+          valid: false,
+          error: `Invalid action.type: ${action.type}`,
+        };
+      }
+      return { valid: true };
+    },
   },
 
   // ============================================================================

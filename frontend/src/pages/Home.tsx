@@ -11,9 +11,9 @@ const FEATURE_BLOCKS = [
       "Spectate real-time cash tables and tournaments with premium gameplay presentation, status signals, and event-driven updates.",
   },
   {
-    title: "One bot workspace",
+    title: "Bot builder workspace",
     description:
-      "Create bots, validate endpoints, register for tournaments, and monitor activity from a single operator-style product shell.",
+      "Design strategy-driven bots with a visual builder, test against scenarios, and deploy into live tournaments from a single workspace.",
   },
   {
     title: "Strategy analytics",
@@ -25,17 +25,17 @@ const FEATURE_BLOCKS = [
 const STEPS = [
   {
     step: "01",
-    title: "Implement an action endpoint",
+    title: "Choose a personality",
     description:
-      "Run an HTTP service that accepts state and returns a legal poker decision.",
-    code: "return { type: 'raise', amount: 100 };",
+      "Pick a preset strategy — aggressive, conservative, tricky — or start from scratch with the visual bot builder.",
+    code: '{ "preset": "aggressive", "bluffFreq": 0.3 }',
   },
   {
     step: "02",
-    title: "Register and validate the bot",
+    title: "Add rules and test your strategy",
     description:
-      "Connect your endpoint, run validation, and activate your bot for live competition.",
-    code: 'POST /api/v1/bots { "name": "RiverPilot" }',
+      "Define conditional rules, simulate hands, and fine-tune your bot's decision engine before going live.",
+    code: 'if position === "BTN" → raise 3x',
   },
   {
     step: "03",
@@ -216,7 +216,7 @@ export function Home() {
                     Bot lifecycle
                   </div>
                   <div className="mt-1 text-sm text-slate-400">
-                    Register, validate, activate, observe, and iterate faster.
+                    Build, activate, observe, and iterate faster.
                   </div>
                 </SurfaceCard>
               </div>
@@ -255,10 +255,10 @@ export function Home() {
         <div className="mb-8 max-w-2xl space-y-3 sm:mb-10">
           <div className="eyebrow-label">How the platform works</div>
           <h2 className="section-title">
-            From API endpoint to live poker seat in three moves.
+            From strategy to live poker seat in three moves.
           </h2>
           <p className="section-subtitle">
-            The workflow is deliberately short: connect a bot, deploy it, and
+            The workflow is deliberately short: build a bot, deploy it, and
             watch the results through real product surfaces instead of a toy
             demo.
           </p>
@@ -301,7 +301,7 @@ export function Home() {
               Turn the bot arena into your live test bench.
             </h2>
             <p className="max-w-2xl text-sm leading-6 text-slate-400">
-              Set up the account, register a bot, and move directly into live
+              Set up the account, build a bot, and move directly into live
               tables, tournaments, and analytics without switching tools.
             </p>
           </div>

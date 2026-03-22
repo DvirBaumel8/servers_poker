@@ -13,33 +13,22 @@
  * Run: npm run monsters:quality:fast
  */
 
-import { chromium, Browser, Page, BrowserContext } from "playwright";
 import * as fs from "fs";
 import * as path from "path";
-
-const BASE_URL = process.env.FRONTEND_URL || "http://localhost:3001";
+import {
+  BrowserBaseMonster,
+  DESKTOP_VIEWPORT,
+} from "../shared/browser-base-monster";
+import { RunConfig, Severity } from "../shared/types";
+import { runMonsterCli } from "../shared/cli-runner";
+import {
+  updateQualityReport,
+  generateReport as generateIssueReport,
+} from "../shared/issue-tracker";
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-interface QualityCheck {
-  name: string;
-  category: "visual" | "ux" | "game" | "polish" | "competitive";
-  weight: number;
-}
-
-interface BatchCheckResult {
-  checks: Record<
-    string,
-    {
-      score: number;
-      observation: string;
-      suggestion?: string;
-      competitorNote?: string;
-    }
-  >;
-}
 
 interface FastQualityReport {
   score: number;
@@ -55,12 +44,10 @@ interface FastQualityReport {
 // BATCH EVALUATION SCRIPTS
 // ============================================================================
 
-// This single evaluate call checks MANY things at once - huge speed boost
 const BATCH_HOME_CHECKS = `
 (() => {
   const results = {};
   
-  // Typography
   const bodyFont = getComputedStyle(document.body).fontFamily;
   const hasCustomFont = !bodyFont.includes('system-ui') && !bodyFont.includes('Arial') && !bodyFont.includes('-apple-system');
   results.typography = {
@@ -69,7 +56,6 @@ const BATCH_HOME_CHECKS = `
     suggestion: "Use premium fonts: 'Montserrat' for headings, 'Inter' for body",
   };
   
-  // Navigation
   const navLinks = document.querySelectorAll('nav a, [role="navigation"] a').length;
   const hasIcons = document.querySelectorAll('nav svg, nav img').length > 0;
   results.navigation = {
@@ -78,7 +64,6 @@ const BATCH_HOME_CHECKS = `
     suggestion: 'Add icons + text for Lobby, Tables, Tournaments, Leaderboard, Profile',
   };
   
-  // Hero/First Impression
   const hasHero = !!document.querySelector('h1, [class*="hero"]');
   const hasCTA = !!document.querySelector('button, a[class*="btn"]');
   const hasVisual = !!document.querySelector('img, svg, [class*="animation"]');
@@ -90,7 +75,6 @@ const BATCH_HOME_CHECKS = `
     competitorNote: 'PokerStars: Massive poker imagery, Play Now CTA, promotions visible immediately',
   };
   
-  // Animations
   let hasAnimations = false;
   try {
     const styles = Array.from(document.styleSheets).flatMap(s => {
@@ -98,16 +82,14 @@ const BATCH_HOME_CHECKS = `
       catch(e) { return []; }
     }).join('');
     hasAnimations = styles.includes('animation') || styles.includes('transition');
-  } catch(e) { /* Cross-origin stylesheets may throw SecurityError - safely ignore */ }
+  } catch(e) {}
   results.animations = {
     score: hasAnimations ? 6 : 2,
     observation: hasAnimations ? 'Some animations present' : 'Static UI - no animations',
     suggestion: 'Add hover effects, page transitions, micro-interactions',
   };
   
-  // Color scheme
   const bodyBg = getComputedStyle(document.body).backgroundColor;
-  const isDark = bodyBg.includes('0,') || bodyBg.includes('rgb(0') || bodyBg.includes('#0');
   results.colorScheme = {
     score: 6,
     observation: 'Color scheme exists but could be more distinctive',
@@ -115,7 +97,6 @@ const BATCH_HOME_CHECKS = `
     competitorNote: 'GGPoker: vibrant orange+black. PokerStars: iconic red star.',
   };
   
-  // Favicon/Meta
   const hasFavicon = !!document.querySelector('link[rel*="icon"]');
   const title = document.title;
   const hasProperTitle = title && !title.includes('Vite') && !title.includes('localhost');
@@ -125,7 +106,6 @@ const BATCH_HOME_CHECKS = `
     suggestion: 'Add branded favicon, meaningful page titles',
   };
   
-  // Consistency (button styles)
   const buttons = Array.from(document.querySelectorAll('button'));
   const uniqueStyles = new Set(buttons.map(b => {
     const s = getComputedStyle(b);
@@ -145,20 +125,29 @@ const BATCH_HOME_CHECKS = `
 const BATCH_GAME_CHECKS = `
 (() => {
   const results = {};
-  
-  // Poker table
+  const url = window.location.pathname;
+  const isGamePage = url.includes('/game') || url.includes('/table/') ||
+                     !!document.querySelector('.poker-table, [class*="game-view"]');
+
+  if (!isGamePage) {
+    return {
+      pokerTable: { score: 5, observation: 'N/A (not on game page)', suggestion: null },
+      cards: { score: 5, observation: 'N/A (not on game page)', suggestion: null },
+      bettingUI: { score: 5, observation: 'N/A (not on game page)', suggestion: null },
+      potDisplay: { score: 5, observation: 'N/A (not on game page)', suggestion: null },
+      playerSeats: { score: 5, observation: 'N/A (not on game page)', suggestion: null },
+      timer: { score: 5, observation: 'N/A (not on game page)', suggestion: null },
+    };
+  }
+
   const hasTable = !!document.querySelector('img[src*="table"], [style*="felt"], .poker-table, [class*="table"]');
-  const hasGradient = Array.from(document.querySelectorAll('*')).some(el => 
-    getComputedStyle(el).backgroundImage.includes('gradient')
-  );
   results.pokerTable = {
     score: hasTable ? 6 : 2,
-    observation: hasTable ? 'Basic poker table exists' : 'No visual poker table - looks like a web form',
+    observation: hasTable ? 'Basic poker table exists' : 'No visual poker table',
     suggestion: 'Add felt-textured table with lighting effects and depth',
     competitorNote: 'PokerStars: photorealistic 3D tables. GGPoker: animated tables with particles.',
   };
   
-  // Cards
   const cards = document.querySelectorAll('[class*="card"], .playing-card, img[src*="card"]');
   const hasCardShadow = cards.length > 0 && Array.from(cards).some(c => 
     getComputedStyle(c).boxShadow !== 'none'
@@ -169,7 +158,6 @@ const BATCH_GAME_CHECKS = `
     suggestion: 'High-quality card graphics with shadows and hover effects',
   };
   
-  // Betting UI
   const hasSlider = !!document.querySelector('input[type="range"], [class*="slider"]');
   const hasQuickBets = !!document.querySelector('[class*="bet"]');
   const betScore = (hasSlider ? 4 : 0) + (hasQuickBets ? 3 : 0);
@@ -180,16 +168,14 @@ const BATCH_GAME_CHECKS = `
     competitorNote: 'Every major platform has this - its table stakes.',
   };
   
-  // Pot display
   const hasPot = !!document.querySelector('[class*="pot"]') || 
                  document.body.innerText.toLowerCase().includes('pot:');
   results.potDisplay = {
     score: hasPot ? 6 : 2,
-    observation: hasPot ? 'Pot display exists' : 'No visible pot - players cant see stakes',
+    observation: hasPot ? 'Pot display exists' : 'No visible pot',
     suggestion: 'Large pot display center-top with chip icon',
   };
   
-  // Player seats
   const seats = document.querySelectorAll('[class*="seat"], [class*="player"]');
   const hasAvatars = document.querySelectorAll('[class*="avatar"]').length > 0;
   results.playerSeats = {
@@ -199,12 +185,11 @@ const BATCH_GAME_CHECKS = `
     competitorNote: 'GGPoker: animated avatars with emotions.',
   };
   
-  // Timer
   const hasTimer = !!document.querySelector('[class*="timer"], [class*="countdown"], [class*="progress"]');
   results.timer = {
     score: hasTimer ? 7 : 3,
     observation: hasTimer ? 'Timer present' : 'No action timer visible',
-    suggestion: 'Circular timer with color change (green→yellow→red)',
+    suggestion: 'Circular timer with color change (green->yellow->red)',
     competitorNote: 'PokerStars iconic circular timer, GGPoker adds sound warnings.',
   };
   
@@ -219,7 +204,6 @@ const BATCH_MOBILE_CHECK = `
   const hasOverflow = document.body.scrollWidth > window.innerWidth;
   const hasMobileMenu = !!document.querySelector('[class*="hamburger"], [class*="mobile-menu"], button[aria-label*="menu" i]');
   
-  // Touch targets
   const buttons = document.querySelectorAll('button, a');
   let tooSmall = 0;
   buttons.forEach(btn => {
@@ -245,82 +229,131 @@ const BATCH_MOBILE_CHECK = `
 // FAST QUALITY MONSTER
 // ============================================================================
 
-class FastQualityMonster {
-  private browser: Browser | null = null;
-  private page: Page | null = null;
+class FastQualityMonster extends BrowserBaseMonster {
   private results: Record<string, any> = {};
-  private startTime: number = 0;
 
-  async run(): Promise<FastQualityReport> {
-    this.startTime = Date.now();
+  constructor() {
+    super({
+      name: "Fast Quality",
+      type: "fast-quality",
+      timeout: 30000,
+    });
+  }
 
+  protected async execute(_runConfig: RunConfig): Promise<void> {
     console.log("\n" + "═".repeat(60));
     console.log("  ⚡ FAST QUALITY MONSTER - Speed Optimized");
     console.log("═".repeat(60));
     console.log("  Target: Complete analysis in < 30 seconds\n");
 
-    this.browser = await chromium.launch({
-      headless: process.env.HEADLESS !== "false",
-    });
-    const context = await this.browser.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    this.page = await context.newPage();
+    const context = await this.createContext(DESKTOP_VIEWPORT);
+    const { page } = await this.createPage(context);
 
     try {
-      // BATCH 1: Home page checks (single page load, many checks)
+      // BATCH 1: Home page checks
       console.log("  📍 Batch 1: Home page analysis...");
-      await this.page.goto(`${BASE_URL}/`, {
-        waitUntil: "domcontentloaded",
-        timeout: 10000,
+      this.recordCheck();
+      const homeLoaded = await this.navigateTo(page, "/", {
+        waitForSelector: "nav a",
       });
-      const homeResults = (await this.page.evaluate(
-        BATCH_HOME_CHECKS,
-      )) as Record<string, any>;
-      Object.assign(this.results, homeResults);
-      console.log(`    ✓ ${Object.keys(homeResults).length} checks completed`);
+      if (homeLoaded) {
+        const homeResults = (await page.evaluate(BATCH_HOME_CHECKS)) as Record<
+          string,
+          any
+        >;
+        Object.assign(this.results, homeResults);
+        this.recordTest(true);
+        console.log(
+          `    ✓ ${Object.keys(homeResults).length} checks completed`,
+        );
+      }
 
-      // BATCH 2: Game page checks (if accessible)
+      // BATCH 2: Game page checks
       console.log("  📍 Batch 2: Game interface analysis...");
-      await this.page.goto(`${BASE_URL}/tables`, {
-        waitUntil: "domcontentloaded",
-        timeout: 10000,
-      });
-      const gameResults = (await this.page.evaluate(
-        BATCH_GAME_CHECKS,
-      )) as Record<string, any>;
-      Object.assign(this.results, gameResults);
-      console.log(`    ✓ ${Object.keys(gameResults).length} checks completed`);
+      this.recordCheck();
+      const tablesLoaded = await this.navigateTo(page, "/tables");
+      if (tablesLoaded) {
+        const gameResults = (await page.evaluate(BATCH_GAME_CHECKS)) as Record<
+          string,
+          any
+        >;
+        Object.assign(this.results, gameResults);
+        this.recordTest(true);
+        console.log(
+          `    ✓ ${Object.keys(gameResults).length} checks completed`,
+        );
+      }
 
-      // BATCH 3: Mobile check (single viewport switch)
+      // BATCH 3: Mobile check
       console.log("  📍 Batch 3: Mobile responsiveness...");
-      await this.page.setViewportSize({ width: 375, height: 667 });
-      await this.page.goto(`${BASE_URL}/`, {
-        waitUntil: "domcontentloaded",
-        timeout: 10000,
-      });
-      const mobileResults = (await this.page.evaluate(
-        BATCH_MOBILE_CHECK,
-      )) as Record<string, any>;
-      Object.assign(this.results, mobileResults);
-      console.log(`    ✓ Mobile check completed`);
-    } catch (err) {
-      console.log(`  ⚠️ Some checks failed: ${err}`);
+      this.recordCheck();
+      await page.setViewportSize({ width: 375, height: 667 });
+      const mobileLoaded = await this.navigateTo(page, "/");
+      if (mobileLoaded) {
+        const mobileResults = (await page.evaluate(
+          BATCH_MOBILE_CHECK,
+        )) as Record<string, any>;
+        Object.assign(this.results, mobileResults);
+        this.recordTest(true);
+        console.log(`    ✓ Mobile check completed`);
+      }
+    } finally {
+      await context.close();
     }
 
-    await this.browser.close();
+    // Track quality issues — report anything scoring below 6 (was 4, too lenient)
+    for (const [key, val] of Object.entries(this.results)) {
+      this.recordCheck();
+      if (val.score < 6) {
+        const severity: Severity =
+          val.score < 3 ? "high" : val.score < 5 ? "medium" : "low";
+        this.addFinding({
+          category: "UX",
+          severity,
+          title: `Low quality score: ${key} (${val.score}/10)`,
+          description: `${val.observation}${val.suggestion ? `. Suggestion: ${val.suggestion}` : ""}${val.competitorNote ? `. Competitor: ${val.competitorNote}` : ""}`,
+          location: { page: key },
+          reproducible: true,
+          tags: ["quality", key],
+        });
+      }
+    }
 
-    const report = this.generateReport();
-    this.printReport(report);
-    await this.saveReport(report);
+    const report = this.buildReport();
+    this.printQualityReport(report);
+    this.saveReport(report);
 
-    return report;
+    try {
+      const categories: Record<string, { score: number; status: string }> = {};
+      for (const [cat, data] of Object.entries(report.categories)) {
+        categories[cat] = {
+          score: data.score,
+          status:
+            data.score >= 8
+              ? "✅ Good"
+              : data.score >= 6
+                ? "⚠️ Fair"
+                : "❌ Poor",
+        };
+      }
+
+      updateQualityReport({
+        overallScore: report.score,
+        grade: report.grade,
+        summary: `Quality score ${report.score}/10. ${report.priorities.length > 0 ? `Top priority: ${report.priorities[0]}` : ""}`,
+        categories,
+        priorities: report.priorities,
+        competitorInsights: report.competitorGaps,
+        generatedAt: new Date().toISOString(),
+      });
+
+      generateIssueReport();
+    } catch {
+      // Best-effort
+    }
   }
 
-  private generateReport(): FastQualityReport {
-    const duration = Date.now() - this.startTime;
-
-    // Calculate category scores
+  private buildReport(): FastQualityReport {
     const categoryChecks: Record<string, string[]> = {
       visual: [
         "typography",
@@ -345,7 +378,7 @@ class FastQualityMonster {
         scores.length > 0
           ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
           : 0;
-      categories[cat] = { score: avg, grade: this.getGrade(avg) };
+      categories[cat] = { score: avg, grade: getGrade(avg) };
     }
 
     const overallScore = Math.round(
@@ -353,52 +386,35 @@ class FastQualityMonster {
         Object.keys(categories).length,
     );
 
-    // Extract priorities, gaps, and wins
     const allResults = Object.entries(this.results)
       .map(([key, val]) => ({ key, ...val }))
-      .sort((a, b) => a.score - b.score);
-
-    const priorities = allResults
-      .filter((r) => r.score < 5)
-      .slice(0, 5)
-      .map((r) => `${r.key}: ${r.suggestion || r.observation}`);
-
-    const competitorGaps = allResults
-      .filter((r) => r.competitorNote)
-      .slice(0, 5)
-      .map((r) => r.competitorNote);
-
-    const quickWins = allResults
-      .filter((r) => r.score >= 5 && r.score < 8 && r.suggestion)
-      .slice(0, 3)
-      .map((r) => `${r.key}: ${r.suggestion}`);
+      .sort((a: any, b: any) => a.score - b.score);
 
     return {
       score: overallScore,
-      grade: this.getGrade(overallScore),
-      duration,
+      grade: getGrade(overallScore),
+      duration: 0,
       categories,
-      priorities,
-      competitorGaps,
-      quickWins,
+      priorities: allResults
+        .filter((r: any) => r.score < 5)
+        .slice(0, 5)
+        .map((r: any) => `${r.key}: ${r.suggestion || r.observation}`),
+      competitorGaps: allResults
+        .filter((r: any) => r.competitorNote)
+        .slice(0, 5)
+        .map((r: any) => r.competitorNote),
+      quickWins: allResults
+        .filter((r: any) => r.score >= 5 && r.score < 8 && r.suggestion)
+        .slice(0, 3)
+        .map((r: any) => `${r.key}: ${r.suggestion}`),
     };
   }
 
-  private getGrade(score: number): string {
-    if (score >= 9) return "A+";
-    if (score >= 8) return "A";
-    if (score >= 7) return "B";
-    if (score >= 6) return "C";
-    if (score >= 5) return "D";
-    return "F";
-  }
-
-  private printReport(report: FastQualityReport): void {
+  private printQualityReport(report: FastQualityReport): void {
     console.log("\n" + "═".repeat(60));
     console.log("  📊 QUALITY REPORT");
     console.log("═".repeat(60));
 
-    console.log(`\n  ⏱️  Completed in ${(report.duration / 1000).toFixed(1)}s`);
     console.log(`  📈 SCORE: ${report.score}/10 (${report.grade})`);
 
     console.log("\n  Category Scores:");
@@ -421,15 +437,10 @@ class FastQualityMonster {
       );
     }
 
-    if (report.quickWins.length > 0) {
-      console.log("\n  ⚡ QUICK WINS:");
-      report.quickWins.forEach((w, i) => console.log(`    ${i + 1}. ${w}`));
-    }
-
     console.log("\n" + "═".repeat(60) + "\n");
   }
 
-  private async saveReport(report: FastQualityReport): Promise<void> {
+  private saveReport(report: FastQualityReport): void {
     const reportDir = path.join(
       process.cwd(),
       "tests/qa/monsters/browser-monster/reports",
@@ -445,21 +456,19 @@ class FastQualityMonster {
   }
 }
 
+function getGrade(score: number): string {
+  if (score >= 9) return "A+";
+  if (score >= 8) return "A";
+  if (score >= 7) return "B";
+  if (score >= 6) return "C";
+  if (score >= 5) return "D";
+  return "F";
+}
+
 // ============================================================================
 // CLI
 // ============================================================================
 
-if (require.main === module) {
-  const monster = new FastQualityMonster();
-  monster
-    .run()
-    .then((report) => {
-      process.exit(report.score >= 6 ? 0 : 1);
-    })
-    .catch((err) => {
-      console.error("Monster crashed:", err);
-      process.exit(1);
-    });
-}
+runMonsterCli(new FastQualityMonster(), "fast-quality");
 
 export { FastQualityMonster };

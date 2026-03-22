@@ -1,5 +1,6 @@
-import { Entity, Column, Index } from "typeorm";
+import { Entity, Column, Index, ManyToOne, JoinColumn } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { User } from "./user.entity";
 
 export type AuditAction =
   | "create"
@@ -18,6 +19,10 @@ export type AuditAction =
 export class AuditLog extends BaseEntity {
   @Column({ type: "varchar", length: 36, nullable: true })
   user_id: string | null;
+
+  @ManyToOne(() => User, { onDelete: "SET NULL", nullable: true })
+  @JoinColumn({ name: "user_id" })
+  user: User | null;
 
   @Column({ type: "varchar", length: 50 })
   action: AuditAction;

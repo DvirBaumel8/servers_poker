@@ -24,7 +24,7 @@ const tournamentState = {
   ],
   loading: false,
   error: null,
-  fetchTournaments: vi.fn(),
+  fetchTournaments: vi.fn().mockResolvedValue(undefined),
 };
 
 const getMyBots = vi.fn();

@@ -13,6 +13,14 @@ interface TournamentCardProps {
   onStart?: () => void;
   onCancel?: () => void;
   myBotIds?: string[];
+  hasBots?: boolean;
+}
+
+function formatCompact(value: number): string {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 100_000) return `${(value / 1_000).toFixed(0)}K`;
+  return value.toLocaleString();
 }
 
 function formatTimeRemaining(ms: number): string {
@@ -38,6 +46,7 @@ export function TournamentCard({
   onStart,
   onCancel,
   myBotIds = [],
+  hasBots = true,
 }: TournamentCardProps) {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
@@ -53,11 +62,13 @@ export function TournamentCard({
     tournament.currentLevel !== undefined &&
     tournament.currentLevel <= tournament.lateRegEndsLevel;
 
-  const canRegister =
+  const showRegister =
     onRegister &&
     (tournament.status === "registering" || isLateRegOpen) &&
     tournament.registeredPlayers < tournament.maxPlayers &&
     !myRegisteredBotId;
+
+  const canRegister = showRegister && hasBots;
 
   useEffect(() => {
     if (!tournament.startedAt || tournament.status !== "running") {
@@ -85,10 +96,10 @@ export function TournamentCard({
     <motion.div whileHover={{ scale: 1.02 }} className={className}>
       <SurfaceCard className="h-full space-y-5">
         <Link to={`/tournaments/${tournament.id}`} className="block space-y-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-semibold text-white">
-                {tournament.name}
+          <div className="flex items-start justify-between gap-4 min-w-0">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-xl font-semibold text-white truncate">
+                {tournament.name || "Untitled Tournament"}
               </h3>
               <span className="mt-1 block text-sm capitalize text-slate-400">
                 {tournament.type} tournament
@@ -109,28 +120,28 @@ export function TournamentCard({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 overflow-hidden">
             <SurfaceCard muted>
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                 Buy-in
               </div>
-              <div className="mt-2 text-xl font-semibold text-white">
-                {tournament.buyIn.toLocaleString()}
+              <div className="mt-2 text-xl font-semibold text-white truncate tabular-nums">
+                {formatCompact(tournament.buyIn)}
               </div>
             </SurfaceCard>
             <SurfaceCard muted>
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                 Prize pool
               </div>
-              <div className="mt-2 text-xl font-semibold text-emerald-300">
-                {prizePool.toLocaleString()}
+              <div className="mt-2 text-xl font-semibold text-emerald-300 truncate tabular-nums">
+                {formatCompact(prizePool)}
               </div>
             </SurfaceCard>
             <SurfaceCard muted>
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                 Field
               </div>
-              <div className="mt-2 text-xl font-semibold text-white">
+              <div className="mt-2 text-xl font-semibold text-white truncate tabular-nums">
                 {tournament.entriesCount || tournament.registeredPlayers} /{" "}
                 {tournament.maxPlayers}
               </div>
@@ -139,7 +150,7 @@ export function TournamentCard({
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                 {tournament.status === "running" ? "Level" : "Late reg"}
               </div>
-              <div className="mt-2 text-xl font-semibold text-white">
+              <div className="mt-2 text-xl font-semibold text-white truncate">
                 {tournament.status === "running" && tournament.currentLevel
                   ? `${tournament.currentLevel} / ${tournament.lateRegEndsLevel}`
                   : `Until Lvl ${tournament.lateRegEndsLevel}`}
@@ -164,14 +175,18 @@ export function TournamentCard({
             )}
         </Link>
 
-        {(canRegister || myRegisteredBotId || onStart || onCancel) && (
+        {(showRegister || myRegisteredBotId || onStart || onCancel) && (
           <div className="flex flex-wrap gap-3 border-t border-white/6 pt-5 mt-1">
-            {canRegister && (
+            {showRegister && (
               <Button
                 onClick={(e) => {
                   e.preventDefault();
-                  onRegister();
+                  onRegister!();
                 }}
+                disabled={!canRegister}
+                title={
+                  !canRegister ? "Create and activate a bot first" : undefined
+                }
               >
                 {isLateRegOpen ? "Late Register" : "Register"}
               </Button>

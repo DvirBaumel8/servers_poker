@@ -5,10 +5,18 @@
  * This gives the monsters consistent game state to test against.
  */
 
-import { spawn, ChildProcess } from "child_process";
-
 const API_BASE = process.env.API_BASE_URL || "http://localhost:3000/api/v1";
-const BASE_PORT = 4300; // Different from demo script to avoid conflicts
+
+const DEFAULT_STRATEGY = {
+  version: 1,
+  tier: "quick",
+  personality: {
+    aggression: 50,
+    bluffFrequency: 50,
+    riskTolerance: 50,
+    tightness: 50,
+  },
+};
 
 interface SetupResult {
   success: boolean;
@@ -25,8 +33,6 @@ interface GameInfo {
   status: string;
   players: Array<{ id: string; name: string }>;
 }
-
-let mockBotProcesses: ChildProcess[] = [];
 
 /**
  * Check if backend is healthy
@@ -52,14 +58,12 @@ async function findOrCreateGame(
 
     const games = (await response.json()) as GameInfo[];
 
-    // First, try to find a running game with enough players
     const runningWithPlayers = games.find(
       (g) =>
         g.status === "running" && g.players && g.players.length >= minPlayers,
     );
     if (runningWithPlayers) return runningWithPlayers;
 
-    // Next, try to find any running game we can join
     const anyRunning = games.find(
       (g) => g.status === "running" || g.status === "waiting",
     );
@@ -72,23 +76,10 @@ async function findOrCreateGame(
 }
 
 /**
- * Start a mock bot server on a given port
+ * Register a user, login, and create an internal bot with strategy JSON
  */
-function startMockBotServer(port: number): ChildProcess {
-  const proc = spawn("npx", ["ts-node", "scripts/mock-bot-server.ts"], {
-    env: { ...process.env, PORT: String(port) },
-    stdio: "ignore",
-    detached: true,
-  });
-  return proc;
-}
-
-/**
- * Register a demo player and get their credentials
- */
-async function registerDemoPlayer(
+async function registerAndCreateBot(
   index: number,
-  port: number,
 ): Promise<{ token: string; botId: string } | null> {
   const ts = Date.now();
   const email = `qabot${index}_${ts}@qa.local`;
@@ -96,30 +87,44 @@ async function registerDemoPlayer(
   const botName = `QABot${index}_${ts}`;
 
   try {
-    const response = await fetch(`${API_BASE}/auth/register-developer`, {
+    const regResponse = await fetch(`${API_BASE}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, name: `QAPlayer${index}` }),
+    });
+    if (!regResponse.ok) return null;
+
+    const loginResponse = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!loginResponse.ok) return null;
+
+    const loginData = (await loginResponse.json()) as {
+      accessToken?: string;
+    };
+    if (!loginData.accessToken) return null;
+
+    const token = loginData.accessToken;
+
+    const botResponse = await fetch(`${API_BASE}/bots/internal`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
-        email,
-        password,
-        name: `QAPlayer${index}`,
-        botName,
-        botEndpoint: `http://localhost:${port}/action`,
+        name: botName,
+        strategy: DEFAULT_STRATEGY,
       }),
     });
+    if (!botResponse.ok) return null;
 
-    if (!response.ok) return null;
+    const botData = (await botResponse.json()) as { id?: string };
+    if (!botData.id) return null;
 
-    const data = (await response.json()) as {
-      accessToken?: string;
-      bot?: { id?: string };
-    };
-    if (!data.accessToken || !data.bot?.id) return null;
-
-    return {
-      token: data.accessToken,
-      botId: data.bot.id,
-    };
+    return { token, botId: botData.id };
   } catch {
     return null;
   }
@@ -147,7 +152,6 @@ async function joinGame(
       const error = (await response.json().catch(() => ({}))) as {
         message?: string;
       };
-      // "already running" or "joined" are success cases
       if (
         error.message?.includes("running") ||
         error.message?.includes("joined")
@@ -173,18 +177,9 @@ export async function ensureLiveGame(
   waitMs: number = 3000,
 ): Promise<SetupResult> {
   const cleanup = async () => {
-    // Kill mock bot processes
-    for (const proc of mockBotProcesses) {
-      try {
-        proc.kill("SIGTERM");
-      } catch {
-        // Ignore errors
-      }
-    }
-    mockBotProcesses = [];
+    // No external processes to clean up
   };
 
-  // Check backend health
   const healthy = await checkBackendHealth();
   if (!healthy) {
     return {
@@ -194,7 +189,6 @@ export async function ensureLiveGame(
     };
   }
 
-  // Find existing game or one we can join
   let game = await findOrCreateGame(2);
   if (!game) {
     return {
@@ -212,21 +206,9 @@ export async function ensureLiveGame(
       `  🎮 Adding ${playersNeeded} players to game: ${game.name}...`,
     );
 
-    // Start mock bot servers
-    for (let i = 0; i < playersNeeded; i++) {
-      const port = BASE_PORT + i + 1;
-      const proc = startMockBotServer(port);
-      mockBotProcesses.push(proc);
-    }
-
-    // Wait for servers to start
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Register and join players
     let joined = 0;
     for (let i = 0; i < playersNeeded; i++) {
-      const port = BASE_PORT + i + 1;
-      const creds = await registerDemoPlayer(i + 1, port);
+      const creds = await registerAndCreateBot(i + 1);
 
       if (creds) {
         const success = await joinGame(game.id, creds.botId, creds.token);
@@ -239,10 +221,8 @@ export async function ensureLiveGame(
     console.log(`  ✓ ${joined} players joined`);
   }
 
-  // Wait for game to stabilize
   await new Promise((resolve) => setTimeout(resolve, waitMs));
 
-  // Refresh game info
   game = await findOrCreateGame(0);
 
   return {

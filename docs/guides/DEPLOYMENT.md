@@ -47,6 +47,10 @@ JWT_SECRET=<64+ character random string>
 CORS_ORIGINS=https://your-domain.com
 RATE_LIMIT_MAX=100
 RATE_LIMIT_WINDOW_MS=60000
+
+# IP blocking (optional)
+# BLOCKED_IPS=1.2.3.4,5.6.7.8
+# ALLOWED_IPS=10.0.0.0/8,172.16.0.0/12
 ```
 
 ## Local Development
@@ -112,11 +116,17 @@ Expected response:
 {"status":"ok","timestamp":"2024-01-01T00:00:00.000Z"}
 ```
 
+## Graceful Shutdown
+
+The application calls `app.enableShutdownHooks()` at startup, enabling NestJS lifecycle hooks (`onModuleDestroy`, `beforeApplicationShutdown`). On `SIGTERM`/`SIGINT` the server drains active connections and flushes pending work before exiting.
+
 ## Database Setup
 
 ### Database Migrations
 
 The application uses TypeORM migrations for schema management. **Never use `synchronize: true` in production.**
+
+All tables, constraints, and indexes are defined in a single merged migration (`src/migrations/1742600000000-FullSchema.ts`). This replaces the previous 15 individual migration files.
 
 #### First-Time Setup
 
@@ -124,8 +134,11 @@ The application uses TypeORM migrations for schema management. **Never use `sync
 # Start PostgreSQL (if using Docker)
 docker-compose up -d postgres
 
-# Run migrations to create all tables
-npm run migration:run
+# Build the backend (migrations require compiled JS)
+npx nest build
+
+# Run the single migration to create all tables
+npx typeorm migration:run -d dist/src/config/typeorm.config.js
 ```
 
 #### Using Docker Compose
@@ -172,12 +185,26 @@ npm run migration:run
 
 ### Backup Strategy
 
-```bash
-# Daily backup
-pg_dump -h $DB_HOST -U $DB_USERNAME $DB_NAME > backup_$(date +%Y%m%d).sql
+An automated backup script is provided at `scripts/db-backup.sh`:
 
-# Point-in-time recovery with managed services (AWS RDS, etc.)
+```bash
+# Run a manual backup
+bash scripts/db-backup.sh
+
+# The script:
+# - Dumps the database using pg_dump
+# - Compresses the output
+# - Prunes backups older than the configured retention period
 ```
+
+Schedule it via cron for daily backups:
+
+```bash
+# Daily backup at 2 AM
+0 2 * * * /path/to/scripts/db-backup.sh >> /var/log/poker-backup.log 2>&1
+```
+
+For managed services (AWS RDS, etc.), use the provider's point-in-time recovery instead.
 
 ## Scaling
 

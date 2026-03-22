@@ -206,9 +206,9 @@ describe("Auth E2E Tests", () => {
         [testEmail],
       );
 
-      expect(users[0].api_key_hash).toBeDefined();
-      expect(users[0].api_key_hash).not.toBe("MyPlainPassword123!");
-      expect(users[0].api_key_hash.length).toBeGreaterThan(20);
+      expect(users[0].password_hash).toBeDefined();
+      expect(users[0].password_hash).not.toBe("MyPlainPassword123!");
+      expect(users[0].password_hash.length).toBeGreaterThan(20);
     });
   });
 
@@ -309,17 +309,6 @@ describe("Auth E2E Tests", () => {
         .get("/api/v1/auth/me")
         .set("Authorization", "Bearer invalid-token")
         .expect(401);
-    });
-
-    it("should regenerate API key", async () => {
-      const { accessToken } = await createAuthenticatedUser();
-      const response = await request(app.getHttpServer())
-        .post("/api/v1/auth/regenerate-api-key")
-        .set("Authorization", `Bearer ${accessToken}`)
-        .expect(200);
-
-      expect(response.body).toHaveProperty("apiKey");
-      expect(response.body.apiKey).toBeDefined();
     });
   });
 });

@@ -72,7 +72,7 @@ export class GuardianMonster extends BaseMonster {
   private a11yChecks: AccessibilityCheck[] = [];
 
   constructor(config?: Partial<GuardianConfig>) {
-    super({ name: "Guardian Monster", type: "guardian" });
+    super({ name: "Guardian Monster", type: "guardian", needsServer: true });
     const env = getEnv();
     this.guardianConfig = {
       baseUrl: env.apiBaseUrl,

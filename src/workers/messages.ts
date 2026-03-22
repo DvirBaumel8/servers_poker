@@ -11,7 +11,7 @@
 export interface PlayerConfig {
   id: string;
   name: string;
-  endpoint: string;
+  strategy: Record<string, any> | null;
   chips?: number;
 }
 
@@ -115,6 +115,18 @@ export type WorkerEvent =
       dealerName: string;
     }
   | {
+      type: "PLAYER_ACTION";
+      tableId: string;
+      gameId: string;
+      handNumber: number;
+      botId: string;
+      action: string;
+      amount: number;
+      pot: number;
+      stage: string;
+      chipsAfter: number;
+    }
+  | {
       type: "HAND_COMPLETE";
       tableId: string;
       handNumber: number;
@@ -142,8 +154,6 @@ export type WorkerEvent =
 export interface WorkerInitData {
   gameConfig: GameConfig;
   players?: PlayerConfig[];
-  enableHmacSigning?: boolean;
-  hmacSecret?: string;
 }
 
 // ============================================================================
@@ -171,6 +181,7 @@ export function isWorkerEvent(msg: unknown): msg is WorkerEvent {
     m.type === "PLAYER_JOINED" ||
     m.type === "PLAYER_LEFT" ||
     m.type === "HAND_STARTED" ||
+    m.type === "PLAYER_ACTION" ||
     m.type === "HAND_COMPLETE" ||
     m.type === "GAME_FINISHED" ||
     m.type === "ERROR" ||

@@ -51,7 +51,7 @@ export class BasicSimulation extends SimulationRunner {
   private players: Array<{
     id: string;
     name: string;
-    endpoint: string;
+    strategy: Record<string, unknown>;
     chips: number;
   }> = [];
 
@@ -99,11 +99,10 @@ export class BasicSimulation extends SimulationRunner {
   protected async setupTestData(): Promise<void> {
     this.log("Setting up test data...");
 
-    // Create players from bot servers
-    this.players = this.botServers.map((bot, idx) => ({
+    this.players = this.botRecords.map((bot, idx) => ({
       id: bot.botId,
       name: `TestBot${idx + 1}`,
-      endpoint: `http://localhost:${bot.port}/action`,
+      strategy: bot.strategy,
       chips: this.config.startingChips,
     }));
 
@@ -134,7 +133,7 @@ export class BasicSimulation extends SimulationRunner {
         id: player.id,
         name: player.name,
         chips: player.chips,
-        endpoint: player.endpoint,
+        strategy: player.strategy,
       });
     }
 

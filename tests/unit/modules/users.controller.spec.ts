@@ -11,11 +11,6 @@ describe("UsersController", () => {
     adminUpdate: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
   };
-  let mockApiKeyRotationService: {
-    rotateApiKey: ReturnType<typeof vi.fn>;
-    getRotationStatus: ReturnType<typeof vi.fn>;
-    revokeAllKeys: ReturnType<typeof vi.fn>;
-  };
 
   const mockUserResponse = {
     id: "user-123",
@@ -34,16 +29,7 @@ describe("UsersController", () => {
       deactivate: vi.fn(),
     };
 
-    mockApiKeyRotationService = {
-      rotateApiKey: vi.fn(),
-      getRotationStatus: vi.fn(),
-      revokeAllKeys: vi.fn(),
-    };
-
-    controller = new UsersController(
-      mockUsersService as never,
-      mockApiKeyRotationService as never,
-    );
+    controller = new UsersController(mockUsersService as never);
   });
 
   describe("findAll", () => {
@@ -147,53 +133,6 @@ describe("UsersController", () => {
 
       expect(result).toEqual({ success: true });
       expect(mockUsersService.deactivate).toHaveBeenCalledWith("user-123");
-    });
-  });
-
-  describe("rotateApiKey", () => {
-    it("should rotate API key", async () => {
-      mockApiKeyRotationService.rotateApiKey.mockResolvedValue({
-        newApiKey: "new-key",
-        oldApiKeyValidUntil: new Date("2024-01-01"),
-        rotatedAt: new Date("2024-01-01"),
-      });
-
-      const result = await controller.rotateApiKey("user-123");
-
-      expect(result.newApiKey).toBe("new-key");
-      expect(result.message).toContain("rotated successfully");
-      expect(mockApiKeyRotationService.rotateApiKey).toHaveBeenCalledWith(
-        "user-123",
-      );
-    });
-  });
-
-  describe("getApiKeyStatus", () => {
-    it("should return API key status", async () => {
-      mockApiKeyRotationService.getRotationStatus.mockResolvedValue({
-        hasLegacyKeys: true,
-        legacyKeyExpiresAt: new Date("2024-01-01"),
-      });
-
-      const result = await controller.getApiKeyStatus("user-123");
-
-      expect(result.hasLegacyKeys).toBe(true);
-      expect(mockApiKeyRotationService.getRotationStatus).toHaveBeenCalledWith(
-        "user-123",
-      );
-    });
-  });
-
-  describe("revokeApiKeys", () => {
-    it("should revoke API keys", async () => {
-      mockApiKeyRotationService.revokeAllKeys.mockResolvedValue(undefined);
-
-      const result = await controller.revokeApiKeys("user-123");
-
-      expect(result.message).toContain("revoked");
-      expect(mockApiKeyRotationService.revokeAllKeys).toHaveBeenCalledWith(
-        "user-123",
-      );
     });
   });
 });

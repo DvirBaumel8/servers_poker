@@ -1,20 +1,12 @@
 /**
  * Chaos Scenarios
  *
- * Defines individual chaos test scenarios with injection,
- * verification, and expected outcomes.
+ * Strategy-based chaos test scenarios that validate the system
+ * handles corrupt, extreme, and invalid strategy JSON gracefully.
  */
 
-import {
-  ControllableBot,
-  createBotFleet,
-  stopBotFleet,
-} from "./controllable-bot";
-import {
-  BotChaosAgent,
-  NetworkChaosAgent,
-  StateChaosAgent,
-} from "./chaos-agents";
+import { ControllableBot, createBotFleet } from "./controllable-bot";
+import { NetworkChaosAgent, StateChaosAgent } from "./chaos-agents";
 
 export type ScenarioResult = "passed" | "failed" | "skipped";
 
@@ -39,13 +31,9 @@ export interface ScenarioConfig {
 
 export type ChaosIntensity = "light" | "medium" | "heavy";
 
-/**
- * Base class for chaos scenarios
- */
 export abstract class ChaosScenario {
   protected config: ScenarioConfig;
   protected bots: ControllableBot[] = [];
-  protected botChaos: BotChaosAgent | null = null;
   protected networkChaos: NetworkChaosAgent;
   protected stateChaos: StateChaosAgent;
   protected verifications: {
@@ -126,77 +114,40 @@ export abstract class ChaosScenario {
   abstract run(): Promise<ScenarioOutcome>;
 
   async cleanup(): Promise<void> {
-    if (this.bots.length > 0) {
-      await stopBotFleet(this.bots);
-      this.bots = [];
-    }
-    this.botChaos?.restoreAllBots();
+    this.bots = [];
     this.verifications = [];
   }
 }
 
-/**
- * Scenario: Bot crashes mid-hand
- * Tests fallback action when bot becomes unavailable
- */
-export class BotCrashMidHandScenario extends ChaosScenario {
-  name = "Bot Crash Mid-Hand";
-  description = "Bot crashes during action request, fallback should be used";
+export class CorruptStrategyScenario extends ChaosScenario {
+  name = "Corrupt Strategy JSON";
+  description =
+    "Bot has corrupt strategy JSON, system should handle gracefully";
 
   async run(): Promise<ScenarioOutcome> {
     const start = Date.now();
 
     try {
-      // Setup: Create controllable bots
-      const basePort = 12000 + Math.floor(Math.random() * 1000);
-      this.bots = await createBotFleet(4, basePort, {
-        verbose: this.config.verbose,
-      });
-      this.botChaos = new BotChaosAgent(this.bots, this.config.verbose);
+      this.bots = createBotFleet(4);
 
-      this.log("Created bot fleet");
+      this.bots[0].setMode("corrupt_json");
+      this.log("Set bot 0 to corrupt_json mode");
 
-      // Verify bots are healthy
-      for (const bot of this.bots) {
-        const response = await fetch(bot.getEndpoint());
-        this.verify(
-          `${bot.getName()} reachable`,
-          response.ok,
-          response.ok ? "Bot responding" : "Bot not responding",
-        );
-      }
-
-      // Inject chaos: Crash first bot
-      this.log("Injecting chaos: Crashing bot 0");
-      this.botChaos.crashBot(0);
-
-      // Verify the crashed bot is now unavailable
-      let crashedBotResponse: Response | null = null;
-      try {
-        crashedBotResponse = await fetch(this.bots[0].getEndpoint());
-      } catch {
-        // Expected to fail
-      }
+      const corruptStrategy = this.bots[0].generateStrategy();
+      const normalStrategy = this.bots[1].generateStrategy();
 
       this.verify(
-        "Crashed bot unavailable",
-        crashedBotResponse === null || !crashedBotResponse.ok,
-        crashedBotResponse === null
-          ? "Connection refused (expected)"
-          : `Unexpected response: ${crashedBotResponse.status}`,
+        "Corrupt strategy generated",
+        typeof corruptStrategy.version === "string",
+        "Strategy has invalid version type",
       );
 
-      // Verify other bots still work
-      const healthyBotResponse = await fetch(this.bots[1].getEndpoint());
       this.verify(
-        "Other bots still healthy",
-        healthyBotResponse.ok,
-        healthyBotResponse.ok
-          ? "Healthy bots responding"
-          : "Healthy bots affected",
+        "Normal strategy valid",
+        typeof normalStrategy.version === "number",
+        "Normal strategy has correct version type",
       );
 
-      // Verify system health endpoint still works
       const healthResponse = await this.fetchJson<{ status: string }>(
         "/api/v1/health",
       );
@@ -225,142 +176,52 @@ export class BotCrashMidHandScenario extends ChaosScenario {
   }
 }
 
-/**
- * Scenario: Multiple bots timeout simultaneously
- * Tests circuit breaker and fallback cascade
- */
-export class BotTimeoutCascadeScenario extends ChaosScenario {
-  name = "Bot Timeout Cascade";
+export class ExtremePersonalityScenario extends ChaosScenario {
+  name = "Extreme Personality Values";
   description =
-    "Multiple bots timeout simultaneously, testing circuit breakers";
+    "Bots with max/min personality values should play without errors";
 
   async run(): Promise<ScenarioOutcome> {
     const start = Date.now();
 
     try {
-      const basePort = 13000 + Math.floor(Math.random() * 1000);
-      this.bots = await createBotFleet(4, basePort, {
-        verbose: this.config.verbose,
-      });
-      this.botChaos = new BotChaosAgent(this.bots, this.config.verbose);
+      this.bots = createBotFleet(4);
 
-      this.log("Created bot fleet");
+      this.bots[0].setMode("extreme_aggressive");
+      this.bots[1].setMode("extreme_passive");
+      this.log("Set extreme personality modes");
 
-      // Inject chaos: Make multiple bots timeout
-      this.log("Injecting chaos: Multiple bot timeouts");
-      this.botChaos.timeoutBot(0);
-      this.botChaos.timeoutBot(1);
-      this.botChaos.timeoutBot(2);
+      const aggressiveStrategy = this.bots[0].generateStrategy();
+      const passiveStrategy = this.bots[1].generateStrategy();
 
-      // Verify timeout bots don't respond (within reasonable time)
-      const timeoutPromise = Promise.race([
-        fetch(this.bots[0].getEndpoint(), { method: "POST", body: "{}" }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
-      ]);
-
-      const timeoutResult = await timeoutPromise;
-      this.verify(
-        "Timeout bot doesn't respond quickly",
-        timeoutResult === null,
-        timeoutResult === null
-          ? "Request timed out (expected)"
-          : "Bot responded unexpectedly",
-      );
-
-      // Verify healthy bot still works
-      const healthyBotResponse = await fetch(this.bots[3].getEndpoint());
-      this.verify(
-        "Healthy bot still responds",
-        healthyBotResponse.ok,
-        healthyBotResponse.ok ? "Healthy bot OK" : "Healthy bot affected",
-      );
-
-      // Verify metrics endpoint shows data
-      const metricsResponse = await fetch(
-        `${this.config.baseUrl}/api/v1/metrics`,
-      );
-      this.verify(
-        "Metrics endpoint available",
-        metricsResponse.ok,
-        metricsResponse.ok ? "Metrics accessible" : "Metrics unavailable",
-      );
-
-      const allPassed = this.verifications.every((v) => v.passed);
-      return {
-        name: this.name,
-        result: allPassed ? "passed" : "failed",
-        durationMs: Date.now() - start,
-        verifications: this.verifications,
-      };
-    } catch (error) {
-      return {
-        name: this.name,
-        result: "failed",
-        durationMs: Date.now() - start,
-        error: String(error),
-        verifications: this.verifications,
-      };
-    }
-  }
-}
-
-/**
- * Scenario: Bot returns garbage response
- * Tests response validation and fallback
- */
-export class BotGarbageResponseScenario extends ChaosScenario {
-  name = "Bot Garbage Response";
-  description = "Bot returns invalid JSON, testing response validation";
-
-  async run(): Promise<ScenarioOutcome> {
-    const start = Date.now();
-
-    try {
-      const basePort = 14000 + Math.floor(Math.random() * 1000);
-      this.bots = await createBotFleet(2, basePort, {
-        verbose: this.config.verbose,
-      });
-      this.botChaos = new BotChaosAgent(this.bots, this.config.verbose);
-
-      this.log("Created bot fleet");
-
-      // Inject chaos: Make bot return garbage
-      this.log("Injecting chaos: Garbage response");
-      this.botChaos.corruptBot(0);
-
-      // Send action request to garbage bot
-      const garbageResponse = await fetch(this.bots[0].getEndpoint(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test" }),
-      });
-
-      const responseText = await garbageResponse.text();
-      let isValidJson = true;
-      try {
-        JSON.parse(responseText);
-      } catch {
-        isValidJson = false;
-      }
+      const aggPersonality = aggressiveStrategy.personality as Record<
+        string,
+        number
+      >;
+      const passPersonality = passiveStrategy.personality as Record<
+        string,
+        number
+      >;
 
       this.verify(
-        "Bot returns invalid JSON",
-        !isValidJson,
-        isValidJson
-          ? "Bot returned valid JSON (unexpected)"
-          : "Bot returned garbage (expected)",
+        "Aggressive has max aggression",
+        aggPersonality?.aggression === 100,
+        `Aggression: ${aggPersonality?.aggression}`,
       );
 
-      // Verify system still healthy
+      this.verify(
+        "Passive has zero aggression",
+        passPersonality?.aggression === 0,
+        `Aggression: ${passPersonality?.aggression}`,
+      );
+
       const healthResponse = await this.fetchJson<{ status: string }>(
         "/api/v1/health",
       );
       this.verify(
         "System health OK",
         healthResponse?.status === "ok",
-        healthResponse
-          ? "System healthy despite garbage bot"
-          : "System affected",
+        healthResponse ? "System healthy" : "System health check failed",
       );
 
       const allPassed = this.verifications.every((v) => v.passed);
@@ -382,163 +243,41 @@ export class BotGarbageResponseScenario extends ChaosScenario {
   }
 }
 
-/**
- * Scenario: Intermittent bot failures
- * Tests resilience to flaky bots
- */
-export class IntermittentBotFailureScenario extends ChaosScenario {
-  name = "Intermittent Bot Failures";
-  description = "Bot fails randomly, testing retry and fallback logic";
+export class InvalidStrategyValuesScenario extends ChaosScenario {
+  name = "Invalid Strategy Values";
+  description = "Strategy with NaN, negative, and undefined values";
 
   async run(): Promise<ScenarioOutcome> {
     const start = Date.now();
 
     try {
-      const basePort = 15000 + Math.floor(Math.random() * 1000);
-      this.bots = await createBotFleet(2, basePort, {
-        verbose: this.config.verbose,
-      });
-      this.botChaos = new BotChaosAgent(this.bots, this.config.verbose);
+      this.bots = createBotFleet(2);
 
-      this.log("Created bot fleet");
+      this.bots[0].setMode("invalid_values");
+      this.log("Set invalid_values mode");
 
-      // Inject chaos: 50% failure rate
-      this.log("Injecting chaos: Intermittent failures (50%)");
-      this.botChaos.intermittentBot(0, 0.5);
-
-      // Send multiple requests and count successes (reduced to 10 for speed)
-      let successes = 0;
-      let failures = 0;
-      const totalRequests = 10;
-
-      const requests = Array(totalRequests)
-        .fill(null)
-        .map(async () => {
-          try {
-            const response = await fetch(this.bots[0].getEndpoint(), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "test" }),
-            });
-            return response.ok;
-          } catch {
-            return false;
-          }
-        });
-
-      const results = await Promise.all(requests);
-      successes = results.filter((r) => r).length;
-      failures = results.filter((r) => !r).length;
-
-      const successRate = successes / totalRequests;
-      this.verify(
-        "Some requests succeed",
-        successes > 0,
-        `${successes}/${totalRequests} succeeded`,
-      );
-      this.verify(
-        "Some requests fail",
-        failures > 0,
-        `${failures}/${totalRequests} failed`,
-      );
-      this.verify(
-        "Failure rate approximately 50%",
-        successRate > 0.2 && successRate < 0.8,
-        `Success rate: ${(successRate * 100).toFixed(0)}%`,
-      );
-
-      const allPassed = this.verifications.every((v) => v.passed);
-      return {
-        name: this.name,
-        result: allPassed ? "passed" : "failed",
-        durationMs: Date.now() - start,
-        verifications: this.verifications,
-      };
-    } catch (error) {
-      return {
-        name: this.name,
-        result: "failed",
-        durationMs: Date.now() - start,
-        error: String(error),
-        verifications: this.verifications,
-      };
-    }
-  }
-}
-
-/**
- * Scenario: All bots crash simultaneously
- * Tests graceful degradation when all bots fail
- */
-export class MassBotFailureScenario extends ChaosScenario {
-  name = "Mass Bot Failure";
-  description = "All bots fail at once, testing graceful degradation";
-
-  async run(): Promise<ScenarioOutcome> {
-    const start = Date.now();
-
-    try {
-      const basePort = 16000 + Math.floor(Math.random() * 1000);
-      this.bots = await createBotFleet(4, basePort, {
-        verbose: this.config.verbose,
-      });
-      this.botChaos = new BotChaosAgent(this.bots, this.config.verbose);
-
-      this.log("Created bot fleet");
-
-      // Verify all bots healthy initially
-      for (const bot of this.bots) {
-        const response = await fetch(bot.getEndpoint());
-        if (!response.ok) {
-          this.verify(
-            `${bot.getName()} healthy`,
-            false,
-            "Bot not responding initially",
-          );
-        }
-      }
-
-      // Inject chaos: Crash all bots
-      this.log("Injecting chaos: Mass bot failure");
-      this.botChaos.crashAllBots();
-
-      // Verify all bots are down
-      let allDown = true;
-      for (const bot of this.bots) {
-        try {
-          await fetch(bot.getEndpoint());
-          allDown = false;
-        } catch {
-          // Expected
-        }
-      }
+      const strategy = this.bots[0].generateStrategy();
+      const personality = strategy.personality as Record<string, unknown>;
 
       this.verify(
-        "All bots down",
-        allDown,
-        allDown
-          ? "All bots unreachable (expected)"
-          : "Some bots still responding",
+        "Has negative value",
+        (personality?.aggression as number) < 0,
+        `Aggression: ${personality?.aggression}`,
       );
 
-      // Verify system health still works
+      this.verify(
+        "Has out-of-range value",
+        (personality?.bluffFrequency as number) > 100,
+        `BluffFrequency: ${personality?.bluffFrequency}`,
+      );
+
       const healthResponse = await this.fetchJson<{ status: string }>(
         "/api/v1/health",
       );
       this.verify(
-        "System health endpoint available",
-        healthResponse !== null,
-        healthResponse ? "Health check works" : "Health check failed",
-      );
-
-      // Verify tournaments endpoint works
-      const tournamentsResponse = await this.fetchJson<unknown[]>(
-        "/api/v1/tournaments",
-      );
-      this.verify(
-        "Tournaments endpoint available",
-        tournamentsResponse !== null,
-        tournamentsResponse ? "Tournaments accessible" : "Tournaments failed",
+        "System health OK",
+        healthResponse?.status === "ok",
+        healthResponse ? "System healthy" : "System health check failed",
       );
 
       const allPassed = this.verifications.every((v) => v.passed);
@@ -560,60 +299,40 @@ export class MassBotFailureScenario extends ChaosScenario {
   }
 }
 
-/**
- * Scenario: High latency bots
- * Tests timeout handling and slow response tolerance
- */
-export class HighLatencyBotScenario extends ChaosScenario {
-  name = "High Latency Bot";
-  description = "Bot responds very slowly, testing timeout handling";
+export class MissingStrategyFieldsScenario extends ChaosScenario {
+  name = "Missing Strategy Fields";
+  description = "Strategy JSON with missing required fields";
 
   async run(): Promise<ScenarioOutcome> {
     const start = Date.now();
 
     try {
-      const basePort = 17000 + Math.floor(Math.random() * 1000);
-      this.bots = await createBotFleet(2, basePort, {
-        verbose: this.config.verbose,
-      });
-      this.botChaos = new BotChaosAgent(this.bots, this.config.verbose);
+      this.bots = createBotFleet(2);
 
-      this.log("Created bot fleet");
+      this.bots[0].setMode("missing_fields");
+      this.log("Set missing_fields mode");
 
-      // Inject chaos: 3 second delay
-      this.log("Injecting chaos: 3s delay on bot 0");
-      this.botChaos.slowBot(0, 3000);
-
-      // Time a request to slow bot
-      const slowStart = Date.now();
-      const slowResponse = await fetch(this.bots[0].getEndpoint(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test" }),
-      });
-      const slowDuration = Date.now() - slowStart;
+      const strategy = this.bots[0].generateStrategy();
 
       this.verify(
-        "Slow bot response delayed",
-        slowDuration >= 2500,
-        `Response took ${slowDuration}ms`,
+        "Strategy missing personality",
+        !("personality" in strategy),
+        "No personality field in strategy",
       );
 
       this.verify(
-        "Slow bot eventually responds",
-        slowResponse.ok,
-        slowResponse.ok ? "Got response" : "No response",
+        "Strategy missing tier",
+        !("tier" in strategy),
+        "No tier field in strategy",
       );
 
-      // Verify fast bot is unaffected
-      const fastStart = Date.now();
-      const fastResponse = await fetch(this.bots[1].getEndpoint());
-      const fastDuration = Date.now() - fastStart;
-
+      const healthResponse = await this.fetchJson<{ status: string }>(
+        "/api/v1/health",
+      );
       this.verify(
-        "Fast bot responds quickly",
-        fastDuration < 500,
-        `Response took ${fastDuration}ms`,
+        "System health OK",
+        healthResponse?.status === "ok",
+        healthResponse ? "System healthy" : "System health check failed",
       );
 
       const allPassed = this.verifications.every((v) => v.passed);
@@ -635,10 +354,6 @@ export class HighLatencyBotScenario extends ChaosScenario {
   }
 }
 
-/**
- * Scenario: Request burst / load spike
- * Tests system behavior under sudden load
- */
 export class RequestBurstScenario extends ChaosScenario {
   name = "Request Burst";
   description = "Sudden burst of requests, testing rate limiting and stability";
@@ -647,7 +362,6 @@ export class RequestBurstScenario extends ChaosScenario {
     const start = Date.now();
 
     try {
-      // Send burst of requests
       this.log("Injecting chaos: Request burst (100 requests)");
       const successCount = await this.networkChaos.requestBurst(
         "/api/v1/health",
@@ -661,7 +375,6 @@ export class RequestBurstScenario extends ChaosScenario {
         `${successCount}/100 succeeded`,
       );
 
-      // Verify system still responsive after burst
       await this.sleep(1000);
       const healthResponse = await this.fetchJson<{ status: string }>(
         "/api/v1/health",
@@ -691,10 +404,6 @@ export class RequestBurstScenario extends ChaosScenario {
   }
 }
 
-/**
- * Scenario: Recovery status check
- * Tests recovery mechanism availability
- */
 export class RecoveryStatusScenario extends ChaosScenario {
   name = "Recovery Status";
   description = "Verify recovery mechanisms are available and configured";
@@ -703,7 +412,6 @@ export class RecoveryStatusScenario extends ChaosScenario {
     const start = Date.now();
 
     try {
-      // Check health endpoints
       const healthResponse = await this.fetchJson<{ status: string }>(
         "/api/v1/health",
       );
@@ -731,7 +439,6 @@ export class RecoveryStatusScenario extends ChaosScenario {
         liveResponse ? "Live" : "Not live",
       );
 
-      // Check metrics for recovery-related gauges
       const metricsResponse = await fetch(
         `${this.config.baseUrl}/api/v1/metrics`,
       );
@@ -768,35 +475,27 @@ export class RecoveryStatusScenario extends ChaosScenario {
   }
 }
 
-/**
- * Get all scenarios based on intensity level
- */
 export function getScenarios(
   config: ScenarioConfig,
   intensity: ChaosIntensity = "medium",
 ): ChaosScenario[] {
   const all: ChaosScenario[] = [
-    new BotCrashMidHandScenario(config),
-    new BotTimeoutCascadeScenario(config),
-    new BotGarbageResponseScenario(config),
-    new IntermittentBotFailureScenario(config),
-    new MassBotFailureScenario(config),
-    new HighLatencyBotScenario(config),
+    new CorruptStrategyScenario(config),
+    new ExtremePersonalityScenario(config),
+    new InvalidStrategyValuesScenario(config),
+    new MissingStrategyFieldsScenario(config),
     new RequestBurstScenario(config),
     new RecoveryStatusScenario(config),
   ];
 
   switch (intensity) {
     case "light":
-      // Basic scenarios only
       return [
-        new BotCrashMidHandScenario(config),
-        new BotGarbageResponseScenario(config),
+        new CorruptStrategyScenario(config),
         new RecoveryStatusScenario(config),
       ];
     case "medium":
-      // Skip the heaviest scenarios
-      return all.filter((s) => s.name !== "Mass Bot Failure");
+      return all;
     case "heavy":
     default:
       return all;

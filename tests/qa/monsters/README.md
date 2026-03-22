@@ -4,7 +4,7 @@ A comprehensive, self-improving QA system designed for **zero-bug poker developm
 
 ## 📚 Documentation
 
-- **[📋 MONSTERS.md](./MONSTERS.md)** - Complete guide to all 21+ monsters
+- **[📋 MONSTERS.md](./MONSTERS.md)** - Complete guide to all 23 monsters
 - **[📋 REPORT.md](./REPORT.md)** - Findings, bugs, and metrics
 - **[🗂️ ISSUES-REPORT.md](./shared/ISSUES-REPORT.md)** - Current open issues
 
@@ -75,9 +75,14 @@ But together, a race condition causes:
 | Monster | System | What it tests |
 |---------|--------|---------------|
 | **API Monster** 🔌 | Backend API | Endpoints, contracts, auth, rate limiting |
+| **Contract Monster** | FE + API | Static scan: `frontend/src/api/*.ts` `.map()` on paginated calls vs controller patterns |
+
+**API Monster base URL:** Paths in `api-monster/api-monster.config.ts` already include `/api/v1/...`. `API_BASE_URL` / `API_URL` may be set to the full API root (e.g. `http://localhost:3000/api/v1`, same style as `getEnv().apiBaseUrl`). The shared helper `getOriginForApiV1Paths()` strips a trailing `/api/v1` so URLs are not doubled (which would otherwise yield 404s while `/health` still passes). Connection failures are surfaced as HTTP status `0` and are skipped in the monster; `429` on `POST /auth/register` is skipped when rate limits fire in CI.
 | **Visual Monster** 👁️ | Frontend UI | Viewports, overflow, console errors |
 | **Invariant Monster** 🔒 | Game Logic | Money, cards, actions, tournaments |
 | **Guardian Monster** 🛡️ | Security | XSS, injection, accessibility (planned) |
+| **Regression Monster** 🔁 | Bug history | Reads `tests/qa/monsters/data/bug-retrospectives.json`, verifies fixes not reverted |
+| **Explorer Monster** 🦸 | Frontend UI | Autonomous crawl (medium preset); default cap 90s, override `EXPLORER_MAX_RUNTIME` |
 
 ## Layer 2: Connector Monsters (Two Systems)
 
@@ -114,7 +119,7 @@ npm run monsters:connectors
 # Layer 3: Flow tests (run nightly)
 npm run monsters:flows
 
-# Combined presets
+# Combined presets (all auto-start BE/FE if not running)
 npm run monsters:quick      # API + Invariant only
 npm run monsters:pr         # Layers 1+2 (for PR validation)
 npm run monsters:nightly    # Layers 1+2+3 (full coverage)
@@ -124,6 +129,21 @@ npm run monsters:api
 npm run monsters:api-db
 npm run monsters:game-flow
 
+# 🦸 EXPLORER MONSTER - Autonomous UI Crawler
+npm run monsters:explorer   # Medium army preset; ~90s default cap (see EXPLORER_MAX_RUNTIME)
+
+# 🔁 REGRESSION MONSTER - Historical fix checks
+npm run monsters:regression-check   # bug-retrospectives.json vs codebase
+
+# 🗄️ DATA INTEGRITY MONSTER - Data layer validation
+npm run monsters:data-integrity     # FKs, cascades, enums, chips, transactions, DTOs
+
+# 📈 DATA ANALYTICS MONSTER - Analytics pipeline per DATA.md
+npm run monsters:data-analytics     # chip movements, bot stats, hand history, replay data
+
+# 📋 LOG ANALYZER MONSTER - Backend/frontend log health
+npm run monsters:log-analyzer       # sensitive data in logs, silent catches, live response analysis
+
 # 🎰 SIMULATION MONSTER - Professional QA Testing
 npm run monsters:simulation           # Standard mode (~90s, 4 scenarios)
 npm run monsters:simulation:quick     # Quick mode (~30s, CI-friendly)
@@ -132,15 +152,47 @@ npm run monsters:simulation:thorough  # Thorough mode (~5-10min, 7 scenarios)
 # Parallel execution
 npm run monsters:nightly --parallel
 
-# CI mode (JSON output)
+# CI mode (JSON output, static analysis only, no server needed)
 npm run monsters:ci
+
+# Disable auto-start of BE/FE (fail if servers aren't running)
+npm run monsters:all -- --no-auto-start
+
+# Static analysis only (no BE/FE required)
+npm run monsters:all -- --static
 ```
+
+## Server Management
+
+`run-all.ts` automatically manages BE and FE servers:
+
+- **Checks** if BE (port 3000) and FE (port 3001) are already running
+- **Starts** them if not (BE via `node dist/src/main.js`, FE via `npx vite`)
+- **Tears down** only the servers it started (leaves your manually-started servers alone)
+- **Handles SIGINT/SIGTERM** for clean cleanup on Ctrl+C
+
+Flags:
+- `--no-auto-start` — skip auto-start, monsters that need servers will be skipped if servers are down
+- `--static` — only run static-analysis monsters (no BE/FE needed at all)
+
+## Unified storage
+
+- **Source of truth:** `shared/issue-tracker.ts` persists to `shared/issues.json` only.
+- **Deprecated:** `memory/memory-store.ts` — do not use for new code; triage, code-fixer, auto-improve, and iteration-runner all read/write via the issue tracker.
+
+## Checks performed
+
+`BaseMonster` exposes `checksPerformed` and `recordCheck()`. When a run finds zero issues, summaries still show work done, e.g. `Checks: 42. Findings: 0C 0H 0M 0L`.
+
+## Dead-weight analysis
+
+`run-all.ts` (e.g. `npm run monsters:all`) flags monsters with **5+ runs and 0 issues**: **BROKEN** (failures exceed successes), **INEFFECTIVE** (10+ runs, still zero findings), or **WATCH** (needs tuning). The same dead-weight block is written to `docs/MONSTER_EVOLUTION.md` under **Dead-Weight Analysis**.
 
 ## Self-Improvement Features
 
 ### Auto-Improve Mode 🤖
 
-The Evolution Agent can **actually modify code** to improve tests:
+Auto-improve (`evolution/auto-improve.ts`) edits config arrays in place (finds the array terminator `];` and inserts entries). CLI: `--dry-run` (default), `--apply`, or `--commit`.
 
 ```bash
 # Preview what would change (safe, no writes)
@@ -158,14 +210,16 @@ npm run monsters:evolve:commit
 - Add new pages/viewports to Visual Monster config
 - Create regression test files for found bugs
 - Add new invariant rules based on violations
-- Generate `.todo.ts` files for complex changes needing human review
 
 **Safety mechanisms:**
-1. **Dry run by default** - preview changes first
-2. **TODO files** - complex changes go to `.todo.ts` files
-3. **New branch** - commits go to `monster-improve-*` branches
-4. **No auto-merge** - requires human approval via PR
-5. **Max changes per run** - limited to 10 changes
+1. **Dry run by default** — preview before `--apply` / `--commit`
+2. **New branch** — commits go to `monster-improve-*` branches
+3. **No auto-merge** — requires human approval via PR
+4. **Max changes per run** — limited to 10 changes
+
+### Lifecycle fix stage
+
+`lifecycle-runner.ts` applies **CodeFixer** (`evolution/code-fixer.ts`) for CSS-class issues: overflow, hover, focus, z-index, contrast (replaces prior stub fixers).
 
 ### Regression Detection
 When a previously-fixed bug reappears, it's automatically flagged as critical.
@@ -191,10 +245,12 @@ After each run, the Evolution Agent:
 tests/qa/monsters/
 ├── shared/
 │   ├── types.ts           # Core types (Finding, Run, etc.)
-│   ├── base-monster.ts    # Base class for monsters
+│   ├── base-monster.ts    # Base class (checksPerformed, recordCheck)
+│   ├── issue-tracker.ts   # Single persistence API → issues.json
+│   ├── issues.json        # Issue database (only store)
 │   └── reporter.ts        # Report generation
 ├── memory/
-│   └── memory-store.ts    # Persistent storage
+│   └── memory-store.ts    # Deprecated — use issue-tracker
 ├── api-monster/
 │   ├── api-monster.ts
 │   └── api-monster.config.ts
@@ -205,7 +261,17 @@ tests/qa/monsters/
 │   ├── invariant-monster.ts
 │   └── poker-invariants.ts   # Critical poker rules
 ├── evolution/
+│   ├── auto-improve.ts       # Safe config edits (--dry-run | --apply | --commit)
+│   ├── code-fixer.ts         # CSS fixes (lifecycle + npm run monsters:fix)
 │   └── evolution-agent.ts    # Self-improvement brain
+├── regression-monster/
+│   └── regression-monster.ts # bug-retrospectives.json guard
+├── data-integrity-monster/
+│   └── data-integrity-monster.ts # Entity/migration/DTO/chip integrity
+├── data-analytics-monster/
+│   └── data-analytics-monster.ts # Analytics pipeline per DATA.md
+├── log-analyzer-monster/
+│   └── log-analyzer-monster.ts # Backend/frontend log health analysis
 └── orchestrator.ts          # Main entry point
 ```
 
@@ -273,17 +339,7 @@ Reports are saved to `tests/qa/monsters/reports/<run-id>/`
 
 ## Memory & Learning
 
-The Memory Store tracks:
-- All findings with fingerprints
-- Finding lifecycle (open → fixed → regression)
-- Run history and trends
-- Coverage gaps
-
-This enables:
-- Automatic regression detection
-- Trend visualization
-- Historical comparisons
-- Continuous improvement
+The **issue tracker** (`issues.json`) holds findings with fingerprints, status, severity, and source monster. Run history for dead-weight analysis lives in monster stats (see `run-all.ts` / `docs/MONSTER_EVOLUTION.md`).
 
 ## Data Cleanup
 
@@ -291,10 +347,7 @@ Monster Army generates data over time. The system has automatic and manual clean
 
 ### Automatic Cleanup
 
-The memory store auto-cleans on every save:
-- Keeps last 50 runs
-- Keeps at most 200 findings
-- Removes fixed findings older than 30 days
+`cleanup.ts` removes stale iteration/triage reports, legacy `tests/qa/monsters/data/memory.json` runs (if present), and old `auto-generated/` files (`--keep-days`, `--keep-runs`). Clear `issues.json` via `npm run monsters:issues:clear`.
 
 ### Manual Cleanup
 
@@ -318,8 +371,8 @@ npx ts-node tests/qa/monsters/cleanup.ts --keep-days 3 --keep-runs 10
 |------|----------|-------------------|
 | Iteration reports | `reports/iterations/*.json` | 7 days |
 | Triage reports | `reports/triage-*.json` | 7 days |
-| Memory store runs | `data/memory.json` | 50 runs |
-| Memory store findings | `data/memory.json` | 200 max, 30 days |
+| Primary issues DB | `shared/issues.json` | Per cleanup / tracker rules |
+| Legacy memory (if present) | `data/memory.json` | Deprecated |
 | Auto-generated tests | `auto-generated/` | 7 days |
 
 ---

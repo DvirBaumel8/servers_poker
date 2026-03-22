@@ -18,7 +18,13 @@
 
 import { execSync, spawn } from "child_process";
 import * as fs from "fs";
+import { readJsonSafe } from "../shared/fs-utils";
 import * as path from "path";
+import {
+  addIssue,
+  generateReport as generateIssueReport,
+  Severity,
+} from "../shared/issue-tracker";
 
 // ============================================================================
 // CONFIGURATION
@@ -185,21 +191,16 @@ const AUTO_FIXES: AutoFix[] = [
 
 function loadMemory(): Memory {
   const memoryPath = path.join(CONFIG.workspaceRoot, CONFIG.memoryFile);
-  if (fs.existsSync(memoryPath)) {
-    try {
-      return JSON.parse(fs.readFileSync(memoryPath, "utf-8"));
-    } catch {
-      console.log("  ⚠️  Memory file corrupted, starting fresh");
+  return (
+    readJsonSafe<Memory>(memoryPath) ?? {
+      lastRun: "",
+      totalRuns: 0,
+      knownIssues: [],
+      fixedIssues: [],
+      patterns: [],
+      improvements: [],
     }
-  }
-  return {
-    lastRun: "",
-    totalRuns: 0,
-    knownIssues: [],
-    fixedIssues: [],
-    patterns: [],
-    improvements: [],
-  };
+  );
 }
 
 function saveMemory(memory: Memory): void {
@@ -291,33 +292,44 @@ function parseMonsterOutput(output: string): MonsterResult {
   const criticalCount = criticalMatch ? parseInt(criticalMatch[1]) : 0;
   const highCount = highMatch ? parseInt(highMatch[1]) : 0;
 
-  // Extract individual findings (simplified parsing)
+  // Extract individual findings — only parse if there are actual findings
   const findings: Finding[] = [];
-  const findingPattern = /([🔴🟠🟡🟢])\s*([^\n]+)\n\s+([^\n]+)/g;
-  let match;
-  while ((match = findingPattern.exec(output)) !== null) {
-    const severityIcon = match[1];
-    const title = match[2].trim();
-    const description = match[3].trim();
+  if (totalFindings > 0) {
+    const findingPattern = /(?:^|\n)\s*(🔴|🟠|🟡|🟢)\s+([^\n]+)\n\s+([^\n]+)/g;
+    let match;
+    while ((match = findingPattern.exec(output)) !== null) {
+      const severityIcon = match[1];
+      const title = match[2].trim();
+      const description = match[3].trim();
 
-    const severity =
-      severityIcon === "🔴"
-        ? "critical"
-        : severityIcon === "🟠"
-          ? "high"
-          : severityIcon === "🟡"
-            ? "medium"
-            : "low";
+      if (
+        title.startsWith("Critical:") ||
+        title.startsWith("High:") ||
+        title.startsWith("Medium:") ||
+        title.startsWith("Low:")
+      ) {
+        continue;
+      }
 
-    findings.push({
-      id: `finding-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      category: extractCategory(title),
-      severity,
-      title,
-      description,
-      location: extractLocation(description),
-      reproducible: true,
-    });
+      const severity =
+        severityIcon === "🔴"
+          ? "critical"
+          : severityIcon === "🟠"
+            ? "high"
+            : severityIcon === "🟡"
+              ? "medium"
+              : "low";
+
+      findings.push({
+        id: `finding-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        category: extractCategory(title),
+        severity,
+        title,
+        description,
+        location: extractLocation(description),
+        reproducible: true,
+      });
+    }
   }
 
   const passed = criticalCount === 0 && highCount <= CONFIG.maxHighFindings;
@@ -593,6 +605,22 @@ async function runSuperheroLoop(): Promise<void> {
     console.log(`    🔄 Recurring: ${analysis.recurringIssues.length}`);
     console.log(`    ⚠️  Regressions: ${analysis.regressions.length}`);
 
+    // Write all findings to the unified issue tracker
+    for (const finding of lastResult.findings) {
+      try {
+        addIssue({
+          source: "superhero",
+          severity: finding.severity as Severity,
+          category: finding.category,
+          title: finding.title,
+          description: finding.description,
+          location: finding.location,
+        });
+      } catch {
+        // Issue tracker best-effort
+      }
+    }
+
     // Check if we passed
     if (lastResult.passed) {
       console.log("\n  ✅ All critical checks passed!");
@@ -705,9 +733,39 @@ async function runSuperheroLoop(): Promise<void> {
   console.log(`    Known Issues: ${memory.knownIssues.length}`);
   console.log(`    Fixed Issues: ${memory.fixedIssues.length}`);
 
+  // Update the unified issue report
+  try {
+    generateIssueReport();
+    console.log(`\n  📝 Updated docs/MONSTERS_ISSUES.md`);
+  } catch {
+    // Best-effort
+  }
+
   console.log("\n" + "═".repeat(70) + "\n");
 
-  // Exit with appropriate code
+  const envelope = {
+    passed: lastResult?.passed ?? true,
+    skipped: false,
+    duration: lastResult?.duration || 0,
+    findings: lastResult?.findings?.length || 0,
+    checks: memory.totalRuns,
+    severity: {
+      critical:
+        lastResult?.findings?.filter((f: any) => f.severity === "critical")
+          .length || 0,
+      high:
+        lastResult?.findings?.filter((f: any) => f.severity === "high")
+          .length || 0,
+      medium:
+        lastResult?.findings?.filter((f: any) => f.severity === "medium")
+          .length || 0,
+      low:
+        lastResult?.findings?.filter((f: any) => f.severity === "low").length ||
+        0,
+    },
+  };
+  console.log(`MONSTER_RESULT_JSON:${JSON.stringify(envelope)}`);
+
   process.exit(lastResult?.passed ? 0 : 1);
 }
 

@@ -28,6 +28,7 @@ export class InvariantMonster extends BaseMonster {
       type: "invariant",
       timeout: 60000, // 1 minute max
       verbose: true,
+      needsServer: true,
     });
     const env = getEnv();
     this.baseUrl = env.apiBaseUrl.replace(/\/api\/v1$/, "");

@@ -46,46 +46,14 @@ class WorkerLogger {
 }
 
 // ============================================================================
-// HTTP Client for Bot Calls
+// Strategy Engine (in-process evaluation)
 // ============================================================================
 
-interface BotResponse {
-  type: "fold" | "check" | "call" | "raise" | "bet";
-  amount?: number;
-}
-
-async function callBot(
-  endpoint: string,
-  payload: unknown,
-  timeoutMs: number,
-): Promise<{ success: boolean; response?: BotResponse; error?: string }> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}` };
-    }
-
-    const data = await response.json();
-    return { success: true, response: data as BotResponse };
-  } catch (err: any) {
-    clearTimeout(timeout);
-    if (err.name === "AbortError") {
-      return { success: false, error: "Timeout" };
-    }
-    return { success: false, error: err.message };
-  }
-}
+import {
+  evaluateStrategy,
+  type BotPayload,
+} from "../modules/bot-strategy/strategy-engine.service";
+import type { BotStrategy } from "../domain/bot-strategy/strategy.types";
 
 // ============================================================================
 // Event Sending Helper
@@ -104,7 +72,7 @@ function postEvent(event: WorkerEvent) {
 interface GamePlayer {
   id: string;
   name: string;
-  endpoint: string;
+  strategy: BotStrategy;
   chips: number;
   holeCards: any[];
   folded: boolean;
@@ -191,7 +159,7 @@ class WorkerGameInstance {
       }
       existing.disconnected = false;
       existing.strikes = 0;
-      existing.endpoint = player.endpoint;
+      existing.strategy = player.strategy as BotStrategy;
       this.logEvent({ message: `${player.name} reconnected to the table` });
       this.emitStateUpdate();
       return;
@@ -201,7 +169,7 @@ class WorkerGameInstance {
     const newPlayer: GamePlayer = {
       id: player.id,
       name: player.name,
-      endpoint: player.endpoint,
+      strategy: player.strategy as BotStrategy,
       chips,
       holeCards: [],
       folded: true,
@@ -446,21 +414,45 @@ class WorkerGameInstance {
       this.activePlayer = player;
       this.emitStateUpdate();
 
-      const botPayload = this.buildBotPayload(player);
-      const action = await this.getPlayerActionSafe(player, botPayload);
+      const botPayload = this.buildBotPayload(player) as BotPayload;
+      const action = this.getPlayerActionSafe(player, botPayload);
 
-      const result = this.bettingRound.applyAction(player, action);
+      const result = this.bettingRound.applyAction(player, action as any);
       if (!result.valid) {
         this.logEvent({
           message: `Invalid action from ${player.name}: ${result.error} — folding`,
         });
         this.bettingRound.applyAction(player, { type: "fold" });
+        postEvent({
+          type: "PLAYER_ACTION",
+          tableId: this.tableId,
+          gameId: this.gameId,
+          handNumber: this.handNumber,
+          botId: player.id,
+          action: "fold",
+          amount: 0,
+          pot: this.potManager!.getTotalPot(),
+          stage: this.stage,
+          chipsAfter: player.chips,
+        });
       } else {
         if (result.amountAdded > 0) {
           this.potManager!.addBet(player.id, result.amountAdded);
         }
         this.logEvent({
           message: this.describeAction(player, action, result),
+        });
+        postEvent({
+          type: "PLAYER_ACTION",
+          tableId: this.tableId,
+          gameId: this.gameId,
+          handNumber: this.handNumber,
+          botId: player.id,
+          action: action.type,
+          amount: action.amount ?? result.amountAdded,
+          pot: this.potManager!.getTotalPot(),
+          stage: this.stage,
+          chipsAfter: player.chips,
         });
       }
 
@@ -473,48 +465,29 @@ class WorkerGameInstance {
     this.potManager!.calculatePots(this.players);
   }
 
-  private async getPlayerActionSafe(
+  private getPlayerActionSafe(
     player: GamePlayer,
-    botPayload: any,
-  ): Promise<any> {
+    botPayload: BotPayload,
+  ): { type: string; amount?: number } {
     try {
-      const result = await callBot(
-        player.endpoint,
-        botPayload,
-        this.turnTimeoutMs,
-      );
-
-      if (!result.success) {
-        player.strikes++;
-        this.logEvent({
-          message: `${player.name} ${result.error} — strike ${player.strikes}/${MAX_STRIKES}`,
-        });
-
-        if (player.strikes >= MAX_STRIKES) {
-          player.disconnected = true;
-          this.logEvent({
-            message: `${player.name} disconnected after ${player.strikes} strikes`,
-          });
-          postEvent({
-            type: "PLAYER_LEFT",
-            tableId: this.tableId,
-            playerId: player.id,
-          });
-        }
-
-        return this.getFallbackAction(botPayload);
-      }
-
+      const result = evaluateStrategy(player.strategy, botPayload);
       player.strikes = 0;
-      return result.response;
+      const action = result.action;
+      if (action.type === "all_in") {
+        return { type: "raise", amount: botPayload.action.maxRaise };
+      }
+      return action;
     } catch (e: any) {
       player.strikes++;
       this.logEvent({
-        message: `${player.name} errored (${e.message}) — strike ${player.strikes}/${MAX_STRIKES}`,
+        message: `${player.name} strategy error (${e.message}) — strike ${player.strikes}/${MAX_STRIKES}`,
       });
 
       if (player.strikes >= MAX_STRIKES) {
         player.disconnected = true;
+        this.logEvent({
+          message: `${player.name} disconnected after ${player.strikes} strikes`,
+        });
         postEvent({
           type: "PLAYER_LEFT",
           tableId: this.tableId,
@@ -522,15 +495,11 @@ class WorkerGameInstance {
         });
       }
 
-      return this.getFallbackAction(botPayload);
+      if (botPayload.action.canCheck) {
+        return { type: "check" };
+      }
+      return { type: "fold" };
     }
-  }
-
-  private getFallbackAction(payload: any): any {
-    if (payload.action.canCheck) {
-      return { type: "check" };
-    }
-    return { type: "fold" };
   }
 
   private awardPot(): void {

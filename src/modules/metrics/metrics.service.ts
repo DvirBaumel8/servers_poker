@@ -15,18 +15,12 @@ export class MetricsService implements OnModuleInit {
     public readonly activeGames: Gauge<string>,
     @InjectMetric("poker_active_tournaments")
     public readonly activeTournaments: Gauge<string>,
-    @InjectMetric("poker_connected_bots")
-    public readonly connectedBots: Gauge<string>,
     @InjectMetric("poker_websocket_connections")
     public readonly websocketConnections: Gauge<string>,
     @InjectMetric("poker_hands_dealt_total")
     public readonly handsDealtTotal: Counter<string>,
     @InjectMetric("poker_bot_actions_total")
     public readonly botActionsTotal: Counter<string>,
-    @InjectMetric("poker_bot_errors_total")
-    public readonly botErrorsTotal: Counter<string>,
-    @InjectMetric("poker_bot_response_time_seconds")
-    public readonly botResponseTime: Histogram<string>,
     @InjectMetric("poker_tournament_entries_total")
     public readonly tournamentEntriesTotal: Counter<string>,
     @InjectMetric("poker_tournament_completions_total")
@@ -41,8 +35,6 @@ export class MetricsService implements OnModuleInit {
     public readonly errorsTotal: Counter<string>,
     @InjectMetric("poker_games_started_total")
     public readonly gamesStartedTotal: Counter<string>,
-    @InjectMetric("poker_bot_timeout_seconds")
-    public readonly botTimeoutSeconds: Histogram<string>,
     @Optional()
     @Inject(DataSource)
     private readonly dataSource: DataSource | null,
@@ -51,7 +43,6 @@ export class MetricsService implements OnModuleInit {
   onModuleInit(): void {
     this.activeGames.set(0);
     this.activeTournaments.set(0);
-    this.connectedBots.set(0);
     this.websocketConnections.set(0);
     this.databasePoolSize.set(0);
     this.databasePoolActive.set(0);
@@ -67,16 +58,6 @@ export class MetricsService implements OnModuleInit {
     const commonActions = ["fold", "check", "call", "raise", "bet"];
     for (const action of commonActions) {
       this.botActionsTotal.inc({ action_type: action, bot_id: "_init_" }, 0);
-    }
-
-    const commonErrors = [
-      "call_failed",
-      "circuit_opened",
-      "used_fallback",
-      "unhealthy_in_game",
-    ];
-    for (const errorType of commonErrors) {
-      this.botErrorsTotal.inc({ error_type: errorType, bot_id: "_init_" }, 0);
     }
   }
 
@@ -98,14 +79,6 @@ export class MetricsService implements OnModuleInit {
     this.botActionsTotal.inc({ action_type: actionType, bot_id: botId });
   }
 
-  recordBotError(errorType: string, botId: string): void {
-    this.botErrorsTotal.inc({ error_type: errorType, bot_id: botId });
-  }
-
-  recordBotResponseTime(botId: string, durationSeconds: number): void {
-    this.botResponseTime.observe({ bot_id: botId }, durationSeconds);
-  }
-
   incrementHandsDealt(): void {
     this.handsDealtTotal.inc();
   }
@@ -124,10 +97,6 @@ export class MetricsService implements OnModuleInit {
 
   setActiveTournaments(count: number): void {
     this.activeTournaments.set(count);
-  }
-
-  setConnectedBots(count: number): void {
-    this.connectedBots.set(count);
   }
 
   setWebsocketConnections(count: number): void {
@@ -153,17 +122,6 @@ export class MetricsService implements OnModuleInit {
 
   incrementGamesStarted(): void {
     this.gamesStartedTotal.inc();
-  }
-
-  recordBotTimeout(
-    botId: string,
-    failureType: string,
-    durationSeconds: number,
-  ): void {
-    this.botTimeoutSeconds.observe(
-      { bot_id: botId, failure_type: failureType },
-      durationSeconds,
-    );
   }
 
   addBreadcrumb(

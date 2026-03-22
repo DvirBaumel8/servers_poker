@@ -241,6 +241,7 @@ export class GameWorkerManagerService implements OnModuleInit, OnModuleDestroy {
     } catch (err: any) {
       this.logger.error(
         `Failed to send command to worker ${tableId}: ${err.message}`,
+        err.stack,
       );
     }
   }
@@ -292,6 +293,20 @@ export class GameWorkerManagerService implements OnModuleInit, OnModuleDestroy {
           tableId: event.tableId,
           handNumber: event.handNumber,
           dealerName: event.dealerName,
+        });
+        break;
+
+      case "PLAYER_ACTION":
+        this.eventEmitter.emit("game.playerAction", {
+          tableId: event.tableId,
+          gameId: event.gameId,
+          handNumber: event.handNumber,
+          botId: event.botId,
+          action: event.action,
+          amount: event.amount,
+          pot: event.pot,
+          stage: event.stage,
+          chipsAfter: event.chipsAfter,
         });
         break;
 
@@ -356,7 +371,10 @@ export class GameWorkerManagerService implements OnModuleInit, OnModuleDestroy {
     const info = this.workers.get(tableId);
     if (!info) return;
 
-    this.logger.error(`Worker crashed for table ${tableId}: ${err.message}`);
+    this.logger.error(
+      `Worker crashed for table ${tableId}: ${err.message}`,
+      err.stack,
+    );
 
     // Emit error event for clients
     this.eventEmitter.emit("game.error", {

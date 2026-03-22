@@ -18,6 +18,9 @@ export type ActionStage = "preflop" | "flop" | "turn" | "river";
 
 @Entity("actions")
 @Index(["hand_id", "action_seq"])
+@Check(
+  `"action_type" IN ('fold', 'check', 'call', 'bet', 'raise', 'all_in', 'small_blind', 'big_blind', 'ante')`,
+)
 @Check(`"action_seq" >= 0`)
 @Check(`"amount" >= 0`)
 export class Action extends BaseEntity {

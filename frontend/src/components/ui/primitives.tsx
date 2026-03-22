@@ -9,6 +9,7 @@ import {
   type TextareaHTMLAttributes,
   useState,
 } from "react";
+import { useToastStore } from "../../stores/toastStore";
 
 export function PageShell({
   children,
@@ -38,6 +39,40 @@ export function SurfaceCard({
   );
 }
 
+export interface BreadcrumbItem {
+  label: string;
+  href?: string;
+}
+
+export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
+  return (
+    <nav aria-label="Breadcrumb" className="-ml-1">
+      <ol className="flex flex-wrap items-center gap-1 text-sm">
+        {items.map((item, index) => {
+          const isLast = index === items.length - 1;
+          return (
+            <li key={index} className="flex items-center gap-1">
+              {index > 0 && <ChevronRightIcon />}
+              {item.href && !isLast ? (
+                <Link
+                  to={item.href}
+                  className="rounded-lg px-2 py-1 text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-white"
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <span className="px-2 py-1 font-medium text-white">
+                  {item.label}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
 export function PageHeader({
   eyebrow,
   title,
@@ -45,6 +80,7 @@ export function PageHeader({
   actions,
   backHref,
   backLabel = "Back",
+  breadcrumbs,
 }: {
   eyebrow?: string;
   title: string;
@@ -52,10 +88,14 @@ export function PageHeader({
   actions?: ReactNode;
   backHref?: string;
   backLabel?: string;
+  breadcrumbs?: BreadcrumbItem[];
 }) {
   return (
     <div className="space-y-6">
-      {backHref && (
+      {breadcrumbs && breadcrumbs.length > 0 && (
+        <Breadcrumbs items={breadcrumbs} />
+      )}
+      {!breadcrumbs && backHref && (
         <Link to={backHref} className="btn-ghost -ml-2 w-fit">
           <ArrowLeftIcon />
           {backLabel}
@@ -594,6 +634,140 @@ function AnalyticsIllustration() {
   );
 }
 
+export function Skeleton({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return <div className={clsx("skeleton", className)} style={style} />;
+}
+
+export function SkeletonMetricCards({ count = 3 }: { count?: number }) {
+  return (
+    <div
+      className={clsx(
+        "grid gap-4",
+        count === 4 ? "md:grid-cols-4" : "md:grid-cols-3",
+      )}
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="surface-card-muted space-y-3">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonPageHeader() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-3">
+          <Skeleton className="h-3 w-32" />
+          <div className="space-y-2">
+            <Skeleton className="h-9 w-72" />
+            <Skeleton className="h-4 w-96 max-w-full" />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 py-2">
+          <Skeleton className="h-11 w-24 rounded-2xl" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SkeletonCard({
+  lines = 3,
+  className,
+}: {
+  lines?: number;
+  className?: string;
+}) {
+  return (
+    <div className={clsx("surface-card space-y-4", className)}>
+      <div className="flex items-start justify-between">
+        <div className="space-y-2 flex-1">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-64 max-w-full" />
+        </div>
+        <Skeleton className="h-7 w-20 rounded-full" />
+      </div>
+      {lines >= 2 && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="surface-card-muted space-y-2">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="h-6 w-16" />
+          </div>
+          <div className="surface-card-muted space-y-2">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-6 w-12" />
+          </div>
+          <div className="surface-card-muted space-y-2">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-6 w-14" />
+          </div>
+        </div>
+      )}
+      {lines >= 3 && (
+        <div className="flex gap-3 border-t border-white/6 pt-4">
+          <Skeleton className="h-11 flex-1 rounded-2xl" />
+          <Skeleton className="h-11 flex-1 rounded-2xl" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SkeletonTable({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="surface-card p-0">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px]">
+          <thead>
+            <tr className="bg-black/10">
+              {[80, 120, 100, 80, 80, 80].map((w, i) => (
+                <th key={i} className="px-4 py-4 sm:px-6">
+                  <Skeleton className="h-3" style={{ width: w }} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/6">
+            {Array.from({ length: rows }).map((_, i) => (
+              <tr key={i}>
+                <td className="px-4 py-4 sm:px-6">
+                  <Skeleton className="h-6 w-10" />
+                </td>
+                <td className="px-4 py-4 sm:px-6">
+                  <Skeleton className="h-5 w-28" />
+                </td>
+                <td className="px-4 py-4 text-right sm:px-6">
+                  <Skeleton className="ml-auto h-5 w-16" />
+                </td>
+                <td className="px-4 py-4 text-right sm:px-6">
+                  <Skeleton className="ml-auto h-5 w-8" />
+                </td>
+                <td className="px-4 py-4 text-right sm:px-6">
+                  <Skeleton className="ml-auto h-5 w-8" />
+                </td>
+                <td className="px-4 py-4 text-right sm:px-6">
+                  <Skeleton className="ml-auto h-5 w-12" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function LoadingBlock({
   label = "Loading",
   className,
@@ -942,6 +1116,62 @@ export function ConfirmDialog({
   );
 }
 
+const TOAST_TONE_STYLES = {
+  success: "border-emerald-500/30 bg-emerald-950/90 text-emerald-200",
+  error: "border-red-500/30 bg-red-950/90 text-red-200",
+  warning: "border-yellow-500/30 bg-yellow-950/90 text-yellow-200",
+  info: "border-blue-500/30 bg-blue-950/90 text-blue-200",
+};
+
+const TOAST_ICONS = {
+  success: "✓",
+  error: "✕",
+  warning: "⚠",
+  info: "ℹ",
+};
+
+export function ToastContainer() {
+  const { toasts, removeToast } = useToastStore();
+
+  return (
+    <div className="fixed bottom-6 right-6 z-[100] flex flex-col-reverse gap-3 pointer-events-none">
+      <AnimatePresence>
+        {toasts.map((t) => (
+          <motion.div
+            key={t.id}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 80, scale: 0.95 }}
+            transition={{ type: "spring", damping: 22, stiffness: 300 }}
+            className={clsx(
+              "pointer-events-auto flex items-center gap-3 rounded-2xl border px-5 py-3.5 text-sm font-medium shadow-2xl backdrop-blur-lg",
+              TOAST_TONE_STYLES[t.tone],
+            )}
+          >
+            <span className="text-base">{TOAST_ICONS[t.tone]}</span>
+            <span className="flex-1">{t.message}</span>
+            <button
+              onClick={() => removeToast(t.id)}
+              className="ml-2 rounded-lg p-1 opacity-60 transition-opacity hover:opacity-100"
+              aria-label="Dismiss"
+            >
+              <svg
+                className="h-3.5 w-3.5"
+                viewBox="0 0 14 14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M1 1l12 12M13 1L1 13" />
+              </svg>
+            </button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function ArrowLeftIcon() {
   return (
     <svg
@@ -953,6 +1183,23 @@ function ArrowLeftIcon() {
       <path
         fillRule="evenodd"
         d="M9.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L6.414 9H17a1 1 0 1 1 0 2H6.414l3.293 3.293a1 1 0 0 1 0 1.414Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg
+      className="h-3.5 w-3.5 text-slate-600"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        fillRule="evenodd"
+        d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
         clipRule="evenodd"
       />
     </svg>

@@ -1,6 +1,5 @@
 import { DataSource } from "typeorm";
 import { v4 as uuid } from "uuid";
-import * as crypto from "crypto";
 import * as bcrypt from "bcrypt";
 import * as dotenv from "dotenv";
 
@@ -16,14 +15,6 @@ const dataSource = new DataSource({
   synchronize: false,
   logging: false,
 });
-
-function hashApiKey(key: string): string {
-  const hashSecret =
-    process.env.API_KEY_HMAC_SECRET || "development-api-key-hash-secret";
-  return crypto
-    .pbkdf2Sync(key, hashSecret, 210000, 32, "sha256")
-    .toString("hex");
-}
 
 const SALT_ROUNDS = 12;
 const TEST_PASSWORD = "TestPassword123!";
@@ -44,7 +35,6 @@ async function seed() {
     console.log("Hashing password...");
     const passwordHash = await hashPassword(TEST_PASSWORD);
 
-    // Create Users (schema uses 'name' not 'username', 'api_key_hash' not 'api_key')
     console.log("Creating users...");
     const users = [
       { id: uuid(), email: "admin@poker.io", name: "admin", role: "admin" },
@@ -55,13 +45,11 @@ async function seed() {
     ];
 
     for (const user of users) {
-      const apiKey = `api_${uuid().replace(/-/g, "")}`;
-      const apiKeyHash = hashApiKey(apiKey);
       await queryRunner.query(
-        `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, true, true, NOW(), NOW())
+        `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, true, true, NOW(), NOW())
          ON CONFLICT (email) DO UPDATE SET password_hash = $4, email_verified = true`,
-        [user.id, user.email, user.name, passwordHash, apiKeyHash, user.role]
+        [user.id, user.email, user.name, passwordHash, user.role]
       );
     }
     console.log(`  Created ${users.length} users`);
@@ -70,17 +58,16 @@ async function seed() {
     const dbUsers = await queryRunner.query(`SELECT id, name FROM users`);
     const userMap = new Map(dbUsers.map((u: { id: string; name: string }) => [u.name, u.id]));
 
-    // Create Bots
     console.log("Creating bots...");
     const bots = [
-      { name: "AlphaPoker", endpoint: "https://alpha-poker.example.com/action", owner: "alice", description: "Advanced GTO-based strategy bot" },
-      { name: "DeepStack Pro", endpoint: "https://deepstack.example.com/api/action", owner: "alice", description: "Neural network powered decision making" },
-      { name: "PokerMind", endpoint: "https://pokermind.example.com/move", owner: "bob", description: "Exploitative player profiling" },
-      { name: "BluffMaster", endpoint: "https://bluffmaster.example.com/decide", owner: "bob", description: "Aggression-focused bluffing strategy" },
-      { name: "TightPlayer", endpoint: "https://tight-player.example.com/action", owner: "charlie", description: "Conservative tight-aggressive style" },
-      { name: "LAGBot", endpoint: "https://lagbot.example.com/play", owner: "charlie", description: "Loose-aggressive table domination" },
-      { name: "EquityCalc", endpoint: "https://equity-calc.example.com/action", owner: "diana", description: "Pure equity-based decisions" },
-      { name: "RangeExplorer", endpoint: "https://range-explorer.example.com/action", owner: "diana", description: "Hand range analysis expert" },
+      { name: "AlphaPoker", owner: "alice", description: "Advanced GTO-based strategy bot", strategy: { version: 1, tier: "strategy", personality: { aggression: 55, bluffFrequency: 25, riskTolerance: 45, tightness: 55 } } },
+      { name: "DeepStack Pro", owner: "alice", description: "Neural network powered decision making", strategy: { version: 1, tier: "strategy", personality: { aggression: 60, bluffFrequency: 30, riskTolerance: 50, tightness: 50 } } },
+      { name: "PokerMind", owner: "bob", description: "Exploitative player profiling", strategy: { version: 1, tier: "strategy", personality: { aggression: 65, bluffFrequency: 35, riskTolerance: 55, tightness: 45 } } },
+      { name: "BluffMaster", owner: "bob", description: "Aggression-focused bluffing strategy", strategy: { version: 1, tier: "quick", personality: { aggression: 90, bluffFrequency: 60, riskTolerance: 80, tightness: 30 } } },
+      { name: "TightPlayer", owner: "charlie", description: "Conservative tight-aggressive style", strategy: { version: 1, tier: "quick", personality: { aggression: 5, bluffFrequency: 0, riskTolerance: 5, tightness: 95 } } },
+      { name: "LAGBot", owner: "charlie", description: "Loose-aggressive table domination", strategy: { version: 1, tier: "quick", personality: { aggression: 85, bluffFrequency: 55, riskTolerance: 75, tightness: 25 } } },
+      { name: "EquityCalc", owner: "diana", description: "Pure equity-based decisions", strategy: { version: 1, tier: "strategy", personality: { aggression: 50, bluffFrequency: 20, riskTolerance: 40, tightness: 60 } } },
+      { name: "RangeExplorer", owner: "diana", description: "Hand range analysis expert", strategy: { version: 1, tier: "strategy", personality: { aggression: 45, bluffFrequency: 15, riskTolerance: 35, tightness: 65 } } },
     ];
 
     const botIds: string[] = [];
@@ -89,10 +76,10 @@ async function seed() {
       botIds.push(botId);
       const userId = userMap.get(bot.owner);
       await queryRunner.query(
-        `INSERT INTO bots (id, name, endpoint, description, user_id, active, last_validation_score, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, true, $6, NOW(), NOW())
+        `INSERT INTO bots (id, name, strategy, description, user_id, active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
          ON CONFLICT DO NOTHING`,
-        [botId, bot.name, bot.endpoint, bot.description, userId, Math.floor(Math.random() * 30) + 70]
+        [botId, bot.name, JSON.stringify(bot.strategy), bot.description, userId]
       );
     }
     console.log(`  Created ${bots.length} bots`);

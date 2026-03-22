@@ -4,14 +4,13 @@
  *
  * Simulates a tournament lifecycle for load testing.
  * Each virtual tournament:
- * - Creates bots with HTTP action servers
+ * - Creates bots with strategy JSON
  * - Registers players via API
  * - Connects via WebSocket
  * - Monitors game state
  * - Tracks metrics
  */
 
-import * as http from "http";
 import * as crypto from "crypto";
 import { WebSocket } from "ws";
 import { MetricsCollector } from "./metrics-collector";
@@ -33,12 +32,64 @@ export interface VirtualTournamentConfig {
   authToken?: string;
 }
 
+const PERSONALITY_STRATEGIES: Record<string, Record<string, unknown>> = {
+  caller: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 10,
+      bluffFrequency: 5,
+      riskTolerance: 20,
+      tightness: 20,
+    },
+  },
+  folder: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 5,
+      bluffFrequency: 0,
+      riskTolerance: 5,
+      tightness: 95,
+    },
+  },
+  maniac: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 90,
+      bluffFrequency: 60,
+      riskTolerance: 80,
+      tightness: 30,
+    },
+  },
+  smart: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 55,
+      bluffFrequency: 25,
+      riskTolerance: 45,
+      tightness: 55,
+    },
+  },
+  random: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 50,
+      bluffFrequency: 50,
+      riskTolerance: 50,
+      tightness: 50,
+    },
+  },
+};
+
 interface VirtualPlayer {
   id: string;
   name: string;
   personality: BotPersonality;
-  botServer: http.Server;
-  botPort: number;
+  strategy: Record<string, unknown>;
   wsConnection?: WebSocket;
   chips: number;
   isActive: boolean;
@@ -49,14 +100,12 @@ export class VirtualTournament {
   private state: TournamentState;
   private players: VirtualPlayer[] = [];
   private tournamentId: string = "";
-  private basePort: number;
   private wsConnections: WebSocket[] = [];
   private stopped = false;
   private authToken: string = "";
 
   constructor(config: VirtualTournamentConfig) {
     this.config = config;
-    this.basePort = 8000 + Math.floor(Math.random() * 10000);
     this.authToken = config.authToken || "";
     this.state = {
       id: config.id,
@@ -76,8 +125,7 @@ export class VirtualTournament {
     try {
       this.log("Starting virtual tournament...");
 
-      // Phase 1: Create bot servers
-      await this.createBotServers();
+      await this.createBotRecords();
 
       // Phase 2: Create tournament via API
       await this.createTournament();
@@ -141,16 +189,6 @@ export class VirtualTournament {
     }
     this.wsConnections = [];
 
-    // Close bot servers
-    for (const player of this.players) {
-      try {
-        await new Promise<void>((resolve) =>
-          player.botServer.close(() => resolve()),
-        );
-      } catch {
-        // Ignore close errors
-      }
-    }
     this.players = [];
 
     if (this.state.status !== "error") {
@@ -170,104 +208,25 @@ export class VirtualTournament {
     return { ...this.state };
   }
 
-  private async createBotServers(): Promise<void> {
+  private async createBotRecords(): Promise<void> {
     for (let i = 0; i < this.config.playerCount; i++) {
-      const port = this.basePort + i;
       const personality =
         this.config.personalities[i % this.config.personalities.length];
       const playerId = crypto.randomUUID();
-
-      const server = await this.createBotServer(port, personality);
+      const strategy =
+        PERSONALITY_STRATEGIES[personality] || PERSONALITY_STRATEGIES.random;
 
       this.players.push({
         id: playerId,
         name: `LoadBot_${this.config.id.slice(0, 8)}_${i}`,
         personality,
-        botServer: server,
-        botPort: port,
+        strategy,
         chips: 0,
         isActive: true,
       });
     }
 
-    this.log(`Created ${this.players.length} bot servers`);
-  }
-
-  private createBotServer(
-    port: number,
-    personality: BotPersonality,
-  ): Promise<http.Server> {
-    return new Promise((resolve, reject) => {
-      const server = http.createServer(async (req, res) => {
-        // Health check
-        if (req.method === "GET") {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "ok" }));
-          return;
-        }
-
-        // Action request
-        let body = "";
-        req.on("data", (chunk) => (body += chunk));
-        req.on("end", async () => {
-          try {
-            // Simulate processing delay
-            await this.sleep(this.config.botActionDelayMs);
-
-            const payload = JSON.parse(body);
-            const action = this.decideBotAction(payload, personality);
-
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify(action));
-          } catch (error) {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ type: "fold" }));
-          }
-        });
-      });
-
-      server.on("error", reject);
-      server.listen(port, () => resolve(server));
-    });
-  }
-
-  private decideBotAction(
-    payload: any,
-    personality: BotPersonality,
-  ): { type: string; amount?: number } {
-    const { action } = payload;
-    const canCheck = action?.canCheck ?? false;
-    const minRaise = action?.minRaise ?? 0;
-    const maxRaise = action?.maxRaise ?? 0;
-
-    switch (personality) {
-      case "caller":
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      case "folder":
-        if (canCheck) return { type: "check" };
-        return Math.random() < 0.7 ? { type: "fold" } : { type: "call" };
-
-      case "maniac":
-        if (maxRaise > 0 && Math.random() < 0.4) {
-          return { type: "raise", amount: Math.min(minRaise * 2, maxRaise) };
-        }
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      case "smart":
-        if (canCheck) return { type: "check" };
-        const potOdds = action?.toCall / (action?.pot || 1);
-        if (potOdds < 0.3) return { type: "call" };
-        return Math.random() < 0.4 ? { type: "call" } : { type: "fold" };
-
-      case "random":
-      default:
-        const roll = Math.random();
-        if (roll < 0.15) return { type: "fold" };
-        if (roll < 0.7) return canCheck ? { type: "check" } : { type: "call" };
-        if (maxRaise > 0) return { type: "raise", amount: minRaise };
-        return canCheck ? { type: "check" } : { type: "call" };
-    }
+    this.log(`Created ${this.players.length} bot records with strategy JSON`);
   }
 
   private async createTournament(): Promise<void> {
@@ -311,14 +270,13 @@ export class VirtualTournament {
       const start = Date.now();
 
       try {
-        // First create the bot
         const botResponse = await this.httpRequest(
-          `${this.config.env.backendUrl}/api/v1/bots`,
+          `${this.config.env.backendUrl}/api/v1/bots/internal`,
           {
             method: "POST",
             body: {
               name: player.name,
-              endpoint: `http://localhost:${player.botPort}/action`,
+              strategy: player.strategy,
             },
           },
         );

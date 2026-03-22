@@ -48,7 +48,7 @@ export class RedisService implements OnModuleDestroy {
     });
 
     this.client.on("error", (err) => {
-      this.logger.error(`Redis error: ${err.message}`);
+      this.logger.error(`Redis error: ${err.message}`, err.stack);
     });
 
     this.client.on("close", () => {

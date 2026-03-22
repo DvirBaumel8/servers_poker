@@ -9,14 +9,17 @@ import {
   AppModal,
   Button,
   EmptyState,
-  LoadingBlock,
   MetricCard,
   PageHeader,
   PageShell,
+  SkeletonCard,
+  SkeletonMetricCards,
+  SkeletonPageHeader,
   StatusPill,
   SurfaceCard,
   TextField,
 } from "../components/ui/primitives";
+import { toast } from "../stores/toastStore";
 
 interface CreateTableForm {
   name: string;
@@ -97,6 +100,7 @@ export function Tables() {
     try {
       await gamesApi.createTable(createForm, token);
       setShowCreateModal(false);
+      toast(`Table "${createForm.name}" created`);
       setCreateForm({
         name: "",
         small_blind: 10,
@@ -124,6 +128,7 @@ export function Tables() {
     try {
       await gamesApi.joinTable(joiningTable.id, selectedBotId, token);
       setShowJoinModal(false);
+      toast("Bot deployed to table");
       setJoiningTable(null);
       setSelectedBotId("");
       loadData();
@@ -150,7 +155,16 @@ export function Tables() {
   );
 
   if (isLoading) {
-    return <LoadingBlock label="Loading live tables" className="page-shell" />;
+    return (
+      <PageShell className="space-y-8">
+        <SkeletonPageHeader />
+        <SkeletonMetricCards count={3} />
+        <div className="grid gap-5 xl:grid-cols-2">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </PageShell>
+    );
   }
 
   return (
@@ -395,6 +409,7 @@ export function Tables() {
               label="Small blind"
               type="number"
               min={1}
+              max={100000}
               value={createForm.small_blind}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setCreateForm({
@@ -408,6 +423,7 @@ export function Tables() {
               label="Big blind"
               type="number"
               min={1}
+              max={200000}
               value={createForm.big_blind}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setCreateForm({
@@ -440,6 +456,7 @@ export function Tables() {
               label="Starting chips"
               type="number"
               min={100}
+              max={10000000}
               step={100}
               value={createForm.starting_chips}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>

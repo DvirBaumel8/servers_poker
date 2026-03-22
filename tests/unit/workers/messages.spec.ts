@@ -17,7 +17,16 @@ describe("Worker Messages", () => {
         player: {
           id: "bot-1",
           name: "TestBot",
-          endpoint: "http://localhost:8080",
+          strategy: {
+            version: 1,
+            tier: "quick",
+            personality: {
+              aggression: 50,
+              bluffFrequency: 30,
+              riskTolerance: 50,
+              tightness: 50,
+            },
+          },
         },
       };
       expect(isWorkerCommand(command)).toBe(true);
@@ -190,7 +199,16 @@ describe("Worker Messages", () => {
       const player: PlayerConfig = {
         id: "bot-1",
         name: "TestBot",
-        endpoint: "http://localhost:8080",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
         chips: 1000,
       };
       expect(player.id).toBe("bot-1");
@@ -209,8 +227,34 @@ describe("Worker Messages", () => {
           turnTimeoutMs: 10000,
         },
         players: [
-          { id: "bot-1", name: "Bot1", endpoint: "http://localhost:8080" },
-          { id: "bot-2", name: "Bot2", endpoint: "http://localhost:8081" },
+          {
+            id: "bot-1",
+            name: "Bot1",
+            strategy: {
+              version: 1,
+              tier: "quick",
+              personality: {
+                aggression: 50,
+                bluffFrequency: 30,
+                riskTolerance: 50,
+                tightness: 50,
+              },
+            },
+          },
+          {
+            id: "bot-2",
+            name: "Bot2",
+            strategy: {
+              version: 1,
+              tier: "quick",
+              personality: {
+                aggression: 50,
+                bluffFrequency: 30,
+                riskTolerance: 50,
+                tightness: 50,
+              },
+            },
+          },
         ],
       };
       expect(initData.gameConfig.tableId).toBe("table-1");

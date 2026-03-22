@@ -34,14 +34,6 @@ export class BotRepository extends BaseRepository<Bot> {
     });
   }
 
-  async updateEndpoint(
-    id: string,
-    endpoint: string,
-    manager?: EntityManager,
-  ): Promise<Bot | null> {
-    return this.update(id, { endpoint }, manager);
-  }
-
   async deactivate(id: string, manager?: EntityManager): Promise<Bot | null> {
     return this.update(id, { active: false }, manager);
   }

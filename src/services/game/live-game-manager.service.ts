@@ -9,8 +9,6 @@
 
 import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { BotCallerService } from "../bot/bot-caller.service";
-import { BotResilienceService } from "../bot/bot-resilience.service";
 import { ProvablyFairService, HandSeedData } from "../provably-fair.service";
 import {
   createDeck,
@@ -21,6 +19,11 @@ import {
 } from "../../domain/deck";
 import { determineWinners, bestHand } from "../../domain/handEvaluator";
 import { PotManager, BettingRound } from "../../domain/betting";
+import {
+  evaluateStrategy,
+  type BotPayload,
+} from "../../modules/bot-strategy/strategy-engine.service";
+import type { BotStrategy } from "../../domain/bot-strategy/strategy.types";
 
 export interface LiveGame {
   game: GameInstance;
@@ -67,7 +70,7 @@ export interface GameStateSnapshot {
 interface GamePlayer {
   id: string;
   name: string;
-  endpoint: string;
+  strategy: BotStrategy;
   chips: number;
   holeCards: any[];
   folded: boolean;
@@ -86,6 +89,32 @@ const POSITION_NAMES: Record<number, string[]> = {
   8: ["BTN", "SB", "BB", "UTG", "UTG+1", "MP", "HJ", "CO"],
   9: ["BTN", "SB", "BB", "UTG", "UTG+1", "MP", "MP+1", "HJ", "CO"],
 };
+
+interface RecoverySnapshot {
+  game_id: string;
+  table_id: string;
+  tournament_id?: string;
+  hand_number: number;
+  game_stage: string;
+  dealer_index: number;
+  small_blind: number;
+  big_blind: number;
+  ante: number;
+  starting_chips: number;
+  turn_timeout_ms: number;
+  community_cards: Array<{ rank: string; suit: string }>;
+  players: Array<{
+    id: string;
+    name: string;
+    strategy: BotStrategy | Record<string, any> | null;
+    chips: number;
+    holeCards?: Array<{ rank: string; suit: string }>;
+    folded: boolean;
+    allIn: boolean;
+    strikes: number;
+    disconnected: boolean;
+  }>;
+}
 
 const MAX_STRIKES = 3;
 
@@ -117,6 +146,8 @@ export class GameInstance {
 
   private expectedTotalChips?: number;
   private sleepMs: number = 4000;
+  private handInProgress = false;
+  private pendingMutations: Array<() => void> = [];
 
   // Provably Fair fields
   private provablyFairService: ProvablyFairService | null = null;
@@ -126,8 +157,6 @@ export class GameInstance {
   constructor(
     private readonly logger: Logger,
     private readonly eventEmitter: EventEmitter2,
-    private readonly botCaller: BotCallerService,
-    private readonly botResilience: BotResilienceService,
     config: {
       tableId: string;
       gameId: string;
@@ -154,7 +183,23 @@ export class GameInstance {
   addPlayer(player: {
     id: string;
     name: string;
-    endpoint: string;
+    strategy: BotStrategy;
+    chips?: number;
+  }): void {
+    if (this.handInProgress) {
+      this.pendingMutations.push(() => this.addPlayerImmediate(player));
+      this.logEvent({
+        message: `${player.name} will join after current hand`,
+      });
+      return;
+    }
+    this.addPlayerImmediate(player);
+  }
+
+  private addPlayerImmediate(player: {
+    id: string;
+    name: string;
+    strategy: BotStrategy;
     chips?: number;
   }): void {
     const existing = this.players.find((p) => p.id === player.id);
@@ -165,7 +210,7 @@ export class GameInstance {
       }
       existing.disconnected = false;
       existing.strikes = 0;
-      existing.endpoint = player.endpoint;
+      existing.strategy = player.strategy;
       this.logEvent({ message: `${player.name} reconnected to the table` });
       this.emitStateUpdate();
       return;
@@ -175,7 +220,7 @@ export class GameInstance {
     const newPlayer: GamePlayer = {
       id: player.id,
       name: player.name,
-      endpoint: player.endpoint,
+      strategy: player.strategy,
       chips,
       holeCards: [],
       folded: true,
@@ -216,12 +261,29 @@ export class GameInstance {
   }
 
   removePlayer(playerId: string): void {
+    if (this.handInProgress) {
+      const player = this.players.find((p) => p.id === playerId);
+      if (player) {
+        player.disconnected = true;
+        this.logEvent({
+          message: `${player.name} marked disconnected — chips reconciled after hand`,
+        });
+      }
+      this.pendingMutations.push(() => this.removePlayerImmediate(playerId));
+      return;
+    }
+    this.removePlayerImmediate(playerId);
+  }
+
+  private removePlayerImmediate(playerId: string): void {
     const player = this.players.find((p) => p.id === playerId);
     if (!player) return;
 
     player.disconnected = true;
+
     if (this.expectedTotalChips !== undefined) {
-      this.expectedTotalChips -= player.chips;
+      const chipsInPot = this.potManager?.getPlayerTotalBet(playerId) || 0;
+      this.expectedTotalChips -= player.chips + chipsInPot;
     }
     player.chips = 0;
 
@@ -262,9 +324,14 @@ export class GameInstance {
       }
 
       try {
+        this.handInProgress = true;
         await this.playHand();
+        this.handInProgress = false;
+        this.drainPendingMutations();
         this.assertChipConservation();
       } catch (e: any) {
+        this.handInProgress = false;
+        this.drainPendingMutations();
         this.logger.error(
           `Hand ${this.handNumber} crashed — stopping game`,
           e.stack,
@@ -328,6 +395,7 @@ export class GameInstance {
       dealerBotId: this.players[this.dealerIndex].id,
       smallBlind: this.smallBlind,
       bigBlind: this.bigBlind,
+      ante: this.ante,
       players: this.players
         .filter((p) => !p.disconnected && p.chips > 0)
         .map((p, idx) => ({
@@ -446,9 +514,9 @@ export class GameInstance {
       this.emitStateUpdate();
 
       const botPayload = this.buildBotPayload(player);
-      const action = await this.getPlayerActionSafe(player, botPayload);
+      const action = this.getPlayerActionSafe(player, botPayload);
 
-      const result = this.bettingRound.applyAction(player, action);
+      const result = this.bettingRound.applyAction(player, action as any);
       if (!result.valid) {
         this.logEvent({
           message: `Invalid action from ${player.name}: ${result.error} — folding`,
@@ -474,71 +542,39 @@ export class GameInstance {
     this.potManager!.calculatePots(this.players);
   }
 
-  private async getPlayerActionSafe(
+  private getPlayerActionSafe(
     player: GamePlayer,
-    botPayload: any,
-  ): Promise<any> {
+    botPayload: BotPayload,
+  ): { type: string; amount?: number } {
     try {
-      const result = await this.botResilience.callBotWithFallback({
-        botId: player.id,
-        endpoint: player.endpoint,
-        payload: botPayload,
-        gameContext: {
-          gameId: this.gameId,
-          handNumber: this.handNumber,
-          stage: this.stage,
-          pot: botPayload.table.pot,
-          currentBet: this.bettingRound?.currentBet ?? 0,
-          toCall: botPayload.action.toCall,
-          canCheck: botPayload.action.canCheck,
-          minRaise: botPayload.action.minRaise,
-          maxRaise: botPayload.action.maxRaise,
-        },
-      });
-
-      if (result.usedFallback) {
-        player.strikes++;
-        this.logEvent({
-          message: `${player.name} used fallback action (${result.fallbackReason}) — strike ${player.strikes}/${MAX_STRIKES}`,
-        });
-
-        if (player.strikes >= MAX_STRIKES) {
-          player.disconnected = true;
-          this.logEvent({
-            message: `${player.name} disconnected after ${player.strikes} strikes`,
-          });
-          this.eventEmitter.emit("game.playerRemoved", {
-            tableId: this.tableId,
-            gameId: this.gameId,
-            playerId: player.id,
-          });
-        }
-      } else {
-        player.strikes = 0;
+      const result = evaluateStrategy(player.strategy, botPayload);
+      player.strikes = 0;
+      const action = result.action;
+      if (action.type === "all_in") {
+        return { type: "raise", amount: botPayload.action.maxRaise };
       }
-
-      return result.action;
+      return action;
     } catch (e: any) {
       player.strikes++;
-      const reason =
-        e.message === "Timeout" ? "timed out" : `errored (${e.message})`;
+      this.logEvent({
+        message: `${player.name} strategy error (${e.message}) — strike ${player.strikes}/${MAX_STRIKES}`,
+      });
 
       if (player.strikes >= MAX_STRIKES) {
         player.disconnected = true;
         this.logEvent({
-          message: `${player.name} ${reason} — strike ${player.strikes}/${MAX_STRIKES}. Disconnected from table.`,
+          message: `${player.name} disconnected after ${player.strikes} strikes`,
         });
         this.eventEmitter.emit("game.playerRemoved", {
           tableId: this.tableId,
           gameId: this.gameId,
           playerId: player.id,
         });
-      } else {
-        this.logEvent({
-          message: `${player.name} ${reason} — strike ${player.strikes}/${MAX_STRIKES}. Folding.`,
-        });
       }
 
+      if (botPayload.action.canCheck) {
+        return { type: "check" };
+      }
       return { type: "fold" };
     }
   }
@@ -567,6 +603,7 @@ export class GameInstance {
         folded: p.folded,
         allIn: p.allIn,
         totalBet: this.potManager?.getPlayerTotalBet(p.id) || 0,
+        holeCards: p.holeCards || [],
       })),
       provablyFair: this.currentHandSeed
         ? this.provablyFairService?.getVerificationData(this.currentHandSeed)
@@ -617,6 +654,7 @@ export class GameInstance {
         folded: p.folded,
         allIn: p.allIn,
         totalBet: this.potManager?.getPlayerTotalBet(p.id) || 0,
+        holeCards: p.holeCards || [],
       })),
       provablyFair: this.currentHandSeed
         ? this.provablyFairService?.getVerificationData(this.currentHandSeed)
@@ -624,7 +662,7 @@ export class GameInstance {
     });
   }
 
-  private buildBotPayload(player: GamePlayer): any {
+  private buildBotPayload(player: GamePlayer): BotPayload {
     const positions = this.computePositions();
     const toCall = this.bettingRound!.getCallAmount(player);
 
@@ -766,7 +804,7 @@ export class GameInstance {
   }
 
   private activePlayers(): GamePlayer[] {
-    return this.players.filter((p) => !p.folded);
+    return this.players.filter((p) => !p.folded && !p.disconnected);
   }
 
   private activeSeatCount(): number {
@@ -829,6 +867,21 @@ export class GameInstance {
     });
   }
 
+  setExpectedTotalChips(total: number): void {
+    this.expectedTotalChips = total;
+  }
+
+  private drainPendingMutations(): void {
+    const mutations = this.pendingMutations.splice(0);
+    for (const mutation of mutations) {
+      try {
+        mutation();
+      } catch (e: any) {
+        this.logger.warn(`Pending mutation failed: ${e.message}`);
+      }
+    }
+  }
+
   private assertChipConservation(): void {
     if (this.expectedTotalChips === undefined) return;
     const inStacks = this.players.reduce((s, p) => s + p.chips, 0);
@@ -873,8 +926,6 @@ export class LiveGameManagerService implements OnModuleDestroy {
 
   constructor(
     private readonly eventEmitter: EventEmitter2,
-    private readonly botCaller: BotCallerService,
-    private readonly botResilience: BotResilienceService,
     private readonly provablyFairService: ProvablyFairService,
   ) {
     this.eventEmitter.on(
@@ -890,10 +941,13 @@ export class LiveGameManagerService implements OnModuleDestroy {
         gameId: string;
         tableId: string;
         tournamentId?: string;
-        snapshot: any;
+        snapshot: RecoverySnapshot;
       }) => {
         this.recoverFromSnapshot(event.snapshot).catch((e) =>
-          this.logger.error(`Failed to recover game: ${e.message}`),
+          this.logger.error(
+            `Failed to recover game: ${e.message}`,
+            e instanceof Error ? e.stack : undefined,
+          ),
         );
       },
     );
@@ -932,7 +986,10 @@ export class LiveGameManagerService implements OnModuleDestroy {
         startedAt: liveGame.startedAt.toISOString(),
         ownerInstanceId: this.gameOwnershipService!.getInstanceId(),
       }).catch((err) =>
-        this.logger.error(`Failed to save state to Redis: ${err.message}`),
+        this.logger.error(
+          `Failed to save state to Redis: ${err.message}`,
+          err instanceof Error ? err.stack : undefined,
+        ),
       );
 
       this.redisEventBusService!.publish(
@@ -940,7 +997,10 @@ export class LiveGameManagerService implements OnModuleDestroy {
         tableId,
         state,
       ).catch((err) =>
-        this.logger.error(`Failed to publish state event: ${err.message}`),
+        this.logger.error(
+          `Failed to publish state event: ${err.message}`,
+          err instanceof Error ? err.stack : undefined,
+        ),
       );
     }
   }
@@ -967,6 +1027,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
             ).catch((err) =>
               this.logger.error(
                 `Failed to publish ${eventType} event: ${err.message}`,
+                err instanceof Error ? err.stack : undefined,
               ),
             );
           }
@@ -990,8 +1051,19 @@ export class LiveGameManagerService implements OnModuleDestroy {
     this.gameStates.clear();
   }
 
-  async recoverFromSnapshot(snapshot: any): Promise<GameInstance | null> {
+  async recoverFromSnapshot(
+    snapshot: RecoverySnapshot,
+  ): Promise<GameInstance | null> {
     try {
+      if (
+        !snapshot?.table_id ||
+        !snapshot?.game_id ||
+        !Array.isArray(snapshot?.players)
+      ) {
+        this.logger.error("Invalid recovery snapshot: missing required fields");
+        return null;
+      }
+
       if (this.liveGames.has(snapshot.table_id)) {
         this.logger.warn(
           `Game already exists for table ${snapshot.table_id}, skipping recovery`,
@@ -1002,8 +1074,6 @@ export class LiveGameManagerService implements OnModuleDestroy {
       const game = new GameInstance(
         this.logger,
         this.eventEmitter,
-        this.botCaller,
-        this.botResilience,
         {
           tableId: snapshot.table_id,
           gameId: snapshot.game_id,
@@ -1017,11 +1087,12 @@ export class LiveGameManagerService implements OnModuleDestroy {
         this.provablyFairService,
       );
 
+      let recoveredTotalChips = 0;
       for (const player of snapshot.players) {
         game.players.push({
           id: player.id,
           name: player.name,
-          endpoint: player.endpoint,
+          strategy: player.strategy as BotStrategy,
           chips: player.chips,
           holeCards: (player.holeCards || []).map(parseCard),
           folded: player.folded,
@@ -1029,12 +1100,16 @@ export class LiveGameManagerService implements OnModuleDestroy {
           strikes: player.strikes,
           disconnected: player.disconnected,
         });
+        if (!player.disconnected) {
+          recoveredTotalChips += player.chips;
+        }
       }
 
       game.handNumber = snapshot.hand_number;
       game.stage = snapshot.game_stage;
       game.dealerIndex = snapshot.dealer_index;
       game.communityCards = (snapshot.community_cards || []).map(parseCard);
+      game.setExpectedTotalChips(recoveredTotalChips);
 
       const liveGame: LiveGame = {
         game,
@@ -1062,7 +1137,10 @@ export class LiveGameManagerService implements OnModuleDestroy {
 
       return game;
     } catch (error) {
-      this.logger.error(`Failed to recover from snapshot: ${error}`);
+      this.logger.error(
+        `Failed to recover from snapshot: ${error}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       return null;
     }
   }
@@ -1104,8 +1182,6 @@ export class LiveGameManagerService implements OnModuleDestroy {
     const game = new GameInstance(
       this.logger,
       this.eventEmitter,
-      this.botCaller,
-      this.botResilience,
       {
         tableId: config.tableId,
         gameId: config.gameDbId,
@@ -1165,8 +1241,6 @@ export class LiveGameManagerService implements OnModuleDestroy {
     const game = new GameInstance(
       this.logger,
       this.eventEmitter,
-      this.botCaller,
-      this.botResilience,
       {
         tableId: config.tableId,
         gameId: config.gameDbId,

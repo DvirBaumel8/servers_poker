@@ -29,7 +29,7 @@ export interface GameState {
   players: Array<{
     id: string;
     name: string;
-    endpoint: string;
+    strategy: Record<string, any> | null;
     chips: number;
     holeCards: Array<{ rank: string; suit: string }>;
     folded: boolean;
@@ -96,13 +96,19 @@ export class GameStatePersistenceService
 
     this.persistenceInterval = setInterval(() => {
       this.flushPendingSnapshots().catch((e) =>
-        this.logger.error(`Failed to flush snapshots: ${e.message}`),
+        this.logger.error(
+          `Failed to flush snapshots: ${e.message}`,
+          e instanceof Error ? e.stack : undefined,
+        ),
       );
     }, this.persistenceIntervalMs);
 
     this.cleanupInterval = setInterval(() => {
       this.cleanupOldSnapshots().catch((e) =>
-        this.logger.error(`Failed to cleanup snapshots: ${e.message}`),
+        this.logger.error(
+          `Failed to cleanup snapshots: ${e.message}`,
+          e instanceof Error ? e.stack : undefined,
+        ),
       );
     }, this.cleanupIntervalMs);
 
@@ -129,7 +135,7 @@ export class GameStatePersistenceService
           players: (raw.players || []).map((p: any) => ({
             id: p.id,
             name: p.name || "",
-            endpoint: p.endpoint || "",
+            strategy: p.strategy || null,
             chips: p.chips || 0,
             holeCards: p.holeCards || [],
             folded: p.folded || false,
@@ -148,7 +154,10 @@ export class GameStatePersistenceService
       "game.finished",
       (event: { tableId: string; gameId: string }) => {
         this.markGameCompleted(event.gameId).catch((e) =>
-          this.logger.error(`Failed to mark game completed: ${e.message}`),
+          this.logger.error(
+            `Failed to mark game completed: ${e.message}`,
+            e instanceof Error ? e.stack : undefined,
+          ),
         );
       },
     );
@@ -206,6 +215,7 @@ export class GameStatePersistenceService
     } catch (error) {
       this.logger.error(
         `Failed to save snapshot for game ${state.gameId}: ${error}`,
+        error instanceof Error ? error.stack : undefined,
       );
     }
   }
@@ -227,7 +237,10 @@ export class GameStatePersistenceService
         return lastUpdate > cutoff;
       });
     } catch (error) {
-      this.logger.error(`Failed to get recoverable games: ${error}`);
+      this.logger.error(
+        `Failed to get recoverable games: ${error}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       return [];
     }
   }
@@ -254,7 +267,10 @@ export class GameStatePersistenceService
 
       return snapshot;
     } catch (error) {
-      this.logger.error(`Failed to recover game from snapshot: ${error}`);
+      this.logger.error(
+        `Failed to recover game from snapshot: ${error}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       return null;
     }
   }
@@ -267,7 +283,10 @@ export class GameStatePersistenceService
       await this.gameStateRepository.markAsCompleted(gameId);
       this.logger.debug(`Marked game ${gameId} as completed`);
     } catch (error) {
-      this.logger.error(`Failed to mark game ${gameId} as completed: ${error}`);
+      this.logger.error(
+        `Failed to mark game ${gameId} as completed: ${error}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 
@@ -291,7 +310,10 @@ export class GameStatePersistenceService
         this.logger.log(`Cleaned up ${deleted} old game state snapshots`);
       }
     } catch (error) {
-      this.logger.error(`Failed to cleanup old snapshots: ${error}`);
+      this.logger.error(
+        `Failed to cleanup old snapshots: ${error}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 

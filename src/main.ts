@@ -27,11 +27,14 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  // Security: Enforce JWT_SECRET in production
+  // Security: Enforce JWT_SECRET in all non-development environments
   const jwtSecret = configService.get<string>("jwtSecret");
-  if (isProduction && (!jwtSecret || jwtSecret === "change-me-in-production")) {
+  if (
+    nodeEnv !== "development" &&
+    (!jwtSecret || jwtSecret === "change-me-in-production")
+  ) {
     logger.error(
-      "FATAL: JWT_SECRET environment variable must be set in production",
+      "FATAL: JWT_SECRET environment variable must be set in non-development environments",
     );
     process.exit(1);
   }
@@ -126,6 +129,8 @@ async function bootstrap() {
   }
 
   const port = configService.get<number>("port") || 3000;
+
+  app.enableShutdownHooks();
 
   await app.listen(port);
   logger.log(`Poker server running on port ${port}`);

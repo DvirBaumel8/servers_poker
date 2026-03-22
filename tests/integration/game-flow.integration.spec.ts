@@ -3,8 +3,6 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigModule } from "@nestjs/config";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { LiveGameManagerService } from "../../src/services/game/live-game-manager.service";
-import { BotCallerService } from "../../src/services/bot/bot-caller.service";
-import { BotResilienceService } from "../../src/services/bot/bot-resilience.service";
 import { ProvablyFairService } from "../../src/services/provably-fair.service";
 import { v4 as uuidv4 } from "uuid";
 
@@ -12,31 +10,15 @@ describe("Game Flow Integration Tests", () => {
   let liveGameManager: LiveGameManagerService;
   let eventEmitter: EventEmitter2;
 
-  const mockBotCallerService = {
-    callBot: vi.fn().mockResolvedValue({
-      success: true,
-      response: { type: "call" },
-      latencyMs: 10,
-      attempt: 1,
-      retried: false,
-    }),
-    healthCheck: vi.fn().mockResolvedValue(true),
-    getHealthStatus: vi.fn().mockReturnValue({ healthy: true }),
-    getAllHealthStatuses: vi.fn().mockReturnValue([]),
-    resetCircuitBreaker: vi.fn(),
-    getAverageLatency: vi.fn().mockReturnValue(10),
-    preGameHealthCheck: vi.fn().mockResolvedValue(new Map()),
-    onModuleInit: vi.fn(),
-    getAgentStats: vi.fn().mockReturnValue({ http: null, https: null }),
-  };
-
-  const mockBotResilienceService = {
-    callBotWithFallback: vi
-      .fn()
-      .mockResolvedValue({ action: { type: "call" }, usedFallback: false }),
-    recordSuccess: vi.fn(),
-    recordFailure: vi.fn(),
-    getCircuitState: vi.fn().mockReturnValue("closed"),
+  const defaultStrategy = {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 50,
+      bluffFrequency: 30,
+      riskTolerance: 50,
+      tightness: 50,
+    },
   };
 
   beforeAll(async () => {
@@ -45,18 +27,7 @@ describe("Game Flow Integration Tests", () => {
         ConfigModule.forRoot({ isGlobal: true }),
         EventEmitterModule.forRoot(),
       ],
-      providers: [
-        LiveGameManagerService,
-        ProvablyFairService,
-        {
-          provide: BotCallerService,
-          useValue: mockBotCallerService,
-        },
-        {
-          provide: BotResilienceService,
-          useValue: mockBotResilienceService,
-        },
-      ],
+      providers: [LiveGameManagerService, ProvablyFairService],
     }).compile();
 
     liveGameManager = moduleFixture.get<LiveGameManagerService>(
@@ -104,14 +75,14 @@ describe("Game Flow Integration Tests", () => {
         id: "bot-1",
         name: "Bot 1",
         chips: 1000,
-        endpoint: "http://localhost:19401",
+        strategy: defaultStrategy,
       });
 
       game.addPlayer({
         id: "bot-2",
         name: "Bot 2",
         chips: 1000,
-        endpoint: "http://localhost:19402",
+        strategy: defaultStrategy,
       });
 
       expect(game.players.length).toBe(2);
@@ -155,7 +126,7 @@ describe("Game Flow Integration Tests", () => {
       game.addPlayer({
         id: "bot-1",
         name: "Bot 1",
-        endpoint: "http://localhost:19408",
+        strategy: defaultStrategy,
       });
 
       const state = liveGameManager.getGameState(tableId);
@@ -204,13 +175,13 @@ describe("Game Flow Integration Tests", () => {
       game.addPlayer({
         id: "bot-1",
         name: "Bot 1",
-        endpoint: "http://localhost:19409",
+        strategy: defaultStrategy,
       });
 
       game.addPlayer({
         id: "bot-2",
         name: "Bot 2",
-        endpoint: "http://localhost:19410",
+        strategy: defaultStrategy,
       });
 
       game.removePlayer("bot-1");

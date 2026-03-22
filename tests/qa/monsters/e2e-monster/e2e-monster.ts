@@ -56,7 +56,7 @@ export class E2EMonster extends BaseMonster {
   private testTournament?: { id: string; name: string };
 
   constructor(config?: Partial<E2EConfig>) {
-    super({ name: "E2E Monster", type: "e2e" });
+    super({ name: "E2E Monster", type: "e2e", needsServer: true });
     const env = getEnv();
     this.e2eConfig = {
       baseUrl: env.apiBaseUrl,

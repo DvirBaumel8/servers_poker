@@ -43,7 +43,7 @@ export class RedisPubSubService implements OnModuleDestroy {
     });
 
     this.publisher.on("error", (err) => {
-      this.logger.error(`Redis publisher error: ${err.message}`);
+      this.logger.error(`Redis publisher error: ${err.message}`, err.stack);
     });
 
     this.subscriber.on("connect", () => {
@@ -52,7 +52,7 @@ export class RedisPubSubService implements OnModuleDestroy {
     });
 
     this.subscriber.on("error", (err) => {
-      this.logger.error(`Redis subscriber error: ${err.message}`);
+      this.logger.error(`Redis subscriber error: ${err.message}`, err.stack);
     });
 
     this.subscriber.on("message", (channel, message) => {
@@ -116,6 +116,7 @@ export class RedisPubSubService implements OnModuleDestroy {
         const errorMessage = err instanceof Error ? err.message : String(err);
         this.logger.error(
           `Error in message handler for ${channel}: ${errorMessage}`,
+          err instanceof Error ? err.stack : undefined,
         );
       }
     }

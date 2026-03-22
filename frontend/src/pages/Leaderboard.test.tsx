@@ -29,7 +29,8 @@ describe("Leaderboard page", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/loading leaderboard/i)).toBeInTheDocument();
+    const skeletons = document.querySelectorAll(".skeleton");
+    expect(skeletons.length).toBeGreaterThan(0);
     expect(screen.queryByText(/ranked bots/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/top net/i)).not.toBeInTheDocument();
 
@@ -47,6 +48,6 @@ describe("Leaderboard page", () => {
     await waitFor(() =>
       expect(screen.getByText(/ranked bots/i)).toBeInTheDocument(),
     );
-    expect(screen.queryByText(/loading leaderboard/i)).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".skeleton").length).toBe(0);
   });
 });

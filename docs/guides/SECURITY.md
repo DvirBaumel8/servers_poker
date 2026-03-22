@@ -7,19 +7,18 @@ A living document. Update whenever a security decision is made, a vulnerability 
 ## Threat Model
 
 **Who are the users?**
-Bot developers — technically sophisticated, running code on their own servers. Not anonymous consumers.
+Users who build bots via the BotBuilder UI. Bots run in-process using strategy evaluation — no external servers.
 
 **What do we protect?**
 - Game integrity — bots cannot cheat, spoof other players, or manipulate outcomes
 - Data — hand history and user accounts are valuable; they are the product
-- Service availability — a misbehaving bot should not disrupt other games
+- Service availability — the platform must remain stable under load
 - Chip integrity — all chip movements must be tracked and conserved
 
 **What are the realistic threats?**
 - Impersonation — someone joins a table pretending to be another user's bot
 - Data scraping — bulk harvesting of hand history for a competitive edge
 - Denial of service — flooding the join/register endpoints or running slow bots intentionally
-- API key leakage — keys stored insecurely client-side, shared publicly
 - Replay attacks — replaying a valid join request to seat a bot multiple times
 - Out-of-turn actions — bots sending actions when it's not their turn
 
@@ -34,12 +33,19 @@ Bot developers — technically sophisticated, running code on their own servers.
 - **Implementation:** `@nestjs/jwt` with `passport-jwt` strategy
 - **Guards:** `JwtAuthGuard` validates tokens on protected routes
 - **Token payload:** `{ sub: userId, email: string, role: string }`
+- **Secret enforcement:** `JWT_SECRET` must be set in all non-development environments. The application refuses to start if `JWT_SECRET` is missing or uses a default value outside of `NODE_ENV=development`. No hardcoded fallback exists.
 
-#### API Key Authentication (Bots)
-- **Mechanism:** API key sent as `X-API-Key` header
-- **Storage:** SHA-256 hashed in `users.api_key_hash`
-- **Generation:** `crypto.randomBytes(32).toString('hex')` — 256 bits of entropy
-- **Guard:** `ApiKeyGuard` validates keys for bot endpoints
+#### Refresh Tokens
+- **Opaque refresh tokens** (32-byte random hex) are issued alongside access tokens on login and email verification.
+- Refresh tokens are stored **hashed (SHA-256)** in the database — the plaintext is never persisted.
+- **Token rotation:** each refresh issues a new access + refresh pair, invalidating the old refresh token.
+- **Expiry:** 7 days. Expired tokens are automatically cleared.
+- **Revocation:** `POST /auth/logout` explicitly revokes the user's refresh token.
+- **CSRF:** Not applicable — JWT Bearer tokens are used (browser does not auto-attach them to cross-origin requests).
+
+#### Email Verification
+- Both `POST /auth/register` and `POST /auth/register-developer` require email verification before issuing a JWT token. The endpoint returns a success message prompting the user to verify their email.
+- **Verification codes** are generated using `crypto.randomInt()` (cryptographically secure) instead of `Math.random()`, eliminating predictability of verification codes.
 
 ### Authorization
 
@@ -56,23 +62,27 @@ Bot developers — technically sophisticated, running code on their own servers.
 ### Rate Limiting
 
 #### NestJS Throttler Module
-- **Global limit:** 100 requests per minute per IP
-- **Configuration:** Via `RATE_LIMIT_TTL` and `RATE_LIMIT_MAX` env vars
+- **Global limit:** 300 requests per minute per IP
+- **Configuration:** Via `RATE_LIMIT_MAX` and `RATE_LIMIT_WINDOW_MS` env vars
 - **Customizable:** Per-route overrides via `@Throttle()` decorator
+
+#### Per-Route Auth Limits
+| Endpoint | Limit |
+|----------|-------|
+| `POST /auth/register` | 5 per hour |
+| `POST /auth/register-developer` | 3 per hour |
+| `POST /auth/login` | 10 per 15 min |
+| `POST /auth/verify-email` | 5 per 15 min |
+| `POST /auth/resend-verification` | 3 per 15 min |
+| `POST /auth/forgot-password` | 3 per 15 min |
+| `POST /auth/reset-password` | 3 per 15 min |
+| `POST /auth/refresh` | 10 per 15 min |
 
 ### Input Validation
 
 #### Strict DTO Validation
 - **Implementation:** `class-validator` with `StrictValidationPipe`
 - **Options:** `whitelist: true`, `forbidNonWhitelisted: true`
-- **Bot endpoints:** Custom `@IsValidBotEndpoint()` validator blocks internal IPs
-
-#### Bot Endpoint Validation
-Blocked patterns:
-- Private IP ranges (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
-- Localhost and loopback (127.x.x.x, ::1)
-- Link-local addresses (169.254.x.x)
-- Cloud metadata endpoints (169.254.169.254)
 
 ### Audit Logging
 
@@ -93,7 +103,6 @@ Blocked patterns:
 - `GameExceptionFilter` — handles game-specific errors:
   - `ChipConservationError` — critical, logged with full game state
   - `InvalidActionError` — returns valid actions to bot
-  - `BotTimeoutError` — strike applied, penalty fold
   - `TournamentError` — tournament lifecycle issues
 
 ### Transport Security
@@ -110,6 +119,11 @@ Blocked patterns:
 - JWT token validated on connection
 - Connections without valid token rejected
 - Token refresh handled via HTTP, not WS
+
+### Bot Ownership Verification
+- `registerBot` and `subscribeBotActivity` verify `bot.user_id === client.userId`
+- Unauthenticated clients are rejected with "Authentication required"
+- Ownership mismatch returns "Bot not found or access denied"
 
 ### Room Isolation
 - Each table is a separate Socket.IO room
@@ -137,11 +151,6 @@ When a bot sends an action but it's not their turn:
 3. No strike applied (could be race condition)
 4. Correct player's turn continues
 
-### Bot Fault Isolation
-- Bots run on separate servers — no direct game state access
-- Timeouts (configurable, default 30s) prevent stalling
-- 3-strike disconnect prevents dead bots from degrading games
-
 ---
 
 ## Database Security
@@ -152,7 +161,7 @@ When a bot sends an action but it's not their turn:
 - `SERIALIZABLE` transactions for chip movements
 
 ### Data Protection
-- Sensitive fields hashed (API keys, passwords)
+- Sensitive fields hashed (passwords)
 - No soft delete on hands/actions — append-only audit trail
 - Cascade delete for proper cleanup
 
@@ -162,9 +171,6 @@ When a bot sends an action but it's not their turn:
 
 ### P0 — Must fix before production
 
-**[SEC-001] API keys stored in plaintext** — FIXED
-- Solution: SHA-256 hashing implemented in `UserRepository`
-
 **[SEC-002] No rate limiting** — FIXED
 - Solution: `@nestjs/throttler` with configurable limits
 
@@ -173,58 +179,27 @@ When a bot sends an action but it's not their turn:
 
 ### P1 — Fix before inviting external users
 
-**[SEC-004] WebSocket replay protection** — PARTIALLY FIXED
+**[SEC-004] WebSocket replay protection** — FIXED
 - JWT validation on connect implemented
-- TODO: Add refresh token handling for long-lived connections
-
-**[SEC-005] Bot endpoint receives no secret** — FIXED
-- Risk: Anyone can send fake game state to bot
-- Solution: `HmacSigningService` implements HMAC-SHA256 payload signing
-- Headers: `X-Poker-Signature`, `X-Poker-Timestamp`, `X-Poker-Nonce`
-- Enable via `ENABLE_BOT_HMAC_SIGNING=true` env var
+- Refresh tokens with rotation allow token revocation without changing the global JWT secret
 
 **[SEC-006] No request body size limit** — FIXED
 - Solution: Enforced via NestJS body parser config
 
 ### P2 — Important but not blocking
 
-**[SEC-007] Bot endpoint URL not validated for SSRF** — FIXED
-- Solution: `@IsValidBotEndpoint()` validator blocks private IPs
-
 **[SEC-008] Concurrent join race condition** — FIXED
 - Solution: PostgreSQL `SERIALIZABLE` transactions
-
-**[SEC-009] API key entropy** — FIXED
-- Solution: `crypto.randomBytes(32).toString('hex')`
-
-**[SEC-010] No key rotation** — FIXED
-- Solution: `ApiKeyRotationService` with grace period for old keys
-- Endpoint: `POST /users/:id/rotate-api-key`
-- Features:
-  - Old key valid during grace period (default 24h)
-  - Admin can revoke all keys: `POST /users/:id/revoke-api-keys`
-  - Status check: `GET /users/:id/api-key-status`
-
-**[SEC-011] Webhook signing** — FIXED
-- Solution: `WebhookSigningService` for outgoing webhooks
-- Format: Stripe-style `v1=<signature>` in `X-Poker-Webhook-Signature` header
-- Includes timestamp validation to prevent replay attacks
 
 ---
 
 ## Security Review Checklist (Before Production)
 
-- [x] SEC-001: API keys hashed in DB — SHA-256
 - [x] SEC-002: Rate limiting — NestJS Throttler
 - [ ] SEC-003: TLS via reverse proxy
 - [x] SEC-004: WebSocket JWT auth (partial)
-- [x] SEC-005: HMAC signing of bot payloads — `HmacSigningService`
 - [x] SEC-006: Request body size limits
-- [x] SEC-007: SSRF protection on bot endpoints
 - [x] SEC-008: Atomic join — PostgreSQL transactions
-- [x] SEC-009: Cryptographic API key generation
-- [x] SEC-010: Key rotation endpoint — `ApiKeyRotationService`
-- [x] SEC-011: Webhook request signing — `WebhookSigningService`
 
 ---
 
@@ -296,8 +271,3 @@ With the NestJS migration, we now use npm dependencies:
 2. Review `chip_movements` for the bot
 3. Compare with simulation baseline
 4. Temporary ban if confirmed
-
-### API Key Compromise
-1. Regenerate key immediately via `POST /auth/regenerate-api-key`
-2. Check `audit_logs` for unauthorized access
-3. Invalidate any affected game results

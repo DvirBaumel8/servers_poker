@@ -13,7 +13,7 @@ import {
   BotActivityDto,
   BotActivityGame,
   BotActivityTournament,
-} from "../../modules/bots/dto/bot.dto";
+} from "../../modules/bots/dto/internal-bot.dto";
 
 @Injectable()
 export class BotActivityService {

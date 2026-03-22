@@ -1,14 +1,3 @@
-/**
- * Tournament Flow E2E Tests
- * =========================
- * Tests for complete tournament lifecycle:
- * - Tournament creation and registration
- * - Blinds increase schedule
- * - Player elimination
- * - Final table
- * - Prize distribution
- */
-
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
@@ -17,7 +6,6 @@ import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
 import request from "supertest";
-import * as http from "http";
 import { DataSource } from "typeorm";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
@@ -32,44 +20,9 @@ import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 let testCounter = 1;
 const uid = () => `${testCounter++}${Math.random().toString(36).slice(2, 6)}`;
 
-let portCounter = 41000;
-function getNextPort(): number {
-  return portCounter++;
-}
-
-interface BotServer {
-  server: http.Server;
-  port: number;
-  close: () => Promise<void>;
-}
-
-function createBotServer(port: number): Promise<BotServer> {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      if (req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok" }));
-        return;
-      }
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ type: "call" }));
-    });
-
-    server.on("error", reject);
-    server.listen(port, () => {
-      resolve({
-        server,
-        port,
-        close: () => new Promise<void>((res) => server.close(() => res())),
-      });
-    });
-  });
-}
-
 describe("Tournament Flow E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
-  const botServers: BotServer[] = [];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -113,13 +66,6 @@ describe("Tournament Flow E2E Tests", () => {
   });
 
   afterAll(async () => {
-    for (const bot of botServers) {
-      try {
-        await bot.close();
-      } catch {
-        // Ignore errors when closing bot servers during cleanup
-      }
-    }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
   });
@@ -127,12 +73,8 @@ describe("Tournament Flow E2E Tests", () => {
   async function registerPlayer(): Promise<{
     accessToken: string;
     bot: { id: string };
-    botServer: BotServer;
   }> {
     const id = uid();
-    const port = getNextPort();
-    const botServer = await createBotServer(port);
-    botServers.push(botServer);
 
     const response = await request(app.getHttpServer())
       .post("/api/v1/auth/register-developer")
@@ -141,11 +83,10 @@ describe("Tournament Flow E2E Tests", () => {
         name: `TournamentPlayer${id}`,
         password: "SecurePass123",
         botName: `TBot${id}`,
-        botEndpoint: `http://localhost:${port}`,
       })
       .expect(201);
 
-    return { ...response.body, botServer };
+    return response.body;
   }
 
   describe("Tournament Creation", () => {
@@ -164,7 +105,6 @@ describe("Tournament Flow E2E Tests", () => {
           max_players: 9,
         });
 
-      // May require admin privileges
       expect([201, 403]).toContain(response.status);
       if (response.status === 201) {
         expect(response.body).toHaveProperty("id");
@@ -215,7 +155,6 @@ describe("Tournament Flow E2E Tests", () => {
     it("should allow bot registration for tournament", async () => {
       const player = await registerPlayer();
 
-      // First create a tournament
       const tournamentRes = await request(app.getHttpServer())
         .post("/api/v1/tournaments")
         .set("Authorization", `Bearer ${player.accessToken}`)
@@ -228,10 +167,7 @@ describe("Tournament Flow E2E Tests", () => {
           max_players: 9,
         });
 
-      if (tournamentRes.status !== 201) {
-        // Skip if tournament creation requires admin
-        return;
-      }
+      if (tournamentRes.status !== 201) return;
 
       const regResponse = await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentRes.body.id}/register`)
@@ -258,13 +194,11 @@ describe("Tournament Flow E2E Tests", () => {
 
       if (tournamentRes.status !== 201) return;
 
-      // Register first time
       await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentRes.body.id}/register`)
         .set("Authorization", `Bearer ${player.accessToken}`)
         .send({ bot_id: player.bot.id });
 
-      // Try to register again
       const dupeResponse = await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentRes.body.id}/register`)
         .set("Authorization", `Bearer ${player.accessToken}`)
@@ -290,13 +224,11 @@ describe("Tournament Flow E2E Tests", () => {
 
       if (tournamentRes.status !== 201) return;
 
-      // Register
       await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentRes.body.id}/register`)
         .set("Authorization", `Bearer ${player.accessToken}`)
         .send({ bot_id: player.bot.id });
 
-      // Unregister
       const unregResponse = await request(app.getHttpServer())
         .delete(`/api/v1/tournaments/${tournamentRes.body.id}/unregister`)
         .set("Authorization", `Bearer ${player.accessToken}`)
@@ -362,7 +294,6 @@ describe("Tournament Flow E2E Tests", () => {
 
       if (tournamentRes.status !== 201) return;
 
-      // Register
       await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentRes.body.id}/register`)
         .set("Authorization", `Bearer ${player.accessToken}`)
@@ -402,7 +333,6 @@ describe("Tournament Flow E2E Tests", () => {
         .set("Authorization", `Bearer ${player.accessToken}`);
 
       expect(statusResponse.body.status).toBeDefined();
-      // New tournament should be in waiting or registration status
       expect(["waiting", "registering", "pending", "open"]).toContain(
         statusResponse.body.status?.toLowerCase() || "waiting",
       );
@@ -428,7 +358,6 @@ describe("Tournament Flow E2E Tests", () => {
 
       if (tournamentRes.status !== 201) return;
 
-      // Verify late_reg_ends_level was set
       const detailResponse = await request(app.getHttpServer())
         .get(`/api/v1/tournaments/${tournamentRes.body.id}`)
         .set("Authorization", `Bearer ${player.accessToken}`);
@@ -460,7 +389,6 @@ describe("Tournament Flow E2E Tests", () => {
 
       const tournamentId = tournamentRes.body.id;
 
-      // Register all players
       const reg1 = await request(app.getHttpServer())
         .post(`/api/v1/tournaments/${tournamentId}/register`)
         .set("Authorization", `Bearer ${player1.accessToken}`)
@@ -476,7 +404,6 @@ describe("Tournament Flow E2E Tests", () => {
         .set("Authorization", `Bearer ${player3.accessToken}`)
         .send({ bot_id: player3.bot.id });
 
-      // At least one should succeed
       const successCount = [reg1, reg2, reg3].filter((r) =>
         [200, 201].includes(r.status),
       ).length;

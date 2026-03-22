@@ -23,6 +23,9 @@ export interface AuthHelper {
   authenticateAsAdmin(): Promise<string | null>;
   authenticateAsUser(): Promise<string | null>;
   authenticate(credentials: AuthCredentials): Promise<AuthResult>;
+  registerAndVerify(
+    credentials: AuthCredentials & { name?: string },
+  ): Promise<AuthResult>;
   getBearerHeader(token: string | null): Record<string, string>;
   getAdminHeaders(): Record<string, string>;
   getUserHeaders(): Record<string, string>;
@@ -58,15 +61,99 @@ export function createAuthHelper(baseUrl?: string): AuthHelper {
       }
 
       const data = (await response.json()) as Record<string, unknown>;
-      const token = (data.access_token || data.accessToken || data.token) as
-        | string
-        | undefined;
-      return { token: token || null };
+      return { token: extractToken(data) };
     } catch (error) {
       return {
         token: null,
         error: error instanceof Error ? error.message : String(error),
       };
+    }
+  }
+
+  function extractToken(data: Record<string, unknown>): string | null {
+    return (
+      ((data.access_token || data.accessToken || data.token) as string) || null
+    );
+  }
+
+  async function registerAndVerify(
+    credentials: AuthCredentials & { name?: string },
+  ): Promise<AuthResult> {
+    try {
+      const regResponse = await fetch(`${apiBaseUrl}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: credentials.email,
+          name: credentials.name || "TestUser",
+          password: credentials.password,
+        }),
+      });
+
+      if (regResponse.status === 409) {
+        const resendResp = await fetch(
+          `${apiBaseUrl}/auth/resend-verification`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: credentials.email }),
+          },
+        );
+        if (resendResp.ok) {
+          const resendData = (await resendResp.json()) as Record<
+            string,
+            unknown
+          >;
+          if (resendData.verificationCode) {
+            const verifyResult = await verifyEmail(
+              credentials.email,
+              resendData.verificationCode as string,
+            );
+            if (verifyResult.token) return verifyResult;
+          }
+        }
+        return authenticate(credentials);
+      }
+
+      if (!regResponse.ok) {
+        return {
+          token: null,
+          error: `Registration failed (${regResponse.status})`,
+        };
+      }
+
+      const regData = (await regResponse.json()) as Record<string, unknown>;
+
+      if (regData.requiresVerification && regData.verificationCode) {
+        const verifyResult = await verifyEmail(
+          credentials.email,
+          regData.verificationCode as string,
+        );
+        if (verifyResult.token) return verifyResult;
+      }
+
+      return authenticate(credentials);
+    } catch (error) {
+      return {
+        token: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async function verifyEmail(email: string, code: string): Promise<AuthResult> {
+    try {
+      const resp = await fetch(`${apiBaseUrl}/auth/verify-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      if (!resp.ok)
+        return { token: null, error: `Verification failed (${resp.status})` };
+      const data = (await resp.json()) as Record<string, unknown>;
+      return { token: extractToken(data) };
+    } catch (error) {
+      return { token: null, error: String(error) };
     }
   }
 
@@ -128,6 +215,7 @@ export function createAuthHelper(baseUrl?: string): AuthHelper {
     authenticateAsAdmin,
     authenticateAsUser,
     authenticate,
+    registerAndVerify,
     getBearerHeader,
     getAdminHeaders,
     getUserHeaders,

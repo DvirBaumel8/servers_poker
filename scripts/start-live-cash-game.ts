@@ -1,130 +1,27 @@
 #!/usr/bin/env npx ts-node
 /**
- * Start a live cash game with mock bots
+ * Start a live cash game with internal strategy bots
  *
  * This script:
- * 1. Starts multiple mock bot servers
- * 2. Creates bots in the database pointing to those servers
- * 3. Creates a cash game table
- * 4. Joins all bots to the table
- * 5. The game automatically starts when enough bots join
+ * 1. Creates bots with strategy JSON in the database
+ * 2. Creates a cash game table
+ * 3. Joins all bots to the table
+ * 4. The game automatically starts when enough bots join
  */
 
-import * as http from "http";
 import "dotenv/config";
 
 const API_BASE = process.env.API_BASE || "http://localhost:3000/api/v1";
 const NUM_BOTS = parseInt(process.env.NUM_BOTS || "6", 10);
-const BASE_PORT = parseInt(process.env.BASE_PORT || "4100", 10);
 
-interface BotPayload {
-  gameId: string;
-  handNumber: number;
-  stage: string;
-  you: {
-    name: string;
-    chips: number;
-    holeCards: string[];
-    bet: number;
-    position: string;
-    bestHand?: { name: string; cards: string[] };
-  };
-  action: {
-    canCheck: boolean;
-    toCall: number;
-    minRaise: number;
-    maxRaise: number;
-  };
-  table: {
-    pot: number;
-    currentBet: number;
-    communityCards: string[];
-    smallBlind: number;
-    bigBlind: number;
-    ante: number;
-  };
-  players: Array<{
-    name: string;
-    chips: number;
-    bet: number;
-    folded: boolean;
-    allIn: boolean;
-    disconnected: boolean;
-    position: string;
-  }>;
-}
-
-function decideAction(payload: BotPayload): { type: string; amount?: number } {
-  const { you, action, table } = payload;
-  const { canCheck, toCall, minRaise, maxRaise } = action;
-  const random = Math.random();
-
-  // Faster decisions for demo - reduced think time happens in server delay
-  
-  if (canCheck) {
-    if (random < 0.6) return { type: "check" };
-    if (minRaise > 0 && random < 0.8) {
-      const betAmount = Math.min(minRaise, you.chips);
-      if (betAmount > 0) return { type: "bet", amount: betAmount };
-    }
-    return { type: "check" };
-  }
-
-  if (toCall > 0) {
-    const potOdds = toCall / (table.pot + toCall);
-    
-    // Usually call small bets
-    if (potOdds < 0.3 || random < 0.75) return { type: "call" };
-    
-    // Sometimes raise
-    if (random < 0.15 && maxRaise > minRaise) {
-      const raiseAmount = Math.min(minRaise * 2, maxRaise);
-      return { type: "raise", amount: raiseAmount };
-    }
-    
-    // Fold expensive bets sometimes
-    if (toCall > you.chips * 0.4 && random > 0.4) return { type: "fold" };
-    
-    return { type: "call" };
-  }
-
-  return canCheck ? { type: "check" } : { type: "fold" };
-}
-
-async function startBotServer(port: number, botName: string): Promise<http.Server> {
-  return new Promise((resolve) => {
-    const server = http.createServer((req, res) => {
-      if (req.method === "POST") {
-        let body = "";
-        req.on("data", (chunk) => { body += chunk.toString(); });
-        req.on("end", () => {
-          try {
-            const payload: BotPayload = JSON.parse(body);
-            const decision = decideAction(payload);
-            
-            // Add small delay for natural pacing (500-1500ms)
-            const delay = 500 + Math.random() * 1000;
-            setTimeout(() => {
-              res.writeHead(200, { "Content-Type": "application/json" });
-              res.end(JSON.stringify(decision));
-            }, delay);
-          } catch {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ type: "fold" }));
-          }
-        });
-      } else {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", name: botName }));
-      }
-    });
-
-    server.listen(port, () => {
-      console.log(`  Bot ${botName} listening on port ${port}`);
-      resolve(server);
-    });
-  });
-}
+const BOT_STRATEGIES = [
+  { version: 1, tier: "quick", personality: { aggression: 55, bluffFrequency: 25, riskTolerance: 45, tightness: 55 } },
+  { version: 1, tier: "quick", personality: { aggression: 10, bluffFrequency: 5, riskTolerance: 20, tightness: 20 } },
+  { version: 1, tier: "quick", personality: { aggression: 90, bluffFrequency: 60, riskTolerance: 80, tightness: 30 } },
+  { version: 1, tier: "quick", personality: { aggression: 50, bluffFrequency: 50, riskTolerance: 50, tightness: 50 } },
+  { version: 1, tier: "quick", personality: { aggression: 5, bluffFrequency: 0, riskTolerance: 5, tightness: 95 } },
+  { version: 1, tier: "quick", personality: { aggression: 70, bluffFrequency: 40, riskTolerance: 60, tightness: 35 } },
+];
 
 async function apiRequest(
   method: string,
@@ -154,7 +51,6 @@ async function main() {
   const timestamp = Date.now();
   console.log("\n🎰 Starting Live Cash Game Demo\n");
 
-  // Step 1: Register/login as admin
   console.log("1️⃣ Authenticating...");
   let token: string;
   
@@ -164,7 +60,6 @@ async function main() {
   });
   
   if (!loginRes.ok) {
-    // Try to register first
     const registerRes = await apiRequest("POST", "/auth/register", {
       email: "admin@poker.com",
       password: "admin123",
@@ -175,7 +70,6 @@ async function main() {
       console.error("Failed to authenticate:", registerRes.error);
       process.exit(1);
     }
-    // Try login again
     const retryLogin = await apiRequest("POST", "/auth/login", {
       email: "admin@poker.com",
       password: "admin123",
@@ -190,39 +84,27 @@ async function main() {
   }
   console.log("  ✓ Authenticated\n");
 
-  // Step 2: Start mock bot servers
-  console.log("2️⃣ Starting mock bot servers...");
-  const servers: http.Server[] = [];
-  const botInfos: { name: string; endpoint: string; id?: string }[] = [];
+  console.log("2️⃣ Creating strategy bots...");
+  const botInfos: { name: string; id?: string }[] = [];
   
   for (let i = 0; i < NUM_BOTS; i++) {
-    const port = BASE_PORT + i;
     const name = `LiveBot${i + 1}_${timestamp}`;
-    const server = await startBotServer(port, name);
-    servers.push(server);
-    botInfos.push({ name, endpoint: `http://localhost:${port}/action` });
-  }
-  console.log("");
-
-  // Step 3: Register bots in database
-  console.log("3️⃣ Registering bots...");
-  for (const bot of botInfos) {
-    const res = await apiRequest("POST", "/bots", {
-      name: bot.name,
-      endpoint: bot.endpoint,
+    const strategy = BOT_STRATEGIES[i % BOT_STRATEGIES.length];
+    const res = await apiRequest("POST", "/bots/internal", {
+      name,
+      strategy,
     }, token);
     
     if (!res.ok) {
-      console.error(`  Failed to create bot ${bot.name}:`, res.error);
+      console.error(`  Failed to create bot ${name}:`, res.error);
       continue;
     }
-    bot.id = res.data.id;
-    console.log(`  ✓ Created ${bot.name}`);
+    botInfos.push({ name, id: res.data.id });
+    console.log(`  ✓ Created ${name}`);
   }
   console.log("");
 
-  // Step 4: Create table
-  console.log("4️⃣ Creating cash game table...");
+  console.log("3️⃣ Creating cash game table...");
   const tableName = `LIVE CASH GAME ${timestamp}`;
   const tableRes = await apiRequest("POST", "/games/tables", {
     name: tableName,
@@ -234,15 +116,13 @@ async function main() {
   
   if (!tableRes.ok) {
     console.error("Failed to create table:", tableRes.error);
-    cleanup(servers);
     process.exit(1);
   }
   const tableId = tableRes.data.id;
   console.log(`  ✓ Table created: ${tableName}`);
   console.log(`  Table ID: ${tableId}\n`);
 
-  // Step 5: Join bots to table
-  console.log("5️⃣ Joining bots to table...");
+  console.log("4️⃣ Joining bots to table...");
   for (const bot of botInfos) {
     if (!bot.id) continue;
     
@@ -258,7 +138,6 @@ async function main() {
   }
   console.log("");
 
-  // Done!
   const watchUrl = `http://localhost:3001/game/${tableId}`;
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("");
@@ -273,21 +152,16 @@ async function main() {
   console.log("");
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("");
-  console.log("Press Ctrl+C to stop the bots and exit.");
+  console.log("Press Ctrl+C to exit.");
   console.log("");
 
-  // Keep running
   process.on("SIGINT", () => {
-    console.log("\n\n🛑 Stopping bot servers...");
-    cleanup(servers);
+    console.log("\n\n🛑 Exiting...");
     process.exit(0);
   });
-}
 
-function cleanup(servers: http.Server[]) {
-  for (const server of servers) {
-    server.close();
-  }
+  // Keep running to allow monitoring
+  setInterval(() => {}, 60000);
 }
 
 main().catch((err) => {

@@ -52,7 +52,7 @@ export class AnalyzerPipelineMonster extends BaseMonster {
   constructor() {
     super({
       name: "Analyzer Pipeline Monster",
-      type: "analyzer-pipeline" as any,
+      type: "analyzer-pipeline",
       timeout: 120000,
       verbose: true,
     });
@@ -152,9 +152,9 @@ export class AnalyzerPipelineMonster extends BaseMonster {
     const passwordHash =
       "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC";
     await this.dataSource!.query(
-      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-       VALUES ($1, $2, 'Monster User', $3, $4, 'user', true, true, NOW(), NOW())`,
-      [this.userId, `monster-${Date.now()}@test.local`, passwordHash, uuidv4()],
+      `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+       VALUES ($1, $2, 'Monster User', $3, 'user', true, true, NOW(), NOW())`,
+      [this.userId, `monster-${Date.now()}@test.local`, passwordHash],
     );
   }
 

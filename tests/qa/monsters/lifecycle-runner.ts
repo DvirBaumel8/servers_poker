@@ -30,6 +30,7 @@ import {
   printSummary,
   Severity,
 } from "./shared/issue-tracker";
+import { CodeFixer } from "./evolution/code-fixer";
 
 // ============================================================================
 // CONFIG
@@ -148,6 +149,10 @@ function analyzeIssues(): PrioritizedIssue[] {
     { pattern: /console\.log/i, fixer: "Console-Log-Fixer" },
     { pattern: /hardcoded.timeout/i, fixer: "Timeout-Constant-Fixer" },
     { pattern: /overflow/i, fixer: "CSS-Overflow-Fixer" },
+    { pattern: /hover/i, fixer: "CSS-Hover-Fixer" },
+    { pattern: /focus/i, fixer: "CSS-Focus-Fixer" },
+    { pattern: /z-index/i, fixer: "CSS-ZIndex-Fixer" },
+    { pattern: /contrast/i, fixer: "CSS-Contrast-Fixer" },
     { pattern: /missing.*aria/i, fixer: "Aria-Fixer" },
   ];
 
@@ -277,7 +282,12 @@ async function applyFix(
     case "Timeout-Constant-Fixer":
       return fixHardcodedTimeout(issue, alreadyModified);
     case "CSS-Overflow-Fixer":
-      return fixCssOverflow(issue);
+      return fixWithCodeFixer(issue);
+    case "CSS-Hover-Fixer":
+    case "CSS-Focus-Fixer":
+    case "CSS-ZIndex-Fixer":
+    case "CSS-Contrast-Fixer":
+      return fixWithCodeFixer(issue);
     case "A11Y-Label-Fixer":
     case "Aria-Fixer":
       return fixAccessibility(issue, alreadyModified);
@@ -378,46 +388,62 @@ async function fixHardcodedTimeout(
   };
 }
 
-async function fixCssOverflow(issue: PrioritizedIssue): Promise<FixResult> {
-  const cssPath = path.join(process.cwd(), "frontend/src/index.css");
-
-  // Read file content, handle missing file gracefully
-  let content: string;
+async function fixWithCodeFixer(issue: PrioritizedIssue): Promise<FixResult> {
   try {
-    content = fs.readFileSync(cssPath, "utf-8");
-  } catch {
+    const fixer = new CodeFixer({ dryRun: false });
+
+    const pseudoFinding = {
+      id: issue.id,
+      fingerprint: issue.fingerprint,
+      monster: issue.source as any,
+      category: "BUG" as any,
+      severity: issue.severity,
+      title: issue.title,
+      description: issue.title,
+      location: { file: issue.location, page: issue.location },
+      evidence: {} as any,
+      status: "open" as any,
+      firstSeen: new Date(),
+      lastSeen: new Date(),
+      occurrences: 1,
+      reproducible: true,
+      tags: [],
+    };
+
+    const fixes = fixer.analyzeFindings([pseudoFinding]);
+    if (fixes.length === 0) {
+      return {
+        issueId: issue.id,
+        success: false,
+        message: "No applicable fix pattern",
+        filesModified: [],
+      };
+    }
+
+    const result = fixer.applyFixes();
+    if (result.applied > 0) {
+      return {
+        issueId: issue.id,
+        success: true,
+        message: `Applied ${result.applied} code fixes`,
+        filesModified: fixes.filter((f) => f.applied).map((f) => f.targetFile),
+      };
+    }
+
     return {
       issueId: issue.id,
       success: false,
-      message: "index.css not found",
+      message: result.fixes[0]?.error || "Pattern not found in file",
       filesModified: [],
     };
-  }
-
-  if (content.includes("overflow-x: hidden")) {
+  } catch (err) {
     return {
       issueId: issue.id,
       success: false,
-      message: "Already has overflow fix",
+      message: `CodeFixer error: ${err}`,
       filesModified: [],
     };
   }
-
-  content += `
-/* Auto-fix: prevent horizontal overflow */
-body, #root {
-  overflow-x: hidden;
-  max-width: 100vw;
-}
-`;
-
-  fs.writeFileSync(cssPath, content);
-  return {
-    issueId: issue.id,
-    success: true,
-    message: "Added overflow fix",
-    filesModified: [cssPath],
-  };
 }
 
 async function fixAccessibility(
@@ -502,7 +528,7 @@ function learnAndUpdate(cycles: CycleResult[]): void {
 
   console.log("  📄 Reports updated:");
   console.log("     - docs/MONSTERS_ISSUES.md");
-  console.log("     - docs/monster_stats.md");
+  console.log("     - docs/MONSTER_STATS.md");
 }
 
 // ============================================================================

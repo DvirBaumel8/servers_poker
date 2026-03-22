@@ -373,13 +373,31 @@ describe("Edge Case #7: Hand Cancellation/Rollback", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.startHand();
@@ -405,13 +423,31 @@ describe("Edge Case #7: Hand Cancellation/Rollback", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.startHand();
@@ -430,13 +466,31 @@ describe("Edge Case #7: Hand Cancellation/Rollback", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.startHand();
@@ -461,13 +515,31 @@ describe("Edge Case #7: Hand Cancellation/Rollback", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.startHand();
@@ -486,13 +558,31 @@ describe("Edge Case #7: Hand Cancellation/Rollback", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.startHand();
@@ -509,13 +599,31 @@ describe("Edge Case #7: Hand Cancellation/Rollback", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.startHand();
@@ -551,19 +659,46 @@ describe("Edge Case #9: Dead Button Rule", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p3",
         name: "Player3",
         chips: 1000,
-        endpoint: "http://bot3",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.setDealerIndex(0);
@@ -586,19 +721,46 @@ describe("Edge Case #9: Dead Button Rule", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p3",
         name: "Player3",
         chips: 1000,
-        endpoint: "http://bot3",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.setDealerIndex(0);
@@ -618,19 +780,46 @@ describe("Edge Case #9: Dead Button Rule", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p3",
         name: "Player3",
         chips: 1000,
-        endpoint: "http://bot3",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.setDealerIndex(1);
@@ -647,19 +836,46 @@ describe("Edge Case #9: Dead Button Rule", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p3",
         name: "Player3",
         chips: 1000,
-        endpoint: "http://bot3",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       const blindPositions = game.getBlindPositions();
@@ -672,19 +888,46 @@ describe("Edge Case #9: Dead Button Rule", () => {
         id: "p1",
         name: "Player1",
         chips: 1000,
-        endpoint: "http://bot1",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p2",
         name: "Player2",
         chips: 1000,
-        endpoint: "http://bot2",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
       game.addPlayer({
         id: "p3",
         name: "Player3",
         chips: 1000,
-        endpoint: "http://bot3",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       });
 
       game.handlePlayerLeave("p3");

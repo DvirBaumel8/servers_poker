@@ -14,7 +14,13 @@
 import { execSync } from "child_process";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
-import { getMemoryStore } from "./memory/memory-store";
+import {
+  getOpenIssuesAsFindings,
+  getOpenIssues,
+  getStats,
+  loadIssueDatabase,
+  resolveIssue,
+} from "./shared/issue-tracker";
 import { TriageEngine } from "./triage/fix-workflow";
 import { fixAllIssues } from "./evolution/code-fixer";
 
@@ -177,8 +183,8 @@ class IterationRunner {
     // Step 1: Run monsters
     console.log("  📍 Step 1: Running Monster Army...");
     const monsterCommand = this.quickMode
-      ? "npx ts-node tests/qa/monsters/orchestrator.ts --quick"
-      : "npx ts-node tests/qa/monsters/orchestrator.ts api visual invariant chaos guardian api-db api-ws e2e --parallel";
+      ? "npx ts-node tests/qa/monsters/run-all.ts --fast"
+      : "npx ts-node tests/qa/monsters/run-all.ts";
 
     try {
       execSync(monsterCommand, {
@@ -193,10 +199,10 @@ class IterationRunner {
       );
     }
 
-    // Parse results from memory store
-    const memory = getMemoryStore();
-    const lastRun = memory.getLastRun();
-    const openFindings = memory.getOpenFindings();
+    // Parse results from issue tracker
+    const issueDb = loadIssueDatabase();
+    const dbStats = getStats();
+    const openFindings = getOpenIssuesAsFindings();
 
     // Filter out false positives from findings count
     const realFindings = openFindings.filter(
@@ -206,8 +212,8 @@ class IterationRunner {
     // Step 2: Triage
     console.log("  📍 Step 2: Triaging findings...");
     const triage = new TriageEngine();
-    const triaged = triage.autoTriage(realFindings);
-    triage.generateReport(); // Generate report for side effects
+    const triaged = triage.autoTriage(realFindings as any);
+    triage.generateReport();
 
     // Step 3: Attempt auto-fixes
     console.log("  📍 Step 3: Attempting auto-fixes...");
@@ -215,13 +221,17 @@ class IterationRunner {
       await this.attemptFixes(triaged);
     observations.push(...fixObservations);
 
-    // Count findings
-    const newFindings = openFindings.filter((f) => {
-      const stored = memory
-        .getOpenFindings()
-        .find((s) => s.fingerprint === f.fingerprint);
-      return stored && stored.occurrences === 1;
-    }).length;
+    // Count new findings (occurrences === 1)
+    const newFindingsCount = openFindings.filter(
+      (f) => f.occurrences === 1,
+    ).length;
+
+    const severityCounts = {
+      critical: openFindings.filter((f) => f.severity === "critical").length,
+      high: openFindings.filter((f) => f.severity === "high").length,
+      medium: openFindings.filter((f) => f.severity === "medium").length,
+      low: openFindings.filter((f) => f.severity === "low").length,
+    };
 
     const endTime = new Date();
 
@@ -231,16 +241,16 @@ class IterationRunner {
       endTime,
       duration: endTime.getTime() - startTime.getTime(),
       findings: {
-        total: lastRun?.findingsSummary.total || 0,
-        critical: lastRun?.findingsSummary.critical || 0,
-        high: lastRun?.findingsSummary.high || 0,
-        medium: lastRun?.findingsSummary.medium || 0,
-        low: lastRun?.findingsSummary.low || 0,
-        new: newFindings,
-        fixed: 0, // Will be calculated from comparison
+        total: openFindings.length,
+        critical: severityCounts.critical,
+        high: severityCounts.high,
+        medium: severityCounts.medium,
+        low: severityCounts.low,
+        new: newFindingsCount,
+        fixed: 0,
         regressions: 0,
       },
-      monstersRun: lastRun?.monstersRun || [],
+      monstersRun: [],
       monstersPassed: 0,
       monstersFailed: 0,
       fixesAttempted: attempted,
@@ -260,13 +270,11 @@ class IterationRunner {
 
     // Step 1: Try the new CodeFixer for automated fixes
     console.log("    🔧 Running CodeFixer on open findings...");
-    const memory = getMemoryStore();
-    const openFindings = memory.getOpenFindings();
+    const openFindings = getOpenIssuesAsFindings();
 
     if (openFindings.length > 0) {
       try {
-        // Run in non-dry-run mode to actually apply fixes
-        const fixResult = await fixAllIssues(openFindings, false);
+        const fixResult = await fixAllIssues(openFindings as any, false);
 
         if (fixResult.applied > 0) {
           attempted += fixResult.applied;
@@ -567,16 +575,13 @@ class IterationRunner {
   }
 
   private suppressFalsePositives(observations: string[]): void {
-    const memory = getMemoryStore();
     let suppressed = 0;
 
     for (const fp of FALSE_POSITIVES) {
-      const openFindings = memory.getOpenFindings();
-      const finding = openFindings.find(
-        (f) => f.fingerprint === fp.fingerprint,
-      );
-      if (finding && finding.status === "open") {
-        memory.markFixed(fp.fingerprint, "false-positive", "iteration-runner");
+      const issues = getOpenIssues();
+      const issue = issues.find((i) => i.fingerprint === fp.fingerprint);
+      if (issue && issue.status === "open") {
+        resolveIssue(fp.fingerprint, "false-positive", "iteration-runner");
         suppressed++;
       }
     }

@@ -28,14 +28,6 @@ function hashPassword(password) {
   return bcrypt.hashSync(password, 10);
 }
 
-function hashApiKey(key) {
-  const hashSecret =
-    process.env.API_KEY_HMAC_SECRET || 'development-api-key-hash-secret';
-  return crypto
-    .pbkdf2Sync(key, hashSecret, 210000, 32, 'sha256')
-    .toString('hex');
-}
-
 const PERSONALITIES = [
   'Caller', 'Caller', 'Caller', 'Caller', 'Caller',
   'Maniac', 'Maniac', 'Maniac', 'Maniac', 'Maniac',
@@ -44,6 +36,15 @@ const PERSONALITIES = [
   'Folder', 'Folder', 'Folder', 'Folder', 'Folder',
   'AllIn', 'AllIn', 'AllIn', 'AllIn', 'AllIn',
 ];
+
+const PERSONALITY_STRATEGIES = {
+  Caller: { version: 1, tier: 'quick', personality: { aggression: 10, bluffFrequency: 5, riskTolerance: 20, tightness: 20 } },
+  Folder: { version: 1, tier: 'quick', personality: { aggression: 5, bluffFrequency: 0, riskTolerance: 5, tightness: 95 } },
+  Maniac: { version: 1, tier: 'quick', personality: { aggression: 90, bluffFrequency: 60, riskTolerance: 80, tightness: 30 } },
+  Smart: { version: 1, tier: 'quick', personality: { aggression: 55, bluffFrequency: 25, riskTolerance: 45, tightness: 55 } },
+  Random: { version: 1, tier: 'quick', personality: { aggression: 50, bluffFrequency: 50, riskTolerance: 50, tightness: 50 } },
+  AllIn: { version: 1, tier: 'quick', personality: { aggression: 95, bluffFrequency: 80, riskTolerance: 95, tightness: 10 } },
+};
 
 async function main() {
   console.log('\n' + '='.repeat(60));
@@ -68,25 +69,22 @@ async function main() {
       const email = `simbot${i}_${Date.now()}@tournament.local`;
       const userName = `SimPlayer${i}`;
       const botName = `${personality}Bot${i}`;
-      const apiKey = `sim_${uuid().replace(/-/g, '')}`;
-      const apiKeyHash = hashApiKey(apiKey);
       const passwordHash = hashPassword('Test123!@#');
       
-      // Insert user
       await client.query(`
-        INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())
+        INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'user', true, true, NOW(), NOW())
         ON CONFLICT (email) DO NOTHING
-      `, [userId, email, userName, passwordHash, apiKeyHash]);
+      `, [userId, email, userName, passwordHash]);
       
-      // Insert bot
+      const strategy = PERSONALITY_STRATEGIES[personality] || PERSONALITY_STRATEGIES.Random;
       await client.query(`
-        INSERT INTO bots (id, name, endpoint, description, user_id, active, created_at, updated_at)
+        INSERT INTO bots (id, name, strategy, description, user_id, active, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
         ON CONFLICT DO NOTHING
-      `, [botId, botName, `http://localhost:${port}`, `${personality} personality simulation bot`, userId]);
+      `, [botId, botName, JSON.stringify(strategy), `${personality} personality simulation bot`, userId]);
       
-      users.push({ id: userId, email, name: userName, apiKey });
+      users.push({ id: userId, email, name: userName });
       bots.push({ id: botId, name: botName, userId, port, personality });
       
       console.log(`  ✓ Created ${i}/30: ${botName} (port ${port})`);
@@ -95,14 +93,13 @@ async function main() {
     // Create an admin user for tournament management
     console.log('\n🔐 Creating admin user...');
     const adminId = uuid();
-    const adminApiKey = `admin_${uuid().replace(/-/g, '')}`;
     const adminEmail = `simadmin_${Date.now()}@tournament.local`;
     
     await client.query(`
-      INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-      VALUES ($1, $2, 'SimAdmin', $3, $4, 'admin', true, true, NOW(), NOW())
+      INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+      VALUES ($1, $2, 'SimAdmin', $3, 'admin', true, true, NOW(), NOW())
       ON CONFLICT (email) DO NOTHING
-    `, [adminId, adminEmail, hashPassword('Admin123!@#'), hashApiKey(adminApiKey)]);
+    `, [adminId, adminEmail, hashPassword('Admin123!@#')]);
     
     console.log(`  ✓ Created admin: ${adminEmail}`);
     

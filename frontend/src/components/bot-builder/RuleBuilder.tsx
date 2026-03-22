@@ -300,6 +300,7 @@ function RuleCard({
                       })
                     }
                     min={0.1}
+                    max={1000}
                     step={0.5}
                     className="input-field text-sm py-1 px-2 w-20"
                   />
@@ -397,6 +398,8 @@ function ConditionRow({
           type="number"
           value={condition.value}
           onChange={(e) => onUpdate({ value: Number(e.target.value) })}
+          min={0}
+          max={100000}
           className="input-field text-xs py-1 px-2 w-20"
         />
       )}

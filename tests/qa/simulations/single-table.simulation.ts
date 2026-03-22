@@ -108,38 +108,30 @@ export class SingleTableSimulation extends SimulationRunner {
     this.userId = crypto.randomUUID();
     await this.dataSource!.query(
       `
-      INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())
+      INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, 'user', true, true, NOW(), NOW())
     `,
-      [
-        this.userId,
-        `simtest_${Date.now()}@test.com`,
-        "SimTestUser",
-        "hashed",
-        "0".repeat(64),
-      ],
+      [this.userId, `simtest_${Date.now()}@test.com`, "SimTestUser", "hashed"],
     );
 
-    // Create bots in database
     this.botIds = [];
     for (let i = 0; i < this.config.playerCount; i++) {
-      const botId = this.botServers[i].botId;
-      const port = this.botServers[i].port;
+      const bot = this.botRecords[i];
 
       await this.dataSource!.query(
         `
-        INSERT INTO bots (id, user_id, name, endpoint, active, created_at, updated_at)
+        INSERT INTO bots (id, user_id, name, strategy, active, created_at, updated_at)
         VALUES ($1, $2, $3, $4, true, NOW(), NOW())
       `,
         [
-          botId,
+          bot.botId,
           this.userId,
           `SimBot${i + 1}`,
-          `http://localhost:${port}/action`,
+          JSON.stringify(bot.strategy),
         ],
       );
 
-      this.botIds.push(botId);
+      this.botIds.push(bot.botId);
     }
 
     // Create tournament

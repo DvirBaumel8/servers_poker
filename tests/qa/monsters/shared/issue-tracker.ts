@@ -13,14 +13,20 @@
  */
 
 import * as fs from "fs";
+import { readJsonSafe } from "./fs-utils";
 import * as path from "path";
 import * as crypto from "crypto";
+import {
+  TrendData,
+  Hotspot,
+  CoverageGap,
+  MonsterType,
+  Severity,
+} from "./types";
 
-// ============================================================================
-// TYPES
-// ============================================================================
+// Re-export Severity from the single source of truth
+export type { Severity } from "./types";
 
-export type Severity = "critical" | "high" | "medium" | "low";
 export type IssueStatus = "open" | "in_progress" | "resolved" | "wont_fix";
 
 export interface Issue {
@@ -89,28 +95,84 @@ const REPORT_PATH = path.join(process.cwd(), "docs/MONSTERS_ISSUES.md");
 // ============================================================================
 
 export function loadIssueDatabase(): IssueDatabase {
-  if (fs.existsSync(DB_PATH)) {
-    try {
-      return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    } catch {
-      console.warn("Issue database corrupted, starting fresh");
+  return (
+    readJsonSafe<IssueDatabase>(DB_PATH) ?? {
+      version: 1,
+      lastUpdated: new Date().toISOString(),
+      issues: [],
+      stats: {
+        totalFound: 0,
+        totalResolved: 0,
+        bySource: {},
+        bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+      },
     }
-  }
-
-  return {
-    version: 1,
-    lastUpdated: new Date().toISOString(),
-    issues: [],
-    stats: {
-      totalFound: 0,
-      totalResolved: 0,
-      bySource: {},
-      bySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
-    },
-  };
+  );
 }
 
-function saveDatabase(db: IssueDatabase): void {
+const LOCK_PATH = DB_PATH + ".lock";
+const LOCK_STALE_MS = 30_000;
+const LOCK_RETRY_MS = 50;
+const LOCK_MAX_RETRIES = 200;
+
+function acquireLock(): void {
+  for (let attempt = 0; attempt < LOCK_MAX_RETRIES; attempt++) {
+    try {
+      fs.writeFileSync(LOCK_PATH, String(process.pid), { flag: "wx" });
+      return;
+    } catch {
+      if (fs.existsSync(LOCK_PATH)) {
+        try {
+          const stat = fs.statSync(LOCK_PATH);
+          if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
+            fs.unlinkSync(LOCK_PATH);
+            continue;
+          }
+        } catch {
+          // stat/unlink race — retry
+        }
+      }
+      const waitMs = LOCK_RETRY_MS + Math.random() * LOCK_RETRY_MS;
+      const waitUntil = Date.now() + waitMs;
+      while (Date.now() < waitUntil) {
+        /* busy-wait (sync context, no async available) */
+      }
+    }
+  }
+  throw new Error("Could not acquire issue-tracker lock after max retries");
+}
+
+function releaseLock(): void {
+  try {
+    fs.unlinkSync(LOCK_PATH);
+  } catch {
+    // Already released
+  }
+}
+
+/**
+ * Execute a read-modify-write cycle on the issue database with file locking.
+ * All mutations to issues.json MUST go through this function to prevent
+ * lost-update races when multiple monsters run in parallel.
+ */
+function withLockedDatabase<T>(fn: (db: IssueDatabase) => T): T {
+  acquireLock();
+  try {
+    const db = loadIssueDatabase();
+    const result = fn(db);
+    db.lastUpdated = new Date().toISOString();
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+    return result;
+  } finally {
+    releaseLock();
+  }
+}
+
+export function saveDatabase(db: IssueDatabase): void {
   const dir = path.dirname(DB_PATH);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -143,7 +205,7 @@ function generateFingerprint(
 // ISSUE OPERATIONS
 // ============================================================================
 
-export function addIssue(params: {
+type AddIssueParams = {
   category: string;
   severity: Severity;
   source: string;
@@ -152,8 +214,9 @@ export function addIssue(params: {
   location: string;
   suggestion?: string;
   competitorNote?: string;
-}): Issue {
-  const db = loadIssueDatabase();
+};
+
+function upsertIssue(db: IssueDatabase, params: AddIssueParams): Issue {
   const fingerprint = generateFingerprint(
     params.category,
     params.title,
@@ -161,31 +224,25 @@ export function addIssue(params: {
   );
   const now = new Date().toISOString();
 
-  // Check if issue already exists
   const existing = db.issues.find((i) => i.fingerprint === fingerprint);
 
   if (existing) {
-    // Update existing issue
     existing.lastSeen = now;
     existing.occurrences++;
 
-    // Escalate severity if needed
     const severityRank = { critical: 0, high: 1, medium: 2, low: 3 };
     if (severityRank[params.severity] < severityRank[existing.severity]) {
       existing.severity = params.severity;
     }
 
-    // Reopen if was resolved
     if (existing.status === "resolved") {
       existing.status = "open";
       console.log(`  ⚠️  Issue reopened: ${params.title}`);
     }
 
-    saveDatabase(db);
     return existing;
   }
 
-  // Create new issue with unique ID (crypto random to avoid collisions)
   const issue: Issue = {
     id: `ISS-${crypto.randomBytes(4).toString("hex").toUpperCase()}`,
     fingerprint,
@@ -209,23 +266,15 @@ export function addIssue(params: {
     (db.stats.bySource[params.source] || 0) + 1;
   db.stats.bySeverity[params.severity]++;
 
-  saveDatabase(db);
   return issue;
 }
 
-export function addIssues(
-  issues: Array<{
-    category: string;
-    severity: Severity;
-    source: string;
-    title: string;
-    description: string;
-    location: string;
-    suggestion?: string;
-    competitorNote?: string;
-  }>,
-): Issue[] {
-  return issues.map((i) => addIssue(i));
+export function addIssue(params: AddIssueParams): Issue {
+  return withLockedDatabase((db) => upsertIssue(db, params));
+}
+
+export function addIssues(issues: AddIssueParams[]): Issue[] {
+  return withLockedDatabase((db) => issues.map((i) => upsertIssue(db, i)));
 }
 
 export function resolveIssue(
@@ -233,19 +282,17 @@ export function resolveIssue(
   resolution: string,
   resolvedBy = "auto",
 ): boolean {
-  const db = loadIssueDatabase();
-  const issue = db.issues.find((i) => i.fingerprint === fingerprint);
+  return withLockedDatabase((db) => {
+    const issue = db.issues.find((i) => i.fingerprint === fingerprint);
+    if (!issue) return false;
 
-  if (!issue) return false;
-
-  issue.status = "resolved";
-  issue.resolvedAt = new Date().toISOString();
-  issue.resolvedBy = resolvedBy;
-  issue.resolution = resolution;
-  db.stats.totalResolved++;
-
-  saveDatabase(db);
-  return true;
+    issue.status = "resolved";
+    issue.resolvedAt = new Date().toISOString();
+    issue.resolvedBy = resolvedBy;
+    issue.resolution = resolution;
+    db.stats.totalResolved++;
+    return true;
+  });
 }
 
 export function getOpenIssues(): Issue[] {
@@ -274,10 +321,9 @@ export function getStats(): IssueDatabase["stats"] & { openCount: number } {
 }
 
 export function updateQualityReport(data: QualityReportData): void {
-  const db = loadIssueDatabase();
-  db.qualityReport = data;
-  db.lastUpdated = new Date().toISOString();
-  saveDatabase(db);
+  withLockedDatabase((db) => {
+    db.qualityReport = data;
+  });
 }
 
 export function getQualityReport(): QualityReportData | undefined {
@@ -349,7 +395,6 @@ ${qr.competitorInsights
 export function generateReport(): string {
   const db = loadIssueDatabase();
   const openIssues = db.issues.filter((i) => i.status === "open");
-  const resolvedIssues = db.issues.filter((i) => i.status === "resolved");
 
   const severityIcon = (s: Severity) =>
     s === "critical"
@@ -360,6 +405,23 @@ export function generateReport(): string {
           ? "🟡"
           : "🟢";
 
+  let sourceTable = "";
+  if (openIssues.length > 0) {
+    const sourceCounts = openIssues.reduce<Record<string, number>>((acc, i) => {
+      acc[i.source] = (acc[i.source] || 0) + 1;
+      return acc;
+    }, {});
+    const sourceRows = Object.entries(sourceCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([source, count]) => `| ${source} | ${count} |`)
+      .join("\n");
+    sourceTable = `### By Source Monster
+
+| Monster | Open Issues |
+|---------|-------------|
+${sourceRows}`;
+  }
+
   const report = `# 🗂️ Monster Issues Report
 
 **Last Updated:** ${new Date().toLocaleString()}
@@ -369,11 +431,11 @@ export function generateReport(): string {
 
 | Metric | Count |
 |--------|-------|
-| Total Issues Found | ${db.stats.totalFound} |
 | Open Issues | ${openIssues.length} |
-| Resolved Issues | ${resolvedIssues.length} |
 
-### By Severity (Open Only)
+${
+  openIssues.length > 0
+    ? `### By Severity (Open Only)
 
 | Severity | Count |
 |----------|-------|
@@ -382,14 +444,9 @@ export function generateReport(): string {
 | 🟡 Medium | ${openIssues.filter((i) => i.severity === "medium").length} |
 | 🟢 Low | ${openIssues.filter((i) => i.severity === "low").length} |
 
-### By Source Monster
-
-| Monster | Issues Found |
-|---------|--------------|
-${Object.entries(db.stats.bySource)
-  .sort((a, b) => b[1] - a[1])
-  .map(([source, count]) => `| ${source} | ${count} |`)
-  .join("\n")}
+${sourceTable}`
+    : "No open issues."
+}
 
 ---
 
@@ -467,6 +524,47 @@ ${generateQualitySection(db)}
 }
 
 // ============================================================================
+// FINDING ADAPTER (for consumers that expect Finding-like objects)
+// ============================================================================
+
+export interface IssueFinding {
+  id: string;
+  fingerprint: string;
+  title: string;
+  description: string;
+  category: string;
+  severity: Severity;
+  source: string;
+  location: string;
+  status: string;
+  occurrences: number;
+  firstSeen: string;
+  lastSeen: string;
+  suggestion?: string;
+  tags: string[];
+}
+
+export function getOpenIssuesAsFindings(): IssueFinding[] {
+  const issues = getOpenIssues();
+  return issues.map((issue) => ({
+    id: issue.id,
+    fingerprint: issue.fingerprint,
+    title: issue.title,
+    description: issue.description,
+    category: issue.category,
+    severity: issue.severity,
+    source: issue.source,
+    location: issue.location,
+    status: issue.status,
+    occurrences: issue.occurrences,
+    firstSeen: issue.firstSeen,
+    lastSeen: issue.lastSeen,
+    suggestion: issue.suggestion,
+    tags: [],
+  }));
+}
+
+// ============================================================================
 // CONSOLE SUMMARY
 // ============================================================================
 
@@ -490,10 +588,284 @@ export function printSummary(): void {
   console.log(
     `    🟢 Low:      ${openIssues.filter((i) => i.severity === "low").length}`,
   );
-  console.log(
-    `\n  Total Found: ${stats.totalFound} | Resolved: ${stats.totalResolved}`,
-  );
+  console.log(`\n  Total Found: ${stats.totalFound}`);
   console.log("═".repeat(50) + "\n");
+}
+
+// ============================================================================
+// ISSUE EXPIRATION & COMPACTION
+// ============================================================================
+
+const RESOLVED_EXPIRY_DAYS = 30;
+const STALE_OPEN_RUNS_THRESHOLD = 5;
+
+/**
+ * Remove resolved issues older than RESOLVED_EXPIRY_DAYS and
+ * auto-resolve open issues not seen in the last STALE_OPEN_RUNS_THRESHOLD runs.
+ * Returns counts of expired and auto-resolved issues.
+ */
+export function compactDatabase(): {
+  expired: number;
+  autoResolved: number;
+  beforeSize: number;
+  afterSize: number;
+} {
+  return withLockedDatabase((db) => {
+    const beforeSize = db.issues.length;
+    const now = Date.now();
+    const expiryMs = RESOLVED_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+
+    let expired = 0;
+    let autoResolved = 0;
+
+    const runHistory = loadRunHistory();
+    const lastNRuns = runHistory.slice(-STALE_OPEN_RUNS_THRESHOLD);
+    const cutoffDate =
+      lastNRuns.length > 0
+        ? new Date(lastNRuns[0].timestamp).getTime()
+        : now - 7 * 24 * 60 * 60 * 1000;
+
+    db.issues = db.issues.filter((issue) => {
+      if (issue.status === "resolved" && issue.resolvedAt) {
+        const resolvedAt = new Date(issue.resolvedAt).getTime();
+        if (now - resolvedAt > expiryMs) {
+          expired++;
+          return false;
+        }
+      }
+      return true;
+    });
+
+    for (const issue of db.issues) {
+      if (issue.status === "open") {
+        const lastSeen = new Date(issue.lastSeen).getTime();
+        if (lastSeen < cutoffDate) {
+          issue.status = "resolved";
+          issue.resolvedAt = new Date().toISOString();
+          issue.resolvedBy = "auto-expiry";
+          issue.resolution = `Not seen in last ${STALE_OPEN_RUNS_THRESHOLD} runs`;
+          autoResolved++;
+        }
+      }
+    }
+
+    return {
+      expired,
+      autoResolved,
+      beforeSize,
+      afterSize: db.issues.length,
+    };
+  });
+}
+
+// ============================================================================
+// REGRESSION & FIXED DETECTION
+// ============================================================================
+
+export function detectRegressions(currentFingerprints: Set<string>): Issue[] {
+  return withLockedDatabase((db) => {
+    const regressions: Issue[] = [];
+
+    for (const issue of db.issues) {
+      if (
+        issue.status === "resolved" &&
+        currentFingerprints.has(issue.fingerprint)
+      ) {
+        issue.status = "open";
+        issue.resolvedAt = undefined;
+        issue.resolvedBy = undefined;
+        issue.resolution = undefined;
+        regressions.push(issue);
+      }
+    }
+
+    return regressions;
+  });
+}
+
+export function detectNewlyFixed(currentFingerprints: Set<string>): Issue[] {
+  const db = loadIssueDatabase();
+  const fixed: Issue[] = [];
+
+  for (const issue of db.issues) {
+    if (
+      issue.status === "open" &&
+      !currentFingerprints.has(issue.fingerprint)
+    ) {
+      fixed.push(issue);
+    }
+  }
+
+  return fixed;
+}
+
+// ============================================================================
+// RUN HISTORY
+// ============================================================================
+
+interface RunRecord {
+  runId: string;
+  timestamp: string;
+  duration: number;
+  passed: boolean;
+  findingCount: number;
+  bySeverity: Record<string, number>;
+}
+
+const RUN_HISTORY_PATH = path.join(
+  process.cwd(),
+  "tests/qa/monsters/shared/run-history.json",
+);
+
+function loadRunHistory(): RunRecord[] {
+  return readJsonSafe<RunRecord[]>(RUN_HISTORY_PATH) ?? [];
+}
+
+function saveRunHistory(runs: RunRecord[]): void {
+  const dir = path.dirname(RUN_HISTORY_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const trimmed = runs.slice(-100);
+  fs.writeFileSync(RUN_HISTORY_PATH, JSON.stringify(trimmed, null, 2));
+}
+
+export function recordRun(record: {
+  runId: string;
+  duration: number;
+  passed: boolean;
+  findingCount: number;
+  bySeverity: Record<string, number>;
+}): void {
+  const runs = loadRunHistory();
+  runs.push({
+    ...record,
+    timestamp: new Date().toISOString(),
+  });
+  saveRunHistory(runs);
+}
+
+export function getRunHistory(count = 10): RunRecord[] {
+  const runs = loadRunHistory();
+  return runs.slice(-count);
+}
+
+// ============================================================================
+// TREND ANALYSIS
+// ============================================================================
+
+export function calculateTrends(): TrendData {
+  const db = loadIssueDatabase();
+  const runs = loadRunHistory();
+
+  const bugsByArea = new Map<string, number>();
+  const bugsByType = new Map<string, number>();
+  const bugsByMonster = new Map<MonsterType, number>();
+
+  for (const issue of db.issues) {
+    const area = issue.location || "unknown";
+    bugsByArea.set(area, (bugsByArea.get(area) || 0) + 1);
+
+    bugsByType.set(issue.category, (bugsByType.get(issue.category) || 0) + 1);
+
+    const monster = (issue.source || "api") as MonsterType;
+    bugsByMonster.set(monster, (bugsByMonster.get(monster) || 0) + 1);
+  }
+
+  const recentRuns = runs.slice(-10);
+  const bugVelocity =
+    recentRuns.length > 0
+      ? recentRuns.reduce((sum, r) => sum + r.findingCount, 0) /
+        recentRuns.length
+      : 0;
+
+  const totalFixed = db.issues.filter((i) => i.status === "resolved").length;
+  const reopened = db.issues.filter(
+    (i) => i.status === "open" && i.resolvedAt !== undefined,
+  ).length;
+  const regressionRate = totalFixed > 0 ? reopened / totalFixed : 0;
+
+  const mttr = 24;
+
+  const hotspots = identifyHotspots(db);
+
+  return {
+    bugsByArea,
+    bugsByType,
+    bugsByMonster,
+    regressionRate,
+    mttr,
+    bugVelocity,
+    coverageGaps: [],
+    hotspots,
+  };
+}
+
+function identifyHotspots(db: IssueDatabase): Hotspot[] {
+  const areaStats = new Map<
+    string,
+    {
+      total: number;
+      regressions: number;
+      lastDate: Date;
+      recentCount: number;
+    }
+  >();
+
+  for (const issue of db.issues) {
+    const area = issue.location;
+    if (!area) continue;
+
+    const stats = areaStats.get(area) || {
+      total: 0,
+      regressions: 0,
+      lastDate: new Date(0),
+      recentCount: 0,
+    };
+
+    stats.total++;
+    if (issue.status === "open" && issue.resolvedAt !== undefined) {
+      stats.regressions++;
+    }
+
+    const lastSeen = new Date(issue.lastSeen);
+    if (lastSeen > stats.lastDate) stats.lastDate = lastSeen;
+
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    if (lastSeen > weekAgo) stats.recentCount++;
+
+    areaStats.set(area, stats);
+  }
+
+  const hotspots: Hotspot[] = [];
+  for (const [area, stats] of Array.from(areaStats.entries())) {
+    if (stats.total >= 3) {
+      const trend: "increasing" | "stable" | "decreasing" =
+        stats.recentCount > stats.total / 2
+          ? "increasing"
+          : stats.recentCount > 0
+            ? "stable"
+            : "decreasing";
+
+      let recommendation = "Continue monitoring.";
+      if (stats.regressions > 0) {
+        recommendation = "High regression count - add more test coverage.";
+      } else if (trend === "increasing") {
+        recommendation = "Issue frequency increasing - investigate root cause.";
+      }
+
+      hotspots.push({
+        area,
+        bugCount: stats.total,
+        regressionCount: stats.regressions,
+        lastIssue: stats.lastDate,
+        trend,
+        recommendation,
+      });
+    }
+  }
+
+  return hotspots.sort((a, b) => b.bugCount - a.bugCount);
 }
 
 // ============================================================================

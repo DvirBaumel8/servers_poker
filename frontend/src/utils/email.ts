@@ -41,7 +41,7 @@ export function getEmailValidationMessage(email: string): string | null {
   const normalized = normalizeEmail(email);
 
   if (!normalized) {
-    return null;
+    return "Enter a valid email address.";
   }
 
   const suggestion = getLikelyEmailSuggestion(normalized);

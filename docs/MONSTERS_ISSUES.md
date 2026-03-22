@@ -1,42 +1,31 @@
 # 🗂️ Monster Issues Report
 
-**Last Updated:** 3/22/2026, 1:59:20 PM
+**Last Updated:** 3/22/2026, 10:24:27 PM
 **Database Version:** 1
 
 ## Summary
 
 | Metric | Count |
 |--------|-------|
-| Total Issues Found | 21 |
-| Open Issues | 1 |
-| Resolved Issues | 20 |
+| Open Issues | 20 |
 
 ### By Severity (Open Only)
 
 | Severity | Count |
 |----------|-------|
 | 🔴 Critical | 0 |
-| 🟠 High | 1 |
-| 🟡 Medium | 0 |
-| 🟢 Low | 0 |
+| 🟠 High | 0 |
+| 🟡 Medium | 2 |
+| 🟢 Low | 18 |
 
 ### By Source Monster
 
-| Monster | Issues Found |
-|---------|--------------|
-| browser-qa | 6 |
-| api | 3 |
-| product-quality | 2 |
-| browser | 1 |
-| code-quality | 1 |
-| analyzer-pipeline | 1 |
-| quick-check | 1 |
-| visual | 1 |
-| contract | 1 |
-| invariant | 1 |
-| chaos | 1 |
-| guardian | 1 |
-| e2e | 1 |
+| Monster | Open Issues |
+|---------|-------------|
+| data-integrity | 11 |
+| fast-quality | 7 |
+| product-quality | 1 |
+| log-analyzer | 1 |
 
 ---
 
@@ -48,25 +37,35 @@
 
 ## 🟠 High Priority Issues
 
-- **ISS-51AA4F6B** [BUG] Page load error — /
+*No high priority issues!*
 
 ---
 
 ## 🟡 Medium Priority Issues
 
-*No medium priority issues!*
+- **ISS-B18A7C19** [UX] Low quality score: navigation (3/10)
+- **ISS-62CBE829** [CODE_QUALITY] Service/controller without logger: src/modules/auth/auth.controller.ts
 
 ---
 
 ## 🟢 Low Priority Issues
 
-*No low priority issues!*
+- Chip column "chip_movements.amount" has no non-negative CHECK
+- Chip column "chip_movements.balance_before" has no non-negative CHECK
+- Chip column "game_state_snapshots.pot" has no non-negative CHECK
+- Chip column "game_state_snapshots.current_bet" has no non-negative CHECK
+- Chip column "game_state_snapshots.small_blind" has no non-negative CHECK
+- Chip column "game_state_snapshots.big_blind" has no non-negative CHECK
+- Chip column "game_state_snapshots.starting_chips" has no non-negative CHECK
+- Chip column "hands.small_blind" has no non-negative CHECK
+- Chip column "hands.big_blind" has no non-negative CHECK
+- Chip column "tables.big_blind" has no non-negative CHECK
 
 ---
 
 ## 🎯 Product Quality Report
 
-**Last Run:** 3/22/2026, 11:21:10 AM
+**Last Run:** 3/22/2026, 10:23:07 PM
 **Overall Score:** 7/10 (✅ B)
 
 ### Functional but not impressive. Weakest area: game.

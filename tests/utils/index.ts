@@ -1,2 +1,2 @@
 export * from "./test-helpers";
-export * from "./mock-bot-server";
+export * from "./strategy-bot-factory";

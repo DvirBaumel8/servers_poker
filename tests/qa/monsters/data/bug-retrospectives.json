@@ -305,10 +305,8 @@
           "frontend/src/pages/AdminAnalytics.tsx",
           "src/config/app.config.ts",
           "src/main.ts",
-          "src/modules/bots/bots-connectivity.controller.ts",
           "src/modules/games/games.controller.ts",
           "src/modules/games/games.gateway.ts",
-          "src/services/bot-metrics.gateway.ts",
           "src/services/game/game-recovery.service.ts",
           "src/common/redis/redis-pubsub.service.ts",
           "tests/qa/monsters/code-quality-monster/code-quality-monster.ts",
@@ -420,23 +418,262 @@
         "testAdded": null
       },
       "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-001",
+      "date": "2026-03-22",
+      "foundBy": "user",
+      "summary": "Bot Builder page shows 'Error: The requested resource was not found' - missing backend endpoints",
+      "category": "api",
+      "severity": "critical",
+      "rootCause": "Frontend Bot Builder calls GET /bots/internal/presets and GET /bots/internal/condition-fields on mount, but these endpoints were never implemented in the backend controller. The domain data (PERSONALITY_PRESETS, CONDITION_FIELDS) existed but had no HTTP route.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "api-monster (missing endpoint coverage) and browser-qa-monster (error banner on /bots/build)",
+        "whyMissed": "Three compounding gaps: (1) api-monster had no entries for /bots/internal/* endpoints, (2) browser monsters visit /bots/build unauthenticated and get redirected to login before the component mounts and fires the failing API calls, (3) product-quality-monster treated visible error banners as a POSITIVE signal ('error handling detected') instead of a bug.",
+        "existingMonster": true,
+        "monsterToImprove": "api-monster, product-quality-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Added /bots/internal/presets and /bots/internal/condition-fields to api-monster config as critical endpoints with response shape validation. Updated product-quality-monster's error detection to distinguish active error banners (bugs) from dormant error-handling infrastructure.",
+        "filesChanged": [
+          "tests/qa/monsters/api-monster/api-monster.config.ts",
+          "tests/qa/monsters/browser-monster/product-quality-monster.ts",
+          "src/modules/bots/bots-internal.controller.ts",
+          "src/modules/bots/dto/internal-bot.dto.ts",
+          "src/modules/bots/bots.service.ts",
+          "src/modules/bots/bots.module.ts",
+          "src/entities/bot.entity.ts"
+        ],
+        "testAdded": "GET /bots/internal/presets expects 200 with presets array; GET /bots/internal/condition-fields expects 200 with fields array"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-002",
+      "date": "2026-03-22",
+      "foundBy": "user",
+      "summary": "Bot Builder: Quick Bot and Strategy Builder tier cards both advance to identical Personality page - user perceives them as doing the same thing",
+      "category": "ui",
+      "severity": "medium",
+      "rootCause": "Selecting a tier card only updated the store's tier value but didn't auto-advance to the next step. User had to click Next separately, and step 2 (Personality) was identical for all tiers. The differentiation (Rules step) only appeared at step 3, making the tier selection feel broken.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "browser-qa-monster or product-quality-monster (UX flow test)",
+        "whyMissed": "No monster tests the multi-step wizard flow with tier switching. Browser monsters check page loads, not interactive step-by-step wizard flows. Product quality monster only checks visual/UX signals on initial page load, not interactive behavior.",
+        "existingMonster": false,
+        "monsterToImprove": null
+      },
+      "improvement": {
+        "type": "fix-code",
+        "description": "Made tier card clicks auto-advance to the Personality step. Added onSelect callback prop to TierSelector. Added activeStep derivation to handle step/tier mismatch when switching from strategy/pro to quick tier (which removes the rules step).",
+        "filesChanged": [
+          "frontend/src/pages/BotBuilder.tsx",
+          "frontend/src/components/bot-builder/TierSelector.tsx"
+        ],
+        "testAdded": "Browser monster scenarios: 'Quick Bot tier advances to personality step', 'Strategy Builder tier shows rules step', 'Quick Bot skips rules step' - verifies tier selection auto-advances and each tier has the correct step flow"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-004",
+      "date": "2026-03-22",
+      "foundBy": "user",
+      "summary": "What-If Simulator shows 'The requested resource was not found' - POST /bots/internal/simulate endpoint missing",
+      "category": "api",
+      "severity": "high",
+      "rootCause": "Frontend WhatIfSimulator component calls POST /api/v1/bots/internal/simulate via botsApi.simulateAction(), but BotsInternalController has no @Post('simulate') endpoint. The endpoint was never implemented despite the frontend code being in place.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "api-monster (missing endpoint coverage) and contract-monster (no contract for simulate endpoint)",
+        "whyMissed": "api-monster config had no entry for POST /bots/internal/simulate. contract-monster had no contract for the simulate endpoint. No monster cross-references frontend API calls against backend routes to detect unimplemented endpoints.",
+        "existingMonster": true,
+        "monsterToImprove": "api-monster, contract-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Added POST /bots/internal/simulate to api-monster config as a critical auth-required endpoint with response shape validation. Added contract for the simulate endpoint to contract-monster. Then implemented the missing backend endpoint.",
+        "filesChanged": [
+          "tests/qa/monsters/api-monster/api-monster.config.ts",
+          "tests/qa/monsters/contract-monster/contracts.ts",
+          "src/modules/bots/bots-internal.controller.ts"
+        ],
+        "testAdded": "POST /bots/internal/simulate expects 200 with action object containing type, source, explanation"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-005",
+      "date": "2026-03-22",
+      "foundBy": "user",
+      "summary": "Create Bot fails with generic 'Failed to create bot' error - HttpExceptionFilter masks business-logic messages",
+      "category": "code-quality",
+      "severity": "high",
+      "rootCause": "HttpExceptionFilter unconditionally replaces ALL BadRequestException messages with 'Invalid request. Please check your input.' via a USER_FRIENDLY_MESSAGES map. When the user has 10 bots (the limit) and clicks Create Bot, the backend throws BadRequestException('Maximum 10 bots per account...') but the filter replaces it with the generic message. The frontend then shows a hardcoded 'Failed to create bot' toast without the server's error detail.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "code-quality-monster (static analysis of exception filter patterns), api-monster (error message content assertions)",
+        "whyMissed": "No monster checks error message CONTENT - all monsters only check HTTP status codes. code-quality-monster had error-handling rules but nothing that detected unconditional message replacement in exception filters. api-monster variations only compared response.status, never response.data.message.",
+        "existingMonster": true,
+        "monsterToImprove": "code-quality-monster, api-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Added 'exception-filter-masks-messages' rule to code-quality-monster that detects unconditional error message replacement in exception filters. Added 'expectedMessageContains' field to api-monster variation config for message content assertions. Fixed HttpExceptionFilter to only use generic messages for validation errors (arrays), preserving business-logic messages. Updated frontend BotBuilder to display server error messages in toast.",
+        "filesChanged": [
+          "tests/qa/monsters/code-quality-monster/code-quality-monster.ts",
+          "tests/qa/monsters/api-monster/api-monster.ts",
+          "tests/qa/monsters/api-monster/api-monster.config.ts",
+          "src/common/filters/http-exception.filter.ts",
+          "frontend/src/pages/BotBuilder.tsx",
+          "tests/unit/common/filters.spec.ts"
+        ],
+        "testAdded": "code-quality-monster rule detects USER_FRIENDLY_MESSAGES unconditional override; unit tests verify business-logic messages preserved while validation errors still get generic messages"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-006",
+      "date": "2026-03-22",
+      "foundBy": "user",
+      "summary": "Tournament cards have broken layout - prize pool number overflows container, empty tournament name shows blank card header",
+      "category": "ui",
+      "severity": "high",
+      "rootCause": "TournamentCard.tsx displays dynamic numeric values (buyIn, prizePool) with toLocaleString() in text-xl divs without any overflow protection (truncate, overflow-hidden) or compact formatting. When a tournament has buy_in=9007199254740992 (MAX_SAFE_INTEGER), the formatted number '9,007,199,254,740,092' overflows the small card container. Additionally, tournaments with empty names render blank card headers. The bad data was seeded before backend validation was added.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "code-quality-monster (no rule for numeric overflow in card components), api-monster (no variation testing extreme buy-in values or empty names), layout-lint-monster (TournamentCard.tsx not in scope)",
+        "whyMissed": "code-quality-monster had no rule detecting dynamic numeric values displayed without overflow protection in card components. api-monster had security variations (SQL injection, XSS) but no data boundary variations (empty name, extreme numbers). layout-lint-monster only covered game components, not tournament components.",
+        "existingMonster": true,
+        "monsterToImprove": "code-quality-monster, api-monster"
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "description": "Added 'numeric-value-overflow-risk' rule to code-quality-monster: flags Card components displaying dynamic numeric values in large text without CSS overflow protection (truncate/overflow-hidden/formatCompact). Added empty_name, extreme_buy_in, negative_buy_in variations to api-monster tournament endpoint config. Fixed TournamentCard.tsx with formatCompact() helper for large numbers, truncate+tabular-nums on all value cells, fallback 'Untitled Tournament' for empty names, and overflow-hidden on the stats grid.",
+        "filesChanged": [
+          "tests/qa/monsters/code-quality-monster/code-quality-monster.ts",
+          "tests/qa/monsters/api-monster/api-monster.config.ts",
+          "frontend/src/components/tournament/TournamentCard.tsx"
+        ],
+        "testAdded": "code-quality-monster rule detects numeric values without overflow protection in Card components; api-monster variations test empty name, extreme buy-in, and negative buy-in"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-007",
+      "date": "2026-03-22",
+      "summary": "Tournament list polls every 10s and replaces entire Zustand array state without diffing, causing full re-render + motion.div entrance animations to replay — visible flicker/jump on every poll cycle",
+      "category": "ui",
+      "severity": "high",
+      "foundBy": "user",
+      "rootCause": "tournamentStore.fetchTournaments calls set({ tournaments, loading: false }) with a new array reference every poll cycle. Zustand triggers re-render on any reference change. motion.div cards have initial={{ opacity: 0, y: 20 }} which replays on re-render.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "code-quality-monster",
+        "whyMissed": "No rule existed to detect Zustand stores that replace array state from async functions without comparing to previous values. Additionally, getState().tournaments.length was falsely counted as a diff check (it only checks emptiness, not data equality)."
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "monster": "code-quality-monster",
+        "description": "Added 'polling-without-diff' rule to code-quality-monster: flags Zustand stores that replace state with set({ stateKey, loading: false }) without comparing to previous values via JSON.stringify/isEqual/deepEqual/getState().stateKey (excluding .length checks). Fixed tournamentStore.ts to diff before set() and made Tournaments.tsx entrance animations only run on first load via useRef.",
+        "filesChanged": [
+          "tests/qa/monsters/code-quality-monster/code-quality-monster.ts",
+          "frontend/src/stores/tournamentStore.ts",
+          "frontend/src/pages/Tournaments.tsx"
+        ],
+        "testAdded": "code-quality-monster rule detects polling stores that replace array state without comparing to previous values"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-008",
+      "date": "2026-03-22",
+      "summary": "Inconsistent UX when user has no bots: Tables disables Join button, but Tournaments lets user click Register and shows error modal",
+      "category": "ui",
+      "severity": "medium",
+      "foundBy": "user",
+      "rootCause": "Tables page guards the Join button with disabled={myBots.length === 0}, but Tournaments page always passes onRegister to TournamentCard without checking bot count. Clicking Register opens a modal showing 'No active bots' empty state — a frustrating dead-end.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "code-quality-monster",
+        "whyMissed": "No rule existed for cross-page UX consistency. The monster had no awareness that bot-dependent actions (join/register) should behave consistently across pages."
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "monster": "code-quality-monster",
+        "description": "Added 'bot-action-without-guard' rule: flags pages that have a 'no bots' empty state in a modal but pass onRegister/onJoin/onDeploy without checking myBots count or passing hasBots prop. Fixed TournamentCard to accept hasBots prop, show Register button disabled with tooltip when no bots. Tournaments.tsx passes hasBots={myBots.length > 0}.",
+        "filesChanged": [
+          "tests/qa/monsters/code-quality-monster/code-quality-monster.ts",
+          "frontend/src/components/tournament/TournamentCard.tsx",
+          "frontend/src/pages/Tournaments.tsx"
+        ],
+        "testAdded": "code-quality-monster rule detects bot-dependent modal triggers without bot-count guards"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-009",
+      "date": "2026-03-22",
+      "summary": "TournamentDetail shows '2/2 Players still alive' in metric card but 'No player data available' in Players tab for finished tournament — contradictory empty-state handling",
+      "category": "ui",
+      "severity": "high",
+      "foundBy": "user",
+      "rootCause": "Two useMemo hooks derive from the same data source (leaderboard) but handle emptiness differently: playersLeft falls back to entriesCount (showing '2/2'), while sortedPlayers returns [] (triggering 'No player data' empty state). When leaderboard API returns no data for a finished tournament, the UI contradicts itself.",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "code-quality-monster",
+        "whyMissed": "No rule existed to detect inconsistent empty-state fallback handling across computed values that derive from the same data source within the same component."
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "monster": "code-quality-monster",
+        "description": "Added 'inconsistent-empty-state-fallback' rule: detects useMemo hooks in the same component where one uses a fallback value (e.g. entriesCount) when data is empty, but another returns empty/shows EmptyState for the same data source. Fixed TournamentDetail to return null from playersLeft when leaderboard is empty, show 'X entrants' instead of 'X/Y alive', and show 'Tournament completed with X players' in the Players tab.",
+        "filesChanged": [
+          "tests/qa/monsters/code-quality-monster/code-quality-monster.ts",
+          "frontend/src/pages/TournamentDetail.tsx"
+        ],
+        "testAdded": "code-quality-monster rule detects contradictory empty-state handling across useMemo hooks sharing the same data dependency"
+      },
+      "verified": true
+    },
+    {
+      "id": "bug-2026-03-22-010",
+      "date": "2026-03-22",
+      "summary": "Proactive audit: fetchLeaderboard had no diff check causing re-renders on TournamentDetail poll, stale tournament shown when navigating between tournaments, BotProfile stale closure showing wrong bot data, number inputs missing max allowing overflow values",
+      "category": "ui",
+      "severity": "medium",
+      "foundBy": "proactive-audit",
+      "rootCause": "Multiple anti-patterns found by systematic codebase audit: (1) fetchLeaderboard replaced leaderboard array on every poll without diffing, (2) fetchTournament used isInitial=null check without comparing IDs so navigating between tournaments briefly showed stale data, (3) BotProfile loadData used profile in closure but not in useCallback deps, (4) 11 number inputs across 4 files missing max attributes",
+      "monsterAnalysis": {
+        "shouldHaveCaught": "code-quality-monster",
+        "whyMissed": "The polling-without-diff rule only caught tournamentStore.tournaments, not leaderboard. No rules existed for stale-data-on-navigation or number-input-missing-max patterns."
+      },
+      "improvement": {
+        "type": "enhance-existing",
+        "monster": "code-quality-monster",
+        "description": "Added 2 new rules: (1) 'number-input-missing-max' flags number inputs without max attribute using multiline-aware regex, (2) 'stale-data-on-navigation' flags store fetchers that use isInitial === null without checking entity ID change. Fixed fetchLeaderboard with JSON.stringify diff, fetchTournament to reset state on ID change, BotProfile to use useRef for ID tracking instead of stale closure, and added max to 11 number inputs across Tables, Tournaments, AdminTournaments, BotProfile, and RuleBuilder.",
+        "filesChanged": [
+          "tests/qa/monsters/code-quality-monster/code-quality-monster.ts",
+          "frontend/src/stores/tournamentStore.ts",
+          "frontend/src/pages/BotProfile.tsx",
+          "frontend/src/pages/Tables.tsx",
+          "frontend/src/pages/Tournaments.tsx",
+          "frontend/src/pages/AdminTournaments.tsx",
+          "frontend/src/components/bot-builder/RuleBuilder.tsx"
+        ],
+        "testAdded": "code-quality-monster rules for number-input-missing-max and stale-data-on-navigation patterns"
+      },
+      "verified": true
     }
   ],
   "stats": {
-    "totalBugs": 16,
+    "totalBugs": 25,
     "byCategory": {
-      "api": 2,
-      "ui": 10,
+      "api": 4,
+      "ui": 16,
       "security": 2,
-      "code-quality": 1,
+      "code-quality": 2,
       "game-logic": 1
     },
     "byMonsterAction": {
       "create-new": 3,
-      "enhance-existing": 8,
-      "fix-code": 5
+      "enhance-existing": 16,
+      "fix-code": 6
     },
     "monstersCreated": ["contract-monster", "css-lint-monster", "layout-lint-monster"],
-    "monstersImproved": ["api-monster", "visual-monster", "design-critic-monster", "layout-lint-monster", "code-quality-monster"]
+    "monstersImproved": ["api-monster", "visual-monster", "design-critic-monster", "layout-lint-monster", "code-quality-monster", "product-quality-monster", "contract-monster"]
   }
 }

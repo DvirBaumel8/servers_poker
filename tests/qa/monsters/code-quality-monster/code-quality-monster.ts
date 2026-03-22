@@ -40,7 +40,7 @@ export class CodeQualityMonster extends BaseMonster {
   private workspaceRoot: string;
 
   constructor() {
-    super({ name: "Code Quality Monster", type: "code-quality" as any });
+    super({ name: "Code Quality Monster", type: "code-quality" });
     this.workspaceRoot = process.cwd();
     this.initializeRules();
   }
@@ -248,6 +248,131 @@ export class CodeQualityMonster extends BaseMonster {
         },
       },
 
+      {
+        id: "exception-filter-masks-messages",
+        name: "Exception Filter Masks Business Error Messages",
+        description:
+          "Exception filter unconditionally replaces error messages with generic text, hiding useful business-logic messages from users",
+        severity: "high",
+        filePattern: /filter\.(ts|js)$/,
+        check: (content, filePath) => {
+          const issues: CodeIssue[] = [];
+
+          if (
+            filePath.includes("monster") ||
+            filePath.includes("/qa/") ||
+            filePath.includes("node_modules")
+          ) {
+            return issues;
+          }
+
+          if (!content.includes("ExceptionFilter")) return issues;
+
+          const messageMapPattern =
+            /(?:USER_FRIENDLY_MESSAGES|FRIENDLY_MESSAGES|MESSAGE_MAP)\s*\[/g;
+          let match;
+          while ((match = messageMapPattern.exec(content)) !== null) {
+            const surroundingStart = Math.max(0, match.index - 200);
+            const surroundingEnd = Math.min(
+              content.length,
+              match.index + match[0].length + 200,
+            );
+            const surrounding = content.slice(surroundingStart, surroundingEnd);
+
+            const preservesOriginal =
+              surrounding.includes("originalMessage") ||
+              surrounding.includes("original_message") ||
+              surrounding.includes("isGenericOrValidation") ||
+              surrounding.includes("|| message") ||
+              surrounding.includes("?? message") ||
+              surrounding.includes("keepOriginal") ||
+              surrounding.includes("isValidation") ||
+              surrounding.includes("isBusinessLogic") ||
+              surrounding.includes('"An unexpected error');
+
+            if (!preservesOriginal) {
+              const lineNum = content.slice(0, match.index).split("\n").length;
+              issues.push({
+                file: filePath,
+                line: lineNum,
+                rule: "exception-filter-masks-messages",
+                severity: "high",
+                message:
+                  "Exception filter unconditionally replaces all error messages with generic text. " +
+                  "Business-logic errors (e.g. 'Maximum 10 bots per account') will be hidden from users. " +
+                  "Preserve original message for non-validation exceptions.",
+                code: match[0],
+              });
+            }
+          }
+
+          return issues;
+        },
+      },
+
+      {
+        id: "numeric-value-overflow-risk",
+        name: "Large Dynamic Values Without Overflow Protection",
+        description:
+          "Card components displaying dynamic numeric values (prices, counts, scores) " +
+          "without CSS overflow protection risk breaking layout when values are large",
+        severity: "medium",
+        filePattern: /Card\.(tsx|jsx)$/,
+        check: (content, filePath) => {
+          const issues: CodeIssue[] = [];
+
+          if (
+            filePath.includes("monster") ||
+            filePath.includes("/qa/") ||
+            filePath.includes("node_modules") ||
+            filePath.includes("Skeleton")
+          ) {
+            return issues;
+          }
+
+          const dynamicValuePattern =
+            /className="[^"]*text-(xl|2xl|3xl|lg)[^"]*"[^>]*>\s*\n?\s*\{[^}]*(?:toLocaleString|\.toFixed|count|amount|pool|buy|price|chips|total|balance)/gi;
+          let match;
+          while ((match = dynamicValuePattern.exec(content)) !== null) {
+            const lineNum = content.slice(0, match.index).split("\n").length;
+
+            const contextStart = Math.max(0, match.index - 300);
+            const contextEnd = Math.min(
+              content.length,
+              match.index + match[0].length + 100,
+            );
+            const context = content.slice(contextStart, contextEnd);
+
+            const hasOverflowProtection =
+              context.includes("truncate") ||
+              context.includes("overflow-hidden") ||
+              context.includes("overflow-ellipsis") ||
+              context.includes("text-ellipsis") ||
+              context.includes("min-w-0") ||
+              context.includes("break-all") ||
+              context.includes("max-w-") ||
+              context.includes("formatCompact") ||
+              context.includes("abbreviate");
+
+            if (!hasOverflowProtection) {
+              issues.push({
+                file: filePath,
+                line: lineNum,
+                rule: "numeric-value-overflow-risk",
+                severity: "medium",
+                message:
+                  "Dynamic numeric value displayed in large text without overflow protection. " +
+                  "Add CSS truncation (truncate, overflow-hidden, text-ellipsis) or " +
+                  "number formatting (compact notation) to prevent layout breakage.",
+                code: match[0].slice(0, 80),
+              });
+            }
+          }
+
+          return issues;
+        },
+      },
+
       // ========================================================================
       // LOADING STATE RULES
       // ========================================================================
@@ -398,6 +523,371 @@ export class CodeQualityMonster extends BaseMonster {
               message: `Hardcoded URL: ${match[2]}. Use environment variables.`,
               code: match[0],
             });
+          }
+
+          return issues;
+        },
+      },
+
+      // ========================================================================
+      // STATE MANAGEMENT RULES
+      // ========================================================================
+      {
+        id: "polling-without-diff",
+        name: "Polling Store Update Without Data Comparison",
+        description:
+          "Zustand stores used from polling intervals that replace array " +
+          "state without comparing to previous values cause unnecessary " +
+          "re-renders and UI flicker on every poll cycle",
+        severity: "high",
+        filePattern: /Store\.(ts|tsx)$/,
+        check: (content, filePath) => {
+          const issues: CodeIssue[] = [];
+
+          if (
+            filePath.includes("monster") ||
+            filePath.includes("/qa/") ||
+            filePath.includes("node_modules") ||
+            filePath.includes(".spec.") ||
+            filePath.includes(".test.")
+          ) {
+            return issues;
+          }
+
+          if (!content.includes("create<") && !content.includes("create("))
+            return issues;
+
+          const lines = content.split("\n");
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            const setMatch = line.match(
+              /set\(\s*\{\s*(\w+)\s*,\s*loading\s*:\s*false/,
+            );
+            if (!setMatch) continue;
+
+            const stateKey = setMatch[1];
+            if (
+              stateKey === "loading" ||
+              stateKey === "error" ||
+              stateKey === "null"
+            )
+              continue;
+
+            const blockStart = Math.max(0, i - 20);
+            const blockEnd = Math.min(lines.length, i + 5);
+            const block = lines.slice(blockStart, blockEnd).join("\n");
+
+            const getStateUsages = block.match(
+              new RegExp(`getState\\(\\)\\.${stateKey}(?!\\s*\\.length)`, "g"),
+            );
+            const hasDiffCheck =
+              block.includes("JSON.stringify") ||
+              block.includes("isEqual") ||
+              block.includes("deepEqual") ||
+              (getStateUsages && getStateUsages.length > 0) ||
+              block.includes("previous") ||
+              block.includes("shouldUpdate");
+
+            if (!hasDiffCheck) {
+              issues.push({
+                file: filePath,
+                line: i + 1,
+                rule: "polling-without-diff",
+                severity: "high",
+                message:
+                  `Store replaces '${stateKey}' state without comparing to previous value. ` +
+                  "When called from a polling interval, this causes unnecessary re-renders " +
+                  "and UI flicker. Compare new data with getState() before calling set().",
+                code: line.slice(0, 80),
+              });
+            }
+          }
+
+          return issues;
+        },
+      },
+
+      // ========================================================================
+      // UX CONSISTENCY RULES
+      // ========================================================================
+      {
+        id: "bot-action-without-guard",
+        name: "Bot-Dependent Action Missing Disabled Guard",
+        description:
+          "Pages with modals showing 'no bots' empty states should also " +
+          "disable the button that opens the modal when myBots is empty, " +
+          "to prevent users from opening a modal only to find an error",
+        severity: "high",
+        filePattern: /\.(tsx)$/,
+        check: (content, filePath) => {
+          const issues: CodeIssue[] = [];
+
+          if (
+            filePath.includes(".spec.") ||
+            filePath.includes(".test.") ||
+            filePath.includes("monster") ||
+            filePath.includes("/qa/")
+          ) {
+            return issues;
+          }
+
+          const hasNoBotEmptyState =
+            content.includes("myBots.length === 0") &&
+            (content.includes("EmptyState") || content.includes("No active"));
+
+          if (!hasNoBotEmptyState) return issues;
+
+          const openModalPattern =
+            /(?:onRegister|onJoin|onDeploy)\s*=\s*\{[^}]*?\b(?:open\w*Modal|set\w*Modal)\b/g;
+          let match;
+          while ((match = openModalPattern.exec(content)) !== null) {
+            const blockStart = Math.max(0, match.index - 300);
+            const blockEnd = Math.min(
+              content.length,
+              match.index + match[0].length + 300,
+            );
+            const surrounding = content.slice(blockStart, blockEnd);
+
+            const hasBotsGuard =
+              surrounding.includes("myBots.length === 0") ||
+              surrounding.includes("myBots.length > 0") ||
+              surrounding.includes("myBots.length < 1") ||
+              surrounding.includes("!myBots.length") ||
+              surrounding.includes("disabled={myBots") ||
+              surrounding.includes("hasBots={") ||
+              surrounding.includes("hasBots=");
+
+            if (!hasBotsGuard) {
+              const lineNum = content.slice(0, match.index).split("\n").length;
+              issues.push({
+                file: filePath,
+                line: lineNum,
+                rule: "bot-action-without-guard",
+                severity: "high",
+                message:
+                  "This bot-dependent action opens a modal but does not check " +
+                  "if the user has bots before showing the button/action. " +
+                  "The trigger should be disabled when myBots is empty, or " +
+                  "pass a hasBots prop to the child component to match the " +
+                  "pattern used on other pages (e.g., Tables).",
+                code: match[0].slice(0, 60),
+              });
+            }
+          }
+
+          return issues;
+        },
+      },
+
+      {
+        id: "inconsistent-empty-state-fallback",
+        name: "Metric Shows Fallback Data While Tab Shows Empty State",
+        description:
+          "When a data source (e.g. leaderboard) is empty, metric cards " +
+          "must not show fallback values that contradict an empty state " +
+          "displayed in the same component",
+        severity: "high",
+        filePattern: /\.(tsx)$/,
+        check: (content, filePath) => {
+          const issues: CodeIssue[] = [];
+
+          if (
+            filePath.includes(".spec.") ||
+            filePath.includes(".test.") ||
+            filePath.includes("monster") ||
+            filePath.includes("/qa/")
+          ) {
+            return issues;
+          }
+
+          if (!content.includes("useMemo") || !content.includes("EmptyState"))
+            return issues;
+
+          const memoPattern =
+            /const\s+(\w+)\s*=\s*useMemo\(\s*\(\)\s*=>\s*\{([\s\S]*?)\},\s*\[([^\]]*)\]\s*\)/g;
+          const memos: {
+            name: string;
+            body: string;
+            deps: string;
+            index: number;
+          }[] = [];
+          let match;
+          while ((match = memoPattern.exec(content)) !== null) {
+            memos.push({
+              name: match[1],
+              body: match[2],
+              deps: match[3],
+              index: match.index,
+            });
+          }
+
+          for (let i = 0; i < memos.length; i++) {
+            const memo = memos[i];
+            const emptyCheck =
+              memo.body.match(
+                /(?:\.length\s*===?\s*0|!\w+\s*\|\||\.length\s*<\s*1)/,
+              ) !== null;
+            const hasFallback =
+              emptyCheck &&
+              (memo.body.includes("|| 0") ||
+                memo.body.includes("|| ''") ||
+                memo.body.includes("entriesCount") ||
+                memo.body.includes("registeredPlayers") ||
+                memo.body.match(/return\s+\w+\?\.\w+\s*\|\|/) !== null);
+
+            if (!hasFallback) continue;
+
+            const sharedDeps = memo.deps
+              .split(",")
+              .map((d) => d.trim())
+              .filter(Boolean);
+
+            for (let j = 0; j < memos.length; j++) {
+              if (i === j) continue;
+              const other = memos[j];
+
+              const sharesData = sharedDeps.some((dep) =>
+                other.deps.includes(dep),
+              );
+              if (!sharesData) continue;
+
+              const otherReturnsEmpty =
+                (other.body.includes("return []") ||
+                  other.body.includes(".length === 0")) &&
+                !other.body.includes("entriesCount") &&
+                !other.body.includes("registeredPlayers");
+
+              if (otherReturnsEmpty) {
+                const lineNum = content.slice(0, memo.index).split("\n").length;
+                issues.push({
+                  file: filePath,
+                  line: lineNum,
+                  rule: "inconsistent-empty-state-fallback",
+                  severity: "high",
+                  message:
+                    `'${memo.name}' uses a fallback value when data is empty, but ` +
+                    `'${other.name}' returns empty/shows empty state for the same data source. ` +
+                    `This creates a contradiction: a metric card shows data while the ` +
+                    `detail view says 'no data'. Both must handle empty state consistently.`,
+                  code: `${memo.name} fallback vs ${other.name} empty state`,
+                });
+              }
+            }
+          }
+
+          return issues;
+        },
+      },
+
+      {
+        id: "number-input-missing-max",
+        name: "Number Input Without Max Attribute",
+        description:
+          "Number inputs without a max attribute allow users to enter " +
+          "arbitrarily large values that may break UI layout or backend " +
+          "validation",
+        severity: "medium",
+        filePattern: /\.(tsx)$/,
+        check: (content, filePath) => {
+          const issues: CodeIssue[] = [];
+
+          if (
+            filePath.includes(".spec.") ||
+            filePath.includes(".test.") ||
+            filePath.includes("monster") ||
+            filePath.includes("/qa/") ||
+            filePath.includes("stories")
+          ) {
+            return issues;
+          }
+
+          const numberInputPattern =
+            /(<(?:TextField|input)\b[\s\S]*?type=["']number["'][\s\S]*?\/>|<(?:TextField|input)\b[\s\S]*?type=["']number["'][\s\S]*?>)/g;
+          let match;
+          while ((match = numberInputPattern.exec(content)) !== null) {
+            const tag = match[0];
+            if (!tag.includes("max=") && !tag.includes("max={")) {
+              if (
+                tag.includes('label="Max') ||
+                tag.includes('label="Max') ||
+                tag.includes("placeholder=")
+              ) {
+                continue;
+              }
+              const lineNum = content.slice(0, match.index).split("\n").length;
+              issues.push({
+                file: filePath,
+                line: lineNum,
+                rule: "number-input-missing-max",
+                severity: "medium",
+                message:
+                  "Number input is missing a max attribute. Users can enter " +
+                  "arbitrarily large values that may overflow the UI or fail " +
+                  "backend validation.",
+                code: tag.replace(/\s+/g, " ").slice(0, 60),
+              });
+            }
+          }
+
+          return issues;
+        },
+      },
+      {
+        id: "stale-data-on-navigation",
+        name: "Store Shows Stale Entity When Navigating",
+        description:
+          "Store fetch functions that use isInitial checks based on " +
+          "current state being null will fail to reset when navigating " +
+          "between entities, briefly showing stale data",
+        severity: "high",
+        filePattern: /Store\.(ts|tsx)$/,
+        check: (content, filePath) => {
+          const issues: CodeIssue[] = [];
+
+          if (
+            filePath.includes(".spec.") ||
+            filePath.includes(".test.") ||
+            filePath.includes("monster") ||
+            filePath.includes("/qa/")
+          ) {
+            return issues;
+          }
+
+          if (!content.includes("create<") && !content.includes("create("))
+            return issues;
+
+          const stalePattern = /const\s+isInitial\s*=\s*[^;]*===\s*null\s*;/g;
+          let match;
+          while ((match = stalePattern.exec(content)) !== null) {
+            const surrounding = content.slice(
+              Math.max(0, match.index - 100),
+              Math.min(content.length, match.index + 300),
+            );
+
+            const checksId =
+              surrounding.includes(".id !== ") ||
+              surrounding.includes(".id === ") ||
+              surrounding.includes("isNewBot") ||
+              surrounding.includes("isNewTournament") ||
+              surrounding.includes("isNewGame") ||
+              surrounding.includes("current.id");
+
+            if (!checksId) {
+              const lineNum = content.slice(0, match.index).split("\n").length;
+              issues.push({
+                file: filePath,
+                line: lineNum,
+                rule: "stale-data-on-navigation",
+                severity: "high",
+                message:
+                  "Fetch function uses `isInitial = state === null` to decide " +
+                  "whether to show loading, but does not check if the entity " +
+                  "ID changed. When navigating between entities, stale data " +
+                  "from the previous entity is briefly displayed.",
+                code: match[0].slice(0, 60),
+              });
+            }
           }
 
           return issues;
@@ -628,6 +1118,150 @@ export class CodeQualityMonster extends BaseMonster {
 
     this.log("\n📋 Scanning test code...");
     await this.scanDirectory(testsSrc);
+
+    this.log("\n📋 Checking entity-migration sync...");
+    this.checkEntityMigrationSync();
+  }
+
+  private checkEntityMigrationSync(): void {
+    const entitiesDir = join(this.workspaceRoot, "src/entities");
+    const migrationsDir = join(this.workspaceRoot, "src/migrations");
+
+    if (!this.fileExists(entitiesDir) || !this.fileExists(migrationsDir)) {
+      this.log("  Skipping: entities or migrations directory not found");
+      return;
+    }
+
+    const entityFiles = this.getFilesRecursively(entitiesDir).filter(
+      (f) => f.endsWith(".entity.ts") && !f.includes("base.entity"),
+    );
+    const migrationFiles = this.getFilesRecursively(migrationsDir).filter(
+      (f) => f.endsWith(".ts") && !f.includes("run.ts"),
+    );
+
+    const allMigrationContent = migrationFiles
+      .map((f) => {
+        try {
+          return readFileSync(f, "utf-8");
+        } catch {
+          return "";
+        }
+      })
+      .join("\n");
+
+    let issuesFound = 0;
+
+    for (const entityFile of entityFiles) {
+      try {
+        const content = readFileSync(entityFile, "utf-8");
+        const tableName = this.extractTableName(content);
+        if (!tableName) continue;
+
+        const entityColumns = this.extractColumns(content);
+        const migrationColumns = this.extractMigrationColumns(
+          allMigrationContent,
+          tableName,
+        );
+
+        for (const col of entityColumns) {
+          const inMigration =
+            migrationColumns.has(col) ||
+            allMigrationContent.includes(`"${col}"`) ||
+            allMigrationContent.includes(`'${col}'`);
+
+          if (!inMigration) {
+            issuesFound++;
+            this.log(
+              `  🔴 Column "${col}" on table "${tableName}" has no migration`,
+            );
+            this.addFinding({
+              category: "BUG",
+              severity: "critical",
+              title: `Entity column "${col}" on "${tableName}" has no migration`,
+              description:
+                `Column "${col}" is defined in the entity but never appears in any migration file. ` +
+                `This will cause "column does not exist" errors at runtime unless the DB was created with synchronize:true.`,
+              location: {
+                file: relative(this.workspaceRoot, entityFile),
+              },
+              evidence: {
+                raw: { column: col, table: tableName },
+              },
+              reproducible: true,
+              tags: ["schema-sync", "entity-migration", "runtime-crash"],
+            });
+          }
+
+          this.recordTest(inMigration);
+        }
+      } catch {
+        // Skip files that can't be read
+      }
+    }
+
+    this.log(
+      `  Checked ${entityFiles.length} entities, found ${issuesFound} sync issues`,
+    );
+  }
+
+  private extractTableName(content: string): string | null {
+    const match = content.match(/@Entity\(\s*["']([^"']+)["']\s*\)/);
+    return match ? match[1] : null;
+  }
+
+  private extractColumns(content: string): string[] {
+    const columns: string[] = [];
+    const lines = content.split("\n");
+
+    for (let i = 0; i < lines.length; i++) {
+      if (
+        lines[i].includes("@Column") ||
+        lines[i].includes("@CreateDateColumn") ||
+        lines[i].includes("@UpdateDateColumn") ||
+        lines[i].includes("@PrimaryColumn")
+      ) {
+        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+          const propMatch = lines[j].match(/^\s+(\w+)\s*[?:!]/);
+          if (propMatch) {
+            columns.push(propMatch[1]);
+            break;
+          }
+        }
+      }
+    }
+
+    return columns;
+  }
+
+  private extractMigrationColumns(
+    migrationContent: string,
+    tableName: string,
+  ): Set<string> {
+    const columns = new Set<string>();
+
+    const createTableRegex = new RegExp(
+      `CREATE TABLE.*["']?${tableName}["']?.*?\\(([^)]+)\\)`,
+      "gis",
+    );
+    const alterTableRegex = new RegExp(
+      `ALTER TABLE.*["']?${tableName}["']?.*?ADD.*?["']?(\\w+)["']?`,
+      "gi",
+    );
+
+    let match;
+    while ((match = createTableRegex.exec(migrationContent)) !== null) {
+      const columnDefs = match[1];
+      const colMatches = columnDefs.match(/"(\w+)"/g);
+      if (colMatches) {
+        colMatches.forEach((c) => columns.add(c.replace(/"/g, "")));
+      }
+    }
+
+    while ((match = alterTableRegex.exec(migrationContent)) !== null) {
+      columns.add(match[1]);
+    }
+
+    return columns;
   }
 
   private async scanDirectory(dir: string): Promise<void> {

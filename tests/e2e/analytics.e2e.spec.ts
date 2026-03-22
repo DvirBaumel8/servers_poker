@@ -91,12 +91,10 @@ describe("Analytics E2E Tests", () => {
     const adminEmail = `admin-${uid()}@example.com`;
     const passwordHash =
       "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC";
-    const apiKeyHash = uuidv4().replace(/-/g, "");
-
     await dataSource.query(
-      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'admin', true, true, NOW(), NOW())`,
-      [adminUserId, adminEmail, "Admin User", passwordHash, apiKeyHash],
+      `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'admin', true, true, NOW(), NOW())`,
+      [adminUserId, adminEmail, "Admin User", passwordHash],
     );
 
     adminToken = jwtService.sign({
@@ -110,9 +108,9 @@ describe("Analytics E2E Tests", () => {
     const userEmail = `user-${uid()}@example.com`;
 
     await dataSource.query(
-      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())`,
-      [regularUserId, userEmail, "Regular User", passwordHash, apiKeyHash],
+      `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'user', true, true, NOW(), NOW())`,
+      [regularUserId, userEmail, "Regular User", passwordHash],
     );
 
     userToken = jwtService.sign({
@@ -135,10 +133,20 @@ describe("Analytics E2E Tests", () => {
   async function createTestData(ds: DataSource) {
     // Create a bot
     const botId = uuidv4();
+    const defaultStrategy = JSON.stringify({
+      version: 1,
+      tier: "quick",
+      personality: {
+        aggression: 50,
+        bluffFrequency: 30,
+        riskTolerance: 50,
+        tightness: 50,
+      },
+    });
     await ds.query(
-      `INSERT INTO bots (id, name, endpoint, active, user_id, created_at, updated_at)
+      `INSERT INTO bots (id, name, strategy, active, user_id, created_at, updated_at)
        VALUES ($1, $2, $3, true, $4, NOW(), NOW())`,
-      [botId, "TestBot", "http://localhost:4000/action", adminUserId],
+      [botId, "TestBot", defaultStrategy, adminUserId],
     );
 
     // Create a table

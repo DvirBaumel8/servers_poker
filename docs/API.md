@@ -16,18 +16,9 @@ Most endpoints require JWT authentication. Include the token in the Authorizatio
 Authorization: Bearer <jwt_token>
 ```
 
-### API Key Authentication
-
-For bot endpoints, API key authentication is also supported:
-
-```
-Authorization: Bearer <api_key>
-```
-
 ## Rate Limiting
 
 - Default: 100 requests per minute per IP
-- Bot action endpoints: 1000 requests per minute
 - WebSocket connections: 10 concurrent per user
 
 ## Endpoints
@@ -77,10 +68,6 @@ Authenticate an existing user.
 
 Get current user info. Requires authentication.
 
-#### POST /auth/regenerate-api-key
-
-Generate a new API key. Requires authentication.
-
 ---
 
 ### Bots
@@ -95,10 +82,10 @@ List all active bots. Public endpoint.
   {
     "id": "uuid",
     "name": "MyBot",
-    "endpoint": "https://mybot.example.com/action",
     "description": "An intelligent poker bot",
     "active": true,
-    "created_at": "2024-01-01T00:00:00Z"
+    "created_at": "2024-01-01T00:00:00Z",
+    "strategy": {}
   }
 ]
 ```
@@ -107,44 +94,15 @@ List all active bots. Public endpoint.
 
 List bots owned by current user. Requires authentication.
 
-#### POST /bots
-
-Create a new bot. Requires authentication.
-
-**Request:**
-```json
-{
-  "name": "MyBot",
-  "endpoint": "https://mybot.example.com/action",
-  "description": "Optional description"
-}
-```
-
-**Validation:**
-- `name`: 2-100 characters, alphanumeric with underscores/hyphens
-- `endpoint`: Valid public HTTP(S) URL (no internal IPs)
-
 #### PUT /bots/:id
 
 Update bot configuration. Requires ownership.
 
-#### POST /bots/:id/validate
+#### POST /bots/:id/activate
 
-Test bot endpoint connectivity and response.
+Re-activate a deactivated bot. Requires ownership (`operate:bots` scope).
 
-**Response:**
-```json
-{
-  "valid": true,
-  "score": 100,
-  "details": {
-    "reachable": true,
-    "respondedCorrectly": true,
-    "responseTimeMs": 150,
-    "errors": []
-  }
-}
-```
+**Response:** `{ "success": true }`
 
 #### DELETE /bots/:id
 
@@ -182,6 +140,102 @@ Get activity for a specific bot. Public endpoint.
 #### GET /bots/:id/profile
 
 Get detailed bot profile with stats.
+
+---
+
+### Bot Builder (Internal Bots)
+
+Metadata and creation endpoints for no-code / rule-builder bots (`bot_type: internal`). Paths are under `/api/v1/bots/internal`.
+
+#### GET /bots/internal/presets
+
+List personality presets for the bot builder. Public endpoint (no JWT).
+
+**Response:**
+```json
+{
+  "presets": []
+}
+```
+
+Each preset is a `PersonalityPreset` object. The API returns **8** presets: `shark`, `rock`, `maniac`, `calling_station`, `nit`, `balanced_pro`, `tricky`, `bully`.
+
+#### GET /bots/internal/condition-fields
+
+List condition field definitions for the rule builder. Public endpoint (no JWT).
+
+**Response:**
+```json
+{
+  "fields": []
+}
+```
+
+The API returns **19** `ConditionFieldDef` entries describing fields usable in strategy rules.
+
+#### POST /bots/internal
+
+Create an internal bot with a JSON strategy document. Requires JWT and the **`operate:bots`** OAuth-style scope.
+
+**Rate limit:** 10 requests per hour per scope (Throttler default bucket).
+
+**Request:**
+```json
+{
+  "name": "MyInternalBot",
+  "strategy": {},
+  "description": "Optional description"
+}
+```
+
+- `name` (string, required): 2–100 characters; letters, numbers, underscores, hyphens only.
+- `strategy` (object, required): validated strategy JSON for the bot engine.
+- `description` (string, optional): max 500 characters; must not contain angle brackets (HTML).
+
+**Response:** Created bot representation (includes `strategy`).
+
+#### POST /bots/internal/simulate
+
+Simulate a bot action for a given strategy and scenario (What-If Simulator).
+Requires JWT. Does not persist anything — purely stateless computation.
+
+**Rate limit:** 30 requests per minute.
+
+**Request:**
+```json
+{
+  "strategy": {
+    "version": 1,
+    "tier": "quick",
+    "personality": { "aggression": 70, "bluffFrequency": 30, "riskTolerance": 50, "tightness": 60 }
+  },
+  "scenario": {
+    "stage": "pre-flop",
+    "holeCards": ["As", "Ah"],
+    "communityCards": [],
+    "position": "UTG",
+    "stackSize": 1000,
+    "potSize": 15,
+    "bigBlind": 10,
+    "facingBet": false,
+    "betAmount": 0,
+    "playersInHand": 6
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "action": { "type": "raise", "amount": 31 },
+  "source": "personality",
+  "explanation": "Opening raise (aggression: 70%, hand quality: 95%)"
+}
+```
+
+- `action.type`: one of `fold`, `check`, `call`, `raise`, `all_in`
+- `source`: what triggered the decision — `personality`, `rule`, `range_chart`, or `position_override`
+- `explanation`: human-readable reason for the action
 
 ---
 
@@ -626,86 +680,6 @@ Bot-specific information:
   }
 }
 ```
-
----
-
-## Bot Endpoint Specification
-
-Your bot must implement an HTTP POST endpoint that responds to action requests.
-
-### Request Format
-
-```json
-{
-  "gameId": "uuid",
-  "handNumber": 15,
-  "stage": "flop",
-  "you": {
-    "name": "MyBot",
-    "chips": 9500,
-    "holeCards": ["Ah", "Kh"],
-    "bet": 100,
-    "position": "BTN",
-    "bestHand": {
-      "name": "High Card",
-      "cards": ["Ah", "Kh", "Qd", "Jc", "9s"]
-    }
-  },
-  "action": {
-    "canCheck": false,
-    "toCall": 100,
-    "minRaise": 200,
-    "maxRaise": 9400
-  },
-  "table": {
-    "pot": 350,
-    "currentBet": 200,
-    "communityCards": ["Qd", "Jc", "9s"],
-    "smallBlind": 50,
-    "bigBlind": 100,
-    "ante": 0
-  },
-  "players": [
-    {
-      "name": "Opponent1",
-      "chips": 8000,
-      "bet": 200,
-      "folded": false,
-      "allIn": false,
-      "position": "SB"
-    }
-  ]
-}
-```
-
-### Response Format
-
-```json
-{
-  "type": "call"
-}
-```
-
-Or with amount:
-```json
-{
-  "type": "raise",
-  "amount": 300
-}
-```
-
-**Valid Actions:**
-- `fold` - Forfeit the hand
-- `check` - Pass (when toCall is 0)
-- `call` - Match the current bet
-- `raise` / `bet` - Increase the bet (requires `amount`)
-- `all_in` - Bet entire stack
-
-### Timeouts
-
-- Default timeout: 10 seconds
-- After 3 consecutive timeouts, the bot is disconnected
-- Timeouts count as a fold
 
 ---
 

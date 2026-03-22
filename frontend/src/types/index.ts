@@ -80,12 +80,10 @@ export interface TournamentEntry {
 export interface Bot {
   id: string;
   name: string;
-  endpoint: string;
   description?: string;
   active: boolean;
   userId: string;
   createdAt: string;
-  lastValidationScore?: number;
 }
 
 export interface LeaderboardEntry {

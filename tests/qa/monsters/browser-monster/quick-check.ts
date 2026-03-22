@@ -10,15 +10,14 @@
  * Run: npm run monsters:quick-check
  */
 
-import { chromium, Browser, Page } from "playwright";
+import { Page } from "playwright";
 import {
-  addIssue,
-  printSummary,
-  generateReport,
-  Severity,
-} from "../shared/issue-tracker";
-
-const BASE_URL = process.env.FRONTEND_URL || "http://localhost:3001";
+  BrowserBaseMonster,
+  DESKTOP_VIEWPORT,
+  MOBILE_VIEWPORT,
+} from "../shared/browser-base-monster";
+import { RunConfig, Severity } from "../shared/types";
+import { runMonsterCli } from "../shared/cli-runner";
 
 // ============================================================================
 // ALL CHECKS IN ONE MEGA-BATCH
@@ -63,23 +62,19 @@ const MEGA_CHECK = `
 
   // ===================== QUALITY SCORES =====================
   
-  // Typography (0-10) - check for premium fonts like Inter, Montserrat, Playfair
   const font = getComputedStyle(document.body).fontFamily.toLowerCase();
   const hasPremiumFont = font.includes('inter') || font.includes('montserrat') || 
                          font.includes('playfair') || font.includes('poppins');
   report.quality.typography = hasPremiumFont ? 8 : 3;
   
-  // Navigation (0-10) - check nav links and header navigation
   const navLinks = document.querySelectorAll('nav a, header a').length;
   report.quality.navigation = navLinks >= 4 ? 8 : navLinks >= 2 ? 6 : 2;
   
-  // Hero/CTA (0-10) - check for headline, description, and call-to-action
   const hasHero = !!document.querySelector('h1');
   const hasCTA = !!document.querySelector('button, a.btn-primary, [class*="btn"]');
   const hasDescription = document.body.innerText.length > 200;
   report.quality.firstImpression = (hasHero ? 4 : 0) + (hasCTA ? 3 : 0) + (hasDescription ? 3 : 0);
   
-  // Animations (0-10) - check for CSS animations, transitions, or motion classes
   let hasAnim = false;
   const hasMotionClasses = document.querySelectorAll('[class*="animate"], [class*="motion"], [class*="transition"]').length > 0;
   try {
@@ -87,20 +82,17 @@ const MEGA_CHECK = `
       try { return Array.from(s.cssRules).map(r => r.cssText); } catch(e) { return []; }
     }).join('');
     hasAnim = css.includes('animation') || css.includes('transition') || css.includes('@keyframes');
-  } catch(e) { /* Cross-origin stylesheets may throw - safely ignore */ }
+  } catch(e) {}
   report.quality.animations = (hasAnim || hasMotionClasses) ? 8 : 2;
   
-  // Consistency (0-10)
   const buttons = Array.from(document.querySelectorAll('button'));
   const styles = new Set(buttons.map(b => getComputedStyle(b).borderRadius));
   report.quality.consistency = styles.size <= 3 || buttons.length < 3 ? 7 : 4;
   
-  // Favicon (0-10)
   const hasFavicon = !!document.querySelector('link[rel*="icon"]');
   const goodTitle = document.title && !document.title.includes('Vite');
   report.quality.polish = (hasFavicon ? 5 : 0) + (goodTitle ? 5 : 0);
   
-  // Calculate overall score
   const scores = Object.values(report.quality);
   report.score = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   
@@ -113,40 +105,29 @@ const GAME_PAGE_CHECK = `
   const quality = {};
   const url = window.location.pathname;
   
-  // Only evaluate game elements if we're on a game/table page
   const isGamePage = url.includes('/game') || url.includes('/table/') || 
                      document.querySelector('[class*="poker-table"], [class*="game-view"]');
   
   if (!isGamePage) {
-    // Not a game page - skip game-specific checks (return neutral scores)
     return { 
-      pokerTable: 5, 
-      cards: 5, 
-      bettingUI: 5, 
-      playerSeats: 5, 
-      timer: 5,
+      pokerTable: 5, cards: 5, bettingUI: 5, playerSeats: 5, timer: 5,
       _skipped: true 
     };
   }
   
-  // Poker table
   const hasTable = !!document.querySelector('[class*="table"], [class*="poker"]');
   quality.pokerTable = hasTable ? 5 : 1;
   
-  // Cards
   const hasCards = !!document.querySelector('[class*="card"]');
   quality.cards = hasCards ? 5 : 1;
   
-  // Betting UI
   const hasSlider = !!document.querySelector('input[type="range"]');
   const hasBetBtns = !!document.querySelector('[class*="bet"]');
   quality.bettingUI = (hasSlider ? 4 : 0) + (hasBetBtns ? 4 : 0) || 1;
   
-  // Player seats
   const seats = document.querySelectorAll('[class*="seat"], [class*="player"]').length;
   quality.playerSeats = seats >= 2 ? 6 : 2;
   
-  // Timer
   const hasTimer = !!document.querySelector('[class*="timer"], [class*="countdown"]');
   quality.timer = hasTimer ? 7 : 2;
   
@@ -155,211 +136,157 @@ const GAME_PAGE_CHECK = `
 `;
 
 // ============================================================================
-// QUICK CHECK RUNNER
+// QUICK CHECK MONSTER
 // ============================================================================
 
-async function quickCheck(): Promise<void> {
-  const start = Date.now();
-
-  console.log("\n" + "═".repeat(50));
-  console.log("  ⚡ QUICK CHECK - Bug + Quality in < 5 seconds");
-  console.log("═".repeat(50) + "\n");
-
-  const browser = await chromium.launch({ headless: true });
-
-  let bugs: any[] = [];
-  let qualityScores: Record<string, number> = {};
-
-  try {
-    // Check 1: Home page (bugs + quality)
-    const ctx1 = await browser.newContext({
-      viewport: { width: 1280, height: 720 },
+class QuickCheckMonster extends BrowserBaseMonster {
+  constructor() {
+    super({
+      name: "Quick Check",
+      type: "quick-check",
+      timeout: 30000,
     });
-    const page1 = await ctx1.newPage();
+  }
+
+  protected async execute(_runConfig: RunConfig): Promise<void> {
+    console.log("\n" + "═".repeat(50));
+    console.log("  ⚡ QUICK CHECK - Bug + Quality in < 5 seconds");
+    console.log("═".repeat(50) + "\n");
+
+    let bugs: Array<{ sev: string; msg: string }> = [];
+    let qualityScores: Record<string, number> = {};
+
+    // Check 1: Home page (bugs + quality)
+    const ctx1 = await this.createContext(DESKTOP_VIEWPORT);
+    const { page: page1 } = await this.createPage(ctx1);
 
     console.log("  📍 Checking home page...");
-    await page1.goto(`${BASE_URL}/`, {
-      waitUntil: "networkidle",
-      timeout: 10000,
+    this.recordCheck();
+    const homeLoaded = await this.navigateTo(page1, "/", {
+      waitForSelector: 'h1, main, [class*="hero"], [class*="home"]',
     });
-    // Wait for React app to render (check for h1 or main content)
-    await page1
-      .waitForSelector('h1, main, [class*="hero"], [class*="home"]', {
-        timeout: 3000,
-      })
-      .catch(() => {});
-    const homeResult = (await page1.evaluate(MEGA_CHECK)) as any;
-    bugs = homeResult.bugs;
-    qualityScores = { ...homeResult.quality };
+    if (homeLoaded) {
+      const homeResult = (await page1.evaluate(MEGA_CHECK)) as {
+        bugs: Array<{ sev: string; msg: string }>;
+        quality: Record<string, number>;
+      };
+      bugs = homeResult.bugs;
+      qualityScores = { ...homeResult.quality };
+      this.recordTest(true);
+    } else {
+      this.recordTest(false);
+    }
     await ctx1.close();
 
     // Check 2: Game page (game-specific quality)
-    const ctx2 = await browser.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page2 = await ctx2.newPage();
+    const ctx2 = await this.createContext(DESKTOP_VIEWPORT);
+    const { page: page2 } = await this.createPage(ctx2);
 
     console.log("  📍 Checking game interface...");
-    await page2.goto(`${BASE_URL}/tables`, {
-      waitUntil: "networkidle",
-      timeout: 10000,
-    });
-    await page2
-      .waitForSelector('main, h1, [class*="table"]', { timeout: 3000 })
-      .catch(() => {});
-    const gameResult = (await page2.evaluate(GAME_PAGE_CHECK)) as Record<
-      string,
-      number
-    >;
-    qualityScores = { ...qualityScores, ...gameResult };
+    this.recordCheck();
+    const tablesLoaded = await this.navigateTo(page2, "/tables");
+    if (tablesLoaded) {
+      const gameResult = (await page2.evaluate(GAME_PAGE_CHECK)) as Record<
+        string,
+        number
+      >;
+      qualityScores = { ...qualityScores, ...gameResult };
+      this.recordTest(true);
+    } else {
+      this.recordTest(false);
+    }
     await ctx2.close();
 
     // Check 3: Mobile (quick overflow check)
-    const ctx3 = await browser.newContext({
-      viewport: { width: 375, height: 667 },
-    });
-    const page3 = await ctx3.newPage();
+    const ctx3 = await this.createContext(MOBILE_VIEWPORT);
+    const { page: page3 } = await this.createPage(ctx3);
 
     console.log("  📍 Checking mobile...");
-    await page3.goto(`${BASE_URL}/`, {
-      waitUntil: "networkidle",
-      timeout: 10000,
-    });
-    await page3.waitForSelector("h1, main", { timeout: 3000 }).catch(() => {});
-    const mobileOverflow = await page3.evaluate(
-      `document.body.scrollWidth > window.innerWidth`,
-    );
-    if (mobileOverflow) {
-      bugs.push({ sev: "low", msg: "Mobile horizontal overflow" });
+    this.recordCheck();
+    const mobileLoaded = await this.navigateTo(page3, "/");
+    if (mobileLoaded) {
+      const mobileOverflow = await page3.evaluate(
+        `document.body.scrollWidth > window.innerWidth`,
+      );
+      if (mobileOverflow) {
+        bugs.push({ sev: "low", msg: "Mobile horizontal overflow" });
+      }
+      this.recordTest(true);
+    } else {
+      this.recordTest(false);
     }
     await ctx3.close();
-  } catch (err) {
-    bugs.push({
-      sev: "high",
-      msg: `Page load error: ${String(err).slice(0, 50)}`,
-    });
-  }
 
-  await browser.close();
-
-  // Calculate final score (filter out internal flags)
-  const allScores = Object.entries(qualityScores)
-    .filter(([key]) => !key.startsWith("_"))
-    .map(([, score]) => score as number);
-  const finalScore = Math.round(
-    allScores.reduce((a, b) => a + b, 0) / allScores.length,
-  );
-  const grade =
-    finalScore >= 8 ? "A" : finalScore >= 6 ? "B" : finalScore >= 4 ? "C" : "F";
-
-  const duration = ((Date.now() - start) / 1000).toFixed(1);
-
-  // ===================== SAVE TO UNIFIED TRACKER =====================
-
-  // Save bugs to tracker
-  for (const bug of bugs) {
-    addIssue({
-      category: "BUG",
-      severity: bug.sev as Severity,
-      source: "quick-check",
-      title: bug.msg.split(":")[0] || bug.msg,
-      description: bug.msg,
-      location: "/",
-    });
-  }
-
-  // Save quality issues (scores < 4) to tracker
-  for (const [key, score] of Object.entries(qualityScores)) {
-    // Skip internal flags
-    if (key.startsWith("_")) continue;
-
-    if (score < 4) {
-      addIssue({
-        category: "QUALITY",
-        severity: score < 2 ? "high" : "medium",
-        source: "quick-check",
-        title: `Low ${key} score`,
-        description: `${key} scored ${score}/10`,
-        location: "/",
-        suggestion: getQualitySuggestion(key),
+    // Track bugs as findings
+    for (const bug of bugs) {
+      this.addFinding({
+        category: "BUG",
+        severity: bug.sev as Severity,
+        title: bug.msg.split(":")[0] || bug.msg,
+        description: bug.msg,
+        location: { page: "/" },
+        reproducible: true,
+        tags: ["quick-check"],
       });
     }
-  }
 
-  // ===================== PRINT REPORT =====================
+    // Track quality issues (scores < 4)
+    for (const [key, score] of Object.entries(qualityScores)) {
+      if (key.startsWith("_")) continue;
+      this.recordCheck();
+      if (score < 4) {
+        this.addFinding({
+          category: "UX",
+          severity: (score < 2 ? "high" : "medium") as Severity,
+          title: `Low ${key} score`,
+          description: `${key} scored ${score}/10. ${getQualitySuggestion(key)}`,
+          location: { page: "/" },
+          reproducible: true,
+          tags: ["quality", key],
+        });
+      }
+    }
 
-  console.log("\n" + "─".repeat(50));
-  console.log(`  ⏱️  Completed in ${duration}s`);
-  console.log("─".repeat(50));
+    // Print quality summary
+    const allScores = Object.entries(qualityScores)
+      .filter(([key]) => !key.startsWith("_"))
+      .map(([, score]) => score as number);
+    const finalScore =
+      allScores.length > 0
+        ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+        : 0;
+    const grade =
+      finalScore >= 8
+        ? "A"
+        : finalScore >= 6
+          ? "B"
+          : finalScore >= 4
+            ? "C"
+            : "F";
 
-  // Bugs
-  const critical = bugs.filter((b) => b.sev === "critical").length;
-  const high = bugs.filter((b) => b.sev === "high").length;
-  const medium = bugs.filter((b) => b.sev === "medium").length;
-  const low = bugs.filter((b) => b.sev === "low").length;
+    console.log(`\n  🎨 QUALITY: ${finalScore}/10 (${grade})`);
 
-  console.log(`\n  🐛 BUGS: ${bugs.length} found`);
-  if (bugs.length > 0) {
-    console.log(
-      `     🔴 ${critical} critical | 🟠 ${high} high | 🟡 ${medium} medium | 🟢 ${low} low`,
-    );
-    bugs.slice(0, 5).forEach((b) => {
-      const icon =
-        b.sev === "critical"
-          ? "🔴"
-          : b.sev === "high"
-            ? "🟠"
-            : b.sev === "medium"
-              ? "🟡"
-              : "🟢";
-      console.log(`     ${icon} ${b.msg}`);
-    });
-  } else {
-    console.log("     ✅ No bugs detected!");
-  }
+    const categories: Record<string, string[]> = {
+      Visual: ["typography", "animations", "pokerTable", "cards"],
+      UX: ["navigation", "firstImpression"],
+      Game: ["bettingUI", "playerSeats", "timer"],
+      Polish: ["consistency", "polish"],
+    };
 
-  // Quality
-  console.log(`\n  🎨 QUALITY: ${finalScore}/10 (${grade})`);
-
-  const categories = {
-    Visual: ["typography", "animations", "pokerTable", "cards"],
-    UX: ["navigation", "firstImpression"],
-    Game: ["bettingUI", "playerSeats", "timer"],
-    Polish: ["consistency", "polish"],
-  };
-
-  for (const [cat, keys] of Object.entries(categories)) {
-    const catScores = keys
-      .filter((k) => qualityScores[k] !== undefined)
-      .map((k) => qualityScores[k]);
-    if (catScores.length > 0) {
-      const avg = Math.round(
-        catScores.reduce((a, b) => a + b, 0) / catScores.length,
-      );
-      const bar = "█".repeat(avg) + "░".repeat(10 - avg);
-      console.log(`     ${cat.padEnd(8)} ${bar} ${avg}/10`);
+    for (const [cat, keys] of Object.entries(categories)) {
+      const catScores = keys
+        .filter((k) => qualityScores[k] !== undefined)
+        .map((k) => qualityScores[k]);
+      if (catScores.length > 0) {
+        const avg = Math.round(
+          catScores.reduce((a, b) => a + b, 0) / catScores.length,
+        );
+        const bar = "█".repeat(avg) + "░".repeat(10 - avg);
+        console.log(`     ${cat.padEnd(8)} ${bar} ${avg}/10`);
+      }
     }
   }
-
-  // Verdict
-  console.log("\n" + "─".repeat(50));
-  const passed = critical === 0 && high === 0 && finalScore >= 4;
-  if (passed) {
-    console.log("  ✅ QUICK CHECK PASSED");
-  } else {
-    console.log("  ❌ QUICK CHECK FAILED - Issues need attention");
-  }
-  console.log("─".repeat(50) + "\n");
-
-  // Show tracker summary
-  printSummary();
-
-  process.exit(passed ? 0 : 1);
 }
-
-// ============================================================================
-// QUALITY SUGGESTIONS
-// ============================================================================
 
 function getQualitySuggestion(key: string): string {
   const suggestions: Record<string, string> = {
@@ -380,7 +307,4 @@ function getQualitySuggestion(key: string): string {
 // RUN
 // ============================================================================
 
-quickCheck().catch((err) => {
-  console.error("Quick check crashed:", err);
-  process.exit(1);
-});
+runMonsterCli(new QuickCheckMonster(), "quick-check");

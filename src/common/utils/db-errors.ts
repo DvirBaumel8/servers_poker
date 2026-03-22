@@ -64,9 +64,13 @@ export function mapPostgresError(
   }
 
   if (code === PG_ERROR_CODES.NOT_NULL_VIOLATION) {
+    const column = (dbError as { column?: string }).column;
+    const fallback =
+      column != null && column.length > 0
+        ? `Required field is missing (${column})`
+        : "Required field is missing";
     return new BadRequestException(
-      mappings[PG_ERROR_CODES.NOT_NULL_VIOLATION] ||
-        "Required field is missing",
+      mappings[PG_ERROR_CODES.NOT_NULL_VIOLATION] || fallback,
     );
   }
 

@@ -1,6 +1,6 @@
 # 🧬 Monster Evolution Report
 
-**Generated:** 3/22/2026, 1:58:36 PM
+**Generated:** 3/22/2026, 10:24:27 PM
 
 ## Evolution Suggestions
 
@@ -10,12 +10,15 @@
 
 | Monster | Issues Found | Categories |
 |---------|--------------|------------|
-| quick-check | 1 | BUG |
+| data-integrity | 11 | CODE_QUALITY |
+| fast-quality | 7 | UX |
+| product-quality | 1 | QUALITY |
+| log-analyzer | 1 | CODE_QUALITY |
 
 ## Silent Monsters (0 Issues Found)
 
+- quick-check
 - fast-browser
-- fast-quality
 - css-lint
 - layout-lint
 - invariant
@@ -24,16 +27,24 @@
 - visual
 - guardian
 - code-quality
+- data-analytics
+- regression-check
 - design-critic
-- product-quality
-- live-ui
+- explorer
 - browser-qa
 - e2e
 - game-flow
 - tournament-flow
 - chaos
 - superhero
-- browser
+
+## Dead-Weight Analysis
+
+- **CSS Lint** — 191 runs, 72% success, 0 issues found
+- **Live UI Monster** — 52 runs, 96% success, 0 issues found
+- **Design Critic** — 76 runs, 97% success, 0 issues found
+- **Browser Monster** — 52 runs, 100% success, 0 issues found
+- **Product Quality** — 76 runs, 92% success, 0 issues found
 
 ## Recommended Actions
 

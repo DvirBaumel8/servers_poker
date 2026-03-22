@@ -63,7 +63,10 @@ export class GameRecoveryService implements OnModuleInit {
 
     setTimeout(() => {
       this.attemptAutoRecovery().catch((e) =>
-        this.logger.error(`Auto recovery failed: ${e.message}`),
+        this.logger.error(
+          `Auto recovery failed: ${e.message}`,
+          e instanceof Error ? e.stack : undefined,
+        ),
       );
     }, this.recoveryDelayMs);
   }
@@ -118,7 +121,10 @@ export class GameRecoveryService implements OnModuleInit {
           }
         } catch (error) {
           const errorMsg = `Failed to recover game ${snapshot.game_id}: ${error}`;
-          this.logger.error(errorMsg);
+          this.logger.error(
+            errorMsg,
+            error instanceof Error ? error.stack : undefined,
+          );
           result.errors.push(errorMsg);
         }
       }
@@ -128,7 +134,10 @@ export class GameRecoveryService implements OnModuleInit {
       );
     } catch (error) {
       const errorMsg = `Recovery process failed: ${error}`;
-      this.logger.error(errorMsg);
+      this.logger.error(
+        errorMsg,
+        error instanceof Error ? error.stack : undefined,
+      );
       result.errors.push(errorMsg);
     }
 
@@ -172,7 +181,10 @@ export class GameRecoveryService implements OnModuleInit {
               }
             } catch (error) {
               const errorMsg = `Failed to recover Redis game ${tableId}: ${error}`;
-              this.logger.error(errorMsg);
+              this.logger.error(
+                errorMsg,
+                error instanceof Error ? error.stack : undefined,
+              );
               result.errors.push(errorMsg);
               await this.gameOwnershipService!.releaseGameOwnership(tableId);
             }
@@ -181,7 +193,10 @@ export class GameRecoveryService implements OnModuleInit {
       }
     } catch (error) {
       const errorMsg = `Redis recovery scan failed: ${error}`;
-      this.logger.error(errorMsg);
+      this.logger.error(
+        errorMsg,
+        error instanceof Error ? error.stack : undefined,
+      );
       result.errors.push(errorMsg);
     }
 
@@ -213,7 +228,7 @@ export class GameRecoveryService implements OnModuleInit {
       players: snapshot.players.map((p) => ({
         id: p.id,
         name: p.name,
-        endpoint: "",
+        strategy: null as Record<string, any> | null,
         chips: p.chips,
         holeCards: p.holeCards || [],
         folded: p.folded,
@@ -228,10 +243,10 @@ export class GameRecoveryService implements OnModuleInit {
         try {
           const bot = await this.botRepository.findById(player.id);
           if (bot) {
-            player.endpoint = bot.endpoint;
+            player.strategy = bot.strategy;
           }
         } catch {
-          this.logger.warn(`Could not find bot endpoint for ${player.id}`);
+          this.logger.warn(`Could not find bot strategy for ${player.id}`);
         }
       }
     }
@@ -303,58 +318,6 @@ export class GameRecoveryService implements OnModuleInit {
       tournamentId: snapshot.tournament_id,
       snapshot,
     });
-
-    for (const player of snapshot.players) {
-      if (!player.disconnected) {
-        try {
-          const bot = await this.botRepository.findById(player.id);
-          if (bot) {
-            await this.notifyBotOfRecovery(bot.endpoint, snapshot);
-          }
-        } catch (error) {
-          this.logger.warn(
-            `Failed to notify bot ${player.id} of recovery: ${error}`,
-          );
-        }
-      }
-    }
-  }
-
-  private async notifyBotOfRecovery(
-    endpoint: string,
-    snapshot: GameStateSnapshot,
-  ): Promise<void> {
-    const recoveryPayload = {
-      event: "game_recovered",
-      game_id: snapshot.game_id,
-      table_id: snapshot.table_id,
-      hand_number: snapshot.hand_number,
-      stage: snapshot.game_stage,
-      message: "Game has been recovered after server restart",
-    };
-
-    try {
-      const controller = new AbortController();
-      const botRecoveryTimeout = this.configService.get<number>(
-        "botRecoveryTimeoutMs",
-        5000,
-      );
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        botRecoveryTimeout,
-      );
-
-      await fetch(`${endpoint}/recovery`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(recoveryPayload),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-    } catch {
-      // Bot may not support recovery endpoint - that's okay
-    }
   }
 
   async getRecoveryStatus(): Promise<{

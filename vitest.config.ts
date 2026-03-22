@@ -76,14 +76,9 @@ export default defineConfig({
 
         // ═══════════════════════════════════════════════════════════════
         // SERVICES REQUIRING EXTERNAL SYSTEMS
-        // These services integrate with external systems (bots, Redis,
+        // These services integrate with external systems (Redis,
         // database) and are better tested via integration/E2E tests.
         // ═══════════════════════════════════════════════════════════════
-
-        // Bot communication services
-        "src/services/bot/bot-caller.service.ts",
-        "src/services/bot/bot-validator.service.ts",
-        "src/services/bot/bot-health-scheduler.service.ts",
 
         // Game state management (complex state machines)
         "src/services/game/*-persistence.service.ts",
@@ -107,16 +102,12 @@ export default defineConfig({
         "src/services/daily-summary.service.ts",
         "src/services/hand-seed-persistence.service.ts",
 
-        // Security services (complex mocking required)
-        "src/common/security/api-key-rotation.service.ts",
-
         // ═══════════════════════════════════════════════════════════════
         // SCRIPTS & ONE-TIME RUNNERS
         // Not production code - scripts and simulations.
         // ═══════════════════════════════════════════════════════════════
         "src/simulation/**",
         "src/workers/**",
-        "src/botValidator.ts",
       ],
       reportOnFailure: true,
       thresholds: {

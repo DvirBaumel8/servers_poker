@@ -8,8 +8,9 @@
  * Target: < 20 seconds
  */
 
-import { chromium, Browser, Page, BrowserContext } from "playwright";
+import { Page } from "playwright";
 import * as fs from "fs";
+import { readJsonSafe } from "../shared/fs-utils";
 import * as path from "path";
 import {
   addIssue,
@@ -17,6 +18,13 @@ import {
   updateQualityReport,
   generateReport,
 } from "../shared/issue-tracker";
+import {
+  BrowserBaseMonster,
+  DESKTOP_VIEWPORT,
+  MOBILE_VIEWPORT,
+} from "../shared/browser-base-monster";
+import { RunConfig } from "../shared/types";
+import { runMonsterCli } from "../shared/cli-runner";
 
 const BASE_URL = process.env.FRONTEND_URL || "http://localhost:3001";
 
@@ -332,12 +340,22 @@ const BATCH_POLISH_CHECK = `(() => {
     competitorComparison: 'Mobile drives 60%+ of poker traffic; GGPoker/PokerStars are mobile-first'
   };
   
-  // Error handling - check for AlertBanner patterns with retry functionality
+  // Error handling - detect ACTIVE error banners (bugs) vs dormant error-handling infrastructure
   const errorElements = document.querySelectorAll('[class*="error"], [role="alert"], [class*="Alert"]');
+  const activeErrors = Array.from(errorElements).filter(el => {
+    const style = window.getComputedStyle(el);
+    const isVisible = style.display !== 'none' && style.visibility !== 'hidden';
+    const text = (el.textContent || '').toLowerCase();
+    return isVisible && (text.includes('error') || text.includes('failed') || text.includes('not found'));
+  });
   results.errorHandling = {
-    score: errorElements.length > 0 ? 8 : 7,
-    observation: errorElements.length > 0 ? 'Error handling patterns detected' : 'Standard error handling',
-    suggestion: null,
+    score: activeErrors.length > 0 ? 2 : 8,
+    observation: activeErrors.length > 0 
+      ? 'Active error banner detected: ' + activeErrors[0].textContent?.slice(0, 80) 
+      : 'No error banners on page load',
+    suggestion: activeErrors.length > 0 
+      ? 'Fix the error causing this banner - users see it on page load' 
+      : null,
     competitorComparison: 'Good apps: inline validation, toast notifications, recovery actions'
   };
   
@@ -531,9 +549,8 @@ const HISTORY_FILE = path.join(
 // PRODUCT QUALITY MONSTER
 // ============================================================================
 
-class ProductQualityMonster {
-  private browser: Browser | null = null;
-  private findings: QualityFinding[] = [];
+class ProductQualityMonster extends BrowserBaseMonster {
+  private qualityFindings: QualityFinding[] = [];
   private performanceMetrics: PerformanceMetrics | null = null;
   private accessibilityResults: {
     score: number;
@@ -541,23 +558,23 @@ class ProductQualityMonster {
   } | null = null;
   private screenshots: string[] = [];
 
-  async run(): Promise<QualityReport> {
-    const startTime = Date.now();
+  constructor() {
+    super({
+      name: "Product Quality",
+      type: "product-quality",
+      timeout: 60000,
+    });
+  }
 
+  protected async execute(_runConfig: RunConfig): Promise<void> {
     console.log("\n" + "═".repeat(70));
     console.log("  🎯 PRODUCT QUALITY MONSTER - Comprehensive Analysis");
     console.log("═".repeat(70) + "\n");
 
-    this.browser = await chromium.launch({
-      headless: process.env.HEADLESS !== "false",
-    });
-
-    // Ensure screenshots directory exists
     if (!fs.existsSync(SCREENSHOTS_DIR)) {
       fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
     }
 
-    // Run all checks in parallel contexts
     console.log("  📍 Running quality checks...");
     await Promise.all([
       this.checkHomePage(),
@@ -565,16 +582,12 @@ class ProductQualityMonster {
       this.checkTournamentPage(),
     ]);
 
-    // Run performance and accessibility checks
     console.log("  📍 Running performance & accessibility checks...");
     await this.checkPerformance();
     await this.checkAccessibility();
 
-    // Capture screenshots
     console.log("  📍 Capturing screenshots...");
     await this.captureScreenshots();
-
-    await this.browser.close();
 
     // Add A/B test ideas to findings
     this.addAbTestIdeas();
@@ -598,7 +611,7 @@ class ProductQualityMonster {
       overallScore,
       grade: this.getGrade(overallScore),
       summary: this.getSummary(overallScore),
-      findings: this.findings,
+      findings: this.qualityFindings,
       topPriorities: this.getTopPriorities(),
       performance: this.performanceMetrics || undefined,
       accessibility: this.accessibilityResults || undefined,
@@ -606,27 +619,23 @@ class ProductQualityMonster {
       trend,
     };
 
-    // Save to history
     this.saveToHistory(overallScore, scores);
 
-    this.printReport(report, Date.now() - startTime);
+    this.printReport(report, 0);
     await this.saveReport(report);
-
-    return report;
   }
 
   private async checkPerformance(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
+    const context = await this.createContext(DESKTOP_VIEWPORT);
     const page = await context.newPage();
 
     try {
       const startNav = Date.now();
       await page.goto(`${BASE_URL}/`, {
         timeout: 15000,
-        waitUntil: "networkidle",
+        waitUntil: "domcontentloaded",
       });
+      await page.waitForSelector("h1, nav", { timeout: 5000 }).catch(() => {});
       const pageLoadTime = Date.now() - startNav;
 
       // Get performance metrics from browser using string evaluation
@@ -653,7 +662,7 @@ class ProductQualityMonster {
 
       // Add performance findings
       if (pageLoadTime > 3000) {
-        this.addFinding(
+        this.addQualityFinding(
           "performance",
           "Page Load Time",
           pageLoadTime > 5000 ? 3 : 5,
@@ -664,7 +673,7 @@ class ProductQualityMonster {
       }
 
       if (metrics.fcp > 1800) {
-        this.addFinding(
+        this.addQualityFinding(
           "performance",
           "First Contentful Paint",
           metrics.fcp > 3000 ? 3 : 5,
@@ -681,9 +690,7 @@ class ProductQualityMonster {
   }
 
   private async checkAccessibility(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
+    const context = await this.createContext(DESKTOP_VIEWPORT);
     const page = await context.newPage();
 
     try {
@@ -702,7 +709,7 @@ class ProductQualityMonster {
       // Add accessibility finding based on score
       const a11yScore = results.score;
       if (a11yScore < 90) {
-        this.addFinding(
+        this.addQualityFinding(
           "accessibility",
           "WCAG Compliance",
           Math.round(a11yScore / 10),
@@ -719,14 +726,13 @@ class ProductQualityMonster {
   }
 
   private async captureScreenshots(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
+    const context = await this.createContext(DESKTOP_VIEWPORT);
     const page = await context.newPage();
 
     const pages = [
       { name: "home", url: "/" },
       { name: "tournaments", url: "/tournaments" },
+      { name: "bots", url: "/bots" },
       { name: "login", url: "/login" },
       { name: "bot-builder", url: "/bots/build" },
     ];
@@ -737,9 +743,12 @@ class ProductQualityMonster {
       try {
         await page.goto(`${BASE_URL}${p.url}`, {
           timeout: 10000,
-          waitUntil: "networkidle",
+          waitUntil: "domcontentloaded",
         });
-        await page.waitForTimeout(500); // Wait for animations
+        await page
+          .waitForSelector("h1, main, nav", { timeout: 5000 })
+          .catch(() => {});
+        await page.waitForTimeout(500);
 
         const screenshotPath = path.join(
           SCREENSHOTS_DIR,
@@ -757,8 +766,11 @@ class ProductQualityMonster {
     try {
       await page.goto(`${BASE_URL}/`, {
         timeout: 10000,
-        waitUntil: "networkidle",
+        waitUntil: "domcontentloaded",
       });
+      await page
+        .waitForSelector("h1, nav, button", { timeout: 5000 })
+        .catch(() => {});
       const mobilePath = path.join(
         SCREENSHOTS_DIR,
         `home-mobile-${timestamp}.png`,
@@ -773,7 +785,7 @@ class ProductQualityMonster {
   }
 
   private addAbTestIdeas(): void {
-    for (const finding of this.findings) {
+    for (const finding of this.qualityFindings) {
       const idea = AB_TEST_IDEAS[finding.criterion];
       if (idea) {
         finding.abTestIdea = idea;
@@ -787,13 +799,7 @@ class ProductQualityMonster {
   ): QualityReport["trend"] {
     let history: HistoricalScore[] = [];
 
-    if (fs.existsSync(HISTORY_FILE)) {
-      try {
-        history = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"));
-      } catch {
-        history = [];
-      }
-    }
+    history = readJsonSafe<HistoricalScore[]>(HISTORY_FILE) ?? [];
 
     const previous = history.length > 0 ? history[history.length - 1] : null;
     const previousScore = previous?.overallScore || currentScore;
@@ -812,13 +818,7 @@ class ProductQualityMonster {
   ): void {
     let history: HistoricalScore[] = [];
 
-    // Read existing history, handling missing file gracefully
-    try {
-      history = JSON.parse(fs.readFileSync(HISTORY_FILE, "utf-8"));
-    } catch {
-      // File doesn't exist or is invalid JSON, start fresh
-      history = [];
-    }
+    history = readJsonSafe<HistoricalScore[]>(HISTORY_FILE) ?? [];
 
     // Add current score
     history.push({
@@ -839,17 +839,15 @@ class ProductQualityMonster {
   }
 
   private async checkHomePage(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
+    const context = await this.createContext(DESKTOP_VIEWPORT);
     const page = await context.newPage();
 
     try {
       await page.goto(`${BASE_URL}/`, {
         timeout: 10000,
-        waitUntil: "networkidle",
+        waitUntil: "domcontentloaded",
       });
-      // Wait for React app to fully render
+      await page.waitForSelector("h1, nav", { timeout: 5000 }).catch(() => {});
       await page
         .waitForSelector('h1, main, [class*="hero"]', { timeout: 3000 })
         .catch(() => {});
@@ -872,9 +870,7 @@ class ProductQualityMonster {
   }
 
   private async checkGamePage(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
+    const context = await this.createContext(DESKTOP_VIEWPORT);
     const page = await context.newPage();
 
     try {
@@ -920,18 +916,16 @@ class ProductQualityMonster {
   }
 
   private async checkTournamentPage(): Promise<void> {
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
+    const context = await this.createContext(DESKTOP_VIEWPORT);
     const page = await context.newPage();
 
     try {
       await page.goto(`${BASE_URL}/tournaments`, {
         timeout: 10000,
-        waitUntil: "networkidle",
+        waitUntil: "domcontentloaded",
       });
       await page
-        .waitForSelector('main, h1, [class*="tournament"]', { timeout: 3000 })
+        .waitForSelector('main, h1, [class*="tournament"]', { timeout: 5000 })
         .catch(() => {});
 
       const hasTournaments = await page.evaluate(`
@@ -939,7 +933,7 @@ class ProductQualityMonster {
       `);
 
       if (!hasTournaments) {
-        this.addFinding(
+        this.addQualityFinding(
           "ux",
           "Tournament List",
           4,
@@ -950,7 +944,7 @@ class ProductQualityMonster {
       }
       // Don't flag "Tournament list exists" - that's a good thing, not an issue
     } catch (e) {
-      this.addFinding(
+      this.addQualityFinding(
         "ux",
         "Tournament Page",
         2,
@@ -976,10 +970,16 @@ class ProductQualityMonster {
         }
 
         const severity =
-          value.score <= 3 ? "critical" : value.score <= 5 ? "major" : "minor";
+          value.score <= 3
+            ? "critical"
+            : value.score <= 5
+              ? "major"
+              : value.score <= 7
+                ? "minor"
+                : "suggestion";
 
-        // Sync to unified issue tracker (only for issues worth tracking)
-        if (value.score <= 5 && value.suggestion) {
+        // Sync to unified issue tracker — report anything below 7
+        if (value.score <= 7 && value.suggestion) {
           const severityMap: Record<string, Severity> = {
             critical: "high",
             major: "medium",
@@ -1001,7 +1001,7 @@ class ProductQualityMonster {
           }
         }
 
-        this.findings.push({
+        this.qualityFindings.push({
           criterion: key,
           category,
           severity: severity as any,
@@ -1014,7 +1014,7 @@ class ProductQualityMonster {
     }
   }
 
-  private addFinding(
+  private addQualityFinding(
     category: string,
     criterion: string,
     score: number,
@@ -1045,7 +1045,7 @@ class ProductQualityMonster {
       // Silently ignore
     }
 
-    this.findings.push({
+    this.qualityFindings.push({
       criterion,
       category,
       severity,
@@ -1056,7 +1056,9 @@ class ProductQualityMonster {
   }
 
   private avgScore(category: string): number {
-    const catFindings = this.findings.filter((f) => f.category === category);
+    const catFindings = this.qualityFindings.filter(
+      (f) => f.category === category,
+    );
     if (catFindings.length === 0) return 5;
     return Math.round(
       catFindings.reduce((sum, f) => sum + f.score, 0) / catFindings.length,
@@ -1073,10 +1075,10 @@ class ProductQualityMonster {
   }
 
   private getSummary(score: number): string {
-    const criticalCount = this.findings.filter(
+    const criticalCount = this.qualityFindings.filter(
       (f) => f.severity === "critical",
     ).length;
-    const majorCount = this.findings.filter(
+    const majorCount = this.qualityFindings.filter(
       (f) => f.severity === "major",
     ).length;
     const lowestCategory = this.getLowestCategory();
@@ -1113,17 +1115,14 @@ class ProductQualityMonster {
   }
 
   private getTopPriorities(): string[] {
-    // First, get critical/major issues
-    const criticalMajor = this.findings
+    const criticalMajor = this.qualityFindings
       .filter((f) => f.severity === "critical" || f.severity === "major")
       .filter((f) => f.suggestion && f.suggestion !== "No specific suggestion.")
       .sort((a, b) => a.score - b.score);
 
-    // If no critical/major, get lowest-scoring items that still have suggestions
-    // These represent the biggest improvement opportunities
-    const lowestScoring = this.findings
+    const lowestScoring = this.qualityFindings
       .filter((f) => f.suggestion && f.suggestion !== "No specific suggestion.")
-      .filter((f) => f.score < 8) // Only items that aren't already good
+      .filter((f) => f.score < 8)
       .sort((a, b) => a.score - b.score);
 
     const priorities = criticalMajor.length > 0 ? criticalMajor : lowestScoring;
@@ -1494,14 +1493,4 @@ ${report.accessibility ? `| Accessibility | ${report.accessibility.score}/100 |`
 // CLI
 // ============================================================================
 
-async function main(): Promise<void> {
-  const monster = new ProductQualityMonster();
-  const report = await monster.run();
-
-  process.exit(report.overallScore >= 5 ? 0 : 1);
-}
-
-main().catch((err) => {
-  console.error("Product Quality Monster failed:", err);
-  process.exit(1);
-});
+runMonsterCli(new ProductQualityMonster(), "product-quality");

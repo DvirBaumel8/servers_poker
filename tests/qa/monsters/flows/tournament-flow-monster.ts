@@ -20,6 +20,7 @@ export class TournamentFlowMonster extends BaseMonster {
       type: "api",
       timeout: 60000, // 1 minute max
       verbose: true,
+      needsServer: true,
     });
     const env = getEnv();
     this.baseUrl = env.apiBaseUrl.replace("/api/v1", "");

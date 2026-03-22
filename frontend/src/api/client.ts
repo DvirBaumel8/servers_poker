@@ -1,14 +1,16 @@
 const API_BASE = "/api/v1";
+const DEFAULT_TIMEOUT_MS = 30000;
 
 interface RequestOptions extends RequestInit {
   token?: string;
+  timeoutMs?: number;
 }
 
 async function request<T>(
   endpoint: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { token, ...fetchOptions } = options;
+  const { token, timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOptions } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -19,22 +21,46 @@ async function request<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...fetchOptions,
-    headers,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `HTTP ${response.status}`);
+  // Merge with any externally-provided signal
+  const externalSignal = fetchOptions.signal;
+  if (externalSignal) {
+    externalSignal.addEventListener("abort", () => controller.abort());
   }
 
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...fetchOptions,
+      headers,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      if (externalSignal?.aborted) {
+        throw new (Error as any)("Request cancelled", { cause: error });
+      }
+      throw new (Error as any)(`Request timed out after ${timeoutMs}ms`, {
+        cause: error,
+      });
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export const api = {
-  get: <T>(endpoint: string, token?: string) =>
-    request<T>(endpoint, { method: "GET", token }),
+  get: <T>(endpoint: string, token?: string, signal?: AbortSignal) =>
+    request<T>(endpoint, { method: "GET", token, signal }),
 
   post: <T>(endpoint: string, data?: unknown, token?: string) =>
     request<T>(endpoint, {

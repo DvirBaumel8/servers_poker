@@ -1,8 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule } from "@nestjs/config";
 import { BotsController } from "./bots.controller";
-import { BotsConnectivityController } from "./bots-connectivity.controller";
+import { BotsInternalController } from "./bots-internal.controller";
 import { SubscriptionsController } from "./subscriptions.controller";
 import { BotsService } from "./bots.service";
 import { BotOwnershipService } from "./bot-ownership.service";
@@ -19,7 +18,6 @@ import { BotRepository } from "../../repositories/bot.repository";
 import { BotSubscriptionRepository } from "../../repositories/bot-subscription.repository";
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
-import { UrlValidatorService } from "../../common/validators/url-validator.service";
 import { StrategyDecision } from "../../entities/strategy-decision.entity";
 import { StrategyAnalysisReport } from "../../entities/strategy-analysis-report.entity";
 import { StrategyTunerRun } from "../../entities/strategy-tuner-run.entity";
@@ -44,11 +42,10 @@ import { StrategyTunerController } from "../bot-strategy/strategy-tuner.controll
       StrategyAnalysisReport,
       StrategyTunerRun,
     ]),
-    ConfigModule,
   ],
   controllers: [
+    BotsInternalController,
     BotsController,
-    BotsConnectivityController,
     SubscriptionsController,
     StrategyTunerController,
   ],
@@ -59,7 +56,6 @@ import { StrategyTunerController } from "../bot-strategy/strategy-tuner.controll
     BotSubscriptionRepository,
     TournamentRepository,
     AnalyticsRepository,
-    UrlValidatorService,
     DecisionLoggerService,
     DecisionAnalyzerService,
     StrategyTunerService,

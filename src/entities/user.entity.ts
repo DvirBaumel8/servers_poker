@@ -14,18 +14,6 @@ export class User extends BaseEntity {
   @Column({ type: "varchar", length: 60 })
   password_hash: string;
 
-  @Column({ type: "varchar", length: 64 })
-  api_key_hash: string;
-
-  @Column({ type: "timestamp with time zone", nullable: true })
-  api_key_created_at: Date | null;
-
-  @Column({ type: "timestamp with time zone", nullable: true })
-  api_key_expires_at: Date | null;
-
-  @Column({ type: "timestamp with time zone", nullable: true })
-  api_key_last_used_at: Date | null;
-
   @Column({ type: "boolean", default: true })
   active: boolean;
 
@@ -58,6 +46,12 @@ export class User extends BaseEntity {
 
   @Column({ type: "timestamp with time zone", nullable: true })
   last_failed_login_at: Date | null;
+
+  @Column({ type: "varchar", length: 64, nullable: true })
+  refresh_token_hash: string | null;
+
+  @Column({ type: "timestamp with time zone", nullable: true })
+  refresh_token_expires_at: Date | null;
 
   @OneToMany(() => Bot, (bot) => bot.user)
   bots: Bot[];

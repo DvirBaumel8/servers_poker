@@ -1,284 +1,50 @@
-# Build Your Poker Bot in 5 Minutes
+# Quick Start
 
-This guide gets you from zero to playing in a tournament in under 5 minutes.
-
-> **Note:** Replace `http://localhost:3000` with your server URL in production.
-
-## Choose Your Path
-
-### Option A: Copy & Run (Fastest)
-
-**Node.js:**
-```bash
-# Copy the example bot from the repo
-cp bots/examples/simple-bot.js my-bot.js
-node my-bot.js 3001
-```
-
-**Python:**
-```bash
-# Copy the example bot from the repo
-cp bots/examples/simple-bot.py my-bot.py
-python my-bot.py 3001
-```
-
-Your bot is now running at `http://localhost:3001`. Skip to [Register Your Bot](#register-your-bot).
+Get a bot playing poker in under 5 minutes.
 
 ---
 
-### Option B: Install SDK (Recommended)
+## Step 1: Register an Account
 
-**Node.js:**
-```bash
-npm install @poker-engine/sdk
-```
+Go to `/register` and create an account with your email and password.
 
-Create `my-bot.js`:
-```javascript
-const { createBot } = require('@poker-engine/sdk');
+In dev mode, the verification code is printed to the backend console. Look for `[DEV MODE] Email to ...` in the logs.
 
-createBot({
-  port: 3001,
-  decide: (state) => {
-    // Your strategy here - this is ALL you need to implement
-    if (state.action.canCheck) return { type: 'check' };
-    if (state.you.bestHand?.isAtLeast('TWO_PAIR')) return { type: 'call' };
-    return { type: 'fold' };
-  }
-});
-```
+## Step 2: Go to the Bot Builder
 
-Run it:
-```bash
-node my-bot.js
-```
+Navigate to `/bots/build`.
 
-**Python:**
-```bash
-pip install poker-engine-sdk
-```
+## Step 3: Choose a Personality Preset
 
-Create `my_bot.py`:
-```python
-from poker_sdk import create_bot
+Pick a preset that matches the playstyle you want:
 
-def decide(state):
-    # Your strategy here - this is ALL you need to implement
-    if state.action.can_check:
-        return {'type': 'check'}
-    if state.you.best_hand and state.you.best_hand.is_at_least('TWO_PAIR'):
-        return {'type': 'call'}
-    return {'type': 'fold'}
+| Preset | Style |
+|--------|-------|
+| `shark` | Tight-aggressive, solid fundamentals |
+| `maniac` | Hyper-aggressive, plays many hands |
+| `rock` | Ultra-tight, only plays premium hands |
+| `calling_station` | Passive, calls a lot, rarely folds |
+| `balanced_pro` | Well-rounded, balanced play |
 
-create_bot(port=3001, decide=decide)
-```
+Select a preset or customize the sliders manually. See the [Bot Builder Guide](./BOT_DEVELOPER_GUIDE.md) for details on all tiers and options.
 
-Run it:
-```bash
-python my_bot.py
-```
+## Step 4: Save Your Bot
 
----
+Give your bot a name and click Save. Your bot is now ready to play.
 
-## Register Your Bot
+## Step 5: Join a Tournament or Cash Table
 
-1. **Create an account:**
-```bash
-curl -X POST http://localhost:3000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "you@example.com",
-    "password": "your-password",
-    "name": "Your Name"
-  }'
-```
+- **Tournament**: Go to `/tournaments`, find an open tournament, and register your bot.
+- **Cash Game**: Go to the game lobby and join an available table with your bot.
 
-2. **Verify your email** (check console logs in dev mode for verification code)
+## Step 6: Watch Your Bot Play
 
-3. **Register your bot:**
-```bash
-curl -X POST http://localhost:3000/api/v1/bots \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "MyFirstBot",
-    "endpoint": "http://localhost:3001/action"
-  }'
-```
-
-4. **Join a tournament:**
-```bash
-curl -X POST http://localhost:3000/api/v1/tournaments/TOURNAMENT_ID/register \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{"bot_id": "YOUR_BOT_ID"}'
-```
-
-That's it! Your bot will start playing when the tournament begins.
-
----
-
-## The Only Function You Need
-
-Your entire bot is this one function:
-
-```javascript
-function decide(state) {
-  // Return one of:
-  return { type: 'fold' };
-  return { type: 'check' };    // only when state.action.canCheck is true
-  return { type: 'call' };
-  return { type: 'raise', amount: 100 };
-  return { type: 'all_in' };
-}
-```
-
-The `state` object contains everything you need:
-
-```javascript
-state.you.chips          // Your chip count
-state.you.holeCards      // Your cards: ['A♠', 'K♥']
-state.you.bestHand       // Your best hand (post-flop): { name: 'TWO_PAIR', ... }
-state.you.position       // 'BTN', 'SB', 'BB', 'CO', etc.
-
-state.action.canCheck    // Can you check?
-state.action.toCall      // How much to call
-state.action.minRaise    // Minimum raise amount
-state.action.maxRaise    // Maximum raise (your stack - toCall)
-
-state.table.pot          // Current pot size
-state.table.communityCards  // Board cards
-state.stage              // 'pre-flop', 'flop', 'turn', 'river'
-
-state.players            // All players at the table
-```
-
----
-
-## Quick Strategy Examples
-
-### The Simplest Bot (Check/Fold)
-```javascript
-function decide(state) {
-  return state.action.canCheck ? { type: 'check' } : { type: 'fold' };
-}
-```
-
-### Tight-Aggressive
-```javascript
-function decide(state) {
-  const { you, action, table } = state;
-  
-  // Pre-flop: only play premium hands
-  if (state.stage === 'pre-flop') {
-    const cards = you.holeCards.map(c => c.rank).join('');
-    const premium = ['AA', 'KK', 'QQ', 'AK', 'AQ'].some(h => cards.includes(h));
-    if (premium) return { type: 'raise', amount: table.bigBlind * 3 };
-    return action.canCheck ? { type: 'check' } : { type: 'fold' };
-  }
-  
-  // Post-flop: bet/call with strong hands
-  if (you.bestHand?.isAtLeast('TWO_PAIR')) {
-    return { type: 'raise', amount: Math.floor(table.pot * 0.75) };
-  }
-  return action.canCheck ? { type: 'check' } : { type: 'fold' };
-}
-```
-
-### Calling Station
-```javascript
-function decide(state) {
-  return state.action.canCheck ? { type: 'check' } : { type: 'call' };
-}
-```
-
----
-
-## Test Your Bot Locally
-
-```bash
-# Test health endpoint
-curl http://localhost:3001/health
-
-# Test action endpoint
-curl -X POST http://localhost:3001/action \
-  -H "Content-Type: application/json" \
-  -d '{
-    "gameId": "test",
-    "handNumber": 1,
-    "stage": "pre-flop",
-    "you": {
-      "name": "MyBot",
-      "chips": 10000,
-      "holeCards": ["A♠", "K♥"],
-      "bet": 0,
-      "position": "BTN"
-    },
-    "action": {
-      "canCheck": false,
-      "toCall": 100,
-      "minRaise": 200,
-      "maxRaise": 9900
-    },
-    "table": {
-      "pot": 150,
-      "currentBet": 100,
-      "communityCards": [],
-      "smallBlind": 50,
-      "bigBlind": 100,
-      "ante": 0
-    },
-    "players": []
-  }'
-```
-
----
-
-## Deploy Options
-
-### Free Hosting
-- **Render.com**: Free tier, auto-deploys from GitHub
-- **Railway.app**: Free tier with generous limits
-- **Fly.io**: Free tier, global edge deployment
-- **Replit**: Free, instant deployment
-
-### Example: Deploy to Render
-1. Push your bot to GitHub
-2. Connect Render to your repo
-3. Set start command: `node bot.js $PORT`
-4. Your bot is live at `https://your-bot.onrender.com/action`
-
----
-
-## Common Issues
-
-### "Bot timed out"
-- Your bot must respond within **10 seconds**
-- Check for slow code or network issues
-- The boilerplate logs response time — aim for <1 second
-
-### "Invalid action"
-- Make sure `type` is one of: `fold`, `check`, `call`, `raise`, `all_in`
-- For `raise`, include a positive integer `amount`
-- Don't return `check` when `canCheck` is false
-
-### "Bot disconnected"
-- 3 consecutive errors/timeouts = disconnection
-- Make sure your server stays running
-- Handle all exceptions — return `{ type: 'fold' }` on error
+Open the game view to watch your bot in action. The UI shows cards, bets, pot size, and all player actions in real time.
 
 ---
 
 ## Next Steps
 
-1. **Read the strategy guide**: [STRATEGY.md](./STRATEGY.md)
-2. **Study example bots**: [/bots/examples/](../bots/examples/)
-3. **Test with simulation**: Run games locally before going live
-4. **Join Discord**: Get help from the community
-
----
-
-## Need Help?
-
-- **API Docs**: [API.md](./API.md)
-- **Full Bot Protocol**: [BOT_PROTOCOL.md](./BOT_PROTOCOL.md)
-- **Ask AI**: Copy [AI_CONTEXT.md](./AI_CONTEXT.md) into ChatGPT/Claude
+- **Upgrade your strategy**: Switch to Strategy or Pro tier for IF/THEN rules and range charts
+- **Test scenarios**: Use the What-If Simulator to test specific hands
+- **Read the full guide**: [Bot Builder Guide](./BOT_DEVELOPER_GUIDE.md)

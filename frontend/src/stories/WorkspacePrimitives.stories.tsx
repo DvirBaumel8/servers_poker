@@ -43,7 +43,7 @@ export const Overview: Story = {
           <MetricCard
             label="Active bots"
             value="128"
-            hint="Validated endpoints"
+            hint="Strategy-based bots"
           />
           <MetricCard
             label="Hands dealt"

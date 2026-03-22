@@ -6,7 +6,7 @@
  * to validate end-to-end functionality. Unlike unit tests, these:
  *
  * - Use real PostgreSQL database
- * - Start real HTTP bot servers
+ * - Create bots with in-process strategy evaluation
  * - Exercise the full NestJS stack
  * - Validate state consistency across services
  *
@@ -22,7 +22,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
 import { DataSource } from "typeorm";
-import * as http from "http";
 import * as crypto from "crypto";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 
@@ -80,17 +79,69 @@ export interface AssertionResult {
   actual?: any;
 }
 
-interface BotServer {
-  server: http.Server;
-  port: number;
+export interface BotRecord {
   botId: string;
-  close: () => Promise<void>;
+  personality: string;
+  strategy: Record<string, unknown>;
 }
+
+const PERSONALITY_STRATEGIES: Record<string, Record<string, unknown>> = {
+  caller: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 10,
+      bluffFrequency: 5,
+      riskTolerance: 20,
+      tightness: 20,
+    },
+  },
+  folder: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 5,
+      bluffFrequency: 0,
+      riskTolerance: 5,
+      tightness: 95,
+    },
+  },
+  maniac: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 90,
+      bluffFrequency: 60,
+      riskTolerance: 80,
+      tightness: 30,
+    },
+  },
+  smart: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 55,
+      bluffFrequency: 25,
+      riskTolerance: 45,
+      tightness: 55,
+    },
+  },
+  random: {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 50,
+      bluffFrequency: 50,
+      riskTolerance: 50,
+      tightness: 50,
+    },
+  },
+};
 
 export abstract class SimulationRunner {
   protected app: INestApplication | null = null;
   protected dataSource: DataSource | null = null;
-  protected botServers: BotServer[] = [];
+  protected botRecords: BotRecord[] = [];
   protected config: SimulationConfig;
   protected result: SimulationResult;
   protected startTime: number = 0;
@@ -133,7 +184,7 @@ export abstract class SimulationRunner {
     try {
       // Phase 1: Setup
       await this.setupDatabase();
-      await this.setupBotServers();
+      this.createBotRecords();
       await this.setupTestData();
 
       // Phase 2: Execute
@@ -182,118 +233,23 @@ export abstract class SimulationRunner {
   protected abstract executeSimulation(): Promise<void>;
 
   /**
-   * Create HTTP bot servers that respond to game requests
+   * Create bot records with strategy JSON for in-process evaluation
    */
-  protected async setupBotServers(): Promise<void> {
-    const basePort = 7000 + Math.floor(Math.random() * 1000);
+  protected createBotRecords(): void {
+    const personalities = Object.keys(PERSONALITY_STRATEGIES);
 
     for (let i = 0; i < this.config.playerCount; i++) {
-      const port = basePort + i;
-      const botId = crypto.randomUUID();
-      const server = await this.createBotServer(port, i);
-
-      this.botServers.push({
-        server,
-        port,
-        botId,
-        close: () =>
-          new Promise<void>((resolve) => server.close(() => resolve())),
+      const personality = personalities[i % personalities.length];
+      this.botRecords.push({
+        botId: crypto.randomUUID(),
+        personality,
+        strategy: PERSONALITY_STRATEGIES[personality],
       });
     }
 
     this.log(
-      `Created ${this.botServers.length} bot servers (ports ${basePort}-${basePort + this.config.playerCount - 1})`,
+      `Created ${this.botRecords.length} bot records with strategy JSON`,
     );
-  }
-
-  /**
-   * Create a single bot server with personality-based behavior
-   */
-  private createBotServer(port: number, index: number): Promise<http.Server> {
-    return new Promise((resolve, reject) => {
-      const personality = this.getPersonality(index);
-
-      const server = http.createServer((req, res) => {
-        if (req.method === "GET") {
-          // Health check
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "ok" }));
-          return;
-        }
-
-        let body = "";
-        req.on("data", (chunk) => (body += chunk));
-        req.on("end", () => {
-          try {
-            const payload = JSON.parse(body);
-            const action = this.decideBotAction(payload, personality);
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify(action));
-          } catch (error) {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ type: "fold" }));
-          }
-        });
-      });
-
-      server.on("error", reject);
-      server.listen(port, () => resolve(server));
-    });
-  }
-
-  /**
-   * Get bot personality based on index for variety
-   */
-  private getPersonality(index: number): string {
-    const personalities = ["caller", "folder", "maniac", "random", "smart"];
-    return personalities[index % personalities.length];
-  }
-
-  /**
-   * Decide bot action based on personality
-   */
-  private decideBotAction(
-    payload: any,
-    personality: string,
-  ): { type: string; amount?: number } {
-    const { action } = payload;
-    const canCheck = action?.canCheck ?? false;
-    const toCall = action?.toCall ?? 0;
-    const minRaise = action?.minRaise ?? 0;
-    const maxRaise = action?.maxRaise ?? 0;
-
-    switch (personality) {
-      case "caller":
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      case "folder":
-        if (canCheck) return { type: "check" };
-        if (Math.random() < 0.7) return { type: "fold" };
-        return { type: "call" };
-
-      case "maniac":
-        if (maxRaise > 0 && Math.random() < 0.5) {
-          return { type: "raise", amount: Math.min(minRaise * 3, maxRaise) };
-        }
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      case "smart":
-        // Simple heuristic
-        if (canCheck) return { type: "check" };
-        if (toCall < payload.you?.chips * 0.1) return { type: "call" };
-        if (Math.random() < 0.3) return { type: "call" };
-        return { type: "fold" };
-
-      case "random":
-      default:
-        const roll = Math.random();
-        if (roll < 0.2) return { type: "fold" };
-        if (roll < 0.6) return canCheck ? { type: "check" } : { type: "call" };
-        if (maxRaise > 0) {
-          return { type: "raise", amount: minRaise };
-        }
-        return canCheck ? { type: "check" } : { type: "call" };
-    }
   }
 
   /**
@@ -409,22 +365,12 @@ export abstract class SimulationRunner {
    * Cleanup resources
    */
   protected async cleanup(): Promise<void> {
-    // Close bot servers
-    for (const bot of this.botServers) {
-      try {
-        await bot.close();
-      } catch (e) {
-        // Ignore cleanup errors
-      }
-    }
-    this.botServers = [];
+    this.botRecords = [];
 
-    // Close database connection
     if (this.dataSource?.isInitialized) {
       await this.dataSource.destroy();
     }
 
-    // Close NestJS app
     if (this.app) {
       await this.app.close();
     }

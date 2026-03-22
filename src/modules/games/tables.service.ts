@@ -186,7 +186,7 @@ export class TablesService {
   private async joinTableWithWorker(
     tableId: string,
     table: Table,
-    bot: { id: string; name: string; endpoint: string },
+    bot: { id: string; name: string; strategy: Record<string, any> | null },
   ): Promise<JoinTableResponseDto> {
     const result = await this.dataSource.transaction(
       "SERIALIZABLE",
@@ -240,13 +240,13 @@ export class TablesService {
           startingChips: Number(table.starting_chips),
           turnTimeoutMs: table.turn_timeout_ms,
         },
-        [{ id: bot.id, name: bot.name, endpoint: bot.endpoint }],
+        [{ id: bot.id, name: bot.name, strategy: bot.strategy }],
       );
     } else {
       this.gameWorkerManager.addPlayer(tableId, {
         id: bot.id,
         name: bot.name,
-        endpoint: bot.endpoint,
+        strategy: bot.strategy,
       });
     }
 
@@ -270,7 +270,7 @@ export class TablesService {
   private async joinTableInProcess(
     tableId: string,
     table: Table,
-    bot: { id: string; name: string; endpoint: string },
+    bot: { id: string; name: string; strategy: Record<string, any> | null },
   ): Promise<JoinTableResponseDto> {
     const result = await this.dataSource.transaction(
       "SERIALIZABLE",
@@ -324,7 +324,7 @@ export class TablesService {
     liveGame.game.addPlayer({
       id: bot.id,
       name: bot.name,
-      endpoint: bot.endpoint,
+      strategy: bot.strategy as any,
     });
 
     this.liveGameManager.registerBotInGame(tableId, bot.id, bot.name);

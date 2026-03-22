@@ -17,6 +17,7 @@
  */
 
 import * as fs from "fs";
+import { readJsonSafe } from "./shared/fs-utils";
 import * as path from "path";
 import * as readline from "readline";
 
@@ -119,24 +120,19 @@ const MONSTER_FILES: Record<string, string> = {
 const DB_PATH = path.join(process.cwd(), "tests/qa/monsters/learnings.json");
 
 function loadDatabase(): LearningDatabase {
-  if (fs.existsSync(DB_PATH)) {
-    try {
-      return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    } catch {
-      console.warn("Learning database corrupted, starting fresh");
+  return (
+    readJsonSafe<LearningDatabase>(DB_PATH) ?? {
+      version: 1,
+      lastUpdated: new Date().toISOString(),
+      bugs: [],
+      learnings: [],
+      stats: {
+        totalBugsRecorded: 0,
+        totalLearningsAdded: 0,
+        bugsByCategory: {},
+      },
     }
-  }
-  return {
-    version: 1,
-    lastUpdated: new Date().toISOString(),
-    bugs: [],
-    learnings: [],
-    stats: {
-      totalBugsRecorded: 0,
-      totalLearningsAdded: 0,
-      bugsByCategory: {},
-    },
-  };
+  );
 }
 
 function saveDatabase(db: LearningDatabase): void {

@@ -1,19 +1,13 @@
 # Demo Games Guide
 
-## Quick Start - Live Cash Game
-
-**One command to start a live multi-player poker game:**
+## Quick Start
 
 ```bash
 npm run demo        # 4 players (default)
 npm run demo:6      # 6 players
 ```
 
-This will:
-1. Start mock bot servers
-2. Register demo players with bots
-3. Join them to an available table
-4. Output the watch URL
+This creates strategy bots, joins them to a table, and starts a game. No external servers needed.
 
 **Watch at:** The command prints a link like:
 ```
@@ -21,8 +15,6 @@ http://localhost:3001/game/<table-id>
 ```
 
 ## Prerequisites
-
-Before running the demo:
 
 ```bash
 # Terminal 1: Start PostgreSQL
@@ -37,36 +29,21 @@ cd frontend && npm run dev
 
 ## What the Demo Does
 
-1. **Starts mock bot servers** - Simple HTTP servers that respond to poker action requests
-2. **Registers demo players** - Uses the `register-developer` endpoint to create users with bots
-3. **Joins bots to table** - Each bot joins the first available table
-4. **Game auto-starts** - When 2+ bots join, the game begins automatically
+1. **Runs the seed script** to create users with strategy bots (various personality presets)
+2. **Joins bots to a table** — each bot joins the first available table
+3. **Game auto-starts** — when 2+ bots join, the game begins automatically
+
+All bots use in-process strategy evaluation via the `StrategyEngineService`. Each bot has a personality preset (shark, rock, maniac, etc.) that determines its play style.
 
 ## Manual Alternative
 
-If you need more control:
+Use the seed script directly for more control:
 
 ```bash
-# 1. Start a mock bot server
-PORT=4000 npx ts-node scripts/mock-bot-server.ts
-
-# 2. Register via API
-curl -X POST http://localhost:3000/api/v1/auth/register-developer \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "TestPass123",
-    "name": "TestPlayer",
-    "botName": "TestBot",
-    "botEndpoint": "http://localhost:4000/action"
-  }'
-
-# 3. Join a table (use the token from step 2)
-curl -X POST http://localhost:3000/api/v1/games/<table-id>/join \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"bot_id": "<bot-id>"}'
+npx ts-node scripts/seed-data.ts
 ```
+
+This creates demo users with pre-configured strategy bots. You can then join them to tables via the UI or API.
 
 ## Monitoring
 
@@ -86,9 +63,8 @@ curl -s http://localhost:3000/api/v1/games/<table-id>/state | jq '{hand: .handNu
 |-------|----------|
 | "No available tables" | An admin needs to create a table via UI or API |
 | "Backend not running" | Start with `npm run dev` |
-| Bot not responding | Check if mock bot server is running on correct port |
 | "Conflict" when joining | One user can only have one bot per table |
 
 ## Architecture Note
 
-The system enforces **one bot per user per table** for fair play. The demo works around this by creating separate demo users for each bot.
+The system enforces **one bot per user per table** for fair play. The demo creates separate users for each bot. All bot decisions are evaluated in-process — no HTTP calls or external servers are involved.

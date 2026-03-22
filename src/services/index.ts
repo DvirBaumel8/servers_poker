@@ -1,10 +1,6 @@
 export * from "./services.module";
 
 // Bot services
-export * from "./bot/bot-caller.service";
-export * from "./bot/bot-validator.service";
-export * from "./bot/bot-health-scheduler.service";
-export * from "./bot/bot-resilience.service";
 export * from "./bot/bot-activity.service";
 export * from "./bot/bot-auto-registration.service";
 
@@ -23,7 +19,6 @@ export * from "./redis/redis-health.service";
 export * from "./redis/redis-socket-state.service";
 
 // Other services
-export * from "./bot-metrics.gateway";
 export * from "./platform-analytics.service";
 export * from "./daily-summary.service";
 export * from "./email.service";

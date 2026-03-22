@@ -27,7 +27,6 @@ import {
   LiveGameManagerService,
   GameInstance,
 } from "../../services/game/live-game-manager.service";
-import { BotCallerService } from "../../services/bot/bot-caller.service";
 import { GameOwnershipService } from "../../services/game/game-ownership.service";
 import { RedisGameStateService } from "../../services/redis/redis-game-state.service";
 import { RedisEventBusService } from "../../services/redis/redis-event-bus.service";
@@ -46,7 +45,7 @@ const BREAK_THRESHOLD = 4;
 interface BotInfo {
   botId: string;
   name: string;
-  endpoint: string;
+  strategy: Record<string, any> | null;
   chips: number;
   tableDbId: string | null;
 }
@@ -96,7 +95,6 @@ export class TournamentDirectorService
     private readonly tournamentRepository: TournamentRepository,
     private readonly botRepository: BotRepository,
     private readonly liveGameManager: LiveGameManagerService,
-    private readonly botCaller: BotCallerService,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
     private readonly schedulerRegistry: SchedulerRegistry,
@@ -317,7 +315,6 @@ export class TournamentDirectorService
       this.logger,
       this.eventEmitter,
       this.liveGameManager,
-      this.botCaller,
       this.tournamentRepository,
       this.dataSource,
       this.redisGameStateService,
@@ -379,7 +376,6 @@ class ActiveTournament {
     private readonly logger: Logger,
     private readonly eventEmitter: EventEmitter2,
     private readonly liveGameManager: LiveGameManagerService,
-    private readonly botCaller: BotCallerService,
     private readonly tournamentRepository: TournamentRepository,
     private readonly dataSource: DataSource,
     private readonly redisGameStateService: RedisGameStateService | null,
@@ -455,7 +451,7 @@ class ActiveTournament {
       this.activeBots.set(entry.bot_id, {
         botId: entry.bot_id,
         name: entry.bot?.name || "Unknown",
-        endpoint: entry.bot?.endpoint || "",
+        strategy: entry.bot?.strategy || null,
         chips: startingChips,
         tableDbId: null,
       });
@@ -522,7 +518,7 @@ class ActiveTournament {
       game.addPlayer({
         id: bot.botId,
         name: bot.name,
-        endpoint: bot.endpoint,
+        strategy: bot.strategy as any,
         chips: bot.chips,
       });
       tableEntry.botIdMap[bot.name] = bot.botId;
@@ -757,7 +753,7 @@ class ActiveTournament {
               newGame.addPlayer({
                 id: player.id,
                 name: player.name,
-                endpoint: bot.endpoint,
+                strategy: bot.strategy as any,
                 chips: player.chips,
               });
             }
@@ -910,14 +906,15 @@ class ActiveTournament {
         );
       }
 
+      const movingBot = this.activeBots.get(player.id);
       targetTable.game.addPlayer({
         id: player.id,
         name: player.name,
-        endpoint: player.endpoint,
+        strategy: (movingBot?.strategy as any) || null,
         chips: player.chips,
       });
 
-      const bot = this.activeBots.get(player.id);
+      const bot = movingBot;
       if (bot) {
         bot.tableDbId = targetTable.tableDbId;
       }

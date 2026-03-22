@@ -9,7 +9,6 @@ import { Bot } from "../../entities/bot.entity";
 import { UserRepository } from "../../repositories/user.repository";
 import { BotRepository } from "../../repositories/bot.repository";
 import { EmailService } from "../../services/email.service";
-import { UrlValidatorService } from "../../common/validators/url-validator.service";
 import { JwtConfigModule } from "../../common/jwt";
 
 @Module({
@@ -25,7 +24,6 @@ import { JwtConfigModule } from "../../common/jwt";
     UserRepository,
     BotRepository,
     EmailService,
-    UrlValidatorService,
   ],
   exports: [AuthService, UserRepository, EmailService],
 })

@@ -1,6 +1,6 @@
 {
-  "lastRun": "2026-03-22T09:21:47.861Z",
-  "totalRuns": 37,
+  "lastRun": "2026-03-22T20:22:56.559Z",
+  "totalRuns": 54,
   "knownIssues": [
     {
       "fingerprint": "general:\ude80-launching-browser...:unknown",
@@ -547,7 +547,7 @@
       "category": "GENERAL",
       "title": "\ude80 Running parallel test groups...",
       "firstSeen": "2026-03-21T22:13:50.197Z",
-      "occurrences": 35,
+      "occurrences": 37,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -556,7 +556,7 @@
       "category": "GENERAL",
       "title": "\udd10 Testing auth flows...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 25,
+      "occurrences": 27,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -565,7 +565,7 @@
       "category": "GENERAL",
       "title": "\uddb1️  Testing interactive elements...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 24,
+      "occurrences": 25,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -574,7 +574,7 @@
       "category": "GENERAL",
       "title": "\udcdd Running sequential tests...",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 35,
+      "occurrences": 37,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -592,7 +592,7 @@
       "category": "GENERAL",
       "title": "\udd34 Critical: 0",
       "firstSeen": "2026-03-21T22:13:50.198Z",
-      "occurrences": 34,
+      "occurrences": 36,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -610,7 +610,7 @@
       "category": "GENERAL",
       "title": "\udc51 Testing admin pages...",
       "firstSeen": "2026-03-21T22:21:01.773Z",
-      "occurrences": 14,
+      "occurrences": 15,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -619,7 +619,7 @@
       "category": "GENERAL",
       "title": "\udfe1 Medium: 0",
       "firstSeen": "2026-03-21T22:21:01.773Z",
-      "occurrences": 33,
+      "occurrences": 35,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -646,7 +646,7 @@
       "category": "GENERAL",
       "title": "\udccb Using game 450bbb17... with 0 players",
       "firstSeen": "2026-03-22T01:34:25.823Z",
-      "occurrences": 10,
+      "occurrences": 11,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     },
@@ -665,6 +665,24 @@
       "title": "\udccb Tests: 16 run, 15 passed, 0 failed",
       "firstSeen": "2026-03-22T09:09:19.582Z",
       "occurrences": 5,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udccb-using-game-450bbb17...-with-3-players:unknown",
+      "category": "GENERAL",
+      "title": "\udccb Using game 450bbb17... with 3 players",
+      "firstSeen": "2026-03-22T16:26:03.760Z",
+      "occurrences": 1,
+      "autoFixAttempted": false,
+      "autoFixSucceeded": false
+    },
+    {
+      "fingerprint": "general:\udccb-tests:-14-run,-13-passed,-0-failed:unknown",
+      "category": "GENERAL",
+      "title": "\udccb Tests: 14 run, 13 passed, 0 failed",
+      "firstSeen": "2026-03-22T16:26:03.760Z",
+      "occurrences": 2,
       "autoFixAttempted": false,
       "autoFixSucceeded": false
     }
@@ -929,6 +947,125 @@
       "date": "2026-03-22T09:21:47.860Z",
       "findingsBefore": 8,
       "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T16:26:03.760Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T17:05:56.330Z",
+      "findingsBefore": 8,
+      "findingsAfter": 8,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T17:11:37.078Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T17:16:12.263Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T17:55:53.677Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T18:41:19.125Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T18:55:10.266Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T18:59:12.663Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T19:01:23.115Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T19:04:14.321Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T19:25:28.679Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T19:27:14.856Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T19:29:11.147Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T19:31:01.536Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T19:38:41.487Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T20:13:48.471Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
+      "fixesApplied": []
+    },
+    {
+      "iteration": 1,
+      "date": "2026-03-22T20:22:56.558Z",
+      "findingsBefore": 0,
+      "findingsAfter": 0,
       "fixesApplied": []
     }
   ]

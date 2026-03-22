@@ -2,7 +2,7 @@
 
 ## Overview
 
-A No-Limit Texas Hold'em tournament platform where developers build bot servers that compete against each other. The game server orchestrates everything — bots are HTTP servers that receive game state and return an action.
+A No-Limit Texas Hold'em tournament platform where users build bots via the BotBuilder UI. Bots use in-process strategy evaluation — no external HTTP servers required. The game engine calls `StrategyEngineService.evaluateStrategy()` directly during gameplay.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
@@ -14,13 +14,13 @@ A No-Limit Texas Hold'em tournament platform where developers build bot servers 
 │  GET  /tournaments            — list tournaments               │
 │  POST /tournaments/:id/register — enter tournament             │
 │  WS   /game                   — real-time push (Socket.IO)     │
-└──────────────────┬────────────────────────┬───────────────────┘
-                   │  POST /action           │  POST /action
-                   ▼                         ▼
-           ┌───────────────┐         ┌───────────────┐
-           │  Bot Server A │         │  Bot Server B │
-           │ (player code) │         │ (player code) │
-           └───────────────┘         └───────────────┘
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  StrategyEngineService (in-process bot evaluation)      │   │
+│  │  Bot A strategy (JSONB) ──→ evaluateStrategy() → action │   │
+│  │  Bot B strategy (JSONB) ──→ evaluateStrategy() → action │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -32,7 +32,7 @@ A No-Limit Texas Hold'em tournament platform where developers build bot servers 
 - **Framework:** NestJS
 - **Database:** PostgreSQL with TypeORM
 - **Cache/State:** Redis (for horizontal scaling, WebSocket sync)
-- **Authentication:** JWT (users), API Key (bots)
+- **Authentication:** JWT (users)
 - **WebSocket:** Socket.IO via @nestjs/websockets
 - **Testing:** Vitest
 
@@ -90,8 +90,6 @@ servers_poker/
 │   │   ├── platform-metrics.entity.ts — Daily platform statistics
 │   │   └── daily-summary.entity.ts  — Daily email summary records
 │   ├── common/
-│   │   ├── validators/
-│   │   │   └── url-validator.service.ts — Bot endpoint URL validation
 │   ├── repositories/
 │   │   ├── base.repository.ts       — Abstract base with CRUD operations
 │   │   ├── user.repository.ts       — User data access (extends BaseRepository)
@@ -103,9 +101,9 @@ servers_poker/
 │   │   ├── hand-seed.repository.ts  — Provably fair seeds (extends BaseRepository)
 │   │   └── analytics.repository.ts  — Multi-entity analytics queries (standalone)
 │   ├── modules/
-│   │   ├── auth/                    — JWT & API key auth
+│   │   ├── auth/                    — JWT authentication
 │   │   ├── users/                   — User management
-│   │   ├── bots/                    — Bot registration/validation/subscriptions
+│   │   ├── bots/                    — Bot CRUD, strategy management, subscriptions
 │   │   ├── tournaments/             — Tournament lifecycle (incl. TournamentDirectorService)
 │   │   ├── games/                   — Tables, game joining, WebSocket
 │   │   ├── analytics/               — Platform analytics and event tracking
@@ -114,9 +112,9 @@ servers_poker/
 │   │   └── preview/                 — Preview/demo functionality
 │   ├── services/
 │   │   ├── game/
-│   │   │   ├── live-game-manager.service.ts — Game state management (supports Redis sync)
+│   │   │   ├── live-game-manager.service.ts — Game state management (concurrency-safe, supports Redis sync)
 │   │   │   ├── game-worker-manager.service.ts — Worker thread game isolation
-│   │   │   ├── game-data-persistence.service.ts — Periodic state persistence to DB
+│   │   │   ├── game-data-persistence.service.ts — Transactional state persistence to DB with retry
 │   │   │   ├── game-state-persistence.service.ts — Game state snapshots
 │   │   │   ├── game-recovery.service.ts — Auto-recovery on server restart
 │   │   │   └── game-ownership.service.ts — Distributed locking for multi-instance
@@ -126,10 +124,6 @@ servers_poker/
 │   │   │   ├── redis-health.service.ts — Redis health monitoring
 │   │   │   └── redis-socket-state.service.ts — WebSocket connection state
 │   │   ├── bot/
-│   │   │   ├── bot-caller.service.ts — Resilient bot API calls
-│   │   │   ├── bot-resilience.service.ts — Fallback strategies
-│   │   │   ├── bot-validator.service.ts — Bot endpoint validation
-│   │   │   ├── bot-health-scheduler.service.ts — Periodic health checks
 │   │   │   ├── bot-activity.service.ts — Real-time bot activity tracking
 │   │   │   └── bot-auto-registration.service.ts — Auto-register bots in tournaments
 │   │   ├── provably-fair.service.ts — HMAC commit-reveal deck shuffling
@@ -141,16 +135,9 @@ servers_poker/
 │   │   ├── game.worker.ts           — Isolated game execution in worker thread
 │   │   └── messages.ts              — Worker message protocol types
 │   ├── migrations/
-│   │   ├── 1710000000003-AddEmailVerification.ts — Email verification fields
-│   │   ├── 1710000000004-AddPasswordAndResetFields.ts — Password reset support
-│   │   ├── 1710864000000-InitialSchema.ts — Initial database schema
-│   │   ├── 1710864001000-AddGameStateSnapshots.ts — Game state persistence
-│   │   ├── 1710864002000-AddHandSeeds.ts — Provably fair seeds
-│   │   ├── AddPlatformAnalytics.ts  — Analytics tables
-│   │   ├── AddBotSubscriptions.ts   — Bot auto-registration
-│   │   └── run.ts                   — Migration runner script
+│   │   └── 1742600000000-FullSchema.ts — Single merged migration (all tables, constraints, indexes)
 │   ├── common/
-│   │   ├── guards/                  — JWT, API key, roles guards
+│   │   ├── guards/                  — JWT, roles guards
 │   │   ├── interceptors/            — Logging, audit, timeout
 │   │   ├── filters/                 — Exception handling
 │   │   ├── decorators/              — Custom decorators
@@ -162,9 +149,6 @@ servers_poker/
 │   │   │   ├── redis-pubsub.service.ts — Pub/sub connections
 │   │   │   └── redis-io.adapter.ts  — Socket.IO Redis adapter
 │   │   └── security/                — Security services
-│   │       ├── hmac-signing.service.ts — HMAC-SHA256 payload signing
-│   │       ├── api-key-rotation.service.ts — Key rotation with grace period
-│   │       └── webhook-signing.service.ts — Outgoing webhook signing
 │   ├── game/
 │   │   ├── poker-game.service.ts    — Game engine (hardened)
 │   │   └── invariants.ts            — Chip conservation checks
@@ -193,7 +177,7 @@ servers_poker/
 │   │   │   ├── BotBuilder.tsx       — No-code bot creation wizard (tier/personality/rules)
 │   │   │   ├── BotProfile.tsx       — Bot performance + subscriptions workspace
 │   │   │   ├── Leaderboard.tsx      — Rankings workspace
-│   │   │   ├── Profile.tsx          — Account + API key workspace
+│   │   │   ├── Profile.tsx          — Account + bot ownership workspace
 │   │   │   ├── AdminAnalytics.tsx   — Admin analytics workspace
 │   │   │   ├── AdminTournaments.tsx — Admin tournament management
 │   │   │   ├── Login.tsx            — Authentication
@@ -202,11 +186,13 @@ servers_poker/
 │   │   │   ├── ForgotPassword.tsx   — Password reset request
 │   │   │   └── ResetPassword.tsx    — Password reset form
 │   │   ├── hooks/                   — Custom hooks
-│   │   │   └── useWebSocket.ts      — Socket.IO connection to /game
+│   │   │   ├── useWebSocket.ts      — Socket.IO connection to /game
+│   │   │   └── useKeyboardNav.ts    — Cmd+1..4 keyboard shortcuts for nav
 │   │   ├── stores/                  — Zustand stores
 │   │   │   ├── authStore.ts         — JWT + user state (persisted)
 │   │   │   ├── gameStore.ts         — Current game state
-│   │   │   └── tournamentStore.ts   — Tournament state
+│   │   │   ├── tournamentStore.ts   — Tournament state
+│   │   │   └── toastStore.ts        — Toast notification state + toast() helper
 │   │   ├── api/                     — API clients
 │   │   │   ├── client.ts            — Base fetch wrapper
 │   │   │   ├── auth.ts              — Login/register/me
@@ -258,23 +244,19 @@ servers_poker/
 │   │   └── provisioning/            — Auto-provisioning config
 │   └── alertmanager/
 │       └── alertmanager.yml         — Alert routing
-└── bots/
-    ├── bot.js                       — Node.js full boilerplate
-    ├── bot.py                       — Python full boilerplate
-    ├── sdk/
-    │   ├── javascript/index.js      — Zero-config Node.js SDK
-    │   └── python/poker_sdk.py      — Zero-config Python SDK
-    ├── examples/
-    │   ├── 01-check-fold.js         — Simplest bot (4 lines)
-    │   ├── 02-calling-station.js    — Call everything
-    │   ├── 03-tight-passive.js      — Premium hands only
-    │   ├── 04-tight-aggressive.js   — Classic TAG strategy
-    │   ├── 05-pot-odds-calculator.js — Math-based decisions
-    │   ├── 06-position-aware.js     — Position exploits
-    │   └── README.md                — Examples guide
-    └── playground/
-        └── test-bot.js              — Local testing CLI
 ```
+
+### Monster Army QA (`tests/qa/monsters/`)
+
+- **23** automated monsters in the full suite (`npm run monsters:all`); Explorer and Regression are included in presets with the rest of the army.
+- **Storage:** `shared/issue-tracker.ts` + `shared/issues.json` are the single source of truth (`memory/memory-store.ts` is deprecated).
+- **Visibility:** `BaseMonster` reports `checksPerformed` when there are zero findings.
+- **Lifecycle:** `lifecycle-runner.ts` runs **CodeFixer** (`evolution/code-fixer.ts`) for CSS fixes (overflow, hover, focus, z-index, contrast).
+- **Regression:** `regression-monster/regression-monster.ts` + `npm run monsters:regression-check` validate `tests/qa/monsters/data/bug-retrospectives.json`.
+- **Contract:** `contract-monster/contract-monster.ts` compares `frontend/src/api/*.ts` pagination `.map()` usage to backend controllers.
+- **Evolution report:** `run-all.ts` prints dead-weight analysis (5+ runs, 0 issues → BROKEN / INEFFECTIVE / WATCH) and refreshes `docs/MONSTER_EVOLUTION.md`.
+
+Details: `tests/qa/monsters/README.md`.
 
 ---
 
@@ -300,9 +282,13 @@ The shared FE design system lives in:
 This system centralizes:
 
 - tokens for color, panel surfaces, lines, shadows, and status semantics
-- shared page scaffolding (`PageShell`, `PageHeader`, `SurfaceCard`)
+- shared page scaffolding (`PageShell`, `PageHeader`, `SurfaceCard`, `Breadcrumbs`)
 - shared interaction patterns (`Button`, `TextField`, `SegmentedTabs`)
 - shared state patterns (`LoadingBlock`, `EmptyState`, `AlertBanner`, `AppModal`, `ConfirmDialog`)
+- skeleton loading screens (`Skeleton`, `SkeletonMetricCards`, `SkeletonPageHeader`, `SkeletonCard`, `SkeletonTable`)
+- toast notification system (`ToastContainer`, `useToastStore`, `toast()` helper)
+- page transition animations via framer-motion `AnimatePresence` in `Layout`
+- keyboard navigation shortcuts (`useKeyboardNav` — Cmd/Ctrl+1..4 for main nav)
 
 See `docs/FRONTEND_UI_SYSTEM.md` for the FE-specific rules and contribution model.
 
@@ -328,7 +314,7 @@ All data access follows a consistent repository pattern:
 UserRepository          BotRepository          GameRepository
     │                         │                         │
     └─── findByEmail()        └─── findByUserId()       └─── getHandHistory()
-         findByApiKeyHash()        findActiveByUserId()      addGamePlayer()
+                                    findActiveByUserId()      addGamePlayer()
 ```
 
 **Key Principles:**
@@ -340,12 +326,15 @@ UserRepository          BotRepository          GameRepository
 ### NestJS Modules
 
 #### AuthModule
-Handles user authentication and API key management.
-- JWT token generation and validation
-- API key hashing and verification
-- Password hashing with bcrypt
-- Email verification (2-step signup)
+Handles user authentication.
+- JWT access token generation and validation (short-lived, configurable via `JWT_EXPIRES_IN`)
+- Refresh token mechanism with rotation (7-day opaque tokens, SHA-256 hashed in DB)
+- `POST /auth/refresh` — exchange refresh token for new access + refresh pair
+- `POST /auth/logout` — revoke refresh token
+- Password hashing with bcrypt (12 rounds)
+- Email verification (2-step signup, `crypto.randomInt()` codes)
 - Password reset flow
+- Account lockout after 5 failed login attempts (15-minute lockout)
 - Guards for route protection
 
 #### UsersModule
@@ -355,21 +344,14 @@ User account management.
 - Account deactivation
 
 #### BotsModule
-Bot registration and validation.
+Internal strategy-based bot management.
 - CRUD operations for bots
-- Endpoint validation (blocks internal IPs)
-- 13-scenario validation suite
+- Strategy-based bot creation via BotBuilder
 - Stats tracking
-- **Connectivity Controller** (`/bots/connectivity/*`):
-  - `GET /health/summary` — overall health summary (admin)
-  - `GET /health/all` — all bot health statuses (admin)
-  - `GET /health/:botId` — single bot health
-  - `POST /health/:botId/check` — trigger health check
-  - `POST /health/check-all` — check all bots (admin)
-  - `GET /validate/:botId` — full validation suite
-  - `GET /validate/:botId/quick` — quick validation
-  - `POST /circuit-breaker/:botId/reset` — reset circuit breaker (admin)
-  - `GET /latency/:botId` — average response latency
+- **BotsInternalController** (`bots-internal.controller.ts`, route prefix `bots/internal`):
+  - `GET /presets` — public; returns `{ presets }` for bot-builder personality presets (8 presets)
+  - `GET /condition-fields` — public; returns `{ fields }` for rule-builder condition definitions (19 fields)
+  - `POST /` — JWT + `operate:bots` scope; creates an internal bot via `CreateInternalBotDto` and `BotsService.create()`; rate limited (10/hour)
 
 #### TournamentsModule
 Tournament lifecycle management.
@@ -409,11 +391,11 @@ Demo and preview functionality for unauthenticated users.
 
 ### Game Engine (`src/game/`)
 
-#### PokerGameService
-The core poker engine. DB-free and tournament-agnostic.
+#### PokerGameService _(deprecated — superseded by GameInstance)_
+The original poker engine. DB-free and tournament-agnostic. New games use `GameInstance` via the worker thread architecture; this service remains for reference but should not be used for new features.
 - Auto-starts at 2+ players, runs until one player holds all chips
 - Each hand: antes → blinds → pre-flop → flop → turn → river → showdown
-- 3-strike bot fault tolerance with configurable timeout
+- 3-strike fault tolerance with configurable timeout
 - Chip conservation validation after every action
 - `rollbackHand()` — Restores all players to start-of-hand state
 - `advanceDealer()` — Dead button rule, skips eliminated players
@@ -443,63 +425,6 @@ Immutable record of all chip movements.
 - Stores balance before and after
 - Used for reconciliation and debugging
 
-### Bot Connectivity Services (`src/services/`)
-
-#### BotCallerService
-HTTP client with resilience features.
-- **Keep-Alive:** HTTP/HTTPS agents with connection pooling
-- **Retry Logic:** Automatic retry on transient failures (ECONNRESET, timeout)
-- **Circuit Breaker:** Opens after N consecutive failures, auto-resets
-- **Latency Tracking:** Rolling window of response times
-
-#### BotValidatorService
-Comprehensive bot validation with 13 scenarios.
-- **Categories:** Connectivity, Basic, Edge Case, Stress
-- **Weighted Scoring:** 0-100 with category weights
-- **Quick Mode:** Connectivity + Basic only
-
-#### BotHealthSchedulerService
-Background health monitoring.
-- Periodic health checks on all registered bots
-- More frequent checks for bots in active games
-- Event emission on state changes
-
-#### BotResilienceService
-Fallback action generation when bots fail.
-- **conservative:** Check/call small/fold
-- **aggressive:** May raise when checking
-- **check_fold:** Safest fallback
-- Action validation and normalization
-
-#### BotMetricsGateway
-Real-time WebSocket monitoring at `/metrics`.
-- Current snapshot of all bot health
-- Health check round history
-- Manual health check trigger
-- Live events: state changes, circuit breakers, failures
-
-### Security Services (`src/common/security/`)
-
-#### HmacSigningService
-HMAC-SHA256 signing for bot payloads.
-- **Sign:** Creates signature with timestamp and nonce
-- **Verify:** Validates signature, checks timestamp freshness, prevents replay
-- **Headers:** `X-Poker-Signature`, `X-Poker-Timestamp`, `X-Poker-Nonce`
-- **Enable:** Set `ENABLE_BOT_HMAC_SIGNING=true`
-
-#### ApiKeyRotationService
-API key lifecycle management.
-- **Rotate:** Generates new key, old key valid during grace period (default 24h)
-- **Validate:** Checks current and legacy keys
-- **Revoke:** Immediately invalidates all keys for a user
-- **Endpoints:** `POST /users/:id/rotate-api-key`, `GET /users/:id/api-key-status`
-
-#### WebhookSigningService
-Outgoing webhook authentication.
-- **Format:** Stripe-style `v1=<signature>` in `X-Poker-Webhook-Signature`
-- **Protection:** Timestamp validation prevents replay attacks
-- **Headers:** Includes webhook ID and timestamp for verification
-
 ### Worker Thread Architecture (`src/workers/`)
 
 Optional game isolation using Node.js worker threads. Each game runs in a separate V8 isolate for fault tolerance and CPU distribution.
@@ -520,7 +445,8 @@ Optional game isolation using Node.js worker threads. Each game runs in a separa
 │  │ Worker 1      │ │ Worker 2      │ │ Worker N      │     │
 │  │ (Game A)      │ │ (Game B)      │ │ (Game X)      │     │
 │  │ - GameInstance│ │ - GameInstance│ │ - GameInstance│     │
-│  │ - HTTP to bots│ │ - HTTP to bots│ │ - HTTP to bots│     │
+│  │ - Strategy   │ │ - Strategy   │ │ - Strategy   │     │
+│  │   evaluation │ │   evaluation │ │   evaluation │     │
 │  └───────────────┘ └───────────────┘ └───────────────┘     │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -528,7 +454,7 @@ Optional game isolation using Node.js worker threads. Each game runs in a separa
 #### Message Protocol (`messages.ts`)
 Type-safe communication between main thread and workers:
 - **Commands (Main→Worker):** `ADD_PLAYER`, `REMOVE_PLAYER`, `STOP`, `GET_STATE`, `UPDATE_BLINDS`
-- **Events (Worker→Main):** `STATE_UPDATE`, `HAND_STARTED`, `HAND_COMPLETE`, `GAME_FINISHED`, `ERROR`, `LOG`
+- **Events (Worker→Main):** `STATE_UPDATE`, `HAND_STARTED`, `PLAYER_ACTION` (includes `chipsAfter` for persistence/clients), `HAND_COMPLETE`, `GAME_FINISHED`, `ERROR`, `LOG`
 
 #### GameWorkerManagerService
 Worker lifecycle management:
@@ -547,9 +473,27 @@ WORKER_TIMEOUT=30000         # Worker termination timeout (ms)
 
 #### Benefits
 1. **Fault Isolation:** One game crash doesn't affect others
-2. **CPU Distribution:** Games utilize multiple CPU cores
+2. **CPU Distribution:** Games utilize multiple CPU cores, including strategy evaluation
 3. **Memory Isolation:** Each worker has independent heap
 4. **Foundation for Scaling:** Message-passing enables future Redis pub/sub
+
+### GameInstance Concurrency Protection (`live-game-manager.service.ts`)
+
+`GameInstance` (the per-game state object inside `LiveGameManagerService`) guards against mutations during active hands:
+
+- **`handInProgress` flag** — set `true` while a hand is running.
+- **`pendingMutations` queue** — `addPlayer()` and `removePlayer()` calls that arrive mid-hand are deferred and replayed after the hand completes.
+- **`activePlayers()`** — filters out disconnected players so they don't receive actions or count toward quorum.
+- **`removePlayer()` chip accounting** — adjusts `expectedTotalChips` to account for chips already committed to the pot, preventing false chip-conservation violations.
+- **`RecoverySnapshot` interface** — typed replacement for the previous `snapshot: any`, with validation of required fields and automatic `expectedTotalChips` recalculation on recovery.
+- **`setExpectedTotalChips()`** — explicit setter used by recovery and test code.
+
+### Transactional Hand Persistence (`game-data-persistence.service.ts`)
+
+- **`onHandStarted`** saves the `hand` row and all `hand_players` rows inside a single database transaction, preventing orphaned records if the write is interrupted.
+- **`withRetry()` utility** — wraps retriable database operations (connection resets, serialization failures) with configurable attempts.
+- **Blind/ante chip movements** are now `await`-ed with retry instead of fire-and-forget `.catch()`.
+- **Post-hand chip movements** use `Promise.all` with per-movement retries instead of `Promise.allSettled`, so failures surface instead of being silently swallowed.
 
 ### Provably Fair RNG (`src/services/provably-fair.service.ts`)
 
@@ -698,60 +642,6 @@ Generates human-readable reports from simulation runs.
 - Anomaly breakdown
 - Recommendations
 
-### Developer Experience (`bots/`)
-
-#### Zero-Config SDKs
-Both JavaScript and Python SDKs allow bot creation with minimal code:
-```javascript
-const { createBot, Action } = require('./sdk/javascript');
-createBot({
-  port: 3001,
-  decide: (state) => state.action.canCheck ? Action.check() : Action.fold()
-});
-```
-
-Features:
-- Automatic HTTP server setup
-- Health endpoint (`GET /health`)
-- Logging with timing
-- Error handling (returns fold on error)
-- Strategy helpers (`preFlopStrength`, `postFlopStrength`)
-
-#### Testing Playground
-`bots/playground/test-bot.js` provides local testing:
-- 11 pre-built scenarios
-- Health check validation
-- Response validation (action type, raise amounts)
-- Timing measurement
-- Colored pass/fail output
-
-Usage:
-```bash
-node test-bot.js http://localhost:3001/action --all
-node test-bot.js http://localhost:3001/action --scenario preflop_premium
-```
-
-#### Example Bots
-Progressive complexity from 4 lines to 200+ lines:
-
-**Beginner:**
-1. Check/Fold — Never risks chips
-2. Calling Station — Calls everything
-3. Tight-Passive — Premium hands only
-
-**Intermediate:**
-4. Tight-Aggressive — Classic TAG strategy
-5. Pot Odds Calculator — Math-based decisions
-6. Position-Aware — Exploits position
-
-**Advanced:**
-7. Data-Driven — SQLite persistence, opponent modeling (VPIP/PFR/AF)
-8. Monte Carlo — Hand equity simulation, EV calculations
-9. Adaptive Exploiter — Real-time pattern detection, exploit strategies
-10. Tournament ICM — Independent Chip Model, bubble factor, push/fold
-
----
-
 ## Edge Case Handling
 
 ### Cash Game: Last Player Standing
@@ -835,64 +725,16 @@ TournamentDirector.start() [triggered at min_players]
 
 ---
 
-## Bot Protocol
-
-### Request (server → bot)
-```json
-{
-  "gameId": "uuid",
-  "handNumber": 42,
-  "stage": "flop",
-  "you": {
-    "name": "Bot Alpha",
-    "chips": 4200,
-    "holeCards": [{ "value": 14, "suit": "spades" }, { "value": 13, "suit": "hearts" }],
-    "bet": 100,
-    "position": "CO",
-    "bestHand": { "name": "ONE_PAIR", "cards": [...] }
-  },
-  "action": {
-    "canCheck": false,
-    "toCall": 200,
-    "minRaise": 400,
-    "maxRaise": 4000
-  },
-  "table": {
-    "pot": 850,
-    "currentBet": 300,
-    "communityCards": [...],
-    "smallBlind": 75,
-    "bigBlind": 150,
-    "ante": 25
-  },
-  "players": [...]
-}
-```
-
-### Response (bot → server)
-```json
-{ "type": "fold" }
-{ "type": "check" }
-{ "type": "call" }
-{ "type": "raise", "amount": 300 }
-{ "type": "all_in" }
-```
-
-### Fault Handling
-| Situation | Behavior |
-|-----------|----------|
-| Timeout / error / invalid | Strike + penalty fold |
-| 3rd consecutive strike | Disconnect — sits out all future hands |
-| Any successful response | Strikes reset to 0 |
-
----
-
 ## API Reference
 
 ### Public Endpoints
 ```
-POST /auth/register     — Create account
-POST /auth/login        — Get JWT token
+POST /auth/register     — Create account (returns verification prompt)
+POST /auth/verify-email — Verify email, get JWT + refresh token
+POST /auth/login        — Login, get JWT + refresh token
+POST /auth/refresh      — Exchange refresh token for new token pair
+POST /auth/forgot-password — Send password reset code
+POST /auth/reset-password  — Reset password with code
 GET  /bots              — List bots
 GET  /bots/:id          — Get bot details
 GET  /tournaments       — List tournaments
@@ -908,7 +750,6 @@ PATCH  /users/me          — Update profile
 POST   /bots              — Register bot
 PATCH  /bots/:id          — Update bot
 DELETE /bots/:id          — Deactivate bot
-POST   /bots/:id/validate — Run validation
 POST   /tournaments/:id/register  — Enter tournament
 GET    /games/:id/hands   — Hand history
 ```
@@ -930,7 +771,7 @@ DELETE /tournaments/:id   — Cancel tournament
 |-------|---------|-------------|
 | `subscribe` | `{ tableId: string }` | Join table room |
 | `unsubscribe` | `{ tableId: string }` | Leave table room |
-| `registerBot` | `{ botId: string, apiKey: string }` | Authenticate bot |
+| `registerBot` | `{ botId: string }` | Register bot for updates |
 | `action` | `{ type, amount? }` | Send action |
 
 ### Server → Client
@@ -993,16 +834,11 @@ jobs:
 | Control | Status |
 |---------|--------|
 | JWT authentication | ✅ |
-| API key hashing (SHA-256) | ✅ |
-| API key rotation with grace period | ✅ |
 | Rate limiting (Throttler) | ✅ |
 | Input validation (class-validator) | ✅ |
 | RBAC (roles guard) | ✅ |
 | Audit logging | ✅ |
 | Chip movement tracking | ✅ |
-| Bot endpoint validation (SSRF protection) | ✅ |
-| HMAC bot payload signing | ✅ |
-| Webhook request signing | ✅ |
 | Password hashing (bcrypt) | ✅ |
 | Email verification (2-step) | ✅ |
 | TLS | ⚠️ Operator (nginx/Caddy) |

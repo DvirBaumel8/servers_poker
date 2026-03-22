@@ -15,7 +15,7 @@
  * - Can run in dry-run mode
  */
 
-import { readFileSync, writeFileSync, copyFileSync } from "fs";
+import { readFileSync, writeFileSync, copyFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { Finding } from "../shared/types";
 
@@ -496,11 +496,9 @@ if (require.main === module) {
 ╚══════════════════════════════════════════════════════════════════════╝
 `);
 
-  // Load findings from memory
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getMemoryStore } = require("../memory/memory-store");
-  const memory = getMemoryStore();
-  const findings = memory.getOpenFindings();
+  const { getOpenIssuesAsFindings } = require("../shared/issue-tracker");
+  const findings = getOpenIssuesAsFindings();
 
   console.log(`Found ${findings.length} open findings to analyze...\n`);
 

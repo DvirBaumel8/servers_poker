@@ -1,6 +1,7 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index } from "typeorm";
 import { BaseEntity } from "./base.entity";
 import { Bot } from "./bot.entity";
+import { Game } from "./game.entity";
 
 export type AnalysisStatus = "pending" | "analyzed" | "skipped";
 
@@ -27,6 +28,10 @@ export class StrategyDecision extends BaseEntity {
 
   @Column({ type: "varchar", length: 100 })
   game_id: string;
+
+  @ManyToOne(() => Game, { onDelete: "CASCADE", nullable: true })
+  @JoinColumn({ name: "game_id" })
+  game: Game | null;
 
   @Column({ type: "integer" })
   hand_number: number;

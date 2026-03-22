@@ -2,11 +2,6 @@ import { Module, Global, OnModuleInit } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { EventEmitterModule } from "@nestjs/event-emitter";
-import { BotCallerService } from "./bot/bot-caller.service";
-import { BotValidatorService } from "./bot/bot-validator.service";
-import { BotHealthSchedulerService } from "./bot/bot-health-scheduler.service";
-import { BotResilienceService } from "./bot/bot-resilience.service";
-import { BotMetricsGateway } from "./bot-metrics.gateway";
 import { LiveGameManagerService } from "./game/live-game-manager.service";
 import { GameWorkerManagerService } from "./game/game-worker-manager.service";
 import { GameStatePersistenceService } from "./game/game-state-persistence.service";
@@ -86,11 +81,6 @@ import { JwtConfigModule } from "../common/jwt";
     RedisModule,
   ],
   providers: [
-    BotCallerService,
-    BotValidatorService,
-    BotHealthSchedulerService,
-    BotResilienceService,
-    BotMetricsGateway,
     LiveGameManagerService,
     GameWorkerManagerService,
     GameStatePersistenceService,
@@ -114,10 +104,6 @@ import { JwtConfigModule } from "../common/jwt";
     BotRepository,
   ],
   exports: [
-    BotCallerService,
-    BotValidatorService,
-    BotHealthSchedulerService,
-    BotResilienceService,
     LiveGameManagerService,
     GameWorkerManagerService,
     GameStatePersistenceService,

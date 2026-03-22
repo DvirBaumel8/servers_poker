@@ -31,19 +31,20 @@ export function CommunityCards({
     <div className={clsx("flex gap-2.5 items-center", className)}>
       {displayCards.map((card, index) => (
         <motion.div
-          key={index}
-          initial={{ rotateY: 90, scale: 0.7, opacity: 0 }}
+          key={`${index}-${card ? "card" : "slot"}`}
+          initial={{ rotateY: 90, scale: 0.5, opacity: 0, y: -30 }}
           animate={{
             rotateY: card ? 0 : 90,
             scale: card ? 1 : 0.9,
             opacity: 1,
+            y: 0,
           }}
           transition={{
             duration: 0.5,
-            delay: card ? index * 0.12 : 0,
+            delay: card ? index * 0.15 : 0,
             type: "spring",
-            stiffness: 200,
-            damping: 20,
+            stiffness: 180,
+            damping: 18,
           }}
           style={{ perspective: 800 }}
         >

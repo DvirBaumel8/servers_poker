@@ -316,9 +316,21 @@ describe("Interceptors", () => {
       const context = createMockExecutionContext(
         {
           method: "POST",
-          path: "/api/v1/bots",
+          path: "/api/v1/bots/internal",
           user: { id: "user-123" },
-          body: { name: "TestBot", endpoint: "http://localhost:3000" },
+          body: {
+            name: "TestBot",
+            strategy: {
+              version: 1,
+              tier: "quick",
+              personality: {
+                aggression: 50,
+                bluffFrequency: 30,
+                riskTolerance: 50,
+                tightness: 50,
+              },
+            },
+          },
           ip: "192.168.1.1",
           headers: { "user-agent": "curl/7.68.0" },
         },

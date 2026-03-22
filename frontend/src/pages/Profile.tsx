@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
-import { authApi } from "../api/auth";
 import { botsApi } from "../api/bots";
 import type { Bot } from "../types";
 import {
   AlertBanner,
   Button,
-  ConfirmDialog,
   EmptyState,
   LoadingBlock,
   MetricCard,
@@ -24,10 +22,6 @@ export function Profile() {
   const [myBots, setMyBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [regenerating, setRegenerating] = useState(false);
-  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!token) {
@@ -51,33 +45,12 @@ export function Profile() {
     loadData();
   }, [loadData]);
 
-  const handleRegenerateApiKey = async () => {
-    if (!token) return;
-
-    setRegenerating(true);
-    try {
-      const result = await authApi.regenerateApiKey(token);
-      setApiKey(result.api_key);
-      setShowApiKey(true);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to regenerate API key",
-      );
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
   if (!token) {
     return (
       <PageShell>
         <EmptyState
           title="Authentication required"
-          description="Sign in to manage your profile, API key, and owned bots."
+          description="Sign in to manage your profile and owned bots."
           action={
             <Button variant="secondary" asLink="/login">
               Go to login
@@ -98,8 +71,8 @@ export function Profile() {
     <PageShell className="space-y-8">
       <PageHeader
         eyebrow="Profile workspace"
-        title="Account, credentials, and bot ownership"
-        description="Manage identity, API access, and the bots currently assigned to your account."
+        title="Account and bot ownership"
+        description="Manage identity and the bots currently assigned to your account."
         actions={
           <Button
             variant="ghost"
@@ -182,73 +155,11 @@ export function Profile() {
         transition={{ delay: 0.1 }}
       >
         <SurfaceCard className="space-y-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-white">
-                API key access
-              </h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Use this key to authenticate your external bots with the
-                platform.
-              </p>
-            </div>
-            <Button
-              onClick={() => setConfirmRegenerate(true)}
-              disabled={regenerating}
-            >
-              {regenerating ? "Regenerating..." : "Regenerate key"}
-            </Button>
-          </div>
-
-          {apiKey ? (
-            <div className="rounded-3xl border border-white/8 bg-surface-400 px-4 py-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <code className="break-all font-mono text-sm text-emerald-300">
-                  {showApiKey ? apiKey : "••••••••••••••••••••••••••••••••"}
-                </code>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                  >
-                    {showApiKey ? "Hide" : "Show"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => copyToClipboard(apiKey)}
-                  >
-                    Copy
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <SurfaceCard muted>
-              <p className="text-sm text-slate-400">
-                Generate a new API key when you are ready to connect a bot
-                endpoint.
-              </p>
-            </SurfaceCard>
-          )}
-
-          <AlertBanner tone="warning" title="Key rotation warning">
-            Regenerating your key immediately invalidates the current credential
-            for every bot using it.
-          </AlertBanner>
-        </SurfaceCard>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <SurfaceCard className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-white">Owned bots</h2>
               <p className="mt-1 text-sm text-slate-400">
-                Quick access to the bots registered under your account.
+                Quick access to the bots assigned to your account.
               </p>
             </div>
             <Button variant="secondary" asLink="/bots">
@@ -258,9 +169,9 @@ export function Profile() {
 
           {myBots.length === 0 ? (
             <EmptyState
-              title="No bots registered"
-              description="Create your first bot to start validating endpoints and joining live games."
-              action={<Button asLink="/bots">Open bot workspace</Button>}
+              title="No bots yet"
+              description="Build your first bot to start competing in live games."
+              action={<Button asLink="/bots/build">Build a bot</Button>}
             />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
@@ -275,9 +186,11 @@ export function Profile() {
                       <h3 className="truncate font-semibold text-white">
                         {bot.name}
                       </h3>
-                      <p className="truncate text-sm text-slate-500">
-                        {bot.endpoint}
-                      </p>
+                      {bot.description && (
+                        <p className="truncate text-sm text-slate-500">
+                          {bot.description}
+                        </p>
+                      )}
                     </div>
                     <StatusPill
                       label={bot.active ? "active" : "paused"}
@@ -290,19 +203,6 @@ export function Profile() {
           )}
         </SurfaceCard>
       </motion.div>
-
-      <ConfirmDialog
-        open={confirmRegenerate}
-        title="Regenerate API key"
-        description="Your current API key will stop working immediately for all connected bots."
-        confirmLabel="Regenerate key"
-        onClose={() => setConfirmRegenerate(false)}
-        onConfirm={async () => {
-          await handleRegenerateApiKey();
-          setConfirmRegenerate(false);
-        }}
-        busy={regenerating}
-      />
     </PageShell>
   );
 }

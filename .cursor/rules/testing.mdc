@@ -20,7 +20,7 @@ Files excluded from coverage (better suited for integration/E2E tests):
 - Migrations, Workers, Simulation scripts
 - Database repositories, Redis services
 - Passport strategies, Validation pipes
-- Services that require external systems (bot-caller, persistence, recovery)
+- Services that require external systems (persistence, recovery)
 
 These thresholds are defined in `vitest.config.ts` and enforced in CI.
 Run `npm run test:cov` to check coverage locally.
@@ -36,7 +36,7 @@ Run `npm run test:cov` to check coverage locally.
 - Use descriptive test names: `should calculate side pot when player is all-in`
 - Group related tests with `describe()` blocks
 - Use `beforeEach` / `afterEach` for setup/teardown, not `beforeAll` for mutable state
-- Mock external dependencies (HTTP calls to bots, email service)
+- Mock external dependencies (email service)
 - Test both happy paths and error cases
 
 ## Running Tests

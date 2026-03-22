@@ -34,9 +34,8 @@ Ran performance load tests against the poker platform backend. All critical perf
 
 1. **WebSocket performance** - Not tested in this round
 2. **Tournament director under load** - Multiple concurrent tournaments
-3. **Bot communication latency** - HTTP calls to bot endpoints
-4. **Database connection pool** - Verify pool size appropriate for target load
-5. **Memory growth** - Long-running endurance test needed
+3. **Database connection pool** - Verify pool size appropriate for target load
+4. **Memory growth** - Long-running endurance test needed
 
 ---
 

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { randomInt } from "crypto";
 import * as nodemailer from "nodemailer";
 
 interface EmailOptions {
@@ -160,7 +161,7 @@ export class EmailService {
   }
 
   generateVerificationCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return randomInt(100000, 1000000).toString();
   }
 
   async sendDailySummary(

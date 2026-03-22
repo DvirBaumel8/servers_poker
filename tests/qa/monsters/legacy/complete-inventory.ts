@@ -23,7 +23,6 @@ export const BACKEND_ENDPOINTS = {
     { method: "POST", path: "/auth/reset-password", auth: false },
     { method: "POST", path: "/auth/login", auth: false, critical: true },
     { method: "GET", path: "/auth/me", auth: true },
-    { method: "POST", path: "/auth/regenerate-api-key", auth: true },
   ],
 
   bots: [
@@ -34,41 +33,10 @@ export const BACKEND_ENDPOINTS = {
     { method: "GET", path: "/bots/:id", auth: false },
     { method: "GET", path: "/bots/:id/profile", auth: false },
     { method: "GET", path: "/bots/:id/activity", auth: false },
-    { method: "POST", path: "/bots", auth: true, critical: true },
+    { method: "POST", path: "/bots/internal", auth: true, critical: true },
     { method: "PUT", path: "/bots/:id", auth: true },
-    { method: "POST", path: "/bots/:id/validate", auth: true },
     { method: "POST", path: "/bots/:id/activate", auth: true },
     { method: "DELETE", path: "/bots/:id", auth: true },
-  ],
-
-  botsConnectivity: [
-    { method: "GET", path: "/bots/connectivity/health/summary", auth: true },
-    { method: "GET", path: "/bots/connectivity/health/all", auth: true },
-    { method: "GET", path: "/bots/connectivity/health/:botId", auth: true },
-    {
-      method: "POST",
-      path: "/bots/connectivity/health/:botId/check",
-      auth: true,
-    },
-    { method: "POST", path: "/bots/connectivity/health/check-all", auth: true },
-    { method: "GET", path: "/bots/connectivity/validate/:botId", auth: true },
-    {
-      method: "GET",
-      path: "/bots/connectivity/validate/:botId/quick",
-      auth: true,
-    },
-    {
-      method: "POST",
-      path: "/bots/connectivity/circuit-breaker/:botId/reset",
-      auth: true,
-    },
-    { method: "GET", path: "/bots/connectivity/latency/:botId", auth: true },
-    { method: "POST", path: "/bots/connectivity/register/:botId", auth: true },
-    {
-      method: "POST",
-      path: "/bots/connectivity/unregister/:botId",
-      auth: true,
-    },
   ],
 
   botsSubscriptions: [
@@ -139,14 +107,6 @@ export const BACKEND_ENDPOINTS = {
     { method: "PUT", path: "/users/:id", auth: true },
     { method: "PUT", path: "/users/:id/admin", auth: true, admin: true },
     { method: "DELETE", path: "/users/:id", auth: true, admin: true },
-    { method: "POST", path: "/users/:id/rotate-api-key", auth: true },
-    { method: "GET", path: "/users/:id/api-key-status", auth: true },
-    {
-      method: "POST",
-      path: "/users/:id/revoke-api-keys",
-      auth: true,
-      admin: true,
-    },
   ],
 
   analytics: [
@@ -356,8 +316,7 @@ export const USER_FLOWS = [
 
   // Bot flows
   { name: "Create new bot", category: "bots", critical: true },
-  { name: "Edit bot endpoint", category: "bots" },
-  { name: "Validate bot", category: "bots" },
+  { name: "Configure bot strategy", category: "bots" },
   { name: "Delete bot", category: "bots" },
   { name: "View bot profile", category: "bots" },
   { name: "View bot activity", category: "bots" },

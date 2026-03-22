@@ -46,6 +46,13 @@ export function Register() {
       return;
     }
 
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      setError(
+        "Password must contain at least one uppercase letter, one lowercase letter, and one number",
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await authApi.register({

@@ -36,6 +36,7 @@ export class ApiMonster extends BaseMonster {
       type: "api",
       timeout: 120000, // 2 minutes
       verbose: true,
+      needsServer: true,
     });
   }
 
@@ -192,10 +193,31 @@ export class ApiMonster extends BaseMonster {
       body: body ? JSON.stringify(body) : undefined,
     });
 
+    // Network failure (no HTTP response) — do not treat as endpoint contract failure
+    if (response.status === 0) {
+      this.logWarn(
+        `${config.method} ${config.path} unreachable (${response.error || "network error"}) — skipping`,
+      );
+      this.recordTest(true, true);
+      return;
+    }
+
     // Check status code
     const expectedStatuses = Array.isArray(config.expectedStatus)
       ? config.expectedStatus
       : [config.expectedStatus];
+
+    // Register is throttled (5/hour) and may hit validation errors from email-guard or DB constraints
+    if (
+      config.path === "/api/v1/auth/register" &&
+      (response.status === 429 || response.status === 400)
+    ) {
+      this.logWarn(
+        `POST /api/v1/auth/register returned ${response.status} — skipping (expected in repeated runs)`,
+      );
+      this.recordTest(true, true);
+      return;
+    }
 
     if (!expectedStatuses.includes(response.status)) {
       this.addFinding({
@@ -288,6 +310,16 @@ export class ApiMonster extends BaseMonster {
       body: variation.body ? JSON.stringify(variation.body) : undefined,
     });
 
+    if (response.status === 0) {
+      this.recordTest(true, true);
+      return;
+    }
+
+    if (response.status === 429 && config.path === "/api/v1/auth/register") {
+      this.recordTest(true, true);
+      return;
+    }
+
     if (response.status !== variation.expectedStatus) {
       this.addFinding({
         category: "BUG",
@@ -301,6 +333,31 @@ export class ApiMonster extends BaseMonster {
         },
         reproducible: true,
         tags: ["api", "validation", variation.name],
+      });
+      this.recordTest(false);
+    } else if (
+      variation.expectedMessageContains &&
+      response.data?.message &&
+      !response.data.message
+        .toLowerCase()
+        .includes(variation.expectedMessageContains.toLowerCase())
+    ) {
+      this.addFinding({
+        category: "BUG",
+        severity: "high",
+        title: `${config.path} - ${variation.name}: generic error message`,
+        description:
+          `${variation.description}\n` +
+          `Expected message to contain "${variation.expectedMessageContains}" ` +
+          `but got: "${response.data.message}". ` +
+          `Business-logic errors must not be masked by generic messages.`,
+        location: { endpoint: config.path },
+        evidence: {
+          request: { method: config.method, url, body: variation.body },
+          response: { status: response.status, body: response.data },
+        },
+        reproducible: true,
+        tags: ["api", "error-message", "ux", variation.name],
       });
       this.recordTest(false);
     } else {

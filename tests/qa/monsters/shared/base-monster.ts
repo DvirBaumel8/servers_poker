@@ -22,7 +22,8 @@ import {
   Location,
   Evidence,
 } from "./types";
-import { addIssue, Severity as IssueSeverity } from "./issue-tracker";
+import { addIssue } from "./issue-tracker";
+import playwright from "playwright";
 
 export interface MonsterConfig {
   name: string;
@@ -31,6 +32,8 @@ export interface MonsterConfig {
   timeout: number; // Max runtime in ms
   failOnHighSeverity: boolean;
   verbose: boolean;
+  needsServer?: boolean;
+  needsBrowser?: boolean;
 }
 
 export abstract class BaseMonster {
@@ -41,6 +44,7 @@ export abstract class BaseMonster {
   protected testsPassed = 0;
   protected testsFailed = 0;
   protected testsSkipped = 0;
+  protected checksPerformed = 0;
 
   constructor(
     config: Partial<MonsterConfig> & { name: string; type: MonsterType },
@@ -52,6 +56,42 @@ export abstract class BaseMonster {
       verbose: false,
       ...config,
     };
+  }
+
+  // ============================================================================
+  // DEPENDENCY CHECKS
+  // ============================================================================
+
+  static async isServerAvailable(
+    url = "http://localhost:3000",
+  ): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const response = await fetch(`${url}/api/v1/games`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      return response.status < 500;
+    } catch {
+      return false;
+    }
+  }
+
+  private static browserAvailableCache: boolean | null = null;
+
+  static async isBrowserAvailable(): Promise<boolean> {
+    if (BaseMonster.browserAvailableCache !== null) {
+      return BaseMonster.browserAvailableCache;
+    }
+    try {
+      const browser = await playwright.chromium.launch({ headless: true });
+      await browser.close();
+      BaseMonster.browserAvailableCache = true;
+    } catch {
+      BaseMonster.browserAvailableCache = false;
+    }
+    return BaseMonster.browserAvailableCache;
   }
 
   // ============================================================================
@@ -91,8 +131,75 @@ export abstract class BaseMonster {
     this.testsPassed = 0;
     this.testsFailed = 0;
     this.testsSkipped = 0;
+    this.checksPerformed = 0;
 
     this.log(`Starting ${this.config.name}...`);
+
+    if (this.config.needsServer) {
+      const serverUp = await BaseMonster.isServerAvailable();
+      if (!serverUp) {
+        this.log("SKIPPED: Backend server not available at localhost:3000");
+        return {
+          runId: runConfig.runId,
+          monster: this.config.type,
+          startTime: this.startTime,
+          endTime: new Date(),
+          duration: 0,
+          passed: true,
+          findings: [],
+          findingsSummary: {
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            total: 0,
+          },
+          newFindings: [],
+          regressions: [],
+          fixed: [],
+          testsRun: 0,
+          testsPassed: 0,
+          testsFailed: 0,
+          testsSkipped: 0,
+          checksPerformed: 0,
+          skipped: true,
+          skipReason: "Backend server not available",
+        };
+      }
+    }
+
+    if (this.config.needsBrowser) {
+      const browserUp = await BaseMonster.isBrowserAvailable();
+      if (!browserUp) {
+        this.log("SKIPPED: Playwright browser not available");
+        return {
+          runId: runConfig.runId,
+          monster: this.config.type,
+          startTime: this.startTime,
+          endTime: new Date(),
+          duration: 0,
+          passed: true,
+          findings: [],
+          findingsSummary: {
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            total: 0,
+          },
+          newFindings: [],
+          regressions: [],
+          fixed: [],
+          testsRun: 0,
+          testsPassed: 0,
+          testsFailed: 0,
+          testsSkipped: 0,
+          checksPerformed: 0,
+          skipped: true,
+          skipReason: "Playwright browser not available",
+        };
+      }
+    }
 
     let error: string | undefined;
 
@@ -131,6 +238,7 @@ export abstract class BaseMonster {
 
     this.log(
       `Completed in ${duration}ms. ` +
+        `Checks: ${this.checksPerformed}. ` +
         `Findings: ${summary.critical}C ${summary.high}H ${summary.medium}M ${summary.low}L. ` +
         `${passed ? "PASSED" : "FAILED"}`,
     );
@@ -154,6 +262,7 @@ export abstract class BaseMonster {
       testsPassed: this.testsPassed,
       testsFailed: this.testsFailed,
       testsSkipped: this.testsSkipped,
+      checksPerformed: this.checksPerformed,
       error,
     };
   }
@@ -198,7 +307,7 @@ export abstract class BaseMonster {
 
       addIssue({
         category: params.category,
-        severity: params.severity as IssueSeverity,
+        severity: params.severity,
         source: this.config.type,
         title: params.title,
         description: params.description,
@@ -217,6 +326,7 @@ export abstract class BaseMonster {
    */
   protected recordTest(passed: boolean, skipped = false): void {
     this.testsRun++;
+    this.checksPerformed++;
     if (skipped) {
       this.testsSkipped++;
     } else if (passed) {
@@ -224,6 +334,10 @@ export abstract class BaseMonster {
     } else {
       this.testsFailed++;
     }
+  }
+
+  protected recordCheck(): void {
+    this.checksPerformed++;
   }
 
   /**

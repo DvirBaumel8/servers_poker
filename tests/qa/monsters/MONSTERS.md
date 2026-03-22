@@ -2,7 +2,7 @@
 
 **Last Updated:** March 2026
 
-A comprehensive QA system with 21+ monsters that find bugs, critique quality, compare to competitors, and continuously improve.
+A comprehensive QA system with **25** monsters that find bugs, critique quality, compare to competitors, and continuously improve.
 
 ---
 
@@ -25,6 +25,9 @@ npm run monsters:superhero       # Run → Find → Fix → Repeat loop
 npm run monsters:issues          # Show all issues summary
 npm run monsters:issues:report   # Generate markdown report
 npm run monsters:issues:clear    # Clear all issues
+
+# 🔁 REGRESSION (historical fixes)
+npm run monsters:regression-check  # bug-retrospectives.json vs repo
 ```
 
 ---
@@ -40,6 +43,7 @@ npm run monsters:issues:clear    # Clear all issues
 | **Fast Quality** | `monsters:quality:fast` | < 1s | Quick quality score |
 | **Browser QA** | `monsters:browser-qa` | ~10m | Comprehensive 14-phase testing |
 | **Product Quality** | `monsters:quality` | ~1m | Full critique + competitor comparison |
+| **Explorer Monster** | `monsters:explorer` | ~90s default | Autonomous UI crawler (full army / medium tier); cap via `EXPLORER_MAX_RUNTIME` |
 | **Design Critic** | - | - | Visual design analysis |
 | **CSS Lint** | - | - | CSS issues detection |
 | **Layout Lint** | - | - | Layout problems |
@@ -49,7 +53,7 @@ npm run monsters:issues:clear    # Clear all issues
 | Monster | Purpose |
 |---------|---------|
 | **API Monster** | API endpoint testing, contracts, auth |
-| **Contract Monster** | API contract validation |
+| **Contract Monster** | API contracts; static scan of `frontend/src/api/*.ts` for `.map()` on paginated endpoints vs backend controller patterns |
 | **Invariant Monster** | Poker game rule validation |
 | **E2E Monster** | End-to-end flow testing |
 
@@ -72,15 +76,19 @@ npm run monsters:issues:clear    # Clear all issues
 
 | Monster | Purpose |
 |---------|---------|
-| **Code Quality Monster** | Code quality analysis |
+| **Code Quality Monster** | Code quality analysis + entity-migration sync checks |
 | **Visual Monster** | Visual regression testing |
+| **Regression Monster** | `monsters:regression-check` — ensures entries in `tests/qa/monsters/data/bug-retrospectives.json` stay fixed (not the same as `monsters:regression` screenshots) |
+| **Data Integrity Monster** | `monsters:data-integrity` — validates entity-FK relationships, cascade settings, enum constraints, chip/money column types, transaction safety, DTO validation coverage, JSONB schema safety, and chip conservation invariants. 12 check categories, ~1,300 checks |
+| **Data Analytics Monster** | `monsters:data-analytics` — verifies the data recording pipeline per docs/DATA.md: chip movement completeness (ante/blind/refund/etc.), bot stats update correctness (VPIP/PFR/WTSD), hand history recording, event listener coverage, error swallowing, DATA.md contract compliance, leaderboard integrity, and replay data completeness. 10 check categories, ~120 checks |
+| **Log Analyzer Monster** | `monsters:log-analyzer` — two-phase analysis: (1) static scan of backend/frontend source for sensitive data in logs, missing loggers, console.log misuse, silent catch blocks, missing error context; (2) live analysis when backend is running — triggers edge-case requests and checks responses for stack trace leaks, internal path exposure, 5xx errors, slow responses, and inconsistent error formats |
 
 ### 🛠️ Infrastructure
 
 | Monster | Purpose |
 |---------|---------|
 | **Superhero Monster** | Self-improving loop |
-| **Issue Tracker** | Unified issue database |
+| **Issue Tracker** | `issue-tracker.ts` → `issues.json` only (`memory-store.ts` deprecated) |
 
 ---
 
@@ -184,9 +192,7 @@ npm run monsters:quality
 
 ## Unified Issue Tracker
 
-All monsters feed into one central database:
-
-**File:** `tests/qa/monsters/shared/issues.json`
+All monsters, triage, code-fixer, auto-improve, and iteration-runner use **`tests/qa/monsters/shared/issue-tracker.ts`**; **`tests/qa/monsters/shared/issues.json`** is the only persisted issue store.
 
 **Features:**
 - Deduplication by fingerprint
@@ -202,7 +208,18 @@ npm run monsters:issues:report   # Full markdown report
 npm run monsters:issues:clear    # Reset
 ```
 
----
+## Checks performed
+
+Monsters extending `BaseMonster` call `recordCheck()`; output can show `Checks: N` alongside `Findings: 0C 0H 0M 0L` when nothing failed.
+
+## Dead-weight analysis
+
+After `npm run monsters:all`, the runner flags monsters with **5+ runs and 0 issues** as **BROKEN**, **INEFFECTIVE**, or **WATCH**, and writes the list to **`docs/MONSTER_EVOLUTION.md`** (Dead-Weight Analysis).
+
+## Lifecycle & auto-improve
+
+- **Lifecycle fix stage:** `lifecycle-runner.ts` applies **CodeFixer** (`evolution/code-fixer.ts`) for CSS issues (overflow, hover, focus, z-index, contrast).
+- **Auto-improve:** `evolution/auto-improve.ts` patches config files in place; use `--dry-run`, `--apply`, or `--commit`.
 
 ## Speed Optimization
 
@@ -380,7 +397,9 @@ tests/qa/monsters/
 ├── flow-monster/                  # User flows
 ├── chaos-monster/                 # Stress testing
 ├── guardian-monster/              # Security
-└── README.md                      # This file
+├── regression-monster/            # bug-retrospectives guard
+├── evolution/                     # auto-improve, code-fixer
+└── README.md
 ```
 
 ---

@@ -1,4 +1,10 @@
-import { useEffect, useState, useCallback, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  type ChangeEvent,
+} from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { botsApi } from "../api/bots";
@@ -55,11 +61,18 @@ export function BotProfile() {
 
   const isOwner = profile?.bot && user?.id === profile.bot.userId;
 
+  const prevIdRef = useRef<string | undefined>(undefined);
+
   const loadData = useCallback(async () => {
     if (!id) return;
 
     try {
-      setLoading(true);
+      const isNewBot = prevIdRef.current !== id;
+      if (isNewBot) {
+        setLoading(true);
+        setProfile(null);
+        prevIdRef.current = id;
+      }
       const [profileData, activityData] = await Promise.all([
         botsApi.getProfile(id),
         botsApi.getActivity(id),
@@ -181,8 +194,7 @@ export function BotProfile() {
   return (
     <PageShell className="space-y-8">
       <PageHeader
-        backHref="/bots"
-        backLabel="Back to bots"
+        breadcrumbs={[{ label: "Bots", href: "/bots" }, { label: bot.name }]}
         eyebrow="Bot profile"
         title={bot.name}
         description={
@@ -246,13 +258,16 @@ export function BotProfile() {
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <MetricCard label="Hands" value={stats.totalHands} />
-              <MetricCard label="Tournaments" value={stats.totalTournaments} />
-              <MetricCard label="Wins" value={stats.tournamentWins} />
+              <MetricCard label="Hands" value={stats?.totalHands ?? 0} />
+              <MetricCard
+                label="Tournaments"
+                value={stats?.totalTournaments ?? 0}
+              />
+              <MetricCard label="Wins" value={stats?.tournamentWins ?? 0} />
               <MetricCard
                 label="Net chips"
-                value={`${stats.totalNet >= 0 ? "+" : ""}${stats.totalNet.toLocaleString()}`}
-                accent={stats.totalNet >= 0}
+                value={`${(stats.totalNet ?? 0) >= 0 ? "+" : ""}${(stats.totalNet ?? 0).toLocaleString()}`}
+                accent={(stats.totalNet ?? 0) >= 0}
               />
             </div>
 
@@ -389,7 +404,7 @@ export function BotProfile() {
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-bold text-white">
-                              {game.chips.toLocaleString()}
+                              {(game.chips ?? 0).toLocaleString()}
                             </div>
                             <div className="text-xs text-muted">chips</div>
                           </div>
@@ -441,7 +456,7 @@ export function BotProfile() {
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-bold text-white">
-                              {tournament.chips.toLocaleString()}
+                              {(tournament.chips ?? 0).toLocaleString()}
                             </div>
                             <div className="text-xs text-muted">chips</div>
                           </div>
@@ -586,6 +601,8 @@ function SubscriptionModal({
           <TextField
             label="Min buy-in"
             type="number"
+            min={0}
+            max={1000000}
             value={form.min_buy_in}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setForm({ ...form, min_buy_in: e.target.value })
@@ -595,6 +612,8 @@ function SubscriptionModal({
           <TextField
             label="Max buy-in"
             type="number"
+            min={0}
+            max={1000000}
             value={form.max_buy_in}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setForm({ ...form, max_buy_in: e.target.value })

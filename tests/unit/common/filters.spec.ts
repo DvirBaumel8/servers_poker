@@ -58,8 +58,23 @@ describe("HttpExceptionFilter", () => {
     );
   });
 
-  it("should handle BadRequestException", () => {
-    const exception = new BadRequestException("Invalid input");
+  it("should preserve business-logic BadRequestException messages", () => {
+    const exception = new BadRequestException("Maximum 10 bots per account");
+
+    filter.catch(exception, mockHost as never);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: "Maximum 10 bots per account",
+        error: "Bad Request",
+      }),
+    );
+  });
+
+  it("should use generic message for validation BadRequestException", () => {
+    const exception = new BadRequestException(["field must not be empty"]);
 
     filter.catch(exception, mockHost as never);
 

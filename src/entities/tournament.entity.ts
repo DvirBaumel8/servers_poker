@@ -14,6 +14,7 @@ export type TournamentStatus =
 export type TournamentType = "rolling" | "scheduled";
 
 @Entity("tournaments")
+@Check(`"type" IN ('rolling', 'scheduled')`)
 @Check(`"buy_in" >= 0`)
 @Check(`"starting_chips" > 0`)
 @Check(`"min_players" >= 2`)

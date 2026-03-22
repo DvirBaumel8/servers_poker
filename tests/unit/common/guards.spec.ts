@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  ExecutionContext,
-  UnauthorizedException,
-  ForbiddenException,
-} from "@nestjs/common";
+import { ExecutionContext, ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { JwtAuthGuard } from "../../../src/common/guards/jwt-auth.guard";
-import { ApiKeyGuard } from "../../../src/common/guards/api-key.guard";
 import { RolesGuard } from "../../../src/common/guards/roles.guard";
 
 describe("Guards", () => {
@@ -43,73 +38,6 @@ describe("Guards", () => {
 
       // The promise should reject because JWT strategy isn't configured
       await expect(result).rejects.toThrow("Unknown authentication strategy");
-    });
-  });
-
-  describe("ApiKeyGuard", () => {
-    let guard: ApiKeyGuard;
-    let mockUserRepository: { findByApiKey: ReturnType<typeof vi.fn> };
-
-    beforeEach(() => {
-      mockUserRepository = {
-        findByApiKey: vi.fn(),
-      };
-      guard = new ApiKeyGuard(mockUserRepository as never);
-    });
-
-    it("should throw UnauthorizedException when no auth header", async () => {
-      const context = createMockExecutionContext({ headers: {} });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it("should throw UnauthorizedException for invalid header format", async () => {
-      const context = createMockExecutionContext({
-        headers: { authorization: "InvalidFormat" },
-      });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it("should throw UnauthorizedException for invalid API key", async () => {
-      mockUserRepository.findByApiKey.mockResolvedValue(null);
-      const context = createMockExecutionContext({
-        headers: { authorization: "Bearer invalid-key" },
-      });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it("should throw UnauthorizedException for deactivated user", async () => {
-      mockUserRepository.findByApiKey.mockResolvedValue({
-        id: "1",
-        active: false,
-      });
-      const context = createMockExecutionContext({
-        headers: { authorization: "Bearer valid-key" },
-      });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it("should allow access for valid API key", async () => {
-      const mockUser = { id: "1", active: true };
-      mockUserRepository.findByApiKey.mockResolvedValue(mockUser);
-      const request = { headers: { authorization: "Bearer valid-key" } };
-      const context = createMockExecutionContext(request);
-
-      const result = await guard.canActivate(context);
-
-      expect(result).toBe(true);
-      expect(request).toHaveProperty("user", mockUser);
     });
   });
 

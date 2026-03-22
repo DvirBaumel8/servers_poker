@@ -126,7 +126,7 @@ The **Poker Server Overview** dashboard includes:
 ### Overview Row
 - **Active Games** - Currently running games
 - **Active Tournaments** - In-progress tournaments
-- **Connected Bots** - Registered bot connections
+- **Active Bots** - Currently active bots
 - **WebSocket Connections** - Active WebSocket clients
 - **Total Hands Dealt** - Cumulative hand count
 - **Tournaments Completed** - Finished tournaments
@@ -139,12 +139,10 @@ The **Poker Server Overview** dashboard includes:
 ### Game & Bot Metrics Row
 - **Hands Dealt Rate** - Hands per minute
 - **Bot Actions by Type** - fold/check/call/raise/bet breakdown
-- **Bot Errors by Type** - Error categorization
 
 ### Infrastructure Row
 - **Memory Usage** - RSS and heap memory
 - **Database Pool** - Connection pool utilization
-- **Bot Response Time** - P50/P95 latency
 
 ## Alerting
 
@@ -156,7 +154,6 @@ The **Poker Server Overview** dashboard includes:
 | HighErrorRate | 5xx > 1% for 5m | Critical | Check logs, recent deployments |
 | HighLatency | P95 > 1s for 5m | Warning | Check DB queries, bot timeouts |
 | HighMemoryUsage | RSS > 80% of 512MB | Warning | Check for memory leaks, restart |
-| BotErrorSpike | Error rate elevated | Warning | Check bot health, circuit breakers |
 | DatabasePoolExhausted | Pool > 80% utilized | Warning | Increase pool size, check queries |
 | WebSocketConnectionsDrop | > 50% drop in 5m | Warning | Check for network issues |
 | TournamentStuck | No hands for 10m | Warning | Check game state, bot responses |
@@ -337,10 +334,6 @@ sum(rate(poker_http_requests_total{status=~"5.."}[5m]))
 histogram_quantile(0.95, 
   sum(rate(poker_http_request_duration_seconds_bucket[5m])) by (le)
 )
-
-# Bot success rate
-1 - (sum(rate(poker_bot_errors_total[5m])) 
-     / sum(rate(poker_bot_actions_total[5m])))
 
 # Hands per minute
 rate(poker_hands_dealt_total[1m]) * 60

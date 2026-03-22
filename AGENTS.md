@@ -40,9 +40,7 @@ Docker must be running with fuse-overlayfs storage driver and iptables-legacy (r
 
 ### Known issues
 
-- **TypeScript build error**: `nest build` reports a TS2322 error in `src/modules/games/games.service.ts` (LeaderboardEntryDto mismatch). Because `noEmitOnError: false` in tsconfig, JS output is still emitted. However, `nest start --watch` (i.e. `npm run dev`) does **not** start the server when TS errors exist. Workaround: build first with `npx nest build`, then run `node dist/src/main.js` directly.
-- **Migration ordering bug**: Migration timestamps are misordered — `AddEmailVerification` (1710000000003) runs before `InitialSchema` (1710864000000). To set up a fresh DB, use TypeORM `synchronize: true` to create schema from entities, then manually insert all migration records into the `migrations` table so the bundled `run.js` (which gets auto-imported by the entity glob) doesn't crash the app trying to re-run them.
-- **Migration runner auto-execution**: The `src/migrations/run.js` file is caught by the TypeORM entity/migration glob patterns and auto-executed when the app starts. If migrations are not all recorded as complete, this will crash the process with `process.exit(1)`.
+- **TypeScript build error**: `nest build` reports a TS2322 error in `src/modules/games/games.service.ts` (LeaderboardEntryDto mismatch). Fix TS errors before building (tsconfig has `noEmitOnError: true`).
 
 ### Running the backend
 
@@ -50,38 +48,13 @@ Docker must be running with fuse-overlayfs storage driver and iptables-legacy (r
 # 1. Start PostgreSQL
 sudo docker compose up -d postgres
 
-# 2. Build (emits JS despite TS error)
+# 2. Build
 npx nest build
 
-# 3. Sync schema from entities (fresh DB only)
-node -e "
-const { DataSource } = require('typeorm');
-require('dotenv').config();
-const ds = new DataSource({
-  type: 'postgres', host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_NAME || 'poker',
-  synchronize: true,
-  entities: [__dirname + '/dist/src/entities/*.entity.js'],
-  logging: false,
-});
-ds.initialize().then(() => ds.destroy()).catch(e => { console.error(e.message); process.exit(1); });
-"
+# 3. Run migrations (creates all tables on fresh DB)
+npx typeorm migration:run -d dist/src/config/typeorm.config.js
 
-# 4. Mark all migrations as run (fresh DB only)
-sudo docker exec poker-postgres psql -U postgres -d poker -c "
-INSERT INTO migrations (timestamp, name) VALUES
-(1710000000003, 'AddEmailVerification1710000000003'),
-(1710000000004, 'AddPasswordAndResetFields1710000000004'),
-(1710864000000, 'InitialSchema1710864000000'),
-(1710864001000, 'AddGameStateSnapshots1710864001000'),
-(1710864002000, 'AddHandSeeds1710864002000')
-ON CONFLICT DO NOTHING;
-"
-
-# 5. Start backend
+# 4. Start backend
 node dist/src/main.js
 ```
 
@@ -98,7 +71,7 @@ npm run qa:all:full   # Full: All tests including E2E + Simulations (~150s)
 - **Unit tests**: `npm run test:unit` — no DB needed (~10s)
 - **Integration tests**: `npm run test:integration` — no DB needed (~1s)
 - **E2E tests**: `npm run test:e2e` — requires PostgreSQL (~118s)
-- **Monsters**: `npm run monsters:all` — all 21 QA monsters (~19s)
+- **Monsters**: `npm run monsters:all` — all 25 QA monsters (~19s)
 - **Lint**: `npx eslint "{src,apps,libs,test}/**/*.ts"` (backend)
 
 ### Email verification in dev mode
@@ -116,13 +89,15 @@ All QA testing lives in `tests/qa/monsters/` — the consolidated "Monster Army"
 | Trigger | What Runs | Time | Purpose |
 |---------|-----------|------|---------|
 | Pre-commit | Fast monsters | ~10s | Catch issues before git history |
-| Every PR | All 21 monsters | ~17s | Full validation before merge |
+| Every PR | All 25 monsters | ~17s | Full validation before merge |
 | Push to main | All + E2E | ~2min | Post-merge verification |
 | Nightly | Full + Chaos | ~5min | Deep testing, baselines |
 
+**Server auto-start:** Monsters automatically start BE/FE if they aren't running, and tear them down when finished. If servers are already running, they are left untouched. Use `--no-auto-start` to disable this, or `--static` to only run static-analysis monsters.
+
 **Quick commands:**
 ```bash
-# Run all 21 monsters in parallel (~17s)
+# Run all 25 monsters in parallel (auto-starts BE/FE if needed)
 npm run monsters:all
 
 # Fast monsters only (~10s)
@@ -137,6 +112,12 @@ npm run monsters:simulation:thorough  # Full (~5-10min, 7 scenarios)
 npm run monsters:invariant
 npm run monsters:browser-qa
 npm run monsters:api
+
+# 🦸 Explorer Monster - autonomous UI crawler (medium preset; ~90s default, EXPLORER_MAX_RUNTIME)
+npm run monsters:explorer
+
+# 🔁 Regression Monster - bug-retrospectives guard
+npm run monsters:regression-check
 ```
 
 **Key files:**
@@ -151,10 +132,14 @@ npm run monsters:api
 | Change Type | Update Location |
 |-------------|-----------------|
 | New API endpoint | `monsters/api-monster/api-monster.config.ts` |
+| Paginated list client vs controller | `monsters/contract-monster/contract-monster.ts` |
 | New page/route | `monsters/visual-monster/visual-monster.config.ts` |
 | New poker invariant | `monsters/invariant-monster/poker-invariants.ts` |
 | New user flow | `monsters/flows/` (game-flow, tournament-flow) |
 | Game logic changes | `monsters/simulation-monster/simulation-monster.ts` |
+| Entity/migration/DTO/schema changes | `monsters/data-integrity-monster/data-integrity-monster.ts` |
+| Logging/error-handling changes | `monsters/log-analyzer-monster/log-analyzer-monster.ts` |
+| Regression / reverted historical fixes | `monsters/regression-monster/regression-monster.ts` + `monsters/data/bug-retrospectives.json` |
 | Security concern | `monsters/guardian-monster/` |
 | CSS/styling issue | `monsters/browser-monster/css-lint-monster.ts` |
 | Layout/overlap issue | `monsters/browser-monster/layout-lint-monster.ts` |

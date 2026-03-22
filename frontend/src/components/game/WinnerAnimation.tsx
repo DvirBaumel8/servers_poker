@@ -48,6 +48,15 @@ export function WinnerAnimation({
 
   return (
     <AnimatePresence>
+      {/* Confetti burst */}
+      {chipsVisible && (
+        <div className="absolute inset-0 pointer-events-none z-[41] overflow-hidden">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <ConfettiPiece key={`confetti-${i}`} index={i} />
+          ))}
+        </div>
+      )}
+
       {/* Flying chips animation */}
       {chipsVisible && winnerPosition && (
         <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
@@ -206,6 +215,56 @@ function ChipIcon() {
       <div className="w-5 h-5 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 border border-yellow-300 shadow-lg" />
       <div className="w-5 h-5 rounded-full bg-gradient-to-b from-green-400 to-green-600 border border-green-300 shadow-lg" />
     </div>
+  );
+}
+
+function ConfettiPiece({ index }: { index: number }) {
+  const colors = [
+    "#fbbf24",
+    "#22c55e",
+    "#ef4444",
+    "#3b82f6",
+    "#a855f7",
+    "#ec4899",
+    "#f97316",
+    "#14b8a6",
+  ];
+  const color = colors[index % colors.length];
+  const startX = 40 + Math.random() * 20;
+  const endX = startX + (Math.random() - 0.5) * 80;
+  const rotation = Math.random() * 720 - 360;
+  const size = 4 + Math.random() * 6;
+  const isCircle = index % 3 === 0;
+
+  return (
+    <motion.div
+      initial={{
+        left: `${startX}%`,
+        top: "45%",
+        opacity: 1,
+        scale: 0,
+        rotate: 0,
+      }}
+      animate={{
+        left: `${endX}%`,
+        top: `${-10 + Math.random() * 30}%`,
+        opacity: [1, 1, 0],
+        scale: [0, 1.2, 0.8],
+        rotate: rotation,
+      }}
+      transition={{
+        duration: 1.2 + Math.random() * 0.6,
+        delay: index * 0.03,
+        ease: [0.2, 0.8, 0.4, 1],
+      }}
+      className="absolute pointer-events-none"
+      style={{
+        width: size,
+        height: isCircle ? size : size * 1.5,
+        backgroundColor: color,
+        borderRadius: isCircle ? "50%" : "2px",
+      }}
+    />
   );
 }
 

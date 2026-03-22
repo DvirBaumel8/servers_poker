@@ -10,6 +10,8 @@ import {
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
 import { Game } from "./game.entity";
+import { Bot } from "./bot.entity";
+import { Tournament } from "./tournament.entity";
 import { HandPlayer } from "./hand-player.entity";
 import { Action } from "./action.entity";
 
@@ -34,11 +36,19 @@ export class Hand extends BaseEntity {
   @Column({ type: "varchar", length: 36, nullable: true })
   tournament_id: string | null;
 
+  @ManyToOne(() => Tournament, { onDelete: "CASCADE", nullable: true })
+  @JoinColumn({ name: "tournament_id" })
+  tournament: Tournament | null;
+
   @Column({ type: "integer" })
   hand_number: number;
 
   @Column({ type: "varchar", length: 36, nullable: true })
   dealer_bot_id: string | null;
+
+  @ManyToOne(() => Bot, { onDelete: "SET NULL", nullable: true })
+  @JoinColumn({ name: "dealer_bot_id" })
+  dealer_bot: Bot | null;
 
   @Column({ type: "bigint" })
   small_blind: number;

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  Logger,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
@@ -15,6 +16,8 @@ import { StrategyTunerService } from "./strategy-tuner.service";
 @Controller("strategy-tuner")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class StrategyTunerController {
+  private readonly logger = new Logger(StrategyTunerController.name);
+
   constructor(private readonly tunerService: StrategyTunerService) {}
 
   @Post("run")

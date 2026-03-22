@@ -10,6 +10,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { BaseMonster } from "../shared/base-monster";
+import { generateReport as generateIssueReport } from "../shared/issue-tracker";
 import { RunConfig, RunResult } from "../shared/types";
 
 interface DesignCritique {
@@ -494,7 +495,7 @@ export class DesignCriticMonster extends BaseMonster {
   constructor() {
     super({
       name: "Design Critic Monster",
-      type: "design-critic" as any,
+      type: "design-critic",
       timeout: 60000,
       verbose: true,
     });
@@ -619,7 +620,7 @@ export class DesignCriticMonster extends BaseMonster {
       overallGrade = "D - Amateur";
       overallMessage =
         "This UI would not be taken seriously by poker players. Major improvements needed before competing with established platforms.";
-    } else if (amateurCount > 0 || mediocreCount > 5) {
+    } else if (amateurCount > 0 || mediocreCount > 4) {
       overallGrade = "C - Below Average";
       overallMessage =
         "The UI has some professional elements but several areas feel unpolished. Players would notice the lack of refinement compared to competitors.";
@@ -644,9 +645,8 @@ export class DesignCriticMonster extends BaseMonster {
     this.log(`  ⚠️  Mediocre areas: ${mediocreCount}`);
     this.log(`  💡 Minor suggestions: ${acceptableCount}`);
 
-    // Only add a finding if the grade indicates real problems (C or below)
-    // Good grades (A, B+, B) are informational - not issues to fix
-    if (amateurCount > 0 || mediocreCount > 5) {
+    // Report when there are any amateur issues or more than 2 mediocre areas
+    if (amateurCount > 0 || mediocreCount > 2) {
       this.addFinding({
         category: amateurCount > 0 ? "BUG" : "CONCERN",
         severity:
@@ -658,7 +658,6 @@ export class DesignCriticMonster extends BaseMonster {
         tags: ["design", "overall-assessment"],
       });
     } else {
-      // Good grades - just log, don't create a finding
       this.log(
         `\n✅ Design quality is good (${overallGrade}) - no action needed`,
       );
@@ -727,6 +726,11 @@ if (require.main === module) {
     .run(runConfig)
     .then((result) => {
       console.log(`\n\n📋 Total findings: ${result.findings.length}`);
+      try {
+        generateIssueReport();
+      } catch {
+        // Best-effort
+      }
       process.exit(result.passed ? 0 : 1);
     })
     .catch((err) => {

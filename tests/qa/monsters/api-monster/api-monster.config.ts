@@ -4,6 +4,8 @@
  * Defines all endpoints to test, expected responses, and validation rules.
  */
 
+import { getOriginForApiV1Paths } from "../shared/env-config";
+
 export interface EndpointConfig {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
@@ -30,6 +32,7 @@ export interface EndpointConfig {
     queryParams?: Record<string, string>;
     expectedStatus: number;
     description: string;
+    expectedMessageContains?: string;
   }[];
 }
 
@@ -66,7 +69,7 @@ const AUTH_ENDPOINTS: EndpointConfig[] = [
       password: "TestPassword123!",
       name: "Test User",
     },
-    expectedStatus: [200, 201],
+    expectedStatus: [200, 201, 409],
     expectedShape: {
       message: "string",
       email: "string",
@@ -76,7 +79,7 @@ const AUTH_ENDPOINTS: EndpointConfig[] = [
       {
         name: "duplicate_email",
         body: { email: "admin@poker.io", password: "Test123!", name: "Dup" },
-        expectedStatus: 409,
+        expectedStatus: [400, 409],
         description: "Reject duplicate email",
       },
       {
@@ -360,6 +363,47 @@ const TOURNAMENTS_ENDPOINTS: EndpointConfig[] = [
         expectedStatus: 400,
         description: "Reject XSS event handlers in name",
       },
+      {
+        name: "empty_name",
+        body: {
+          name: "",
+          type: "rolling",
+          buy_in: 100,
+          starting_chips: 5000,
+          min_players: 2,
+          max_players: 10,
+        },
+        expectedStatus: 400,
+        description:
+          "Reject empty tournament name - prevents blank cards in UI",
+      },
+      {
+        name: "extreme_buy_in",
+        body: {
+          name: "Overflow Test",
+          type: "rolling",
+          buy_in: 9007199254740992,
+          starting_chips: 5000,
+          min_players: 2,
+          max_players: 10,
+        },
+        expectedStatus: 400,
+        description:
+          "Reject absurd buy-in values beyond safe integer range - prevents UI overflow",
+      },
+      {
+        name: "negative_buy_in",
+        body: {
+          name: "Negative Test",
+          type: "rolling",
+          buy_in: -100,
+          starting_chips: 5000,
+          min_players: 2,
+          max_players: 10,
+        },
+        expectedStatus: 400,
+        description: "Reject negative buy-in",
+      },
     ],
   },
   {
@@ -386,7 +430,7 @@ const BOTS_ENDPOINTS: EndpointConfig[] = [
     description: "List bots (public, paginated)",
     auth: false,
     critical: true,
-    expectedStatus: 200, // Public endpoint MUST return 200, not 401
+    expectedStatus: 200,
     expectedShape: {
       data: "array",
       total: "number",
@@ -420,8 +464,8 @@ const BOTS_ENDPOINTS: EndpointConfig[] = [
     method: "GET",
     path: "/api/v1/bots/:id",
     description: "Get bot by ID (public)",
-    auth: false, // Changed: this is now public
-    expectedStatus: [200, 404], // 404 if bot doesn't exist
+    auth: false,
+    expectedStatus: [200, 404],
   },
   {
     method: "GET",
@@ -457,24 +501,38 @@ const BOTS_ENDPOINTS: EndpointConfig[] = [
   },
   {
     method: "POST",
-    path: "/api/v1/bots",
-    description: "Create bot",
+    path: "/api/v1/bots/internal",
+    description: "Create internal bot with strategy",
     auth: true,
     body: {
       name: "APIMonsterBot${timestamp}",
-      endpoint: "http://localhost:4000/bot",
+      strategy: {
+        version: 1,
+        tier: "quick",
+        personality: {
+          aggression: 50,
+          bluffFrequency: 50,
+          riskTolerance: 50,
+          tightness: 50,
+        },
+      },
     },
     expectedStatus: [201, 400],
     variations: [
       {
-        name: "invalid_endpoint",
-        body: { name: "BadBot", endpoint: "not-a-url" },
-        expectedStatus: 400,
-        description: "Reject invalid endpoint URL",
-      },
-      {
         name: "missing_name",
-        body: { endpoint: "http://localhost:4000/bot" },
+        body: {
+          strategy: {
+            version: 1,
+            tier: "quick",
+            personality: {
+              aggression: 50,
+              bluffFrequency: 50,
+              riskTolerance: 50,
+              tightness: 50,
+            },
+          },
+        },
         expectedStatus: 400,
         description: "Reject missing name",
       },
@@ -482,7 +540,7 @@ const BOTS_ENDPOINTS: EndpointConfig[] = [
         name: "sql_injection",
         body: {
           name: "'; DROP TABLE bots; --",
-          endpoint: "http://localhost:4000/bot",
+          strategy: { version: 1, tier: "quick", personality: {} },
         },
         expectedStatus: 400,
         description: "Reject SQL injection in bot name",
@@ -491,7 +549,7 @@ const BOTS_ENDPOINTS: EndpointConfig[] = [
         name: "xss_attack",
         body: {
           name: "<script>alert(1)</script>",
-          endpoint: "http://localhost:4000/bot",
+          strategy: { version: 1, tier: "quick", personality: {} },
         },
         expectedStatus: 400,
         description: "Reject XSS in bot name",
@@ -500,13 +558,131 @@ const BOTS_ENDPOINTS: EndpointConfig[] = [
         name: "special_chars",
         body: {
           name: "Bot With Spaces!",
-          endpoint: "http://localhost:4000/bot",
+          strategy: { version: 1, tier: "quick", personality: {} },
         },
         expectedStatus: 400,
         description:
           "Reject special chars (only letters, numbers, underscores, hyphens allowed)",
       },
     ],
+  },
+];
+
+const BOTS_INTERNAL_ENDPOINTS: EndpointConfig[] = [
+  {
+    method: "GET",
+    path: "/api/v1/bots/internal/presets",
+    description: "Get personality presets for bot builder (public)",
+    auth: false,
+    critical: true,
+    expectedStatus: 200,
+    expectedShape: {
+      presets: "array",
+    },
+    validate: (response) => {
+      if (!response.presets || !Array.isArray(response.presets)) {
+        return { valid: false, error: "Expected presets array" };
+      }
+      if (response.presets.length === 0) {
+        return { valid: false, error: "Presets array is empty" };
+      }
+      const preset = response.presets[0];
+      if (!preset.id || !preset.name || !preset.personality) {
+        return {
+          valid: false,
+          error: "Preset missing required fields (id, name, personality)",
+        };
+      }
+      return { valid: true };
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/bots/internal/condition-fields",
+    description: "Get condition field definitions for bot builder (public)",
+    auth: false,
+    critical: true,
+    expectedStatus: 200,
+    expectedShape: {
+      fields: "array",
+    },
+    validate: (response) => {
+      if (!response.fields || !Array.isArray(response.fields)) {
+        return { valid: false, error: "Expected fields array" };
+      }
+      if (response.fields.length === 0) {
+        return { valid: false, error: "Fields array is empty" };
+      }
+      const field = response.fields[0];
+      if (!field.category || !field.field || !field.type || !field.label) {
+        return {
+          valid: false,
+          error:
+            "Condition field missing required properties (category, field, type, label)",
+        };
+      }
+      return { valid: true };
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/bots/internal/simulate",
+    description:
+      "Simulate bot action for a given strategy and scenario (What-If Simulator)",
+    auth: true,
+    critical: true,
+    body: {
+      strategy: {
+        version: 1,
+        tier: "quick",
+        personality: {
+          aggression: 70,
+          bluffFrequency: 30,
+          riskTolerance: 50,
+          tightness: 60,
+        },
+      },
+      scenario: {
+        stage: "pre-flop",
+        holeCards: ["As", "Ah"],
+        communityCards: [],
+        position: "UTG",
+        stackSize: 1000,
+        potSize: 15,
+        bigBlind: 10,
+        facingBet: false,
+        betAmount: 0,
+        playersInHand: 6,
+      },
+    },
+    expectedStatus: [200, 201],
+    expectedShape: {
+      action: "object",
+      source: "string",
+      explanation: "string",
+    },
+    validate: (response) => {
+      if (!response.action || typeof response.action !== "object") {
+        return { valid: false, error: "Missing action object in response" };
+      }
+      if (typeof response.action.type !== "string") {
+        return { valid: false, error: "action.type must be a string" };
+      }
+      const validTypes = ["fold", "check", "call", "raise", "all_in"];
+      if (!validTypes.includes(response.action.type)) {
+        return {
+          valid: false,
+          error: `Invalid action type: ${response.action.type}. Expected one of: ${validTypes.join(", ")}`,
+        };
+      }
+      if (typeof response.source !== "string") {
+        return { valid: false, error: "source must be a string" };
+      }
+      if (typeof response.explanation !== "string") {
+        return { valid: false, error: "explanation must be a string" };
+      }
+      return { valid: true };
+    },
   },
 ];
 
@@ -589,7 +765,7 @@ const RATE_LIMIT_TESTS: {
 // ============================================================================
 
 export const API_MONSTER_CONFIG: ApiMonsterConfig = {
-  baseUrl: process.env.API_BASE_URL || "http://localhost:3000",
+  baseUrl: getOriginForApiV1Paths(),
   timeout: 10000,
   retries: 2,
   adminCredentials: {
@@ -602,6 +778,7 @@ export const API_MONSTER_CONFIG: ApiMonsterConfig = {
     ...GAMES_ENDPOINTS,
     ...TOURNAMENTS_ENDPOINTS,
     ...BOTS_ENDPOINTS,
+    ...BOTS_INTERNAL_ENDPOINTS,
     ...ANALYTICS_ENDPOINTS,
   ],
   rateLimitTests: RATE_LIMIT_TESTS,

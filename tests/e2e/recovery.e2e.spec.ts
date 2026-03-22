@@ -1,14 +1,3 @@
-/**
- * Recovery E2E Tests
- * ==================
- * Tests for system recovery and resilience:
- * - Bot reconnection after disconnect
- * - Game state recovery
- * - Session persistence
- * - Graceful degradation
- * - Error recovery
- */
-
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
@@ -17,7 +6,6 @@ import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
 import request from "supertest";
-import * as http from "http";
 import { DataSource } from "typeorm";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
@@ -31,83 +19,9 @@ import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 let testCounter = 1;
 const uid = () => `${testCounter++}${Math.random().toString(36).slice(2, 6)}`;
 
-let portCounter = 44000;
-function getNextPort(): number {
-  return portCounter++;
-}
-
-interface BotServer {
-  server: http.Server;
-  port: number;
-  isOnline: boolean;
-  requestCount: number;
-  close: () => Promise<void>;
-  restart: () => Promise<void>;
-  setOffline: () => void;
-  setOnline: () => void;
-}
-
-function createControllableBotServer(port: number): Promise<BotServer> {
-  return new Promise((resolve, reject) => {
-    let isOnline = true;
-    let requestCount = 0;
-    let server: http.Server;
-
-    const createServer = () => {
-      return http.createServer((req, res) => {
-        requestCount++;
-
-        if (!isOnline) {
-          res.destroy();
-          return;
-        }
-
-        if (req.method === "GET") {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "ok" }));
-          return;
-        }
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ type: "call" }));
-      });
-    };
-
-    server = createServer();
-    server.on("error", reject);
-    server.listen(port, () => {
-      resolve({
-        server,
-        port,
-        get isOnline() {
-          return isOnline;
-        },
-        get requestCount() {
-          return requestCount;
-        },
-        close: () => new Promise<void>((res) => server.close(() => res())),
-        restart: () =>
-          new Promise<void>((res, rej) => {
-            server.close(() => {
-              server = createServer();
-              server.on("error", rej);
-              server.listen(port, () => res());
-            });
-          }),
-        setOffline: () => {
-          isOnline = false;
-        },
-        setOnline: () => {
-          isOnline = true;
-        },
-      });
-    });
-  });
-}
-
 describe("Recovery E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
-  const botServers: BotServer[] = [];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -150,13 +64,6 @@ describe("Recovery E2E Tests", () => {
   });
 
   afterAll(async () => {
-    for (const bot of botServers) {
-      try {
-        await bot.close();
-      } catch {
-        // Ignore errors when closing bot servers during cleanup
-      }
-    }
     if (dataSource?.isInitialized) await dataSource.destroy();
     await app.close();
   });
@@ -164,12 +71,8 @@ describe("Recovery E2E Tests", () => {
   async function registerPlayer(): Promise<{
     accessToken: string;
     bot: { id: string };
-    botServer: BotServer;
   }> {
     const id = uid();
-    const port = getNextPort();
-    const botServer = await createControllableBotServer(port);
-    botServers.push(botServer);
 
     const response = await request(app.getHttpServer())
       .post("/api/v1/auth/register-developer")
@@ -178,27 +81,23 @@ describe("Recovery E2E Tests", () => {
         name: `RecoveryPlayer${id}`,
         password: "SecurePass123",
         botName: `RecBot${id}`,
-        botEndpoint: `http://localhost:${port}`,
       })
       .expect(201);
 
-    return { ...response.body, botServer };
+    return response.body;
   }
 
   describe("Session Recovery", () => {
     it("should maintain valid token across multiple requests", async () => {
       const player = await registerPlayer();
 
-      // First request
       const res1 = await request(app.getHttpServer())
         .get("/api/v1/auth/me")
         .set("Authorization", `Bearer ${player.accessToken}`)
         .expect(200);
 
-      // Wait a bit
       await new Promise((r) => setTimeout(r, 500));
 
-      // Second request with same token
       const res2 = await request(app.getHttpServer())
         .get("/api/v1/auth/me")
         .set("Authorization", `Bearer ${player.accessToken}`)
@@ -219,39 +118,6 @@ describe("Recovery E2E Tests", () => {
     });
   });
 
-  describe("Bot Connectivity Recovery", () => {
-    it("should handle temporary bot offline gracefully", async () => {
-      const player = await registerPlayer();
-
-      // Initial health check should pass
-      const initialHealth = await request(app.getHttpServer())
-        .post(`/api/v1/bots/${player.bot.id}/validate`)
-        .set("Authorization", `Bearer ${player.accessToken}`);
-
-      expect([200, 201]).toContain(initialHealth.status);
-
-      // Take bot offline
-      player.botServer.setOffline();
-
-      // Health check should fail
-      const offlineHealth = await request(app.getHttpServer())
-        .post(`/api/v1/bots/${player.bot.id}/validate`)
-        .set("Authorization", `Bearer ${player.accessToken}`);
-
-      // Should indicate bot is unreachable or return error
-      expect([200, 201, 400, 500]).toContain(offlineHealth.status);
-
-      // Bring bot back online
-      player.botServer.setOnline();
-
-      // Should recover
-      const recoveredHealth = await request(app.getHttpServer())
-        .post(`/api/v1/bots/${player.bot.id}/validate`)
-        .set("Authorization", `Bearer ${player.accessToken}`);
-
-      expect([200, 201]).toContain(recoveredHealth.status);
-    });
-  });
   describe("Resource Cleanup", () => {
     it("should clean up resources when player leaves", async () => {
       const player = await registerPlayer();
@@ -269,14 +135,12 @@ describe("Recovery E2E Tests", () => {
         })
         .expect(201);
 
-      // Join
       await request(app.getHttpServer())
         .post(`/api/v1/games/${tableRes.body.id}/join`)
         .set("Authorization", `Bearer ${player.accessToken}`)
         .send({ bot_id: player.bot.id })
         .expect(201);
 
-      // Leave
       const leaveRes = await request(app.getHttpServer())
         .post(`/api/v1/games/${tableRes.body.id}/leave`)
         .set("Authorization", `Bearer ${player.accessToken}`)

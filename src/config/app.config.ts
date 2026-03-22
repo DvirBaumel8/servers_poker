@@ -43,7 +43,6 @@ export interface AppConfig {
   corsOrigins: string[];
   rateLimitMax: number;
   rateLimitWindowMs: number;
-  botTimeoutMs: number;
   maxBodySize: number;
   workers: WorkerConfig;
   redis: RedisConfig;
@@ -51,7 +50,6 @@ export interface AppConfig {
   gameOwnershipTtlMs: number;
   gameOwnershipRenewalMs: number;
   tournamentScheduler: TournamentSchedulerConfig;
-  botRecoveryTimeoutMs: number;
   redisPubSubPollMs: number;
 }
 
@@ -68,7 +66,6 @@ export const appConfig = (): AppConfig => ({
   // Per-route limits on auth endpoints are stricter (see auth.controller.ts)
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || "300", 10),
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
-  botTimeoutMs: parseInt(process.env.BOT_TIMEOUT_MS || "10000", 10),
   maxBodySize: parseInt(process.env.MAX_BODY_SIZE || "65536", 10),
   workers: {
     enableWorkerThreads: process.env.ENABLE_WORKER_THREADS === "true",
@@ -99,9 +96,5 @@ export const appConfig = (): AppConfig => ({
     ),
     cronExpression: process.env.TOURNAMENT_SCHEDULER_CRON || "*/30 * * * * *", // Every 30 seconds
   },
-  botRecoveryTimeoutMs: parseInt(
-    process.env.BOT_RECOVERY_TIMEOUT_MS || "5000",
-    10,
-  ),
   redisPubSubPollMs: parseInt(process.env.REDIS_PUBSUB_POLL_MS || "100", 10),
 });

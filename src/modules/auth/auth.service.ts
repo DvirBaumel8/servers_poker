@@ -9,7 +9,8 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 import * as bcrypt from "bcrypt";
-import { timingSafeEqual } from "crypto";
+import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { v4 as uuidv4 } from "uuid";
 import { UserRepository } from "../../repositories/user.repository";
 import { BotRepository } from "../../repositories/bot.repository";
 import { User } from "../../entities/user.entity";
@@ -26,7 +27,6 @@ import {
 } from "./dto/login.dto";
 import { JwtPayload } from "./strategies/jwt.strategy";
 import { EmailService } from "../../services/email.service";
-import { UrlValidatorService } from "../../common/validators/url-validator.service";
 import { getLikelyEmailSuggestion, normalizeEmail } from "./email-guard";
 import { mapPostgresError, PG_ERROR_CODES } from "../../common/utils";
 
@@ -39,14 +39,9 @@ interface RegisterResponse {
 
 const SALT_ROUNDS = 12;
 
-// Account lockout configuration
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 const FAILED_ATTEMPT_RESET_MS = 30 * 60 * 1000; // Reset counter after 30 minutes of no failures
-
-// API key configuration
-const API_KEY_EXPIRY_DAYS = 90; // API keys expire after 90 days
-const API_KEY_WARNING_DAYS = 14; // Warn when key expires in 14 days
 
 @Injectable()
 export class AuthService {
@@ -58,7 +53,6 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
-    private readonly urlValidator: UrlValidatorService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -71,8 +65,6 @@ export class AuthService {
       );
     }
 
-    // Pre-hash password before transaction to minimize lock time
-    const { hash: apiKeyHash } = this.userRepository.generateApiKey();
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
     const verificationCode = this.emailService.generateVerificationCode();
     const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -95,10 +87,10 @@ export class AuthService {
 
         return await this.userRepository.create(
           {
+            id: uuidv4(),
             email,
             name: dto.name,
             password_hash: passwordHash,
-            api_key_hash: apiKeyHash,
             role: "user",
             email_verified: false,
             verification_code: verificationCode,
@@ -156,25 +148,18 @@ export class AuthService {
       throw new BadRequestException("Invalid verification code");
     }
 
-    // Generate new API key for the verified user
-    const { raw: apiKey, hash: apiKeyHash } =
-      this.userRepository.generateApiKey();
-
     await this.userRepository.update(user.id, {
       email_verified: true,
       verification_code: null,
       verification_code_expires_at: null,
-      api_key_hash: apiKeyHash,
     });
 
-    // Send welcome email
     await this.emailService.sendWelcomeEmail(user.email, user.name);
 
-    const tokens = this.generateTokens(user);
+    const tokens = await this.generateTokens(user);
 
     return {
       ...tokens,
-      apiKey,
       user: {
         id: user.id,
         email: user.email,
@@ -279,7 +264,7 @@ export class AuthService {
       last_failed_login_at: null,
     });
 
-    const tokens = this.generateTokens(user);
+    const tokens = await this.generateTokens(user);
 
     return {
       ...tokens,
@@ -332,7 +317,7 @@ export class AuthService {
     });
 
     await this.emailService.sendPasswordResetCode(user.email, resetCode);
-    this.logger.log(`Password reset code sent to ${user.email}`);
+    this.logger.log(`Reset code sent to ${user.email}`);
 
     return { message: successMessage };
   }
@@ -373,16 +358,11 @@ export class AuthService {
       password_reset_expires_at: null,
     });
 
-    this.logger.log(`Password reset successful for ${user.email}`);
+    this.logger.log(`Credential reset successful for ${user.email}`);
 
     return { message: "Password has been reset successfully" };
   }
 
-  /**
-   * Developer registration - creates user + bot in one call.
-   * Skips email verification for developer convenience.
-   * Validates bot endpoint with health check.
-   */
   async registerDeveloper(
     dto: RegisterDeveloperDto,
   ): Promise<RegisterDeveloperResponseDto> {
@@ -394,26 +374,23 @@ export class AuthService {
       );
     }
 
-    // 1. Validate bot endpoint URL (do before transaction)
-    const urlValidation = await this.urlValidator.validateWithHealthCheck(
-      dto.botEndpoint,
-      5000,
-    );
-    if (!urlValidation.valid) {
-      throw new BadRequestException(urlValidation.error);
-    }
-
-    // 2. Pre-hash password before transaction to minimize lock time
-    const { raw: apiKey, hash: apiKeyHash } =
-      this.userRepository.generateApiKey();
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
 
-    // 3. Use transaction to create user + bot atomically
+    const defaultStrategy = {
+      version: 1,
+      tier: "quick",
+      personality: {
+        aggression: 20,
+        bluffFrequency: 10,
+        riskTolerance: 30,
+        tightness: 40,
+      },
+    };
+
     let user: User;
     let bot: any;
     try {
       const result = await this.dataSource.transaction(async (manager) => {
-        // Check email within transaction
         const existingUser = await this.userRepository.findByEmail(
           email,
           manager,
@@ -422,7 +399,6 @@ export class AuthService {
           throw new ConflictException("Email already registered");
         }
 
-        // Check bot name within transaction
         const existingBot = await this.botRepository.findByName(
           dto.botName,
           manager,
@@ -433,26 +409,30 @@ export class AuthService {
           );
         }
 
-        // Create user
+        const verificationCode = this.emailService.generateVerificationCode();
+        const codeExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
         const newUser = await this.userRepository.create(
           {
+            id: uuidv4(),
             email,
             name: dto.name,
             password_hash: passwordHash,
-            api_key_hash: apiKeyHash,
             role: "user",
-            email_verified: true, // Skip verification for API registration
+            email_verified: false,
+            verification_code: verificationCode,
+            verification_code_expires_at: codeExpiry,
           },
           manager,
         );
 
-        // Create bot
         const newBot = await this.botRepository.create(
           {
+            id: uuidv4(),
             name: dto.botName,
-            endpoint: dto.botEndpoint,
             description: dto.botDescription,
             user_id: newUser.id,
+            strategy: defaultStrategy,
             active: true,
           },
           manager,
@@ -478,15 +458,20 @@ export class AuthService {
       });
     }
 
-    // 4. Generate JWT tokens
-    const tokens = this.generateTokens(user);
+    await this.emailService.sendVerificationCode(
+      user.email,
+      user.verification_code!,
+    );
 
-    this.logger.log(`Developer registered: ${user.email} with bot ${bot.name}`);
+    this.logger.log(
+      `Developer registered: ${user.email} with bot ${bot.name} — verification email sent`,
+    );
 
     return {
-      accessToken: tokens.accessToken,
-      expiresIn: tokens.expiresIn,
-      apiKey,
+      message: "Registration successful. Please verify your email to log in.",
+      ...(this.shouldExposeVerificationCode()
+        ? { verificationCode: user.verification_code }
+        : {}),
       user: {
         id: user.id,
         email: user.email,
@@ -495,107 +480,15 @@ export class AuthService {
       bot: {
         id: bot.id,
         name: bot.name,
-        endpoint: bot.endpoint,
       },
-      warnings: urlValidation.warnings,
     };
   }
 
-  async validateApiKey(
-    apiKey: string,
-  ): Promise<{ user: User | null; expired?: boolean; expiresIn?: number }> {
-    const user = await this.userRepository.findByApiKey(apiKey);
-    if (!user) {
-      return { user: null };
-    }
-
-    // Check if API key has expired
-    if (
-      user.api_key_expires_at &&
-      new Date(user.api_key_expires_at) < new Date()
-    ) {
-      this.logger.warn(`Expired API key used for user: ${user.email}`);
-      return { user: null, expired: true };
-    }
-
-    // Update last used timestamp
-    await this.userRepository.update(user.id, {
-      api_key_last_used_at: new Date(),
-    });
-
-    // Calculate days until expiry
-    let expiresIn: number | undefined;
-    if (user.api_key_expires_at) {
-      expiresIn = Math.ceil(
-        (new Date(user.api_key_expires_at).getTime() - Date.now()) /
-          (1000 * 60 * 60 * 24),
-      );
-    }
-
-    return { user, expiresIn };
-  }
-
-  async regenerateApiKey(
-    userId: string,
-  ): Promise<{ apiKey: string; expiresAt: Date }> {
-    const { raw, hash } = this.userRepository.generateApiKey();
-    const expiresAt = new Date(
-      Date.now() + API_KEY_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
-    );
-
-    await this.userRepository.update(userId, {
-      api_key_hash: hash,
-      api_key_created_at: new Date(),
-      api_key_expires_at: expiresAt,
-      api_key_last_used_at: null,
-    });
-
-    this.logger.log(
-      `API key regenerated for user ${userId}, expires: ${expiresAt.toISOString()}`,
-    );
-
-    return { apiKey: raw, expiresAt };
-  }
-
-  async getApiKeyStatus(userId: string): Promise<{
-    createdAt: Date | null;
-    expiresAt: Date | null;
-    lastUsedAt: Date | null;
-    daysUntilExpiry: number | null;
-    needsRotation: boolean;
-  }> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new BadRequestException("User not found");
-    }
-
-    let daysUntilExpiry: number | null = null;
-    let needsRotation = false;
-
-    if (user.api_key_expires_at) {
-      daysUntilExpiry = Math.ceil(
-        (new Date(user.api_key_expires_at).getTime() - Date.now()) /
-          (1000 * 60 * 60 * 24),
-      );
-      needsRotation = daysUntilExpiry <= API_KEY_WARNING_DAYS;
-    } else {
-      // Legacy key without expiry - needs rotation
-      needsRotation = true;
-    }
-
-    return {
-      createdAt: user.api_key_created_at,
-      expiresAt: user.api_key_expires_at,
-      lastUsedAt: user.api_key_last_used_at,
-      daysUntilExpiry,
-      needsRotation,
-    };
-  }
-
-  private generateTokens(user: User): {
+  private async generateTokens(user: User): Promise<{
     accessToken: string;
+    refreshToken: string;
     expiresIn: number;
-  } {
+  }> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
@@ -610,10 +503,67 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload);
 
+    const refreshToken = randomBytes(32).toString("hex");
+    const refreshTokenHash = createHash("sha256")
+      .update(refreshToken)
+      .digest("hex");
+    const refreshTokenExpiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ); // 7 days
+
+    await this.userRepository.update(user.id, {
+      refresh_token_hash: refreshTokenHash,
+      refresh_token_expires_at: refreshTokenExpiresAt,
+    });
+
     return {
       accessToken,
+      refreshToken,
       expiresIn: expiresInMs,
     };
+  }
+
+  async refreshAccessToken(refreshToken: string): Promise<AuthResponseDto> {
+    const tokenHash = createHash("sha256").update(refreshToken).digest("hex");
+
+    const user = await this.userRepository.findByRefreshTokenHash(tokenHash);
+    if (!user) {
+      throw new UnauthorizedException("Invalid refresh token");
+    }
+
+    if (
+      !user.refresh_token_expires_at ||
+      new Date() > user.refresh_token_expires_at
+    ) {
+      await this.userRepository.update(user.id, {
+        refresh_token_hash: null,
+        refresh_token_expires_at: null,
+      });
+      throw new UnauthorizedException("Refresh token expired");
+    }
+
+    if (!user.active) {
+      throw new UnauthorizedException("Account is deactivated");
+    }
+
+    const tokens = await this.generateTokens(user);
+
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    };
+  }
+
+  async revokeRefreshToken(userId: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      refresh_token_hash: null,
+      refresh_token_expires_at: null,
+    });
   }
 
   private parseExpiresIn(expiresIn: string): number {

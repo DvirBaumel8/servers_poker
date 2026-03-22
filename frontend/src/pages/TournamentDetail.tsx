@@ -145,12 +145,14 @@ export function TournamentDetail() {
     });
   }, [currentTournament, prizePool]);
 
+  const hasLeaderboardData = leaderboard && leaderboard.length > 0;
+
   const playersLeft = useMemo(() => {
-    if (!leaderboard || leaderboard.length === 0) {
-      return currentTournament?.entriesCount || 0;
+    if (!hasLeaderboardData) {
+      return null;
     }
     return leaderboard.filter((p) => !p.busted).length;
-  }, [leaderboard, currentTournament]);
+  }, [leaderboard, hasLeaderboardData]);
 
   const sortedPlayers = useMemo(() => {
     if (!leaderboard) return [];
@@ -176,8 +178,10 @@ export function TournamentDetail() {
   return (
     <PageShell className="space-y-8">
       <PageHeader
-        backHref="/tournaments"
-        backLabel="Back to tournaments"
+        breadcrumbs={[
+          { label: "Tournaments", href: "/tournaments" },
+          { label: tournament.name },
+        ]}
         eyebrow="Tournament detail"
         title={tournament.name}
         description={`${tournament.type} tournament workspace with live structure, standings, and prize overview.`}
@@ -206,8 +210,18 @@ export function TournamentDetail() {
         />
         <MetricCard
           label="Field"
-          value={`${playersLeft}/${tournament.entriesCount}`}
-          hint="Players still alive"
+          value={
+            playersLeft !== null
+              ? `${playersLeft}/${tournament.entriesCount}`
+              : `${tournament.entriesCount} entrant${tournament.entriesCount !== 1 ? "s" : ""}`
+          }
+          hint={
+            playersLeft !== null
+              ? "Players still alive"
+              : tournament.status === "finished"
+                ? "Tournament completed"
+                : "Registered players"
+          }
         />
         <MetricCard label="Buy-in" value={tournament.buyIn.toLocaleString()} />
         <MetricCard
@@ -262,9 +276,13 @@ export function TournamentDetail() {
                   </div>
 
                   <div className="bg-subtle-dark/50 rounded-lg p-4">
-                    <span className="text-muted text-sm">Players Left</span>
+                    <span className="text-muted text-sm">
+                      {playersLeft !== null ? "Players Left" : "Entrants"}
+                    </span>
                     <p className="text-xl font-bold text-white mt-1">
-                      {playersLeft} / {tournament.entriesCount}
+                      {playersLeft !== null
+                        ? `${playersLeft} / ${tournament.entriesCount}`
+                        : tournament.entriesCount}
                     </p>
                   </div>
 
@@ -343,14 +361,18 @@ export function TournamentDetail() {
                           ? tournament.entriesCount > 0
                             ? "Waiting for table assignments..."
                             : "No players in this tournament"
-                          : "No player data available"
+                          : tournament.entriesCount > 0
+                            ? `Tournament completed with ${tournament.entriesCount} player${tournament.entriesCount > 1 ? "s" : ""}`
+                            : "No player data available"
                     }
                     description={
                       tournament.status === "registering"
                         ? "Player details will appear once the tournament starts"
                         : tournament.status === "running"
                           ? "Chip counts will appear once play begins"
-                          : "Tournament has concluded"
+                          : tournament.entriesCount > 0
+                            ? "Final standings were not recorded for this tournament"
+                            : "Tournament has concluded"
                     }
                   />
                 ) : (

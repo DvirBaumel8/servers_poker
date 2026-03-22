@@ -39,6 +39,7 @@ export class ApiWsConnector extends BaseMonster {
       type: "api",
       timeout: 120000,
       verbose: true,
+      needsServer: true,
     });
     const env = getEnv();
     this.baseUrl = env.apiBaseUrl.replace(/\/api\/v1$/, "");

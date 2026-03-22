@@ -33,7 +33,6 @@ import { EventEmitterModule, EventEmitter2 } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { INestApplication } from "@nestjs/common";
 import { DataSource } from "typeorm";
-import * as http from "http";
 import * as crypto from "crypto";
 
 import { BaseMonster } from "../shared/base-monster";
@@ -57,6 +56,7 @@ import { GamesModule } from "../../../../src/modules/games/games.module";
 import { TournamentsModule } from "../../../../src/modules/tournaments/tournaments.module";
 import { BotsModule } from "../../../../src/modules/bots/bots.module";
 import { TournamentDirectorService } from "../../../../src/modules/tournaments/tournament-director.service";
+import type { BotStrategy } from "../../../../src/domain/bot-strategy/strategy.types";
 
 // ============================================================================
 // CONFIGURATION
@@ -226,27 +226,70 @@ const INDUSTRY_STANDARDS = {
 // ============================================================================
 
 type BotPersonality =
-  | "tight-passive" // Check/fold, rarely bets
-  | "tight-aggressive" // Plays few hands but bets hard
-  | "loose-passive" // Calls everything
-  | "loose-aggressive" // Raises constantly
-  | "all-in-maniac" // Goes all-in frequently
-  | "timeout-bot" // Slow to respond (tests timeouts)
-  | "disconnect-bot"; // Disconnects mid-hand (chaos)
+  | "tight-passive"
+  | "tight-aggressive"
+  | "loose-passive"
+  | "loose-aggressive"
+  | "all-in-maniac";
 
-interface BotServer {
-  server: http.Server;
-  port: number;
+interface BotRecord {
   botId: string;
   personality: BotPersonality;
-  stats: {
-    actionsReceived: number;
-    actionsResponded: number;
-    timeouts: number;
-    errors: number;
-  };
-  close: () => Promise<void>;
+  strategy: BotStrategy;
 }
+
+const PERSONALITY_STRATEGY_MAP: Record<BotPersonality, BotStrategy> = {
+  "tight-passive": {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 5,
+      bluffFrequency: 0,
+      riskTolerance: 5,
+      tightness: 95,
+    },
+  },
+  "tight-aggressive": {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 55,
+      bluffFrequency: 25,
+      riskTolerance: 45,
+      tightness: 55,
+    },
+  },
+  "loose-passive": {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 10,
+      bluffFrequency: 5,
+      riskTolerance: 20,
+      tightness: 20,
+    },
+  },
+  "loose-aggressive": {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 90,
+      bluffFrequency: 60,
+      riskTolerance: 80,
+      tightness: 30,
+    },
+  },
+  "all-in-maniac": {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 95,
+      bluffFrequency: 80,
+      riskTolerance: 95,
+      tightness: 10,
+    },
+  },
+};
 
 // ============================================================================
 // SIMULATION MONSTER
@@ -281,8 +324,9 @@ export class SimulationMonster extends BaseMonster {
     super({
       name: "Simulation Monster",
       type: "simulation",
-      timeout: 600000, // 10 minutes max
+      timeout: 600000,
       verbose: true,
+      needsServer: false,
     });
   }
 
@@ -393,29 +437,26 @@ export class SimulationMonster extends BaseMonster {
       },
     };
 
-    const botServers: BotServer[] = [];
+    const botRecords: BotRecord[] = [];
 
     try {
-      // Create bot servers
-      const basePort = 8000 + Math.floor(Math.random() * 1000);
       const personalities = this.getPersonalitiesForScenario(scenario);
 
       for (let i = 0; i < config.playerCount; i++) {
-        const bot = await this.createBotServer(
-          basePort + i,
-          personalities[i % personalities.length],
-          config.injectChaos ? config.chaosLevel : undefined,
-        );
-        botServers.push(bot);
+        const personality = personalities[i % personalities.length];
+        botRecords.push({
+          botId: crypto.randomUUID(),
+          personality,
+          strategy: PERSONALITY_STRATEGY_MAP[personality],
+        });
       }
 
-      this.log(`Created ${botServers.length} bot players`);
+      this.log(`Created ${botRecords.length} bot players with strategy JSON`);
 
-      // Run the actual game
       if (config.tournamentMode) {
-        await this.runTournamentScenario(config, botServers, result);
+        await this.runTournamentScenario(config, botRecords, result);
       } else {
-        await this.runCashGameScenario(config, botServers, result);
+        await this.runCashGameScenario(config, botRecords, result);
       }
 
       result.success =
@@ -431,15 +472,6 @@ export class SimulationMonster extends BaseMonster {
         reproducible: true,
         tags: ["simulation", scenario, "crash"],
       });
-    } finally {
-      // Cleanup bot servers
-      for (const bot of botServers) {
-        try {
-          await bot.close();
-        } catch {
-          // Ignore
-        }
-      }
     }
 
     result.endTime = Date.now();
@@ -457,13 +489,12 @@ export class SimulationMonster extends BaseMonster {
 
   private async runCashGameScenario(
     config: ScenarioConfig,
-    botServers: BotServer[],
+    botRecords: BotRecord[],
     result: ScenarioResult,
   ): Promise<void> {
     const gameTableId = crypto.randomUUID();
     const gameDbId = crypto.randomUUID();
 
-    // Create game
     const game = await this.liveGameManager!.createGame({
       tableId: gameTableId,
       gameDbId,
@@ -474,14 +505,13 @@ export class SimulationMonster extends BaseMonster {
       turnTimeoutMs: 3000,
     });
 
-    // Add players
-    for (let i = 0; i < botServers.length; i++) {
-      const bot = botServers[i];
+    for (let i = 0; i < botRecords.length; i++) {
+      const bot = botRecords[i];
       game.addPlayer({
         id: bot.botId,
         name: `${bot.personality.replace("-", "")}_${i}`,
         chips: config.startingChips,
-        endpoint: `http://localhost:${bot.port}/action`,
+        strategy: bot.strategy,
       });
     }
 
@@ -555,34 +585,26 @@ export class SimulationMonster extends BaseMonster {
 
   private async runTournamentScenario(
     config: ScenarioConfig,
-    botServers: BotServer[],
+    botRecords: BotRecord[],
     result: ScenarioResult,
   ): Promise<void> {
-    // Create user for bots
     const userId = crypto.randomUUID();
     await this.dataSource!.query(
-      `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'user', true, true, NOW(), NOW())`,
-      [
-        userId,
-        `sim_${Date.now()}@test.com`,
-        "SimUser",
-        "hashed",
-        "0".repeat(64),
-      ],
+      `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'user', true, true, NOW(), NOW())`,
+      [userId, `sim_${Date.now()}@test.com`, "SimUser", "hashed"],
     );
 
-    // Register bots in DB
-    for (let i = 0; i < botServers.length; i++) {
-      const bot = botServers[i];
+    for (let i = 0; i < botRecords.length; i++) {
+      const bot = botRecords[i];
       await this.dataSource!.query(
-        `INSERT INTO bots (id, user_id, name, endpoint, active, created_at, updated_at)
+        `INSERT INTO bots (id, user_id, name, strategy, active, created_at, updated_at)
          VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
         [
           bot.botId,
           userId,
           `${bot.personality}_${i}`,
-          `http://localhost:${bot.port}/action`,
+          JSON.stringify(bot.strategy),
         ],
       );
     }
@@ -637,8 +659,7 @@ export class SimulationMonster extends BaseMonster {
       );
     }
 
-    // Register players
-    for (const bot of botServers) {
+    for (const bot of botRecords) {
       await this.dataSource!.query(
         `INSERT INTO tournament_entries (id, tournament_id, bot_id, entry_type, created_at, updated_at)
          VALUES ($1, $2, $3, 'initial', NOW(), NOW())`,
@@ -847,136 +868,6 @@ export class SimulationMonster extends BaseMonster {
     // This would need tracking across multiple states
   }
 
-  // ============================================================================
-  // BOT MANAGEMENT
-  // ============================================================================
-
-  private async createBotServer(
-    port: number,
-    personality: BotPersonality,
-    chaosLevel?: "light" | "medium" | "heavy",
-  ): Promise<BotServer> {
-    return new Promise((resolve, reject) => {
-      const botId = crypto.randomUUID();
-      const stats = {
-        actionsReceived: 0,
-        actionsResponded: 0,
-        timeouts: 0,
-        errors: 0,
-      };
-
-      const server = http.createServer((req, res) => {
-        if (req.method === "GET") {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "ok", personality }));
-          return;
-        }
-
-        let body = "";
-        req.on("data", (chunk) => (body += chunk));
-        req.on("end", () => {
-          stats.actionsReceived++;
-
-          // Chaos injection
-          if (chaosLevel && Math.random() < this.getChaosChance(chaosLevel)) {
-            if (personality === "timeout-bot" || Math.random() < 0.3) {
-              // Simulate timeout - don't respond
-              stats.timeouts++;
-              return;
-            }
-            if (personality === "disconnect-bot" || Math.random() < 0.2) {
-              // Simulate disconnect
-              res.destroy();
-              stats.errors++;
-              return;
-            }
-          }
-
-          try {
-            const payload = JSON.parse(body);
-            const action = this.decideBotAction(payload, personality);
-
-            // Add latency tracking
-            const latency = Date.now();
-
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify(action));
-            stats.actionsResponded++;
-
-            this.actionLatencies.push(Date.now() - latency);
-          } catch {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ type: "fold" }));
-            stats.errors++;
-          }
-        });
-      });
-
-      server.on("error", reject);
-      server.listen(port, () => {
-        resolve({
-          server,
-          port,
-          botId,
-          personality,
-          stats,
-          close: () => new Promise<void>((r) => server.close(() => r())),
-        });
-      });
-    });
-  }
-
-  private decideBotAction(
-    payload: any,
-    personality: BotPersonality,
-  ): { type: string; amount?: number } {
-    const canCheck = payload.action?.canCheck ?? false;
-    const minRaise = payload.action?.minRaise ?? 0;
-    const maxRaise = payload.action?.maxRaise ?? 0;
-    const myChips = payload.player?.chips ?? 0;
-
-    switch (personality) {
-      case "tight-passive":
-        // Mostly folds, occasionally calls
-        if (canCheck) return { type: "check" };
-        return Math.random() < 0.7 ? { type: "fold" } : { type: "call" };
-
-      case "tight-aggressive":
-        // Plays few hands but raises when playing
-        if (canCheck && Math.random() < 0.5) return { type: "check" };
-        if (maxRaise > 0 && Math.random() < 0.5) {
-          return { type: "raise", amount: Math.min(minRaise * 2, maxRaise) };
-        }
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      case "loose-passive":
-        // Calls almost everything
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      case "loose-aggressive":
-        // Raises frequently
-        if (maxRaise > 0 && Math.random() < 0.4) {
-          return { type: "raise", amount: Math.min(minRaise * 3, maxRaise) };
-        }
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      case "all-in-maniac":
-        // Goes all-in frequently
-        if (maxRaise >= myChips || Math.random() < 0.3) {
-          return { type: "raise", amount: myChips };
-        }
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      case "timeout-bot":
-      case "disconnect-bot":
-        // These are handled at the server level with chaos
-        return canCheck ? { type: "check" } : { type: "call" };
-
-      default:
-        return canCheck ? { type: "check" } : { type: "call" };
-    }
-  }
-
   private getPersonalitiesForScenario(
     scenario: SimulationScenario,
   ): BotPersonality[] {
@@ -1007,9 +898,9 @@ export class SimulationMonster extends BaseMonster {
       case "chaos":
         return [
           "loose-passive",
-          "timeout-bot",
-          "disconnect-bot",
           "loose-aggressive",
+          "tight-aggressive",
+          "all-in-maniac",
         ];
       case "edge-cases":
         return ["all-in-maniac", "loose-passive", "tight-aggressive"];
@@ -1024,17 +915,6 @@ export class SimulationMonster extends BaseMonster {
         ];
       default:
         return ["loose-passive", "loose-passive"];
-    }
-  }
-
-  private getChaosChance(level: "light" | "medium" | "heavy"): number {
-    switch (level) {
-      case "light":
-        return 0.05;
-      case "medium":
-        return 0.15;
-      case "heavy":
-        return 0.3;
     }
   }
 
@@ -1142,7 +1022,9 @@ export class SimulationMonster extends BaseMonster {
     // Scenario Results
     this.log("📊 SCENARIO RESULTS");
     this.log("─".repeat(40));
-    for (const [scenario, result] of this.scenarioResults) {
+    for (const [scenario, result] of Array.from(
+      this.scenarioResults.entries(),
+    )) {
       const status = result.success ? "✅" : "❌";
       const duration = ((result.endTime - result.startTime) / 1000).toFixed(1);
       this.log(

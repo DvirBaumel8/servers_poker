@@ -48,7 +48,7 @@ html {
 }
 
 body {
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: "Inter", sans-serif;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -719,8 +719,9 @@ a:focus-visible,
     rgba(30, 41, 59, 0.5) 100%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.5s ease-in-out infinite;
   border-radius: 0.5rem;
+  min-height: 1em;
 }
 
 /* ============================================================================

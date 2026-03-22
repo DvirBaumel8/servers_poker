@@ -82,7 +82,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error = responseObj.error || exception.name;
       }
 
-      if (USER_FRIENDLY_MESSAGES[exceptionName]) {
+      const originalMessage = message;
+      const isGenericOrValidationMessage =
+        Array.isArray(originalMessage) ||
+        originalMessage === "Bad Request" ||
+        originalMessage === "Conflict" ||
+        originalMessage === "Not Found" ||
+        originalMessage === "Forbidden" ||
+        originalMessage === "Unauthorized" ||
+        originalMessage === "Internal server error";
+
+      if (
+        USER_FRIENDLY_MESSAGES[exceptionName] &&
+        isGenericOrValidationMessage
+      ) {
         message = USER_FRIENDLY_MESSAGES[exceptionName];
       }
       if (USER_FRIENDLY_ERRORS[exceptionName]) {
