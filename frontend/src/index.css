@@ -299,7 +299,7 @@ textarea {
 }
 
 .btn-text {
-  @apply inline-flex min-h-[44px] items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-400 transition-all duration-200 hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:pointer-events-none disabled:opacity-50;
+  @apply inline-flex min-h-[44px] items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-slate-400 transition-all duration-200 hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent/20;
   cursor: pointer;
   background: transparent;
 }
@@ -307,6 +307,16 @@ textarea {
 .btn-text:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.btn-text:active {
+  transform: scale(0.98);
+}
+
+.btn-text:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .input-field {
@@ -367,6 +377,17 @@ select.input-field option {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* CTA spacing utilities for visual hierarchy */
+@utility cta-section {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+@utility cta-prominent {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
 }
 
 @utility text-shadow {

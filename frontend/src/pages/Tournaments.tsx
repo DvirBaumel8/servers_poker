@@ -288,6 +288,7 @@ export function Tournaments() {
         <AlertBanner
           dismissible
           onDismiss={() => setActionError(null)}
+          onRetry={() => fetchTournaments(statusFilter)}
           title="Tournament action failed"
         >
           {error || actionError}

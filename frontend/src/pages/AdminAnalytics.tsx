@@ -150,10 +150,25 @@ export function AdminAnalytics() {
     );
   }
 
+  const handleRetryLoad = () => {
+    if (!token) return;
+    setError(null);
+    setIsLoading(true);
+    analyticsApi
+      .getAdminStats(days, token)
+      .then(setStats)
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      )
+      .finally(() => setIsLoading(false));
+  };
+
   if (error) {
     return (
       <PageShell>
-        <AlertBanner title="Analytics load failed">{error}</AlertBanner>
+        <AlertBanner title="Analytics load failed" onRetry={handleRetryLoad}>
+          {error}
+        </AlertBanner>
       </PageShell>
     );
   }

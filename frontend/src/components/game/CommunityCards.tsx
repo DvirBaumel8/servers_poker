@@ -4,7 +4,7 @@ import { PlayingCard } from "../common/PlayingCard";
 import type { Card as CardType } from "../../types";
 
 interface CommunityCardsProps {
-  cards: CardType[];
+  cards: (CardType | string)[];
   stage: string;
   className?: string;
 }

@@ -203,6 +203,7 @@ export function Tables() {
         <AlertBanner
           dismissible
           onDismiss={() => setError(null)}
+          onRetry={() => loadData()}
           title="Unable to load table data"
         >
           {error}

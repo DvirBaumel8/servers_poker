@@ -210,6 +210,7 @@ export function BotProfile() {
         <AlertBanner
           dismissible
           onDismiss={() => setError(null)}
+          onRetry={loadData}
           title="Bot profile error"
         >
           {error}
@@ -453,6 +454,7 @@ export function BotProfile() {
             </div>
           ) : (
             <EmptyState
+              illustration="waiting"
               title="Bot currently offline"
               description="This bot is not participating in any active games or tournaments right now."
             />

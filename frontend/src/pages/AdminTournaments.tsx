@@ -17,6 +17,7 @@ import {
   AlertBanner,
   AppModal,
   Button,
+  EmptyState,
   LoadingBlock,
   PageHeader,
   PageShell,
@@ -1018,9 +1019,16 @@ export function AdminTournaments() {
             </div>
 
             {filteredTournaments.length === 0 ? (
-              <SurfaceCard className="p-8 text-center">
-                <p className="text-muted">No tournaments found.</p>
-              </SurfaceCard>
+              <EmptyState
+                illustration="tournament"
+                title="No tournaments found"
+                description="No tournaments match the current filter. Try a different status or create a new tournament."
+                action={
+                  <Button onClick={() => setShowCreateForm(true)}>
+                    Create Tournament
+                  </Button>
+                }
+              />
             ) : (
               <div className="space-y-3">
                 {filteredTournaments.map((tournament) => (

@@ -280,7 +280,14 @@ export function EmptyState({
   description: ReactNode;
   action?: ReactNode;
   icon?: ReactNode;
-  illustration?: "table" | "tournament" | "bot" | "leaderboard" | "waiting";
+  illustration?:
+    | "table"
+    | "tournament"
+    | "bot"
+    | "leaderboard"
+    | "waiting"
+    | "game"
+    | "analytics";
   className?: string;
 }) {
   const renderIllustration = () => {
@@ -297,6 +304,10 @@ export function EmptyState({
         return <EmptyLeaderboardIllustration />;
       case "waiting":
         return <WaitingIllustration />;
+      case "game":
+        return <GameIllustration />;
+      case "analytics":
+        return <AnalyticsIllustration />;
       default:
         return <SparkIcon />;
     }
@@ -312,7 +323,7 @@ export function EmptyState({
           <h3 className="text-xl font-semibold text-white">{title}</h3>
           <p className="section-subtitle">{description}</p>
         </div>
-        {action && <div className="pt-2">{action}</div>}
+        {action && <div className="pt-4 mt-2">{action}</div>}
       </div>
     </SurfaceCard>
   );
@@ -493,6 +504,92 @@ function WaitingIllustration() {
         strokeLinejoin="round"
       />
       <circle cx="20" cy="20" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function GameIllustration() {
+  return (
+    <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
+      <rect
+        x="6"
+        y="10"
+        width="12"
+        height="16"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <rect
+        x="22"
+        y="10"
+        width="12"
+        height="16"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <text
+        x="12"
+        y="21"
+        fontSize="8"
+        fill="currentColor"
+        textAnchor="middle"
+        opacity="0.6"
+      >
+        A
+      </text>
+      <text
+        x="28"
+        y="21"
+        fontSize="8"
+        fill="currentColor"
+        textAnchor="middle"
+        opacity="0.6"
+      >
+        K
+      </text>
+      <path
+        d="M12 30h16"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+        strokeLinecap="round"
+      />
+      <circle cx="20" cy="34" r="2" fill="currentColor" opacity="0.4" />
+    </svg>
+  );
+}
+
+function AnalyticsIllustration() {
+  return (
+    <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
+      <path
+        d="M6 34V10"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6 34h28"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 28l6-8 6 4 8-12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray="3 2"
+      />
+      <circle cx="10" cy="28" r="2" fill="currentColor" opacity="0.5" />
+      <circle cx="16" cy="20" r="2" fill="currentColor" opacity="0.5" />
+      <circle cx="22" cy="24" r="2" fill="currentColor" opacity="0.5" />
+      <circle cx="30" cy="12" r="2" fill="currentColor" opacity="0.5" />
     </svg>
   );
 }
@@ -785,7 +882,7 @@ export function AppModal({
               </div>
               <div className="px-6 py-5">{children}</div>
               {footer && (
-                <div className="border-t border-white/8 px-6 py-4">
+                <div className="border-t border-white/8 px-6 py-5">
                   {footer}
                 </div>
               )}

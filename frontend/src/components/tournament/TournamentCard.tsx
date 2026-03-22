@@ -165,7 +165,7 @@ export function TournamentCard({
         </Link>
 
         {(canRegister || myRegisteredBotId || onStart || onCancel) && (
-          <div className="flex flex-wrap gap-2 border-t border-white/6 pt-4">
+          <div className="flex flex-wrap gap-3 border-t border-white/6 pt-5 mt-1">
             {canRegister && (
               <Button
                 onClick={(e) => {

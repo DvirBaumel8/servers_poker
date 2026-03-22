@@ -8,6 +8,7 @@ import {
   TOURNAMENT_COUNTDOWN_MS,
 } from "../utils/timing";
 import {
+  EmptyState,
   LoadingBlock,
   MetricCard,
   PageHeader,
@@ -329,33 +330,29 @@ export function TournamentDetail() {
                     </p>
                   </div>
                 ) : sortedPlayers.length === 0 ? (
-                  <div className="text-center py-12">
-                    {tournament.status === "registering" ? (
-                      <>
-                        <p className="text-muted mb-2">
-                          {tournament.entriesCount > 0
-                            ? `${tournament.entriesCount} player${tournament.entriesCount > 1 ? "s" : ""} registered`
-                            : "No players registered yet"}
-                        </p>
-                        <p className="text-muted-dark text-sm">
-                          Player details will appear once the tournament starts
-                        </p>
-                      </>
-                    ) : tournament.status === "running" ? (
-                      <>
-                        <p className="text-muted mb-2">
-                          {tournament.entriesCount > 0
+                  <EmptyState
+                    illustration={
+                      tournament.status === "running" ? "waiting" : "tournament"
+                    }
+                    title={
+                      tournament.status === "registering"
+                        ? tournament.entriesCount > 0
+                          ? `${tournament.entriesCount} player${tournament.entriesCount > 1 ? "s" : ""} registered`
+                          : "No players registered yet"
+                        : tournament.status === "running"
+                          ? tournament.entriesCount > 0
                             ? "Waiting for table assignments..."
-                            : "No players in this tournament"}
-                        </p>
-                        <p className="text-muted-dark text-sm">
-                          Chip counts will appear once play begins
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-muted">No player data available</p>
-                    )}
-                  </div>
+                            : "No players in this tournament"
+                          : "No player data available"
+                    }
+                    description={
+                      tournament.status === "registering"
+                        ? "Player details will appear once the tournament starts"
+                        : tournament.status === "running"
+                          ? "Chip counts will appear once play begins"
+                          : "Tournament has concluded"
+                    }
+                  />
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">

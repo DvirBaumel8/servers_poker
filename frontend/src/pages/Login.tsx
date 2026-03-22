@@ -73,6 +73,8 @@ export function Login() {
                 title="Sign in failed"
                 dismissible
                 onDismiss={clearError}
+                helpLink="/forgot-password"
+                helpText="Forgot password?"
               >
                 <p>{error}</p>
                 {needsVerification && (

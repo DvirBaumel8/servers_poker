@@ -177,6 +177,11 @@ export function GameView() {
   }
 
   if (preflightStatus === "failed" || error) {
+    const handleRetry = () => {
+      setPreflightStatus("checking");
+      setPreflightError(null);
+    };
+
     return (
       <div className="app-shell flex min-h-screen items-center justify-center px-6">
         <div className="surface-card max-w-lg text-center">
@@ -187,8 +192,9 @@ export function GameView() {
           <p className="mt-3 text-sm leading-6 text-slate-400">
             {preflightError || error}
           </p>
-          <div className="mt-6">
-            <Button variant="secondary" onClick={() => navigate("/tables")}>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Button onClick={handleRetry}>Retry Connection</Button>
+            <Button variant="ghost" onClick={() => navigate("/tables")}>
               Back to tables
             </Button>
           </div>

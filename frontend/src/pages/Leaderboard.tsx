@@ -73,6 +73,7 @@ export function Leaderboard() {
         <AlertBanner
           dismissible
           onDismiss={() => setError(null)}
+          onRetry={loadLeaderboard}
           title="Leaderboard unavailable"
         >
           {error}

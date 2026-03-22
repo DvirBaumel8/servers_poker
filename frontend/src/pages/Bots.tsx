@@ -269,6 +269,7 @@ export function Bots() {
         <AlertBanner
           dismissible
           onDismiss={() => setError(null)}
+          onRetry={loadBots}
           title="Bot workspace error"
         >
           {error}

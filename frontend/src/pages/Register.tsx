@@ -112,6 +112,8 @@ export function Register() {
                 dismissible
                 onDismiss={clearError}
                 title="Registration failed"
+                helpLink="/login"
+                helpText="Already have an account?"
               >
                 <div className="space-y-3">
                   <p>{displayError}</p>
