@@ -75,6 +75,33 @@ function NavIcon({ icon, className }: { icon: string; className?: string }) {
           <path d="M12 5v6l3-3" />
         </svg>
       );
+    case "manage":
+      return (
+        <svg
+          className={iconClass}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
+          <path d="M12 15V3m0 12l-4-4m4 4l4-4" />
+          <path d="M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17" />
+          <path d="M4 17h16" />
+        </svg>
+      );
+    case "analytics":
+      return (
+        <svg
+          className={iconClass}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
+          <path d="M3 3v18h18" />
+          <path d="M7 16l4-6 4 4 5-8" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -206,23 +233,39 @@ export function Layout() {
                   <Link
                     to="/admin/tournaments"
                     className={clsx(
-                      "whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+                      "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
                       location.pathname.startsWith("/admin/tournaments")
                         ? "bg-accent text-surface-400"
                         : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
                     )}
                   >
+                    <NavIcon
+                      icon="manage"
+                      className={
+                        location.pathname.startsWith("/admin/tournaments")
+                          ? "w-4 h-4 opacity-80"
+                          : "w-4 h-4"
+                      }
+                    />
                     Manage
                   </Link>
                   <Link
                     to="/admin/analytics"
                     className={clsx(
-                      "whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+                      "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
                       location.pathname.startsWith("/admin/analytics")
                         ? "bg-accent text-surface-400"
                         : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
                     )}
                   >
+                    <NavIcon
+                      icon="analytics"
+                      className={
+                        location.pathname.startsWith("/admin/analytics")
+                          ? "w-4 h-4 opacity-80"
+                          : "w-4 h-4"
+                      }
+                    />
                     Analytics
                   </Link>
                 </>
@@ -314,7 +357,10 @@ export function Layout() {
                           : "border border-white/6 bg-white/[0.02] text-slate-300 hover:bg-white/[0.04] hover:text-white",
                       )}
                     >
-                      Manage Tournaments
+                      <span className="flex items-center gap-2.5">
+                        <NavIcon icon="manage" className="w-5 h-5" />
+                        Manage Tournaments
+                      </span>
                     </Link>
                     <Link
                       to="/admin/analytics"
@@ -325,7 +371,10 @@ export function Layout() {
                           : "border border-white/6 bg-white/[0.02] text-slate-300 hover:bg-white/[0.04] hover:text-white",
                       )}
                     >
-                      Analytics
+                      <span className="flex items-center gap-2.5">
+                        <NavIcon icon="analytics" className="w-5 h-5" />
+                        Analytics
+                      </span>
                     </Link>
                   </>
                 )}
@@ -380,23 +429,30 @@ export function Layout() {
           <div className="flex flex-wrap items-center gap-5">
             <Link
               to="/tables"
-              className="hover:text-slate-300 transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-slate-300 transition-colors"
             >
+              <NavIcon icon="tables" className="w-3.5 h-3.5" />
               Tables
             </Link>
             <Link
               to="/tournaments"
-              className="hover:text-slate-300 transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-slate-300 transition-colors"
             >
+              <NavIcon icon="tournaments" className="w-3.5 h-3.5" />
               Tournaments
             </Link>
-            <Link to="/bots" className="hover:text-slate-300 transition-colors">
+            <Link
+              to="/bots"
+              className="inline-flex items-center gap-1.5 hover:text-slate-300 transition-colors"
+            >
+              <NavIcon icon="bots" className="w-3.5 h-3.5" />
               Bots
             </Link>
             <Link
               to="/leaderboard"
-              className="hover:text-slate-300 transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-slate-300 transition-colors"
             >
+              <NavIcon icon="leaderboard" className="w-3.5 h-3.5" />
               Leaderboard
             </Link>
             <div className="text-slate-600">
