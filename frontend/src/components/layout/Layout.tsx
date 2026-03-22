@@ -7,11 +7,78 @@ import { Button } from "../ui/primitives";
 import { ACTIVE_BOTS_POLL_MS } from "../../utils/timing";
 
 const NAV_ITEMS = [
-  { path: "/tables", label: "Tables" },
-  { path: "/tournaments", label: "Tournaments" },
-  { path: "/bots", label: "Bots" },
-  { path: "/leaderboard", label: "Leaderboard" },
-];
+  { path: "/tables", label: "Tables", icon: "tables" },
+  { path: "/tournaments", label: "Tournaments", icon: "tournaments" },
+  { path: "/bots", label: "Bots", icon: "bots" },
+  { path: "/leaderboard", label: "Leaderboard", icon: "leaderboard" },
+] as const;
+
+function NavIcon({ icon, className }: { icon: string; className?: string }) {
+  const iconClass = className || "w-4 h-4";
+  switch (icon) {
+    case "tables":
+      return (
+        <svg
+          className={iconClass}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
+          <rect x="3" y="8" width="18" height="10" rx="2" />
+          <path d="M7 8V6a2 2 0 012-2h6a2 2 0 012 2v2" />
+          <circle cx="12" cy="13" r="2" />
+        </svg>
+      );
+    case "tournaments":
+      return (
+        <svg
+          className={iconClass}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
+          <path d="M6 9H4a2 2 0 01-2-2V5a2 2 0 012-2h2" />
+          <path d="M18 9h2a2 2 0 002-2V5a2 2 0 00-2-2h-2" />
+          <path d="M8 21h8" />
+          <path d="M12 17v4" />
+          <path d="M7 4h10v5a5 5 0 01-10 0V4z" />
+        </svg>
+      );
+    case "bots":
+      return (
+        <svg
+          className={iconClass}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
+          <rect x="4" y="8" width="16" height="12" rx="2" />
+          <path d="M9 8V6a3 3 0 116 0v2" />
+          <circle cx="9" cy="14" r="1.5" fill="currentColor" />
+          <circle cx="15" cy="14" r="1.5" fill="currentColor" />
+        </svg>
+      );
+    case "leaderboard":
+      return (
+        <svg
+          className={iconClass}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
+          <path d="M12 15l-2 5h4l-2-5z" />
+          <circle cx="12" cy="8" r="6" />
+          <path d="M12 5v6l3-3" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
 
 const ACTIVE_BOTS_CACHE_KEY = "pokerengine_active_bots_count";
 
@@ -121,6 +188,10 @@ export function Layout() {
                         : "text-slate-400 hover:bg-white/[0.04] hover:text-white",
                     )}
                   >
+                    <NavIcon
+                      icon={item.icon}
+                      className={isActive ? "w-4 h-4 opacity-80" : "w-4 h-4"}
+                    />
                     {item.label}
                     {showBadge && (
                       <span className="ml-1 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-success px-1.5 text-[10px] font-bold text-surface-400">
@@ -220,7 +291,10 @@ export function Layout() {
                           : "border border-white/6 bg-white/[0.02] text-slate-300 hover:bg-white/[0.04] hover:text-white",
                       )}
                     >
-                      <span>{item.label}</span>
+                      <span className="flex items-center gap-2.5">
+                        <NavIcon icon={item.icon} className="w-5 h-5" />
+                        {item.label}
+                      </span>
                       {showBadge && (
                         <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-success px-1.5 text-[10px] font-bold text-surface-400">
                           {activeBotsCount > 9 ? "9+" : activeBotsCount}

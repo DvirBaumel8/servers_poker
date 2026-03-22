@@ -37,20 +37,25 @@ async function bootstrap() {
   app.use(
     helmet({
       hidePoweredBy: true,
-      contentSecurityPolicy: isProduction
-        ? {
-            directives: {
-              defaultSrc: ["'self'"],
-              scriptSrc: ["'self'"],
-              styleSrc: ["'self'", "'unsafe-inline'"],
-              imgSrc: ["'self'", "data:", "https:"],
-              connectSrc: ["'self'", "wss:", "ws:"],
-              fontSrc: ["'self'"],
-              objectSrc: ["'none'"],
-              frameAncestors: ["'none'"],
-            },
-          }
-        : false, // Disable CSP in development for easier debugging
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: isProduction
+            ? ["'self'"]
+            : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: [
+            "'self'",
+            "wss:",
+            "ws:",
+            ...(isProduction ? [] : ["http://localhost:*"]),
+          ],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
       crossOriginEmbedderPolicy: false, // Can break legitimate embedding
       hsts: isProduction
         ? { maxAge: 31536000, includeSubDomains: true, preload: true }

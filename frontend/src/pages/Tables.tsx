@@ -222,6 +222,7 @@ export function Tables() {
 
       {tables.length === 0 ? (
         <EmptyState
+          illustration="table"
           title="No live tables available"
           description={
             isAdmin
@@ -488,6 +489,7 @@ export function Tables() {
           )}
           {myBots.length === 0 ? (
             <EmptyState
+              illustration="bot"
               title="No active bots available"
               description="Create and activate a bot before trying to join a live table."
               action={

@@ -55,11 +55,22 @@ export class SanitizePipe implements PipeTransform {
   private sanitizeString(value: string): string {
     // Strip HTML tags and decode HTML entities
     const sanitized = sanitizeHtml(value, this.options);
-    // Also prevent script injection through attributes
-    return sanitized
-      .replace(/javascript:/gi, "")
-      .replace(/on\w+=/gi, "")
-      .trim();
+
+    // Remove dangerous URL schemes (handle whitespace/encoding bypasses)
+    // Loop until no more replacements to handle nested/encoded attacks
+    let result = sanitized;
+    let previous: string;
+    do {
+      previous = result;
+      // Remove whitespace within dangerous schemes
+      result = result
+        .replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, "")
+        .replace(/v\s*b\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, "")
+        .replace(/d\s*a\s*t\s*a\s*:/gi, "")
+        .replace(/on\w+\s*=/gi, "");
+    } while (result !== previous);
+
+    return result.trim();
   }
 
   private sanitizeObject(

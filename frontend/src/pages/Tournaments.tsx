@@ -296,6 +296,7 @@ export function Tournaments() {
 
       {tournaments.length === 0 ? (
         <EmptyState
+          illustration="tournament"
           title="No tournaments match this filter"
           description={
             isAdmin
@@ -543,6 +544,7 @@ export function Tournaments() {
           )}
           {myBots.length === 0 ? (
             <EmptyState
+              illustration="bot"
               title="No active bots"
               description="Activate a bot before attempting tournament registration."
               action={

@@ -200,16 +200,17 @@ export const PlayerSeat = memo(function PlayerSeat({
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             className={clsx(
-              "absolute -bottom-0.5 z-20 w-6 h-6 rounded-full flex items-center justify-center",
-              isFolded ? "-left-0.5" : "-right-0.5",
+              "absolute -bottom-1 z-20 w-8 h-8 rounded-full flex items-center justify-center",
+              isFolded ? "-left-1" : "-right-1",
             )}
             style={{
               background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
               border: "2px solid #fef3c7",
               boxShadow: "0 2px 8px rgba(245,158,11,0.5)",
             }}
+            title="Dealer"
           >
-            <span className="text-amber-900 text-[10px] font-black">D</span>
+            <span className="text-amber-900 text-xs font-black">D</span>
           </motion.div>
         )}
       </div>
@@ -219,10 +220,10 @@ export const PlayerSeat = memo(function PlayerSeat({
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute -top-6 left-1/2 -translate-x-1/2 z-20"
+          className="absolute -top-7 left-1/2 -translate-x-1/2 z-20"
         >
           <div
-            className="text-[9px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap"
+            className="text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 whitespace-nowrap"
             style={{
               background: "linear-gradient(135deg, #c9a227, #dbb842)",
               color: "#1a1a2e",
@@ -288,10 +289,10 @@ export const PlayerSeat = memo(function PlayerSeat({
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute -top-5 left-1/2 -translate-x-1/2 z-30"
+          className="absolute -top-6 left-1/2 -translate-x-1/2 z-30"
         >
           <span
-            className="text-[10px] font-black px-3 py-1 rounded-full whitespace-nowrap"
+            className="text-xs font-black px-3.5 py-1.5 rounded-full whitespace-nowrap"
             style={{
               background: "linear-gradient(135deg, #dc2626, #b91c1c)",
               color: "white",
@@ -365,7 +366,7 @@ const ActionBadge = memo(function ActionBadge({
 
   return (
     <div
-      className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide whitespace-nowrap"
+      className="px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide whitespace-nowrap"
       style={{
         background: c.bg,
         color: c.text,

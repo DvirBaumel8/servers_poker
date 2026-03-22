@@ -33,7 +33,7 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
     <div className="mt-4 pt-4 border-t border-white/10">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors w-full"
+        className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors w-full min-h-[44px] py-2"
         aria-expanded={expanded}
         aria-label={
           expanded
@@ -42,7 +42,7 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
         }
       >
         <svg
-          className={`w-4 h-4 transition-transform ${expanded ? "rotate-90" : ""}`}
+          className={`w-5 h-5 transition-transform ${expanded ? "rotate-90" : ""}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -54,7 +54,7 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
             d="M9 5l7 7-7 7"
           />
         </svg>
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1.5">
           <span className="text-green-400">✓</span>
           Provably Fair
         </span>
@@ -95,7 +95,7 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
               <div className="flex gap-2 mt-3">
                 <button
                   onClick={verifyLocally}
-                  className="flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded text-xs font-medium transition-colors"
+                  className="flex-1 min-h-[44px] py-2.5 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg text-sm font-medium transition-colors"
                   aria-label="Copy verification data to clipboard"
                 >
                   {copied === "verification"
@@ -106,7 +106,7 @@ export function ProvablyFairInfo({ data }: ProvablyFairInfoProps) {
                   href="/api/v1/games/provably-fair/info"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded text-xs font-medium transition-colors text-center"
+                  className="flex-1 min-h-[44px] py-2.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-sm font-medium transition-colors text-center flex items-center justify-center"
                 >
                   How It Works
                 </a>
@@ -131,20 +131,20 @@ function SeedRow({
   copied: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between py-1 group">
-      <span className="text-muted-dark">{label}</span>
+    <div className="flex items-center justify-between py-1.5 group">
+      <span className="text-muted-dark text-sm">{label}</span>
       <div className="flex items-center gap-2">
-        <span className="text-muted-light font-mono truncate max-w-[140px]">
+        <span className="text-muted-light font-mono truncate max-w-[140px] text-sm">
           {value.slice(0, 12)}...{value.slice(-8)}
         </span>
         <button
           onClick={onCopy}
-          className="text-muted-dark hover:text-white transition-colors"
+          className="text-muted-dark hover:text-white transition-colors p-2 -m-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
           aria-label={`Copy ${label} to clipboard`}
         >
           {copied ? (
             <svg
-              className="w-4 h-4 text-green-400"
+              className="w-5 h-5 text-green-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -158,7 +158,7 @@ function SeedRow({
             </svg>
           ) : (
             <svg
-              className="w-4 h-4"
+              className="w-5 h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

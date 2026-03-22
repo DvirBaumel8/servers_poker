@@ -54,14 +54,14 @@ export function PageHeader({
   backLabel?: string;
 }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {backHref && (
         <Link to={backHref} className="btn-ghost -ml-2 w-fit">
           <ArrowLeftIcon />
           {backLabel}
         </Link>
       )}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
           {eyebrow && <div className="eyebrow-label">{eyebrow}</div>}
           <div className="space-y-2">
@@ -72,14 +72,16 @@ export function PageHeader({
           </div>
         </div>
         {actions && (
-          <div className="flex flex-wrap items-center gap-3">{actions}</div>
+          <div className="flex flex-wrap items-center gap-4 py-2">
+            {actions}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "text";
 type ButtonSize = "sm" | "md" | "lg";
 
 export function Button({
@@ -107,6 +109,7 @@ export function Button({
     variant === "secondary" && "btn-secondary",
     variant === "ghost" && "btn-ghost",
     variant === "danger" && "btn-danger",
+    variant === "text" && "btn-text",
     size !== "md" && sizeClasses[size],
     className,
   );
@@ -132,6 +135,9 @@ export function AlertBanner({
   tone = "danger",
   dismissible = false,
   onDismiss,
+  onRetry,
+  helpLink,
+  helpText = "Learn more",
   className,
 }: {
   title?: string;
@@ -139,6 +145,9 @@ export function AlertBanner({
   tone?: "danger" | "warning" | "success" | "info";
   dismissible?: boolean;
   onDismiss?: () => void;
+  onRetry?: () => void;
+  helpLink?: string;
+  helpText?: string;
   className?: string;
 }) {
   const toneStyles = {
@@ -148,27 +157,112 @@ export function AlertBanner({
     info: "border-info/35 bg-info-muted text-blue-100",
   };
 
+  const iconColors = {
+    danger: "text-red-400",
+    warning: "text-yellow-400",
+    success: "text-emerald-400",
+    info: "text-blue-400",
+  };
+
   return (
     <div
       role="alert"
       className={clsx(
-        "flex items-start justify-between gap-4 rounded-2xl border px-4 py-3 text-sm",
+        "rounded-2xl border px-4 py-4 text-sm",
         toneStyles[tone],
         className,
       )}
     >
-      <div className="space-y-1">
-        {title && <div className="font-semibold text-white">{title}</div>}
-        <div className="leading-6">{children}</div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className={clsx("mt-0.5 shrink-0", iconColors[tone])}>
+            {tone === "danger" && (
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+            {tone === "warning" && (
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+            {tone === "success" && (
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+            {tone === "info" && (
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </div>
+          <div className="space-y-1">
+            {title && <div className="font-semibold text-white">{title}</div>}
+            <div className="leading-6">{children}</div>
+          </div>
+        </div>
+        {dismissible && onDismiss && (
+          <button
+            onClick={onDismiss}
+            className="btn-ghost min-h-[44px] min-w-[44px] flex items-center justify-center text-sm shrink-0"
+            aria-label="Dismiss alert"
+          >
+            Dismiss
+          </button>
+        )}
       </div>
-      {dismissible && onDismiss && (
-        <button
-          onClick={onDismiss}
-          className="btn-ghost -mr-2 -mt-1 px-2 py-1 text-xs"
-          aria-label="Dismiss alert"
-        >
-          Dismiss
-        </button>
+      {(onRetry || helpLink) && (
+        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/10">
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-white hover:text-accent transition-colors min-h-[44px]"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0v2.43l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Try again
+            </button>
+          )}
+          {helpLink && (
+            <a
+              href={helpLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-300 hover:text-white transition-colors min-h-[44px]"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {helpText}
+            </a>
+          )}
+        </div>
       )}
     </div>
   );
@@ -179,27 +273,227 @@ export function EmptyState({
   description,
   action,
   icon,
+  illustration,
   className,
 }: {
   title: string;
   description: ReactNode;
   action?: ReactNode;
   icon?: ReactNode;
+  illustration?: "table" | "tournament" | "bot" | "leaderboard" | "waiting";
   className?: string;
 }) {
+  const renderIllustration = () => {
+    if (icon) return icon;
+
+    switch (illustration) {
+      case "table":
+        return <EmptyTableIllustration />;
+      case "tournament":
+        return <EmptyTournamentIllustration />;
+      case "bot":
+        return <EmptyBotIllustration />;
+      case "leaderboard":
+        return <EmptyLeaderboardIllustration />;
+      case "waiting":
+        return <WaitingIllustration />;
+      default:
+        return <SparkIcon />;
+    }
+  };
+
   return (
     <SurfaceCard className={clsx("py-12 text-center", className)}>
-      <div className="mx-auto flex max-w-md flex-col items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-accent">
-          {icon ?? <SparkIcon />}
+      <div className="mx-auto flex max-w-md flex-col items-center gap-5">
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] text-accent">
+          {renderIllustration()}
         </div>
         <div className="space-y-2">
           <h3 className="text-xl font-semibold text-white">{title}</h3>
           <p className="section-subtitle">{description}</p>
         </div>
-        {action}
+        {action && <div className="pt-2">{action}</div>}
       </div>
     </SurfaceCard>
+  );
+}
+
+function EmptyTableIllustration() {
+  return (
+    <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
+      <ellipse
+        cx="20"
+        cy="22"
+        rx="14"
+        ry="8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <path
+        d="M6 22v4c0 4.418 6.268 8 14 8s14-3.582 14-8v-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <circle cx="20" cy="18" r="3" fill="currentColor" opacity="0.3" />
+      <path
+        d="M20 8v6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M17 11l3-3 3 3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function EmptyTournamentIllustration() {
+  return (
+    <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
+      <path
+        d="M12 14H8a2 2 0 01-2-2v-2a2 2 0 012-2h4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M28 14h4a2 2 0 002-2v-2a2 2 0 00-2-2h-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M14 32h12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M20 26v6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M13 8h14v8a7 7 0 01-14 0V8z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <circle cx="20" cy="14" r="2" fill="currentColor" opacity="0.3" />
+    </svg>
+  );
+}
+
+function EmptyBotIllustration() {
+  return (
+    <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
+      <rect
+        x="8"
+        y="14"
+        width="24"
+        height="18"
+        rx="3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <path
+        d="M14 14v-2a6 6 0 1112 0v2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <circle cx="15" cy="22" r="2" fill="currentColor" opacity="0.5" />
+      <circle cx="25" cy="22" r="2" fill="currentColor" opacity="0.5" />
+      <path
+        d="M16 28h8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="20" cy="6" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M20 8v4" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function EmptyLeaderboardIllustration() {
+  return (
+    <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
+      <rect
+        x="6"
+        y="22"
+        width="8"
+        height="12"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <rect
+        x="16"
+        y="14"
+        width="8"
+        height="20"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <rect
+        x="26"
+        y="18"
+        width="8"
+        height="16"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <circle cx="20" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M20 5l1 2h2l-1.5 1.5.5 2-2-1-2 1 .5-2L17 7h2l1-2z"
+        fill="currentColor"
+        opacity="0.3"
+      />
+    </svg>
+  );
+}
+
+function WaitingIllustration() {
+  return (
+    <svg className="w-10 h-10" viewBox="0 0 40 40" fill="none">
+      <circle
+        cx="20"
+        cy="20"
+        r="12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="3 2"
+      />
+      <circle
+        cx="20"
+        cy="20"
+        r="8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        opacity="0.5"
+      />
+      <path
+        d="M20 14v6l4 2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="20" cy="20" r="1.5" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -484,7 +778,7 @@ export function AppModal({
                 </div>
                 <button
                   onClick={onClose}
-                  className="btn-ghost -mr-2 -mt-1 px-2 py-1"
+                  className="btn-ghost min-h-[44px] min-w-[44px] flex items-center justify-center"
                 >
                   Close
                 </button>

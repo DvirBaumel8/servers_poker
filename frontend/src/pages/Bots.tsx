@@ -343,6 +343,7 @@ export function Bots() {
 
       {displayedBots.length === 0 ? (
         <EmptyState
+          illustration="bot"
           title={
             showMyBots ? "No bots in your workspace yet" : "No bots available"
           }

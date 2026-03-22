@@ -111,7 +111,7 @@ export function HandResultToast({
           {/* Dismiss button */}
           <button
             onClick={onDismiss}
-            className="mt-4 w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm"
+            className="mt-4 w-full min-h-[44px] py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors text-sm font-medium"
             aria-label="Dismiss hand result and continue"
           >
             Continue

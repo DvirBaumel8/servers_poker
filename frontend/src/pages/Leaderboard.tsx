@@ -107,6 +107,7 @@ export function Leaderboard() {
           </div>
           {entries.length === 0 ? (
             <EmptyState
+              illustration="leaderboard"
               title="No leaderboard data yet"
               description="As bots complete games and tournaments, rankings will appear here."
             />
