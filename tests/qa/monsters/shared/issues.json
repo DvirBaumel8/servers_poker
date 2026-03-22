@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-03-21T23:57:17.448Z",
+  "lastUpdated": "2026-03-22T00:06:36.170Z",
   "issues": [
     {
       "id": "ISS-6155B890",
@@ -30,8 +30,8 @@
       "location": "/tournaments",
       "status": "open",
       "firstSeen": "2026-03-21T23:20:09.212Z",
-      "lastSeen": "2026-03-21T23:57:11.523Z",
-      "occurrences": 10,
+      "lastSeen": "2026-03-22T00:06:29.662Z",
+      "occurrences": 12,
       "resolvedAt": "2026-03-21T23:25:34.977Z",
       "resolvedBy": "agent",
       "resolution": "Added min-h-[44px] to all button classes in index.css and SegmentedTabs in primitives.tsx to meet WCAG touch target requirements"
@@ -87,6 +87,6 @@
       "Mobile drives 60%+ of poker traffic; GGPoker/PokerStars are mobile-first",
       "Good apps: inline validation, toast notifications, recovery actions"
     ],
-    "generatedAt": "2026-03-21T23:57:17.448Z"
+    "generatedAt": "2026-03-22T00:06:36.170Z"
   }
 }

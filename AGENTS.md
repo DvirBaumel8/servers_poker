@@ -9,6 +9,23 @@
 - All changes to `main` must go through Pull Requests
 - Keep git history linear and clean
 
+### PR Workflow (CRITICAL)
+
+**Before creating any PR, ALWAYS run the local CI simulation:**
+
+```bash
+npm run ci:local
+# or for quick checks:
+npm run ci:local:quick
+```
+
+This catches lint, format, type, and test failures locally. The goal is **100% green PRs on first push**.
+
+**When a PR build fails:**
+1. Fix the immediate issue
+2. Update `scripts/ci-local.sh` to catch this failure type in the future
+3. The script should evolve to mirror CI exactly
+
 ### Architecture
 
 This is a NestJS (TypeScript) poker tournament platform with a React (Vite) frontend. See `package.json` scripts for standard commands; `docs/` for detailed documentation.

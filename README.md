@@ -93,6 +93,9 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for a full 5-minute getting-started
 | `npm run test:e2e` | Run end-to-end tests |
 | `npm run typecheck` | TypeScript type checking |
 | `npm run migration:run` | Run database migrations |
+| `npm run ci:local` | **Run local CI simulation before PRs** |
+| `npm run ci:local:quick` | Quick local CI (lint + types + unit tests) |
+| `npm run ci:local:fix` | Auto-fix lint/format issues |
 | `npm run monsters:quick` | Quick QA validation (API + Invariant) |
 | `npm run monsters:pr` | PR validation (Layers 1+2) |
 | `npm run monsters:nightly` | Full QA coverage |
