@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from "uuid";
 import { UserRepository } from "../../repositories/user.repository";
 import { BotRepository } from "../../repositories/bot.repository";
 import { User } from "../../entities/user.entity";
+import { Bot } from "../../entities/bot.entity";
 import {
   LoginDto,
   RegisterDto,
@@ -82,6 +83,16 @@ export class AuthService {
         if (existingUser) {
           throw new ConflictException(
             "Email already registered. Please verify your email or resend the verification code.",
+          );
+        }
+
+        const existingName = await this.userRepository.findByName(
+          dto.name,
+          manager,
+        );
+        if (existingName) {
+          throw new ConflictException(
+            "This name is already taken. Please choose a different name.",
           );
         }
 
@@ -388,7 +399,7 @@ export class AuthService {
     };
 
     let user: User;
-    let bot: any;
+    let bot: Bot;
     try {
       const result = await this.dataSource.transaction(async (manager) => {
         const existingUser = await this.userRepository.findByEmail(

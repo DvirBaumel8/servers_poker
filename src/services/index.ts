@@ -8,7 +8,6 @@ export * from "./bot/bot-auto-registration.service";
 export * from "./game/live-game-manager.service";
 export * from "./game/game-state-persistence.service";
 export * from "./game/game-recovery.service";
-export * from "./game/game-worker-manager.service";
 export * from "./game/game-data-persistence.service";
 export * from "./game/game-ownership.service";
 
@@ -19,8 +18,6 @@ export * from "./redis/redis-health.service";
 export * from "./redis/redis-socket-state.service";
 
 // Other services
-export * from "./platform-analytics.service";
-export * from "./daily-summary.service";
 export * from "./email.service";
 export * from "./provably-fair.service";
 export * from "./hand-seed-persistence.service";

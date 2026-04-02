@@ -9,7 +9,6 @@ import { Action, ActionType, ActionStage } from "../../entities/action.entity";
 import { GamePlayer } from "../../entities/game-player.entity";
 import { BotStats } from "../../entities/bot-stats.entity";
 import { BotEvent } from "../../entities/bot-event.entity";
-import { ChipMovement } from "../../entities/chip-movement.entity";
 import { isPostgresError, PG_ERROR_CODES } from "../../common/utils";
 
 interface PlayerActionEvent {
@@ -131,8 +130,6 @@ export class GameDataPersistenceService implements OnModuleInit {
     private readonly botStatsRepository: Repository<BotStats>,
     @InjectRepository(BotEvent)
     private readonly botEventRepository: Repository<BotEvent>,
-    @InjectRepository(ChipMovement)
-    private readonly chipMovementRepository: Repository<ChipMovement>,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -146,10 +143,6 @@ export class GameDataPersistenceService implements OnModuleInit {
     this.eventEmitter.on(
       "tournament.finished",
       this.onTournamentFinished.bind(this),
-    );
-    this.eventEmitter.on(
-      "tournament.botRegistered",
-      this.onTournamentBuyIn.bind(this),
     );
 
     await this.cleanupOrphanedGames();
@@ -237,11 +230,6 @@ export class GameDataPersistenceService implements OnModuleInit {
 
       this.handIdCache.set(cacheKey, savedHand.id);
       this.actionSeqCache.set(cacheKey, 0);
-
-      await this.withRetry(
-        `Blind/ante chip movements for hand ${event.handNumber}`,
-        () => this.recordBlindAndAnteMovements(event, savedHand.id),
-      );
 
       this.logger.debug(
         `Hand ${event.handNumber} created for game ${event.gameId} (ID: ${savedHand.id})`,
@@ -405,14 +393,10 @@ export class GameDataPersistenceService implements OnModuleInit {
           .increment({ id: event.gameId }, "total_hands", 1);
       });
 
-      await Promise.all([
-        this.withRetry(`Bot stats update for hand ${event.handNumber}`, () =>
-          this.updateBotStats(event),
-        ),
-        this.withRetry(`Chip movements for hand ${event.handNumber}`, () =>
-          this.recordChipMovements(event, capturedHandId),
-        ),
-      ]);
+      await this.withRetry(
+        `Bot stats update for hand ${event.handNumber}`,
+        () => this.updateBotStats(event),
+      );
 
       this.handIdCache.delete(cacheKey);
       this.actionSeqCache.delete(cacheKey);
@@ -586,138 +570,6 @@ export class GameDataPersistenceService implements OnModuleInit {
     }
   }
 
-  private async recordChipMovements(
-    event: HandCompleteEvent,
-    handId: string | null = null,
-  ): Promise<void> {
-    try {
-      for (const player of event.players || []) {
-        const betAmount = player.totalBet ?? 0;
-        if (betAmount > 0) {
-          const betMovement = this.chipMovementRepository.create({
-            bot_id: player.id,
-            game_id: event.gameId,
-            hand_id: handId,
-            movement_type: "bet" as const,
-            amount: -betAmount,
-            balance_before: player.chips + betAmount,
-            balance_after: player.chips,
-            description: `Hand #${event.handNumber} bet`,
-          });
-          await this.chipMovementRepository.save(betMovement);
-        }
-      }
-
-      for (const winner of event.winners) {
-        const player = event.players?.find((p) => p.id === winner.playerId);
-        if (!player) continue;
-
-        const winMovement = this.chipMovementRepository.create({
-          bot_id: winner.playerId,
-          game_id: event.gameId,
-          hand_id: handId,
-          movement_type: "win" as const,
-          amount: winner.amount,
-          balance_before: player.chips - winner.amount,
-          balance_after: player.chips,
-          description: `Hand #${event.handNumber} win`,
-        });
-        await this.chipMovementRepository.save(winMovement);
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to record chip movements: ${message}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
-  }
-
-  private async recordBlindAndAnteMovements(
-    event: HandStartedEvent,
-    handId: string,
-  ): Promise<void> {
-    try {
-      if (!event.players || event.players.length < 2) return;
-
-      const sortedPlayers = [...event.players].sort(
-        (a, b) => a.position - b.position,
-      );
-
-      const ante = event.ante ?? 0;
-      if (ante > 0) {
-        for (const player of sortedPlayers) {
-          const anteAmt = Math.min(ante, player.chips);
-          if (anteAmt > 0) {
-            const movement = this.chipMovementRepository.create({
-              bot_id: player.id,
-              game_id: event.gameId,
-              hand_id: handId,
-              movement_type: "ante" as const,
-              amount: -anteAmt,
-              balance_before: player.chips,
-              balance_after: player.chips - anteAmt,
-              description: `Hand #${event.handNumber} ante`,
-            });
-            await this.chipMovementRepository.save(movement);
-          }
-        }
-      }
-
-      const smallBlind = event.smallBlind ?? 10;
-      const bigBlind = event.bigBlind ?? 20;
-
-      // SB is first player after dealer, BB is second
-      const sbPlayer = sortedPlayers.length >= 2 ? sortedPlayers[1] : null;
-      const bbPlayer =
-        sortedPlayers.length >= 3 ? sortedPlayers[2] : sortedPlayers[0];
-
-      if (sbPlayer) {
-        const chipsAfterAnte =
-          sbPlayer.chips - (ante > 0 ? Math.min(ante, sbPlayer.chips) : 0);
-        const sbAmt = Math.min(smallBlind, chipsAfterAnte);
-        if (sbAmt > 0) {
-          const movement = this.chipMovementRepository.create({
-            bot_id: sbPlayer.id,
-            game_id: event.gameId,
-            hand_id: handId,
-            movement_type: "blind" as const,
-            amount: -sbAmt,
-            balance_before: chipsAfterAnte,
-            balance_after: chipsAfterAnte - sbAmt,
-            description: `Hand #${event.handNumber} small blind`,
-          });
-          await this.chipMovementRepository.save(movement);
-        }
-      }
-
-      if (bbPlayer) {
-        const chipsAfterAnte =
-          bbPlayer.chips - (ante > 0 ? Math.min(ante, bbPlayer.chips) : 0);
-        const bbAmt = Math.min(bigBlind, chipsAfterAnte);
-        if (bbAmt > 0) {
-          const movement = this.chipMovementRepository.create({
-            bot_id: bbPlayer.id,
-            game_id: event.gameId,
-            hand_id: handId,
-            movement_type: "blind" as const,
-            amount: -bbAmt,
-            balance_before: chipsAfterAnte,
-            balance_after: chipsAfterAnte - bbAmt,
-            description: `Hand #${event.handNumber} big blind`,
-          });
-          await this.chipMovementRepository.save(movement);
-        }
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to record blind/ante chip movements: ${message}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
-  }
-
   private async recordPlayerActionEvent(
     event: PlayerActionEvent,
   ): Promise<void> {
@@ -790,21 +642,6 @@ export class GameDataPersistenceService implements OnModuleInit {
     payouts: Array<{ position: number; amount: number; botId?: string }>;
   }): Promise<void> {
     try {
-      for (const payout of event.payouts || []) {
-        if (!payout.botId || payout.amount <= 0) continue;
-
-        const movement = this.chipMovementRepository.create({
-          bot_id: payout.botId,
-          tournament_id: event.tournamentId,
-          movement_type: "tournament_payout" as const,
-          amount: payout.amount,
-          balance_before: 0,
-          balance_after: payout.amount,
-          description: `Tournament payout - position ${payout.position}`,
-        });
-        await this.chipMovementRepository.save(movement);
-      }
-
       if (event.winnerId) {
         await this.ensureBotStatsExists(event.winnerId);
         await this.dataSource.transaction(async (manager) => {
@@ -830,83 +667,6 @@ export class GameDataPersistenceService implements OnModuleInit {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `Failed to record tournament chip movements: ${message}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
-  }
-
-  private async onTournamentBuyIn(event: {
-    tournamentId: string;
-    botId: string;
-  }): Promise<void> {
-    try {
-      const movement = this.chipMovementRepository.create({
-        bot_id: event.botId,
-        tournament_id: event.tournamentId,
-        movement_type: "tournament_buyin" as const,
-        amount: 0,
-        balance_before: 0,
-        balance_after: 0,
-        description: "Tournament buy-in",
-      });
-      await this.chipMovementRepository.save(movement);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to record tournament buy-in: ${message}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
-  }
-
-  async recordRefund(
-    botId: string,
-    gameId: string,
-    handId: string,
-    amount: number,
-    balanceBefore: number,
-  ): Promise<void> {
-    try {
-      const movement = this.chipMovementRepository.create({
-        bot_id: botId,
-        game_id: gameId,
-        hand_id: handId,
-        movement_type: "refund" as const,
-        amount,
-        balance_before: balanceBefore,
-        balance_after: balanceBefore + amount,
-        description: "Uncalled bet refund",
-      });
-      await this.chipMovementRepository.save(movement);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to record refund: ${message}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
-  }
-
-  async recordRebuy(
-    botId: string,
-    tournamentId: string,
-    amount: number,
-  ): Promise<void> {
-    try {
-      const movement = this.chipMovementRepository.create({
-        bot_id: botId,
-        tournament_id: tournamentId,
-        movement_type: "rebuy" as const,
-        amount,
-        balance_before: 0,
-        balance_after: amount,
-        description: "Tournament rebuy",
-      });
-      await this.chipMovementRepository.save(movement);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to record rebuy: ${message}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

@@ -24,6 +24,13 @@ export class UserRepository extends BaseRepository<User> {
     return this.getRepo(manager).findOne({ where: { email } });
   }
 
+  async findByName(
+    name: string,
+    manager?: EntityManager,
+  ): Promise<User | null> {
+    return this.getRepo(manager).findOne({ where: { name } });
+  }
+
   async findByRefreshTokenHash(hash: string): Promise<User | null> {
     return this.repository.findOne({ where: { refresh_token_hash: hash } });
   }

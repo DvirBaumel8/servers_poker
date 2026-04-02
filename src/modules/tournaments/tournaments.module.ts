@@ -18,6 +18,7 @@ import { TournamentRepository } from "../../repositories/tournament.repository";
 import { BotRepository } from "../../repositories/bot.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
 import { GamesModule } from "../games/games.module";
+import { TournamentsGateway } from "./tournaments.gateway";
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { GamesModule } from "../games/games.module";
     TournamentDirectorService,
     TournamentStatsListener,
     TournamentWebsocketListener,
+    TournamentsGateway,
     TournamentRepository,
     BotRepository,
     AnalyticsRepository,

@@ -531,4 +531,51 @@ describe("StrategyEngine", () => {
       expect(result.action).toBeDefined();
     });
   });
+
+  describe("incomplete / malformed strategies", () => {
+    // These cover the real-world case where a user builds a bot via the UI
+    // without configuring a personality. The strategy evaluator must never
+    // crash — it should always return a valid action.
+
+    it("should not throw when personality is undefined", () => {
+      const strategy = quickStrategy({ personality: undefined });
+      expect(() => evaluateStrategy(strategy, basePayload())).not.toThrow();
+    });
+
+    it("should return a valid action when personality is undefined", () => {
+      const strategy = quickStrategy({ personality: undefined });
+      const result = evaluateStrategy(strategy, basePayload());
+      expect(result.action).toBeDefined();
+      expect(["fold", "call", "check", "raise"]).toContain(result.action.type);
+    });
+
+    it("should not throw when personality is null", () => {
+      const strategy = quickStrategy({ personality: null as any });
+      expect(() => evaluateStrategy(strategy, basePayload())).not.toThrow();
+    });
+
+    it("should not throw when the entire strategy object has no personality — preflop", () => {
+      const strategy: BotStrategy = { version: 1, tier: "quick" } as any;
+      expect(() =>
+        evaluateStrategy(strategy, basePayload({ stage: "pre-flop" })),
+      ).not.toThrow();
+    });
+
+    it("should not throw when the entire strategy object has no personality — postflop", () => {
+      const strategy: BotStrategy = { version: 1, tier: "quick" } as any;
+      const payload = basePayload({
+        stage: "flop",
+        table: {
+          pot: 200,
+          currentBet: 0,
+          communityCards: ["A♠", "K♥", "2♦"],
+          smallBlind: 50,
+          bigBlind: 100,
+          ante: 0,
+        },
+        action: { canCheck: true, toCall: 0, minRaise: 100, maxRaise: 5000 },
+      });
+      expect(() => evaluateStrategy(strategy, payload)).not.toThrow();
+    });
+  });
 });

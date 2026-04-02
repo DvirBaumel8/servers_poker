@@ -231,19 +231,9 @@ servers_poker/
 │   │   ├── DEPLOYMENT.md            — Production deployment
 │   │   ├── SECURITY.md              — Security architecture
 │   │   ├── BOT_DEVELOPER_GUIDE.md   — Bot development guide
-│   │   └── MONITORING.md            — Monitoring guide
 │   ├── adr/                         — Architecture Decision Records
 │   ├── reports/                     — QA and audit reports
 │   └── AI_CONTEXT.md                — Context for AI assistants
-├── monitoring/
-│   ├── prometheus/                  — Prometheus configuration
-│   │   ├── prometheus.yml           — Scrape configuration
-│   │   └── alert.rules.yml          — Alerting rules
-│   ├── grafana/
-│   │   ├── dashboards/              — Dashboard JSON files
-│   │   └── provisioning/            — Auto-provisioning config
-│   └── alertmanager/
-│       └── alertmanager.yml         — Alert routing
 ```
 
 ### Monster Army QA (`tests/qa/monsters/`)

@@ -54,18 +54,26 @@ class SeededRandom {
   }
 }
 
+const DEFAULT_PERSONALITY: Personality = {
+  tightness: 50,
+  aggression: 50,
+  bluffFrequency: 20,
+  riskTolerance: 50,
+};
+
 export function evaluatePersonality(
-  personality: Personality,
+  personality: Personality | undefined | null,
   context: GameContext,
   handSeed: number,
 ): PersonalityEvalResult {
+  const p = personality ?? DEFAULT_PERSONALITY;
   const rng = new SeededRandom(handSeed);
 
   if (context.street === "preflop") {
-    return evaluatePreflop(personality, context, rng);
+    return evaluatePreflop(p, context, rng);
   }
 
-  return evaluatePostflop(personality, context, rng);
+  return evaluatePostflop(p, context, rng);
 }
 
 function evaluatePreflop(

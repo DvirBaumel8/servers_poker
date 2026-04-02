@@ -108,6 +108,14 @@ Re-activate a deactivated bot. Requires ownership (`operate:bots` scope).
 
 Deactivate a bot. Requires ownership.
 
+**Response:** `{ "success": true }`
+
+#### POST /bots/:id/duplicate
+
+Create a copy of an existing bot with all its strategy settings. The duplicated bot will have " (Copy)" appended to its name. Requires ownership and that the user hasn't exceeded the bot limit.
+
+**Response:** Created bot representation (same as POST /bots/internal)
+
 #### GET /bots/active
 
 Get all currently active bots (playing in games/tournaments). Public endpoint.
@@ -306,7 +314,7 @@ List tournaments with optional status filter.
 
 #### GET /tournaments/:id
 
-Get tournament details.
+Get tournament details. If the tournament is currently running, includes live blind state.
 
 **Response:**
 ```json
@@ -322,7 +330,54 @@ Get tournament details.
   "playersPerTable": 9,
   "turnTimeoutMs": 10000,
   "entriesCount": 5,
+  "currentLevel": 3,
+  "smallBlind": 50,
+  "bigBlind": 100,
   "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+#### GET /tournaments/:id/state
+
+Get live tournament state including current blind level, hand progress, and table information. Public endpoint.
+
+**Response (running tournament):**
+```json
+{
+  "tournamentId": "uuid",
+  "name": "Daily Freeroll",
+  "status": "running",
+  "level": 3,
+  "handsThisLevel": 12,
+  "handsPerLevel": 20,
+  "blinds": {
+    "small": 50,
+    "big": 100,
+    "ante": 10
+  },
+  "playersRemaining": 45,
+  "totalEntrants": 100,
+  "tables": [
+    {
+      "tableId": "table-uuid",
+      "tableNumber": 1,
+      "isFinalTable": false,
+      "gameState": { }
+    }
+  ],
+  "buyIn": 0,
+  "prizePool": 5000
+}
+```
+
+**Response (non-running tournament):**
+```json
+{
+  "tournamentId": "uuid",
+  "name": "Daily Freeroll",
+  "status": "registering",
+  "playersRemaining": 0,
+  "totalEntrants": 5
 }
 ```
 
@@ -451,6 +506,59 @@ Get detailed hand information including all actions.
 
 ---
 
+### Testing
+
+#### POST /testing/run-simulation
+
+Run automated poker game simulations to validate game invariants. Public endpoint (no auth required).
+
+**Rate limit:** 30 requests per minute.
+
+**Request:**
+```json
+{
+  "gameCount": 10,
+  "botCount": 6,
+  "startingChips": 1000,
+  "smallBlind": 10,
+  "bigBlind": 20
+}
+```
+
+- `gameCount` (number, required): Number of games to simulate
+- `botCount` (number, required): Number of bots per game (2-9)
+- `startingChips` (number, optional): Starting chips per bot (default: 1000)
+- `smallBlind` (number, optional): Small blind amount (default: 10)
+- `bigBlind` (number, optional): Big blind amount (default: 20)
+
+**Response:**
+```json
+{
+  "totalGames": 10,
+  "successful": 10,
+  "failed": 0,
+  "bugsFound": 0,
+  "bugsFile": "/path/to/POKER_BUGS.md",
+  "coverage": {
+    "allInWithSidePots": 5,
+    "headsUp": 8,
+    "splitPot": 2,
+    "playerElimination": 15,
+    "everyoneFoldsToBlind": 3,
+    "showdown": 12
+  },
+  "duration": 45000
+}
+```
+
+- `bugsFile`: Path to generated bug report (created at project root)
+- `coverage`: Scenario coverage metrics from these games
+- `duration`: Total execution time in milliseconds
+
+Bugs are logged to `POKER_BUGS.md` at project root and appended across runs.
+
+---
+
 ### Health
 
 #### GET /health
@@ -480,16 +588,6 @@ Kubernetes liveness probe. Checks memory only.
 #### GET /health/detailed
 
 Detailed health check including disk space. Public endpoint.
-
----
-
-### Metrics
-
-#### GET /metrics
-
-Prometheus metrics endpoint. Public endpoint.
-
-Returns Prometheus-formatted metrics for scraping.
 
 ---
 

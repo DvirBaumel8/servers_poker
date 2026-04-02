@@ -27,47 +27,14 @@ Before you report a task as complete, you MUST:
 | New/changed entity or `@Entity` | `docs/ARCHITECTURE.md` (entities section) + `docs/DATA_DICTIONARY.md` |
 | New/changed service | `docs/ARCHITECTURE.md` (services section) |
 | New/changed frontend page (`frontend/src/pages/`) | `docs/ARCHITECTURE.md` (pages section) |
-| New/changed frontend route (`App.tsx` route) | `docs/ARCHITECTURE.md` + all monster page configs (see Monster Config Updates below) |
+| New/changed frontend route (`App.tsx` route) | `docs/ARCHITECTURE.md` |
 | New/changed env variable | `.env.example` + `docs/guides/DEPLOYMENT.md` |
 | New/changed npm script | `README.md` (scripts table) |
 | Architecture or directory structure change | `docs/ARCHITECTURE.md` |
-| New poker rule/invariant | `docs/KNOWLEDGE.md` + `tests/qa/monsters/invariant-monster/poker-invariants.ts` |
-| New QA monster/test pattern | `tests/qa/monsters/README.md` + follow `tests/qa/monsters/docs/CONTRIBUTING.md` checklist |
 | Security-related change | `docs/guides/SECURITY.md` |
-| Database migration or schema change | `docs/DATA_DICTIONARY.md` |
-| New design decision or feature | `docs/KNOWLEDGE.md` |
-| Strategy/tuner change | `tests/qa/monsters/analyzer-pipeline-monster/` |
+| Database migration or schema change | `docs/ARCHITECTURE.md` |
+| New design decision or feature | `CLAUDE.md` (in project context section) |
 
-## Monster Config Updates (for new pages/routes)
-
-When you add a new frontend page or route, you MUST update ALL of these:
-
-| Monster Config | File |
-|---|---|
-| Visual Monster pages | `tests/qa/monsters/visual-monster/visual-monster.config.ts` |
-| Browser QA routes | `tests/qa/monsters/browser-monster/browser-qa-monster.ts` |
-| Browser scenarios + PAGES_BY_ROLE | `tests/qa/monsters/browser-monster/scenarios.ts` |
-| Fast browser routes | `tests/qa/monsters/browser-monster/fast-browser-monster.ts` |
-| Product quality screenshots | `tests/qa/monsters/browser-monster/product-quality-monster.ts` |
-| Auto-fixer route mappings | `tests/qa/monsters/browser-monster/auto-fixer.ts` |
-| Permission checks | `tests/qa/monsters/visual-monster/permission-checks.ts` |
-| Performance profiler pages | `tests/qa/monsters/visual-monster/performance-profiler.ts` |
-| Accessibility checker pages | `tests/qa/monsters/visual-monster/accessibility-checker.ts` |
-| Network simulator pages | `tests/qa/monsters/visual-monster/network-simulator.ts` |
-| Legacy monster config | `tests/qa/monsters/legacy/monster-config.ts` |
-| Legacy complete inventory | `tests/qa/monsters/legacy/complete-inventory.ts` |
-
-**Missing even ONE of these means the task is incomplete.**
-
-## QA Monster Updates (for non-page changes)
-
-| Code Change | Monster Update |
-|---|---|
-| New API endpoint | `tests/qa/monsters/api-monster/api-monster.config.ts` |
-| New poker invariant | `tests/qa/monsters/invariant-monster/poker-invariants.ts` |
-| New user flow | `tests/qa/monsters/flows/` |
-| Game logic changes | `tests/qa/monsters/simulation-monster/simulation-monster.ts` |
-| Entity/migration/DTO/schema changes | `tests/qa/monsters/data-integrity-monster/data-integrity-monster.ts` |
 
 ## Skip Documentation For
 

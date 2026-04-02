@@ -26,7 +26,7 @@ export class RegisterDto {
   @MaxLength(100, { message: "Name cannot exceed 100 characters" })
   @Matches(/^[a-zA-Z0-9][a-zA-Z0-9 _.-]*$/, {
     message:
-      "Name must start with a letter or number and contain only letters, numbers, spaces, dots, underscores, and hyphens",
+      "Name can only contain letters, numbers, spaces, dots, underscores, and hyphens",
   })
   name: string;
 
@@ -100,10 +100,6 @@ export class AuthResponseDto {
     name: string;
     role: string;
   };
-}
-
-export class MeResponseDto {
-  user: UserDto;
 }
 
 /**

@@ -6,15 +6,25 @@ import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { JwtService } from "@nestjs/jwt";
 import { AuthModule } from "../../src/modules/auth/auth.module";
+import { BotsModule } from "../../src/modules/bots/bots.module";
+import { GamesModule } from "../../src/modules/games/games.module";
+import { TournamentsModule } from "../../src/modules/tournaments/tournaments.module";
+import { ServicesModule } from "../../src/services/services.module";
 import * as entities from "../../src/entities";
 import { appConfig } from "../../src/config";
+import { APP_GUARD } from "@nestjs/core";
+import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 describe("Auth E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
+  let jwtService: JwtService;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -34,8 +44,23 @@ describe("Auth E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
+        ThrottlerModule.forRoot([{ ttl: 60000, limit: 100000 }]),
         EventEmitterModule.forRoot(),
+        ServicesModule,
         AuthModule,
+        BotsModule,
+        GamesModule,
+        TournamentsModule,
+      ],
+      providers: [
+        {
+          provide: APP_GUARD,
+          useClass: JwtAuthGuard,
+        },
+        {
+          provide: APP_GUARD,
+          useClass: CustomThrottlerGuard,
+        },
       ],
     }).compile();
 
@@ -51,6 +76,7 @@ describe("Auth E2E Tests", () => {
 
     await app.init();
     dataSource = moduleFixture.get(DataSource);
+    jwtService = moduleFixture.get(JwtService);
   });
 
   afterAll(async () => {

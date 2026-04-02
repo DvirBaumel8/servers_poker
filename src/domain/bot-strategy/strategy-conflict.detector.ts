@@ -75,12 +75,14 @@ function detectRuleConflicts(
         );
 
         if (overlap === "identical") {
+          const nameA = ruleA.label || `Rule #${ruleA.priority + 1}`;
+          const nameB = ruleB.label || `Rule #${ruleB.priority + 1}`;
           if (actionsEqual(ruleA, ruleB)) {
             conflicts.push({
               ruleA: ruleA.id,
               ruleB: ruleB.id,
               street,
-              description: `Rules "${ruleA.label || ruleA.id}" and "${ruleB.label || ruleB.id}" have identical conditions and actions — the second is redundant`,
+              description: `"${nameA}" and "${nameB}" have identical conditions and actions on ${street}`,
               severity: "warning",
             });
           } else {
@@ -88,16 +90,18 @@ function detectRuleConflicts(
               ruleA: ruleA.id,
               ruleB: ruleB.id,
               street,
-              description: `Rules "${ruleA.label || ruleA.id}" and "${ruleB.label || ruleB.id}" have identical conditions but different actions — "${ruleB.label || ruleB.id}" will never execute`,
+              description: `"${nameA}" and "${nameB}" have identical conditions but different actions on ${street}`,
               severity: "error",
             });
           }
         } else if (overlap === "a_subsumes_b") {
+          const nameA = ruleA.label || `Rule #${ruleA.priority + 1}`;
+          const nameB = ruleB.label || `Rule #${ruleB.priority + 1}`;
           conflicts.push({
             ruleA: ruleA.id,
             ruleB: ruleB.id,
             street,
-            description: `Rule "${ruleA.label || ruleA.id}" (priority ${ruleA.priority}) shadows "${ruleB.label || ruleB.id}" (priority ${ruleB.priority}) — the higher-priority rule's conditions are broader`,
+            description: `"${nameA}" shadows "${nameB}" on ${street} — higher-priority rule has broader conditions`,
             severity: "warning",
           });
         }

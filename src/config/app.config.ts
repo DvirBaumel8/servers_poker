@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 export const DEFAULT_CORS_ORIGINS = [
   "http://localhost:3001",
   "http://localhost:3002",
+  "http://localhost:5173",
 ];
 
 /**
@@ -94,7 +95,8 @@ export const appConfig = (): AppConfig => ({
       process.env.TOURNAMENT_SCHEDULER_INTERVAL_MS || "30000",
       10,
     ),
-    cronExpression: process.env.TOURNAMENT_SCHEDULER_CRON || "*/30 * * * * *", // Every 30 seconds
+    // For testing: set TOURNAMENT_SCHEDULER_CRON="*/5 * * * * *" for 5-second scheduler
+    cronExpression: process.env.TOURNAMENT_SCHEDULER_CRON || "*/30 * * * * *", // Every 30 seconds (or 5s in tests)
   },
   redisPubSubPollMs: parseInt(process.env.REDIS_PUBSUB_POLL_MS || "100", 10),
 });

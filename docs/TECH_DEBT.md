@@ -10,6 +10,21 @@ This file tracks technical debt, security hardening items, and improvements to a
 
 ---
 
+## Observability
+
+### 🟡 Monitoring Stack Not Implemented
+**Added:** 2026-03-27
+**Context:** Prometheus, Grafana, and Alertmanager were documented (README, API.md, ARCHITECTURE.md) but never implemented. No `/metrics` endpoint exists. No `monitoring/` directory exists. Only health checks (`@nestjs/terminus`) and structured logging (`nestjs-pino`) are in place.
+**Action Required:**
+- [ ] Implement Prometheus metrics endpoint (`prom-client`)
+- [ ] Add Grafana dashboard configuration
+- [ ] Configure Alertmanager for alerting
+- [ ] Integrate Sentry for error tracking (also documented but absent)
+
+**Deferred:** Post-MVP.
+
+---
+
 ## Performance & Scaling
 
 ### 🟡 Database Connection Pooling Tuning

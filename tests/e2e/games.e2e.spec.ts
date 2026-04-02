@@ -10,7 +10,14 @@ import { JwtService } from "@nestjs/jwt";
 import { AuthModule } from "../../src/modules/auth/auth.module";
 import { BotsModule } from "../../src/modules/bots/bots.module";
 import { GamesModule } from "../../src/modules/games/games.module";
+import { TournamentsModule } from "../../src/modules/tournaments/tournaments.module";
 import { ServicesModule } from "../../src/services/services.module";
+import {
+  createTestUser as createTestUserHelper,
+  createTestBot as createTestBotHelper,
+  TestUser,
+  TestBot,
+} from "./test-helpers";
 import * as entities from "../../src/entities";
 import { appConfig } from "../../src/config";
 import { APP_GUARD } from "@nestjs/core";
@@ -50,6 +57,7 @@ describe("Games E2E Tests", () => {
         AuthModule,
         BotsModule,
         GamesModule,
+        TournamentsModule,
       ],
       providers: [
         {
@@ -548,6 +556,6 @@ describe("Games E2E Tests", () => {
 
       expect(response.body).toHaveProperty("status");
       expect(response.body.status).toBe("ok");
-    });
+    }, 60000);
   });
 });

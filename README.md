@@ -166,16 +166,6 @@ docker compose --profile dev up
 docker compose --profile migrate up
 ```
 
-## Monitoring
-
-The platform includes a full observability stack:
-
-- **Prometheus** — metrics collection (`/metrics` endpoint)
-- **Grafana** — dashboards and visualization
-- **Alertmanager** — alerting and notifications
-
-Configuration files are in the `monitoring/` directory. See [docs/MONITORING.md](docs/MONITORING.md) for setup details.
-
 ## QA Testing
 
 The Monster Army is a comprehensive, self-improving QA system:

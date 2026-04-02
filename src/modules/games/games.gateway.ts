@@ -14,7 +14,6 @@ import {
   OnModuleDestroy,
   Optional,
   Inject,
-  forwardRef,
 } from "@nestjs/common";
 import { Server, Socket } from "socket.io";
 import { JwtService } from "@nestjs/jwt";
@@ -24,7 +23,6 @@ import {
   LiveGameManagerService,
   GameStateSnapshot,
 } from "../../services/game/live-game-manager.service";
-import { GameWorkerManagerService } from "../../services/game/game-worker-manager.service";
 import {
   RedisEventBusService,
   RedisGameEvent,
@@ -32,7 +30,6 @@ import {
 import { RedisSocketStateService } from "../../services/redis/redis-socket-state.service";
 import { BotActivityService } from "../../services/bot/bot-activity.service";
 import { BotRepository } from "../../repositories/bot.repository";
-import { MetricsService } from "../metrics/metrics.service";
 import { DEFAULT_CORS_ORIGINS } from "../../config/app.config";
 
 interface AuthenticatedSocket extends Socket {
@@ -111,21 +108,11 @@ export class GamesGateway
     string,
     AuthenticatedSocket
   >();
-  private readonly useWorkerThreads: boolean;
   private readonly useRedisSocketState: boolean;
   private readonly eventHandlers: Array<{
     event: string;
     handler: (...args: unknown[]) => void;
   }> = [];
-
-  /**
-   * Track WebSocket message for metrics (GAP-6 fix)
-   */
-  private trackMessage(eventType: string): void {
-    if (this.metricsService) {
-      this.metricsService.recordWebSocketMessage(eventType);
-    }
-  }
 
   /**
    * Check if a client is rate limited.
@@ -162,7 +149,6 @@ export class GamesGateway
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly liveGameManager: LiveGameManagerService,
-    private readonly gameWorkerManager: GameWorkerManagerService,
     private readonly botRepository: BotRepository,
     @Optional()
     @Inject(RedisEventBusService)
@@ -173,11 +159,7 @@ export class GamesGateway
     @Optional()
     @Inject(BotActivityService)
     private readonly botActivityService: BotActivityService | null,
-    @Optional()
-    @Inject(forwardRef(() => MetricsService))
-    private readonly metricsService: MetricsService | null,
   ) {
-    this.useWorkerThreads = this.gameWorkerManager.isEnabled();
     this.useRedisSocketState = this.redisSocketState !== null;
   }
 
@@ -206,8 +188,12 @@ export class GamesGateway
   private setupLocalEventListeners(): void {
     this.registerEventHandler(
       "game.stateUpdated",
-      (event: { tableId: string; state: GameStateSnapshot }) => {
-        this.broadcastGameState(event.tableId, event.state as any);
+      (event: {
+        tableId: string;
+        gameId: string;
+        state: GameStateSnapshot;
+      }) => {
+        this.broadcastGameState(event.gameId, event.state as any);
       },
     );
 
@@ -215,6 +201,7 @@ export class GamesGateway
       "game.handStarted",
       (event: {
         tableId: string;
+        gameId: string;
         handNumber: number;
         provablyFair?: {
           serverSeedHash: string;
@@ -222,8 +209,8 @@ export class GamesGateway
           nonce: number;
         };
       }) => {
-        this.server.to(`table:${event.tableId}`).emit("handStarted", {
-          tableId: event.tableId,
+        this.server.to(`table:${event.gameId}`).emit("handStarted", {
+          tableId: event.gameId,
           handNumber: event.handNumber,
           provablyFair: event.provablyFair,
         });
@@ -231,7 +218,7 @@ export class GamesGateway
     );
 
     this.registerEventHandler("game.handComplete", (event: any) => {
-      this.broadcastHandResult(event.tableId, {
+      this.broadcastHandResult(event.gameId || event.tableId, {
         handNumber: event.handNumber,
         winners: event.winners.map((w: any) => ({
           botId: w.playerId,
@@ -247,12 +234,13 @@ export class GamesGateway
       "game.playerAction",
       (event: {
         tableId: string;
+        gameId: string;
         botId: string;
         action: string;
         amount: number;
         pot: number;
       }) => {
-        this.broadcastPlayerAction(event.tableId, {
+        this.broadcastPlayerAction(event.gameId, {
           botId: event.botId,
           action: event.action,
           amount: event.amount,
@@ -263,8 +251,13 @@ export class GamesGateway
 
     this.registerEventHandler(
       "game.finished",
-      (event: { tableId: string; winnerId?: string; winnerName?: string }) => {
-        this.broadcastGameFinished(event.tableId, {
+      (event: {
+        tableId: string;
+        gameId: string;
+        winnerId?: string;
+        winnerName?: string;
+      }) => {
+        this.broadcastGameFinished(event.gameId, {
           reason: "winner_determined",
           winnerId: event.winnerId,
           winnerName: event.winnerName,
@@ -274,9 +267,9 @@ export class GamesGateway
 
     this.registerEventHandler(
       "game.playerRemoved",
-      (event: { tableId: string; playerId: string }) => {
+      (event: { tableId: string; gameId: string; playerId: string }) => {
         const state = this.getGameState(event.tableId);
-        this.broadcastPlayerLeft(event.tableId, {
+        this.broadcastPlayerLeft(event.gameId, {
           playerId: event.playerId,
           playerName: "Player",
           reason: "disconnect",
@@ -316,7 +309,8 @@ export class GamesGateway
     this.redisEventBus.onRedisEvent(
       "game.stateUpdated",
       (event: RedisGameEvent) => {
-        this.broadcastGameState(event.tableId, event.payload as any);
+        const gameId = (event.payload as any).gameId;
+        this.broadcastGameState(gameId, event.payload as any);
       },
     );
 
@@ -325,6 +319,7 @@ export class GamesGateway
       (event: RedisGameEvent) => {
         const payload = event.payload as {
           tableId: string;
+          gameId: string;
           handNumber: number;
           provablyFair?: {
             serverSeedHash: string;
@@ -332,8 +327,9 @@ export class GamesGateway
             nonce: number;
           };
         };
-        this.server.to(`table:${event.tableId}`).emit("handStarted", {
-          tableId: payload.tableId,
+        const gameId = (event.payload as any).gameId;
+        this.server.to(`table:${gameId}`).emit("handStarted", {
+          tableId: gameId,
           handNumber: payload.handNumber,
           provablyFair: payload.provablyFair,
         });
@@ -344,7 +340,8 @@ export class GamesGateway
       "game.handComplete",
       (event: RedisGameEvent) => {
         const payload = event.payload as any;
-        this.broadcastHandResult(event.tableId, {
+        const gameId = (event.payload as any).gameId;
+        this.broadcastHandResult(gameId, {
           handNumber: payload.handNumber,
           winners: payload.winners.map((w: any) => ({
             botId: w.playerId,
@@ -365,12 +362,14 @@ export class GamesGateway
       (event: RedisGameEvent) => {
         const payload = event.payload as {
           tableId: string;
+          gameId: string;
           botId: string;
           action: string;
           amount: number;
           pot: number;
         };
-        this.broadcastPlayerAction(event.tableId, {
+        const gameId = (event.payload as any).gameId;
+        this.broadcastPlayerAction(gameId, {
           botId: payload.botId,
           action: payload.action,
           amount: payload.amount,
@@ -384,10 +383,12 @@ export class GamesGateway
       (event: RedisGameEvent) => {
         const payload = event.payload as {
           tableId: string;
+          gameId: string;
           winnerId?: string;
           winnerName?: string;
         };
-        this.broadcastGameFinished(event.tableId, {
+        const gameId = (event.payload as any).gameId;
+        this.broadcastGameFinished(gameId, {
           reason: "winner_determined",
           winnerId: payload.winnerId,
           winnerName: payload.winnerName,
@@ -400,9 +401,11 @@ export class GamesGateway
       (event: RedisGameEvent) => {
         const payload = event.payload as {
           tableId: string;
+          gameId: string;
           playerId: string;
         };
-        this.broadcastPlayerLeft(event.tableId, {
+        const gameId = (event.payload as any).gameId;
+        this.broadcastPlayerLeft(gameId, {
           playerId: payload.playerId,
           playerName: "Player",
           reason: "disconnect",
@@ -415,12 +418,6 @@ export class GamesGateway
   }
 
   private getGameState(tableId: string): GameStateSnapshot | null {
-    if (this.useWorkerThreads) {
-      const workerState = this.gameWorkerManager.getGameState(tableId);
-      if (workerState) {
-        return workerState as unknown as GameStateSnapshot;
-      }
-    }
     return this.liveGameManager.getGameState(tableId) || null;
   }
 
@@ -480,25 +477,34 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tableId: string },
   ) {
-    this.trackMessage("subscribe");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
 
     const { tableId } = data;
+    this.logger.log(`[subscribe] client=${client.id} table=${tableId}`);
 
     if (this.redisSocketState) {
       await this.redisSocketState.subscribeToTable(client.id, tableId);
     }
 
     client.join(`table:${tableId}`);
-    this.logger.debug(`Client ${client.id} subscribed to table ${tableId}`);
 
-    // Send initial game state to the client
-    const snapshot = this.getGameState(tableId);
+    // Send initial game state; retry briefly in case game is still starting
+    let snapshot = this.getGameState(tableId);
+    let retries = 0;
+    while (!snapshot && retries < 20) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      snapshot = this.getGameState(tableId);
+      retries++;
+    }
+
     if (snapshot) {
       client.emit("gameState", this.snapshotToGameState(snapshot));
     } else {
+      this.logger.warn(
+        `[subscribe] game not found for table=${tableId} after ${retries * 100}ms — sending waiting state`,
+      );
       // No active game, send a waiting state
       client.emit("gameState", {
         id: tableId,
@@ -524,7 +530,6 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tableId: string },
   ) {
-    this.trackMessage("unsubscribe");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -546,7 +551,6 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
-    this.trackMessage("registerBot");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -577,7 +581,6 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
-    this.trackMessage("subscribeBotActivity");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -617,7 +620,6 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { botId: string },
   ) {
-    this.trackMessage("unsubscribeBotActivity");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -640,7 +642,6 @@ export class GamesGateway
   async handleSubscribeActiveBots(
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    this.trackMessage("subscribeActiveBots");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -662,7 +663,6 @@ export class GamesGateway
 
   @SubscribeMessage("unsubscribeActiveBots")
   handleUnsubscribeActiveBots(@ConnectedSocket() client: AuthenticatedSocket) {
-    this.trackMessage("unsubscribeActiveBots");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -676,7 +676,6 @@ export class GamesGateway
   async handleSubscribeTournaments(
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    this.trackMessage("subscribeTournaments");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -688,7 +687,6 @@ export class GamesGateway
 
   @SubscribeMessage("unsubscribeTournaments")
   handleUnsubscribeTournaments(@ConnectedSocket() client: AuthenticatedSocket) {
-    this.trackMessage("unsubscribeTournaments");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -703,7 +701,6 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tournamentId: string },
   ) {
-    this.trackMessage("subscribeTournament");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -721,7 +718,6 @@ export class GamesGateway
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { tournamentId: string },
   ) {
-    this.trackMessage("unsubscribeTournament");
     if (this.isRateLimited(client)) {
       return { success: false, error: "Rate limit exceeded" };
     }
@@ -744,7 +740,6 @@ export class GamesGateway
       amount?: number;
     },
   ) {
-    this.trackMessage("action");
     if (this.isRateLimited(client)) {
       return { error: "Rate limit exceeded", code: "RATE_LIMITED" };
     }
@@ -820,6 +815,10 @@ export class GamesGateway
       currentPlayerId: (state as any).activePlayerId || null,
       dealerPosition: this.getDealerPosition(state),
     };
+    console.log(`📤 Broadcasting gameState to room table:${tableId}`);
+    this.logger.log(
+      `📤 Broadcasting gameState to room table:${tableId} (${transformedState.players?.length || 0} players, pot=${transformedState.pot})`,
+    );
     this.server.to(`table:${tableId}`).emit("gameState", transformedState);
   }
 

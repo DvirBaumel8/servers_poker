@@ -9,9 +9,7 @@ import {
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
-import { ScopesGuard } from "../../common/guards/scopes.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { RequireScopes } from "../../common/decorators/scopes.decorator";
 import { Public } from "../../common/decorators/public.decorator";
 import { User } from "../../entities/user.entity";
 import { BotsService } from "./bots.service";
@@ -26,9 +24,10 @@ import {
   evaluateStrategy,
   type BotPayload,
 } from "../bot-strategy/strategy-engine.service";
+import { detectConflicts } from "../../domain/bot-strategy/strategy-conflict.detector";
 
 @Controller("bots/internal")
-@UseGuards(JwtAuthGuard, ScopesGuard)
+@UseGuards(JwtAuthGuard)
 export class BotsInternalController {
   constructor(private readonly botsService: BotsService) {}
 
@@ -45,13 +44,19 @@ export class BotsInternalController {
   }
 
   @Post()
-  @RequireScopes("operate:bots")
   @Throttle({ default: { ttl: 3600000, limit: 10 } })
   async createInternalBot(
     @Body() dto: CreateInternalBotDto,
     @CurrentUser() user: User,
   ) {
     return this.botsService.create(user.id, dto);
+  }
+
+  @Post("check-conflicts")
+  @HttpCode(HttpStatus.OK)
+  checkConflicts(@Body() dto: { strategy: BotStrategy }) {
+    const result = detectConflicts(dto.strategy);
+    return result;
   }
 
   @Post("simulate")

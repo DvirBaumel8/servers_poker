@@ -123,7 +123,7 @@ export class GamesController {
 
   @UseGuards(JwtAuthGuard)
   @Post("tables")
-  async createTable(@Body() dto: CreateTableDto, @CurrentUser() _user: User) {
+  async createTable(@Body() dto: CreateTableDto) {
     return this.tablesService.create(dto);
   }
 

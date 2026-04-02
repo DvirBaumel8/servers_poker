@@ -1,0 +1,127 @@
+{
+  "tableId": "table-8d690b5b",
+  "gameId": "ui-qa-game-2-cc9ff238",
+  "handNumber": 3,
+  "status": "running",
+  "stage": "turn",
+  "communityCards": [
+    "4♣",
+    "Q♠",
+    "5♣",
+    "7♦"
+  ],
+  "pot": 50,
+  "currentBet": 0,
+  "activePlayerId": "bot-0-1edd3b",
+  "smallBlind": 10,
+  "bigBlind": 20,
+  "ante": 0,
+  "players": [
+    {
+      "id": "bot-0-1edd3b",
+      "name": "Shark",
+      "chips": 980,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "BB",
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    },
+    {
+      "id": "bot-1-002bc1",
+      "name": "Rock",
+      "chips": 970,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "UTG",
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    },
+    {
+      "id": "bot-2-6ad4ac",
+      "name": "Maniac",
+      "chips": 1000,
+      "folded": true,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "BTN",
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    },
+    {
+      "id": "bot-3-1cb275",
+      "name": "Station",
+      "chips": 1000,
+      "folded": true,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "SB",
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    }
+  ],
+  "log": [
+    {
+      "message": "Hand #3 started. Dealer: Maniac",
+      "timestamp": 1774703767915
+    },
+    {
+      "message": "Station posts small blind: 10",
+      "timestamp": 1774703767915
+    },
+    {
+      "message": "Shark posts big blind: 20",
+      "timestamp": 1774703767915
+    },
+    {
+      "message": "Rock calls 20",
+      "timestamp": 1774703767915
+    },
+    {
+      "message": "Maniac folds",
+      "timestamp": 1774703767915
+    },
+    {
+      "message": "Station folds",
+      "timestamp": 1774703767915
+    },
+    {
+      "message": "Shark checks",
+      "timestamp": 1774703767915
+    },
+    {
+      "message": "Flop: 4♣ Q♠ 5♣",
+      "timestamp": 1774703767915
+    },
+    {
+      "message": "Shark checks",
+      "timestamp": 1774703767916
+    },
+    {
+      "message": "Rock checks",
+      "timestamp": 1774703767916
+    },
+    {
+      "message": "Turn: 7♦",
+      "timestamp": 1774703767916
+    }
+  ]
+}

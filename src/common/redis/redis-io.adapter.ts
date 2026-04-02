@@ -46,16 +46,32 @@ export class RedisIoAdapter extends IoAdapter {
   }
 
   createIOServer(port: number, options?: ServerOptions): any {
+    this.logger.log(
+      `Creating Socket.IO server on port ${port} with options: ${JSON.stringify(options)}`,
+    );
+
     const server = super.createIOServer(port, options);
 
     if (this.adapterConstructor) {
       server.adapter(this.adapterConstructor);
       this.logger.log("Socket.IO server using Redis adapter");
+      this.logger.log(`Socket.IO listening on port ${port}`);
+      this.logger.log(
+        `Available transports: ${server._opts.transports?.join(", ") || "default"}`,
+      );
     } else {
       this.logger.warn(
         "Redis adapter not initialized - using default in-memory adapter",
       );
     }
+
+    // Log namespace registration
+    setTimeout(() => {
+      const namespaces = Object.keys(server._nsps || {});
+      this.logger.log(
+        `Registered Socket.IO namespaces: ${namespaces.join(", ")}`,
+      );
+    }, 1000);
 
     return server;
   }

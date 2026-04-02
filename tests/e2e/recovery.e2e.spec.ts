@@ -70,21 +70,57 @@ describe("Recovery E2E Tests", () => {
 
   async function registerPlayer(): Promise<{
     accessToken: string;
-    bot: { id: string };
+    botId: string;
   }> {
     const id = uid();
+    const email = `recovery${id}@test.com`;
+    const name = `RecoveryPlayer${id}`;
+    const password = "SecurePass123!";
+    const botName = `RecBot${id}`;
 
-    const response = await request(app.getHttpServer())
-      .post("/api/v1/auth/register-developer")
+    // Register user
+    await request(app.getHttpServer())
+      .post("/api/v1/auth/register")
+      .send({ email, name, password })
+      .expect(201);
+
+    // Verify email
+    await dataSource.query(
+      'UPDATE "users" SET email_verified = true WHERE email = $1',
+      [email],
+    );
+
+    // Login to get token
+    const loginResponse = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .send({ email, password })
+      .expect(200);
+
+    const accessToken = loginResponse.body.accessToken;
+
+    // Create bot
+    const botResponse = await request(app.getHttpServer())
+      .post("/api/v1/bots/internal")
+      .set("Authorization", `Bearer ${accessToken}`)
       .send({
-        email: `recovery${id}@test.com`,
-        name: `RecoveryPlayer${id}`,
-        password: "SecurePass123",
-        botName: `RecBot${id}`,
+        name: botName,
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       })
       .expect(201);
 
-    return response.body;
+    return {
+      accessToken,
+      botId: botResponse.body.id,
+    };
   }
 
   describe("Session Recovery", () => {
@@ -138,13 +174,13 @@ describe("Recovery E2E Tests", () => {
       await request(app.getHttpServer())
         .post(`/api/v1/games/${tableRes.body.id}/join`)
         .set("Authorization", `Bearer ${player.accessToken}`)
-        .send({ bot_id: player.bot.id })
+        .send({ bot_id: player.botId })
         .expect(201);
 
       const leaveRes = await request(app.getHttpServer())
         .post(`/api/v1/games/${tableRes.body.id}/leave`)
         .set("Authorization", `Bearer ${player.accessToken}`)
-        .send({ bot_id: player.bot.id });
+        .send({ bot_id: player.botId });
 
       expect([200, 201, 204, 404]).toContain(leaveRes.status);
     });

@@ -1,70 +1,128 @@
 # Demo Games Guide
 
-## Quick Start
+## Fastest Way to See the Game
 
 ```bash
-npm run demo        # 4 players (default)
-npm run demo:6      # 6 players
+npm run game:watch
 ```
 
-This creates strategy bots, joins them to a table, and starts a game. No external servers needed.
+This single command:
+1. ✅ Starts backend (port 3000)
+2. ✅ Starts frontend (port 5173)
+3. ✅ Creates a live game with 5 bots
+4. ✅ Opens browser to `http://localhost:5173/games/{gameId}`
 
-**Watch at:** The command prints a link like:
-```
-http://localhost:3001/game/<table-id>
-```
+Watch bots play in real-time! No setup needed.
 
-## Prerequisites
+---
+
+## Manual Setup (for Development)
+
+### Step 1: Start Services
 
 ```bash
-# Terminal 1: Start PostgreSQL
+# Terminal 1: PostgreSQL
 docker compose up -d postgres
 
-# Terminal 2: Start backend
-npm run dev  # or: npx nest build && node dist/src/main.js
+# Terminal 2: Backend
+npm run dev
 
-# Terminal 3: Start frontend
+# Terminal 3: Frontend
 cd frontend && npm run dev
 ```
 
-## What the Demo Does
+### Step 2: Create a Game
 
-1. **Runs the seed script** to create users with strategy bots (various personality presets)
-2. **Joins bots to a table** — each bot joins the first available table
-3. **Game auto-starts** — when 2+ bots join, the game begins automatically
+Via the UI:
+- Go to `http://localhost:5173/bots/build` to create a bot
+- Register if needed (email auto-verifies in dev)
+- Choose personality preset or customize sliders
+- Save your bot, then create a live game via API (see below)
 
-All bots use in-process strategy evaluation via the `StrategyEngineService`. Each bot has a personality preset (shark, rock, maniac, etc.) that determines its play style.
-
-## Manual Alternative
-
-Use the seed script directly for more control:
-
+Or via API:
 ```bash
-npx ts-node scripts/seed-data.ts
+curl -X POST http://localhost:3000/api/v1/testing/live-game
 ```
 
-This creates demo users with pre-configured strategy bots. You can then join them to tables via the UI or API.
+Returns `{ gameId, gameUrl }` — navigate to the URL.
 
-## Monitoring
+### Step 3: Watch Live
 
-Watch the game state via API:
+The game state updates via WebSocket in real-time:
+- Player actions (bet, fold, call, check, raise)
+- Community cards dealt progressively
+- Pot and chip updates
+- Hand results
+
+---
+
+## How It Works
+
+**Live Game Flow:**
+1. Test user is created via `AuthService.register()`
+2. 5 bots created in database (Alice, Bob, Charlie, Diana, Eve)
+3. All bots use the "quick" strategy tier
+4. GameInstance starts with `LiveGameManagerService`
+5. WebSocket broadcasts game state to `/game` namespace
+6. Frontend renders live UI with real poker table
+
+**Architecture:**
+- All strategy evaluation is **in-process** (no external servers)
+- Each bot uses a personality preset (shark, rock, maniac, etc.)
+- Chip conservation is validated after every action (see `src/testing/validators.ts`)
+- One bot per user per table (fair play enforcement)
+
+---
+
+## Monitor Game State
 
 ```bash
-# Current state
-curl http://localhost:3000/api/v1/games/<table-id>/state | jq
+# Via API
+curl http://localhost:3000/api/v1/games/<gameId>/state | jq
 
 # Quick status
-curl -s http://localhost:3000/api/v1/games/<table-id>/state | jq '{hand: .handNumber, stage, players: [.players[].name]}'
+curl -s http://localhost:3000/api/v1/games/<gameId>/state | jq '{hand: .handNumber, stage: .stage, pot: .potManager.totalChips}'
+
+# WebSocket events
+# Emitted to table:{gameId} room:
+# - gameState (full state snapshot)
+# - playerAction (action taken)
+# - handStarted (new hand)
+# - handResult (pot awarded)
 ```
+
+---
+
+## Test the Game Logic
+
+Run 50 automated poker games and validate game invariants:
+
+```bash
+npm run test:poker -- --games=50 --bots=8
+
+# Output:
+# ✅ All games pass validation
+# 📋 POKER_BUGS.md auto-generated with any issues found
+# 📊 test-coverage.json with scenario metrics
+```
+
+See [TESTING.md](../TESTING.md) for details on validators and coverage.
+
+---
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "No available tables" | An admin needs to create a table via UI or API |
-| "Backend not running" | Start with `npm run dev` |
-| "Conflict" when joining | One user can only have one bot per table |
+| `npm run game:watch` fails | Ensure backend/frontend ports (3000, 5173) are free |
+| WebSocket connection fails | Check CORS in `.env`: `CORS_ORIGINS` must include frontend URL |
+| Game freezes mid-hand | Check backend logs; may indicate game logic bug |
+| Bots stuck in "waiting" | One bot per user per table rule — create new users |
 
-## Architecture Note
+---
 
-The system enforces **one bot per user per table** for fair play. The demo creates separate users for each bot. All bot decisions are evaluated in-process — no HTTP calls or external servers are involved.
+## References
+
+- [Testing & Invariants](../TESTING.md) — Validator suite, coverage metrics
+- [Security](../SECURITY.md) — Game integrity controls
+- [Architecture](../ARCHITECTURE.md) — System design details

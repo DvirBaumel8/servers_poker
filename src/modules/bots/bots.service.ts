@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from "@nestjs/common";
 import { BotRepository } from "../../repositories/bot.repository";
@@ -131,6 +132,35 @@ export class BotsService {
   async activate(id: string, userId: string, isAdmin: boolean): Promise<void> {
     await this.botOwnership.getBotWithOwnershipCheck(id, userId, isAdmin);
     await this.botRepository.activate(id);
+  }
+
+  async duplicate(id: string, userId: string): Promise<BotResponseDto> {
+    const original = await this.botRepository.findById(id);
+    if (!original) {
+      throw new NotFoundException(`Bot ${id} not found`);
+    }
+    if (original.user_id !== userId) {
+      throw new ForbiddenException("You can only duplicate your own bots");
+    }
+
+    const userBots = await this.botRepository.findByUserId(userId);
+    if (userBots.length >= MAX_BOTS_PER_ACCOUNT) {
+      throw new BadRequestException(
+        `Maximum ${MAX_BOTS_PER_ACCOUNT} bots per account. Please deactivate or delete an existing bot.`,
+      );
+    }
+
+    const baseName = `${original.name} (Copy)`;
+    const nameExists = await this.botRepository.findByName(baseName);
+    const finalName = nameExists
+      ? `${original.name} (Copy ${Date.now()})`
+      : baseName;
+
+    return this.create(userId, {
+      name: finalName,
+      description: original.description ?? undefined,
+      strategy: original.strategy as any,
+    });
   }
 
   async getProfile(id: string) {

@@ -100,26 +100,54 @@ describe("Security E2E Tests", () => {
     const user = createTestUser();
     const bot = createTestBot();
 
-    const response = await request(app.getHttpServer())
-      .post("/api/v1/auth/register-developer")
+    // Register user
+    await request(app.getHttpServer())
+      .post("/api/v1/auth/register")
       .send({
         email: user.email,
         name: user.name,
         password: user.password,
-        botName: bot.botName,
-      });
+      })
+      .expect(201);
 
-    if (response.status !== 201) {
-      throw new Error(
-        `Failed to register developer: ${response.status} ${JSON.stringify(response.body)}`,
-      );
-    }
+    // Verify email
+    await dataSource.query(
+      'UPDATE "users" SET email_verified = true WHERE email = $1',
+      [user.email],
+    );
+
+    // Login to get token
+    const loginResponse = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .send({ email: user.email, password: user.password })
+      .expect(200);
+
+    const accessToken = loginResponse.body.accessToken;
+
+    // Create bot
+    const botResponse = await request(app.getHttpServer())
+      .post("/api/v1/bots/internal")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({
+        name: bot.botName,
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
+      })
+      .expect(201);
 
     return {
       user,
       bot,
-      accessToken: response.body.accessToken,
-      botId: response.body.bot.id,
+      accessToken,
+      botId: botResponse.body.id,
     };
   }
 
@@ -290,14 +318,44 @@ describe("Security E2E Tests", () => {
 
     it("should reject XSS payloads in bot name", async () => {
       const id = uid();
+      const email = `xss-${id}@test.com`;
+      const name = `XSSTest${id}`;
+      const password = "SecurePass123!";
 
+      // Register user
+      await request(app.getHttpServer())
+        .post("/api/v1/auth/register")
+        .send({ email, name, password })
+        .expect(201);
+
+      // Verify email
+      await dataSource.query(
+        'UPDATE "users" SET email_verified = true WHERE email = $1',
+        [email],
+      );
+
+      // Login to get token
+      const loginResponse = await request(app.getHttpServer())
+        .post("/api/v1/auth/login")
+        .send({ email, password })
+        .expect(200);
+
+      // Try to create bot with XSS payload in name
       const response = await request(app.getHttpServer())
-        .post("/api/v1/auth/register-developer")
+        .post("/api/v1/bots/internal")
+        .set("Authorization", `Bearer ${loginResponse.body.accessToken}`)
         .send({
-          email: `xss-${id}@test.com`,
-          name: `XSSTest${id}`,
-          password: "SecurePass123!",
-          botName: "<script>alert('XSS')</script>",
+          name: "<script>alert('XSS')</script>",
+          strategy: {
+            version: 1,
+            tier: "quick",
+            personality: {
+              aggression: 50,
+              bluffFrequency: 30,
+              riskTolerance: 50,
+              tightness: 50,
+            },
+          },
         });
 
       expect(response.status).toBe(400);
@@ -329,12 +387,11 @@ describe("Security E2E Tests", () => {
       const id = uid();
 
       const response = await request(app.getHttpServer())
-        .post("/api/v1/auth/register-developer")
+        .post("/api/v1/auth/register")
         .send({
           email: `admin-${id}@test.com`,
           name: `Admin${id}`,
           password: "SecurePass123!",
-          botName: `Bot${id}`,
           role: "admin",
           isAdmin: true,
         });
@@ -350,12 +407,11 @@ describe("Security E2E Tests", () => {
       const id = uid();
 
       const response = await request(app.getHttpServer())
-        .post("/api/v1/auth/register-developer")
+        .post("/api/v1/auth/register")
         .send({
           email: `idset-${id}@test.com`,
           name: `IDSet${id}`,
           password: "SecurePass123!",
-          botName: `BotI${id}`,
           id: "00000000-0000-0000-0000-000000000001",
         });
 

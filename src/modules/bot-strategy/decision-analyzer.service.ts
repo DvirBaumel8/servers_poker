@@ -6,10 +6,6 @@ import {
   StrategyDecision,
   type AnalysisFlag,
 } from "../../entities/strategy-decision.entity";
-import {
-  StrategyAnalysisReport,
-  type AnalysisSuggestion,
-} from "../../entities/strategy-analysis-report.entity";
 import { runAllChecks } from "./analysis-checks";
 
 interface GameFinishedEvent {
@@ -27,8 +23,6 @@ export class DecisionAnalyzerService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     @InjectRepository(StrategyDecision)
     private readonly decisionRepo: Repository<StrategyDecision>,
-    @InjectRepository(StrategyAnalysisReport)
-    private readonly reportRepo: Repository<StrategyAnalysisReport>,
   ) {}
 
   onModuleInit() {
@@ -80,7 +74,6 @@ export class DecisionAnalyzerService implements OnModuleInit {
   ): Promise<void> {
     const now = new Date();
     let totalFlags = 0;
-    const allFlags: AnalysisFlag[] = [];
 
     for (const decision of decisions) {
       const flags = runAllChecks(decision);
@@ -93,29 +86,12 @@ export class DecisionAnalyzerService implements OnModuleInit {
       };
 
       totalFlags += flags.length;
-      allFlags.push(...flags);
     }
 
     await this.decisionRepo.save(decisions);
 
-    const suggestions = aggregateSuggestions(allFlags);
-    const qualityScore = computeOverallScore(decisions);
-
-    const report = this.reportRepo.create({
-      bot_id: botId,
-      game_id: gameId,
-      total_decisions: decisions.length,
-      flagged_count: totalFlags,
-      suggestions,
-      decision_quality_score: qualityScore,
-      summary: buildSummary(decisions.length, totalFlags, suggestions),
-      analyzed_at: now,
-    });
-
-    await this.reportRepo.save(report);
-
     this.logger.log(
-      `Bot ${botId}: ${decisions.length} decisions, ${totalFlags} flags, quality=${qualityScore}/100`,
+      `Bot ${botId}: ${decisions.length} decisions, ${totalFlags} flags`,
     );
   }
 }
@@ -132,75 +108,4 @@ function computeDecisionScore(flags: AnalysisFlag[]): number {
     penalty += penalties[f.severity] || 10;
   }
   return Math.max(0, 100 - penalty);
-}
-
-function computeOverallScore(decisions: StrategyDecision[]): number {
-  if (decisions.length === 0) return 100;
-  const total = decisions.reduce(
-    (sum, d) => sum + (d.analysis_result?.qualityScore ?? 100),
-    0,
-  );
-  return Math.round(total / decisions.length);
-}
-
-function aggregateSuggestions(flags: AnalysisFlag[]): AnalysisSuggestion[] {
-  const grouped = new Map<string, { flag: AnalysisFlag; count: number }>();
-
-  for (const flag of flags) {
-    const existing = grouped.get(flag.checkId);
-    if (existing) {
-      existing.count++;
-    } else {
-      grouped.set(flag.checkId, { flag, count: 1 });
-    }
-  }
-
-  return Array.from(grouped.values())
-    .sort((a, b) => {
-      const order: Record<string, number> = {
-        critical: 0,
-        high: 1,
-        medium: 2,
-        low: 3,
-      };
-      return (order[a.flag.severity] ?? 4) - (order[b.flag.severity] ?? 4);
-    })
-    .map(({ flag, count }) => ({
-      checkId: flag.checkId,
-      title: flag.title,
-      description: flag.suggestion || flag.description,
-      occurrences: count,
-      severity: flag.severity,
-    }));
-}
-
-function buildSummary(
-  total: number,
-  flagged: number,
-  suggestions: AnalysisSuggestion[],
-): string {
-  if (flagged === 0) {
-    return `Analyzed ${total} decisions — no issues found. Strategy appears well-configured.`;
-  }
-
-  const critCount = suggestions.filter((s) => s.severity === "critical").length;
-  const highCount = suggestions.filter((s) => s.severity === "high").length;
-
-  const parts = [`Analyzed ${total} decisions, found ${flagged} flag(s).`];
-
-  if (critCount > 0) {
-    parts.push(`${critCount} critical issue(s) require immediate attention.`);
-  }
-  if (highCount > 0) {
-    parts.push(`${highCount} high-severity issue(s) detected.`);
-  }
-
-  const topSuggestion = suggestions[0];
-  if (topSuggestion) {
-    parts.push(
-      `Top issue: "${topSuggestion.title}" (${topSuggestion.occurrences} occurrence(s)).`,
-    );
-  }
-
-  return parts.join(" ");
 }

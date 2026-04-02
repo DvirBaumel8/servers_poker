@@ -1,0 +1,60 @@
+{
+  "tableId": "table-7bac969a",
+  "gameId": "ui-qa-game-1-f05eaded",
+  "handNumber": 2,
+  "status": "running",
+  "stage": "pre-flop",
+  "communityCards": [],
+  "pot": 30,
+  "currentBet": 20,
+  "activePlayerId": "bot-1-54776f",
+  "smallBlind": 10,
+  "bigBlind": 20,
+  "ante": 0,
+  "players": [
+    {
+      "id": "bot-0-628f42",
+      "name": "Shark",
+      "chips": 970,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "BB",
+      "bet": 20,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    },
+    {
+      "id": "bot-1-54776f",
+      "name": "Rock",
+      "chips": 1000,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "BTN/SB",
+      "bet": 10,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    }
+  ],
+  "log": [
+    {
+      "message": "Hand #2 started. Dealer: Rock",
+      "timestamp": 1774705449236
+    },
+    {
+      "message": "Rock posts small blind: 10",
+      "timestamp": 1774705449236
+    },
+    {
+      "message": "Shark posts big blind: 20",
+      "timestamp": 1774705449236
+    }
+  ]
+}

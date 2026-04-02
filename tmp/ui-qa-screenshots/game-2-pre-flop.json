@@ -1,0 +1,90 @@
+{
+  "tableId": "table-8d690b5b",
+  "gameId": "ui-qa-game-2-cc9ff238",
+  "handNumber": 2,
+  "status": "running",
+  "stage": "pre-flop",
+  "communityCards": [],
+  "pot": 30,
+  "currentBet": 0,
+  "activePlayerId": null,
+  "smallBlind": 10,
+  "bigBlind": 20,
+  "ante": 0,
+  "players": [
+    {
+      "id": "bot-0-1edd3b",
+      "name": "Shark",
+      "chips": 1000,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "UTG",
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    },
+    {
+      "id": "bot-1-002bc1",
+      "name": "Rock",
+      "chips": 990,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "BTN",
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    },
+    {
+      "id": "bot-2-6ad4ac",
+      "name": "Maniac",
+      "chips": 1000,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "SB",
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    },
+    {
+      "id": "bot-3-1cb275",
+      "name": "Station",
+      "chips": 980,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "BB",
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    }
+  ],
+  "log": [
+    {
+      "message": "Hand #2 started. Dealer: Rock",
+      "timestamp": 1774703767914
+    },
+    {
+      "message": "Maniac posts small blind: 10",
+      "timestamp": 1774703767914
+    },
+    {
+      "message": "Station posts big blind: 20",
+      "timestamp": 1774703767914
+    }
+  ]
+}

@@ -37,6 +37,7 @@ import {
 } from "../../config/tournaments.config";
 import { Game } from "../../entities/game.entity";
 import { GamePlayer } from "../../entities/game-player.entity";
+import { Table } from "../../entities/table.entity";
 import * as crypto from "crypto";
 
 const SEATS_PER_TABLE = 9;
@@ -45,6 +46,7 @@ const BREAK_THRESHOLD = 4;
 interface BotInfo {
   botId: string;
   name: string;
+  userName: string;
   strategy: Record<string, any> | null;
   chips: number;
   tableDbId: string | null;
@@ -216,36 +218,89 @@ export class TournamentDirectorService
 
   private async checkScheduledTournaments(): Promise<void> {
     const now = new Date();
+    this.logger.debug(
+      `[Scheduler] Checking for tournaments to start at ${now.toISOString()}`,
+    );
     const tournaments =
       await this.tournamentRepository.findByStatus("registering");
 
+    this.logger.debug(
+      `[Scheduler] Found ${tournaments.length} tournaments in "registering" status`,
+    );
+
     for (const tournament of tournaments) {
+      this.logger.debug(
+        `[Scheduler] Checking tournament: ${tournament.name} (${tournament.id})`,
+      );
+      this.logger.debug(`[Scheduler]   Type: ${tournament.type}`);
+      this.logger.debug(
+        `[Scheduler]   Scheduled start: ${tournament.scheduled_start_at?.toISOString()}`,
+      );
+      this.logger.debug(
+        `[Scheduler]   Active: ${!this.activeDirectors.has(tournament.id)}`,
+      );
+
       if (
         tournament.type === "scheduled" &&
         tournament.scheduled_start_at &&
         tournament.scheduled_start_at <= now &&
         !this.activeDirectors.has(tournament.id)
       ) {
-        const entries = await this.tournamentRepository.getEntries(
-          tournament.id,
-        );
-        const activeEntries = entries.filter((e) => e.finish_position === null);
-
-        if (activeEntries.length < tournament.min_players) {
-          this.logger.log(
-            `Tournament ${tournament.name}: scheduled start passed but only ${activeEntries.length}/${tournament.min_players} players — cancelling`,
-          );
-          await this.tournamentRepository.updateStatus(
+        try {
+          const entries = await this.tournamentRepository.getEntries(
             tournament.id,
-            "cancelled",
           );
+          const activeEntries = entries.filter(
+            (e) => e.finish_position === null,
+          );
+          this.logger.log(
+            `[Scheduler] Tournament ${tournament.name}: ${activeEntries.length}/${tournament.min_players} players`,
+          );
+
+          if (activeEntries.length < tournament.min_players) {
+            this.logger.warn(
+              `[Scheduler] Tournament ${tournament.name}: scheduled start passed but only ${activeEntries.length}/${tournament.min_players} players — cancelling`,
+            );
+            await this.tournamentRepository.updateStatus(
+              tournament.id,
+              "cancelled",
+            );
+            continue;
+          }
+
+          this.logger.log(
+            `[Scheduler] ✅ Starting scheduled tournament: ${tournament.name} (${activeEntries.length} players)`,
+          );
+          await this.startTournament(tournament.id);
+          this.logger.log(
+            `[Scheduler] ✅ Tournament started successfully: ${tournament.name}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `[Scheduler] ❌ Error starting tournament ${tournament.name} (${tournament.id}):`,
+            error instanceof Error ? error.stack : String(error),
+          );
+          // Continue to next tournament instead of crashing the scheduler
           continue;
         }
-
-        this.logger.log(
-          `Starting scheduled tournament: ${tournament.name} (${activeEntries.length} players)`,
+      } else {
+        const reasons = [];
+        if (tournament.type !== "scheduled")
+          reasons.push(`type=${tournament.type}`);
+        if (!tournament.scheduled_start_at)
+          reasons.push(`no scheduled_start_at`);
+        if (
+          tournament.scheduled_start_at &&
+          tournament.scheduled_start_at > now
+        )
+          reasons.push(
+            `start in ${Math.round((tournament.scheduled_start_at.getTime() - now.getTime()) / 1000)}s`,
+          );
+        if (this.activeDirectors.has(tournament.id))
+          reasons.push(`already active`);
+        this.logger.debug(
+          `[Scheduler] Skipping ${tournament.name}: ${reasons.join(", ")}`,
         );
-        await this.startTournament(tournament.id);
       }
     }
   }
@@ -305,8 +360,6 @@ export class TournamentDirectorService
       );
     }
 
-    await this.tournamentRepository.updateStatus(tournamentId, "running");
-
     const director = new ActiveTournament(
       tournamentId,
       tournament.name,
@@ -323,7 +376,25 @@ export class TournamentDirectorService
     );
 
     this.activeDirectors.set(tournamentId, director);
-    await director.start();
+
+    try {
+      await director.start();
+      // Only update status to running AFTER director successfully starts
+      await this.tournamentRepository.updateStatus(tournamentId, "running");
+    } catch (error) {
+      // If tournament startup fails, clean up and re-throw
+      this.activeDirectors.delete(tournamentId);
+      if (this.isRedisEnabled()) {
+        await this.gameOwnershipService!.releaseTournamentOwnership(
+          tournamentId,
+        );
+      }
+      this.logger.error(
+        `Failed to start tournament ${tournamentId}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
   }
 
   getTournamentState(tournamentId: string): TournamentState | null {
@@ -451,6 +522,7 @@ class ActiveTournament {
       this.activeBots.set(entry.bot_id, {
         botId: entry.bot_id,
         name: entry.bot?.name || "Unknown",
+        userName: entry.bot?.user?.name || "Unknown",
         strategy: entry.bot?.strategy || null,
         chips: startingChips,
         tableDbId: null,
@@ -517,7 +589,7 @@ class ActiveTournament {
     for (const bot of bots) {
       game.addPlayer({
         id: bot.botId,
-        name: bot.name,
+        name: bot.userName,
         strategy: bot.strategy as any,
         chips: bot.chips,
       });
@@ -553,7 +625,42 @@ class ActiveTournament {
     await this.dataSource.transaction(async (manager) => {
       const gameRepository = manager.getRepository(Game);
       const gamePlayerRepository = manager.getRepository(GamePlayer);
+      const tableRepository = manager.getRepository(Table);
 
+      // Create tables entry FIRST (required by FK: games.table_id → tables.id)
+      // Only create if this is a new table for the tournament
+      if (options?.createTable) {
+        this.logger.debug(`[DB] Inserting table: ${tableDbId}`);
+        await tableRepository.save(
+          tableRepository.create({
+            id: tableDbId,
+            name: `Tournament Table ${options?.tableNumber || 1}`,
+            small_blind: 10, // Will be set by blind level during game creation
+            big_blind: 20, // Will be set by blind level during game creation
+            starting_chips: this.config.starting_chips,
+            max_players: 9,
+            turn_timeout_ms: this.config.turn_timeout_ms,
+            status: "waiting",
+          }),
+        );
+
+        this.logger.debug(`[DB] Inserting tournament_table: ${tableDbId}`);
+        await manager.query(
+          `INSERT INTO tournament_tables (id, tournament_id, table_number, status, game_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, NULL, NOW(), NOW())`,
+          [
+            tableDbId,
+            this.tournamentId,
+            options.tableNumber,
+            options.tableStatus ?? "active",
+          ],
+        );
+      }
+
+      // Now create the game (FK: games.table_id → tables.id is now satisfied)
+      this.logger.debug(
+        `[DB] Inserting game: ${gameDbId} with table_id: ${tableDbId}`,
+      );
       await gameRepository.save(
         gameRepository.create({
           id: gameDbId,
@@ -566,24 +673,17 @@ class ActiveTournament {
         }),
       );
 
-      if (options?.createTable) {
-        await this.tournamentRepository.createTable(
-          {
-            id: tableDbId,
-            tournament_id: this.tournamentId,
-            table_number: options.tableNumber,
-            status: options.tableStatus ?? "active",
-            game_id: gameDbId,
-          },
-          manager,
-        );
-      } else {
-        await this.tournamentRepository.updateTableGame(
-          tableDbId,
-          gameDbId,
-          manager,
-        );
-      }
+      // Always update tournament_table with the current game_id so that
+      // GET /my-current-table always returns the active game (not a stale one
+      // from a previous round on the same table).
+      this.logger.debug(
+        `[DB] Updating tournament_table game_id: ${tableDbId} -> ${gameDbId}`,
+      );
+      await this.tournamentRepository.updateTableGame(
+        tableDbId,
+        gameDbId,
+        manager,
+      );
 
       for (const bot of bots) {
         await gamePlayerRepository.save(
@@ -644,6 +744,14 @@ class ActiveTournament {
       level,
       blinds: blindLevel,
     });
+
+    // Emit blind increased event for WebSocket clients
+    this.eventEmitter.emit("tournament.blindIncreased", {
+      tournamentId: this.tournamentId,
+      blindLevel: level,
+      smallBlind: blindLevel.small_blind,
+      bigBlind: blindLevel.big_blind,
+    });
   }
 
   private async runGameLoop(): Promise<void> {
@@ -657,6 +765,7 @@ class ActiveTournament {
       }
 
       await this.checkForBustedPlayers();
+      await this.checkFinishedGames();
       await this.checkTableBalancing();
       await this.checkBlindLevelAdvance();
       await this.checkAndRecoverErroredGames();
@@ -752,7 +861,7 @@ class ActiveTournament {
             if (bot) {
               newGame.addPlayer({
                 id: player.id,
-                name: player.name,
+                name: bot.userName,
                 strategy: bot.strategy as any,
                 chips: player.chips,
               });
@@ -818,6 +927,55 @@ class ActiveTournament {
           }
         }
       }
+    }
+  }
+
+  /**
+   * When a game ends because all remaining players were disconnected (3 strikes),
+   * those players still have chips > 0 so checkForBustedPlayers won't catch them.
+   * This method detects finished games and busts any disconnected players in them,
+   * allowing the tournament to continue or finish normally.
+   */
+  private async checkFinishedGames(): Promise<void> {
+    for (const [_tableId, tableEntry] of this.tables) {
+      const state = tableEntry.game.getPublicState();
+      if (state.status !== "finished") continue;
+
+      const disconnectedWithChips = state.players.filter(
+        (p) => p.disconnected && p.chips > 0 && !this.bustedBots.has(p.id),
+      );
+
+      for (const player of disconnectedWithChips) {
+        const bot = this.activeBots.get(player.id);
+        if (!bot) continue;
+
+        this.bustedBots.add(player.id);
+        this.bustOrder.push(player.id);
+        this.activeBots.delete(player.id);
+
+        const position = this.totalEntrants - this.bustOrder.length + 1;
+        this.logger.log(
+          `${player.name} busted (disconnected, game finished) in position ${position}`,
+        );
+
+        await this.tournamentRepository.bustEntry(
+          this.tournamentId,
+          player.id,
+          this.currentLevel,
+          position,
+        );
+        await this.tournamentRepository.bustSeat(this.tournamentId, player.id);
+
+        this.eventEmitter.emit("tournament.playerBusted", {
+          tournamentId: this.tournamentId,
+          botId: player.id,
+          position,
+        });
+      }
+
+      // If the game finished cleanly and has no disconnected-chip stragglers,
+      // the table will be cleaned up by checkAndRecoverErroredGames or breakTable.
+      // If every player except one is now busted, the main loop will call finishTournament.
     }
   }
 
@@ -909,7 +1067,7 @@ class ActiveTournament {
       const movingBot = this.activeBots.get(player.id);
       targetTable.game.addPlayer({
         id: player.id,
-        name: player.name,
+        name: movingBot?.userName || player.name,
         strategy: (movingBot?.strategy as any) || null,
         chips: player.chips,
       });
@@ -1088,6 +1246,9 @@ class ActiveTournament {
 
   private emitStateUpdate(): void {
     const state = this.getState();
+    this.logger.debug(
+      `[Tournament ${this.tournamentId}] Emitting state update: status=${state.status}, players=${state.playersRemaining}/${state.totalEntrants}`,
+    );
     this.eventEmitter.emit("tournament.stateUpdated", {
       tournamentId: this.tournamentId,
       state,

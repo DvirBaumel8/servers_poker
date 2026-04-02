@@ -16,15 +16,13 @@ import { BotActivityService } from "../../services/bot/bot-activity.service";
 import { UpdateBotDto } from "./dto/internal-bot.dto";
 import { PaginationDto } from "../../common/dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
-import { ScopesGuard } from "../../common/guards/scopes.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { RequireScopes } from "../../common/decorators/scopes.decorator";
 import { Public } from "../../common/decorators/public.decorator";
 import { User } from "../../entities/user.entity";
 import { assertFound } from "../../common/utils";
 
 @Controller("bots")
-@UseGuards(JwtAuthGuard, ScopesGuard)
+@UseGuards(JwtAuthGuard)
 export class BotsController {
   private readonly logger = new Logger(BotsController.name);
 
@@ -43,7 +41,6 @@ export class BotsController {
   }
 
   @Get("my")
-  @RequireScopes("operate:bots")
   async findMy(@CurrentUser() user: User, @Query() pagination: PaginationDto) {
     return this.botsService.findByUserIdPaginated(
       user.id,
@@ -53,7 +50,6 @@ export class BotsController {
   }
 
   @Get("my/activity")
-  @RequireScopes("operate:bots")
   async getMyBotsActivity(@CurrentUser() user: User) {
     const activities = await this.botActivityService.getActiveBotsForUser(
       user.id,
@@ -99,7 +95,6 @@ export class BotsController {
   }
 
   @Put(":id")
-  @RequireScopes("operate:bots")
   async update(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateBotDto,
@@ -109,7 +104,6 @@ export class BotsController {
   }
 
   @Post(":id/activate")
-  @RequireScopes("operate:bots")
   async activate(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
@@ -118,8 +112,15 @@ export class BotsController {
     return { success: true };
   }
 
+  @Post(":id/duplicate")
+  async duplicate(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.botsService.duplicate(id, user.id);
+  }
+
   @Delete(":id")
-  @RequireScopes("operate:bots")
   async deactivate(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,

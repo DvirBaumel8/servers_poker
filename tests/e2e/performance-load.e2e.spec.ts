@@ -70,21 +70,57 @@ describe("Performance & Load E2E Tests", () => {
 
   async function registerPlayer(): Promise<{
     accessToken: string;
-    bot: { id: string };
+    botId: string;
   }> {
     const id = uid();
+    const email = `perf${id}@test.com`;
+    const name = `PerfPlayer${id}`;
+    const password = "SecurePass123!";
+    const botName = `PerfBot${id}`;
 
-    const response = await request(app.getHttpServer())
-      .post("/api/v1/auth/register-developer")
+    // Register user
+    await request(app.getHttpServer())
+      .post("/api/v1/auth/register")
+      .send({ email, name, password })
+      .expect(201);
+
+    // Verify email
+    await dataSource.query(
+      'UPDATE "users" SET email_verified = true WHERE email = $1',
+      [email],
+    );
+
+    // Login to get token
+    const loginResponse = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .send({ email, password })
+      .expect(200);
+
+    const accessToken = loginResponse.body.accessToken;
+
+    // Create bot
+    const botResponse = await request(app.getHttpServer())
+      .post("/api/v1/bots/internal")
+      .set("Authorization", `Bearer ${accessToken}`)
       .send({
-        email: `perf${id}@test.com`,
-        name: `PerfPlayer${id}`,
-        password: "SecurePass123",
-        botName: `PerfBot${id}`,
+        name: botName,
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 50,
+            bluffFrequency: 30,
+            riskTolerance: 50,
+            tightness: 50,
+          },
+        },
       })
       .expect(201);
 
-    return response.body;
+    return {
+      accessToken,
+      botId: botResponse.body.id,
+    };
   }
 
   describe("Response Time", () => {
@@ -143,12 +179,11 @@ describe("Performance & Load E2E Tests", () => {
 
           const start = Date.now();
           const response = await request(app.getHttpServer())
-            .post("/api/v1/auth/register-developer")
+            .post("/api/v1/auth/register")
             .send({
               email: `concurrent${id}@test.com`,
               name: `ConcurrentPlayer${id}`,
-              password: "SecurePass123",
-              botName: `ConcBot${id}`,
+              password: "SecurePass123!",
             });
           const duration = Date.now() - start;
 
@@ -242,13 +277,13 @@ describe("Performance & Load E2E Tests", () => {
       await request(app.getHttpServer())
         .post(`/api/v1/games/${tableRes.body.id}/join`)
         .set("Authorization", `Bearer ${player1.accessToken}`)
-        .send({ bot_id: player1.bot.id })
+        .send({ bot_id: player1.botId })
         .expect(201);
 
       await request(app.getHttpServer())
         .post(`/api/v1/games/${tableRes.body.id}/join`)
         .set("Authorization", `Bearer ${player2.accessToken}`)
-        .send({ bot_id: player2.bot.id })
+        .send({ bot_id: player2.botId })
         .expect(201);
 
       await new Promise((r) => setTimeout(r, 5000));

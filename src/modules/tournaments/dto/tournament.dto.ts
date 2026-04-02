@@ -143,6 +143,13 @@ export class TournamentResponseDto {
   started_at: Date | null;
   finished_at: Date | null;
   entries_count: number;
+  entries?: Array<{
+    id: string;
+    user_id: string;
+    bot_id: string;
+    user?: { name: string };
+    bot?: { name: string };
+  }>;
   created_at: Date;
 }
 

@@ -8,6 +8,7 @@ export class User extends BaseEntity {
   @Column({ type: "varchar", length: 100 })
   email: string;
 
+  @Index({ unique: true })
   @Column({ type: "varchar", length: 100 })
   name: string;
 

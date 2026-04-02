@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poker Game State Renderer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Trebuchet MS', sans-serif;
+      background: #1a1a1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      position: relative;
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 4 / 3;
+      background: radial-gradient(ellipse at 50% 45%, #256b40 0%, #1a5232 30%, #0e3d22 60%, #062010 100%);
+      border-radius: 50%;
+      box-shadow: 0 50px 80px rgba(0, 0, 0, 0.8), inset -4px -4px 8px rgba(0, 0, 0, 0.5),
+        inset 4px 4px 8px rgba(255, 255, 255, 0.1);
+      padding: 60px;
+      overflow: hidden;
+    }
+
+    /* Table grain texture */
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: repeating-linear-gradient(30deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px,
+          rgba(255, 255, 255, 0.02) 4px),
+        repeating-linear-gradient(60deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px,
+          rgba(255, 255, 255, 0.02) 4px),
+        repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px,
+          rgba(255, 255, 255, 0.02) 4px);
+      pointer-events: none;
+    }
+
+    .table-content {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+
+    .info-bar {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      color: #d4dae4;
+      font-size: 16px;
+      font-weight: 600;
+      z-index: 10;
+    }
+
+    .stage {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 16px;
+      border-radius: 4px;
+      backdrop-filter: blur(10px);
+    }
+
+    .current-bet {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 16px;
+      border-radius: 4px;
+      backdrop-filter: blur(10px);
+    }
+
+    .pot-display {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 5;
+    }
+
+    .pot-label {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: #6b7280;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .pot-amount {
+      font-size: 52px;
+      font-weight: bold;
+      color: #ffd700;
+      text-shadow: 0 0 20px rgba(255, 215, 0, 0.6), 0 0 40px rgba(255, 215, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.8);
+    }
+
+    .community-cards {
+      position: absolute;
+      bottom: 40%;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      z-index: 3;
+    }
+
+    .card {
+      width: 88px;
+      height: 127px;
+      background: linear-gradient(160deg, #ffffff 0%, #f4f4f4 60%, #eeeeee 100%);
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      position: relative;
+    }
+
+    .card.facedown {
+      background: linear-gradient(145deg, #9eaab6 0%, #6e7f8d 40%, #4a5a68 100%);
+      color: transparent;
+    }
+
+    .players-container {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+    }
+
+    .player {
+      position: absolute;
+      text-align: center;
+      width: 140px;
+    }
+
+    .player-cards {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+
+    .player-card {
+      width: 54px;
+      height: 78px;
+      background: linear-gradient(160deg, #ffffff 0%, #f4f4f4 60%, #eeeeee 100%);
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: bold;
+      color: #333;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .player-card.facedown {
+      background: linear-gradient(145deg, #9eaab6 0%, #6e7f8d 40%, #4a5a68 100%);
+      color: transparent;
+    }
+
+    .player-nameplate {
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(10px);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #d4dae4;
+      border: 1px solid rgba(0, 229, 255, 0);
+      transition: border 0.2s;
+    }
+
+    .player-nameplate.active {
+      border: 1px solid rgba(0, 229, 255, 0.8);
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
+    }
+
+    .player-name {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .player-chips {
+      font-size: 17px;
+      font-weight: bold;
+      color: #00bcd4;
+      font-family: 'Courier New', monospace;
+    }
+
+    .blind-badge {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: bold;
+      color: white;
+      bottom: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .blind-badge.dealer {
+      background: #1a1a1a;
+    }
+
+    .blind-badge.small-blind {
+      background: #1565c0;
+    }
+
+    .blind-badge.big-blind {
+      background: #b71c1c;
+    }
+
+    .player-status {
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: #ff6b6b;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .player.folded .player-nameplate {
+      filter: grayscale(1) brightness(0.6);
+    }
+
+    .player.folded .player-cards {
+      filter: grayscale(1) brightness(0.6);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="info-bar">
+      <div class="stage">Stage: <span id="stage">pre-flop</span></div>
+      <div class="current-bet">Bet: <span id="currentBet">0</span></div>
+    </div>
+
+    <div class="table-content">
+      <div class="pot-display">
+        <div class="pot-label">Total Pot</div>
+        <div class="pot-amount" id="pot">0</div>
+      </div>
+
+      <div class="community-cards" id="community-cards"></div>
+
+      <div class="players-container" id="players-container"></div>
+    </div>
+  </div>
+
+  <script>
+    // Parse game state from URL parameter
+    function getGameState() {
+      const params = new URLSearchParams(window.location.search)
+      const stateParam = params.get('state')
+      if (!stateParam) return null
+      try {
+        return JSON.parse(atob(stateParam))
+      } catch (e) {
+        console.error('Failed to parse game state:', e)
+        return null
+      }
+    }
+
+    function rankToSymbol(rank) {
+      const map = {
+        A: '🂡',
+        K: '🂭',
+        Q: '🂬',
+        J: '🂫',
+        T: '🂪',
+        9: '🂩',
+        8: '🂨',
+        7: '🂧',
+        6: '🂦',
+        5: '🂥',
+        4: '🂤',
+        3: '🂣',
+        2: '🂢',
+      }
+      return map[rank] || rank
+    }
+
+    function suitToSymbol(suit) {
+      const map = {
+        s: '♠',
+        h: '♥',
+        d: '♦',
+        c: '♣',
+      }
+      return map[suit.toLowerCase()] || suit
+    }
+
+    function formatCard(cardStr) {
+      if (!cardStr || cardStr === '??') return '??'
+      const rank = cardStr[0]
+      const suit = cardStr[1]
+      return rankToSymbol(rank) + suitToSymbol(suit)
+    }
+
+    function renderGame() {
+      const state = getGameState()
+      if (!state) {
+        document.body.innerHTML = '<p style="color: white;">No game state provided</p>'
+        return
+      }
+
+      // Update info bar
+      document.getElementById('stage').textContent = state.stage || 'pre-flop'
+      document.getElementById('currentBet').textContent = state.currentBet || 0
+      document.getElementById('pot').textContent = state.pot || 0
+
+      // Render community cards
+      const communityContainer = document.getElementById('community-cards')
+      communityContainer.innerHTML = ''
+      if (state.communityCards && state.communityCards.length > 0) {
+        state.communityCards.forEach((card) => {
+          const cardEl = document.createElement('div')
+          cardEl.className = card === '??' ? 'card facedown' : 'card'
+          cardEl.textContent = formatCard(card)
+          communityContainer.appendChild(cardEl)
+        })
+      }
+
+      // Render players in oval arrangement
+      const playersContainer = document.getElementById('players-container')
+      playersContainer.innerHTML = ''
+
+      const playerCount = state.players.length
+      const angles = state.players.map((_, i) => (i / playerCount) * Math.PI * 2 - Math.PI / 2)
+
+      state.players.forEach((player, idx) => {
+        const angle = angles[idx]
+        const containerWidth = document.querySelector('.container').offsetWidth
+        const containerHeight = document.querySelector('.container').offsetHeight
+
+        // Oval parameters
+        const radiusX = (containerWidth / 2) * 0.65
+        const radiusY = (containerHeight / 2) * 0.6
+
+        const x = containerWidth / 2 + radiusX * Math.cos(angle)
+        const y = containerHeight / 2 + radiusY * Math.sin(angle)
+
+        const playerEl = document.createElement('div')
+        playerEl.className = 'player' + (player.folded ? ' folded' : '')
+        if (player.id === state.activePlayerId) playerEl.className += ' active'
+
+        playerEl.style.left = (x - 70) + 'px'
+        playerEl.style.top = (y - 100) + 'px'
+
+        let html = '<div style="position: relative;">'
+
+        if (player.allIn) {
+          html += '<div class="player-status">All In</div>'
+        }
+
+        html += '<div class="player-cards">'
+        if (player.holeCards && player.holeCards.length === 2) {
+          player.holeCards.forEach((card) => {
+            html += `<div class="player-card ${card === '??' ? 'facedown' : ''}">${formatCard(card)}</div>`
+          })
+        }
+        html += '</div>'
+
+        html += '<div class="player-nameplate ' + (player.id === state.activePlayerId ? 'active' : '') + '">'
+        html += `<div class="player-name">${player.name}</div>`
+        html += `<div class="player-chips">${player.chips}</div>`
+        html += '</div>'
+
+        // Blind badge
+        const blindLabel =
+          player.position === 'BTN' ? 'D' : player.position === 'SB' ? 'SB' : player.position === 'BB' ? 'BB' : ''
+        if (blindLabel) {
+          const blindClass = blindLabel === 'D' ? 'dealer' : blindLabel === 'SB' ? 'small-blind' : 'big-blind'
+          html += `<div class="blind-badge ${blindClass}">${blindLabel}</div>`
+        }
+
+        html += '</div>'
+        playerEl.innerHTML = html
+
+        playersContainer.appendChild(playerEl)
+      })
+    }
+
+    renderGame()
+  </script>
+</body>
+</html>

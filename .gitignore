@@ -24,6 +24,9 @@ coverage/
 *storybook.log
 
 # QA runtime artifacts
+ui-bug-reports/
+design-qa-report-*.md
+UI_QA_REPORT.md
 tests/qa/monsters/reports/
 tests/qa/monsters/screenshots/
 tests/qa/monsters/**/reports/
@@ -33,3 +36,4 @@ tests/qa/performance/reports/
 !tests/qa/monsters/reports/.gitkeep
 !tests/qa/monsters/screenshots/.gitkeep
 !tests/qa/performance/reports/.gitkeep
+.aider*

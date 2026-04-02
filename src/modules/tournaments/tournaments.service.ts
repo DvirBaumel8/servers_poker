@@ -196,6 +196,30 @@ export class TournamentsService {
     );
   }
 
+  async leaveAsUser(tournamentId: string, userId: string): Promise<void> {
+    const tournament =
+      await this.tournamentRepository.findByIdOrThrow(tournamentId);
+
+    if (tournament.status !== "registering") {
+      throw new BadRequestException("Cannot leave started tournament");
+    }
+
+    // Find user's registered bot
+    const entries = await this.tournamentRepository.getEntries(tournamentId);
+    const userEntry = entries.find((e) => e.bot?.user_id === userId);
+
+    if (!userEntry) {
+      throw new BadRequestException(
+        "You are not registered in this tournament",
+      );
+    }
+
+    await this.tournamentRepository.deleteEntry(userEntry.id);
+    this.logger.log(
+      `User ${userId} left tournament ${tournamentId} (bot: ${userEntry.bot_id})`,
+    );
+  }
+
   async start(id: string): Promise<void> {
     const tournament = await this.tournamentRepository.findByIdOrThrow(id);
 
@@ -246,6 +270,52 @@ export class TournamentsService {
         finish_position: e.finish_position!,
         payout: Number(e.payout),
       }));
+  }
+
+  /**
+   * Get complete tournament results with user information.
+   * Used for results page display.
+   */
+  async getCompleteResults(id: string): Promise<{
+    tournamentId: string;
+    tournamentName: string;
+    finishedAt: Date | null;
+    totalEntries: number;
+    results: Array<{
+      rank: number;
+      botId: string;
+      botName: string;
+      userId: string;
+      userName: string;
+      finishPosition: number;
+      payout: number;
+      bustLevel?: number;
+    }>;
+  }> {
+    const tournament = await this.tournamentRepository.findByIdOrThrow(id);
+    const entries = await this.tournamentRepository.getResults(id);
+
+    const finishedEntries = entries
+      .filter((e) => e.finish_position !== null)
+      .sort((a, b) => (a.finish_position || 0) - (b.finish_position || 0))
+      .map((e, index) => ({
+        rank: index + 1,
+        botId: e.bot_id,
+        botName: e.bot?.name || "Unknown",
+        userId: e.bot?.user?.id || "unknown",
+        userName: e.bot?.user?.name || "Unknown Player",
+        finishPosition: e.finish_position!,
+        payout: Number(e.payout),
+        bustLevel: e.bust_level || undefined,
+      }));
+
+    return {
+      tournamentId: id,
+      tournamentName: tournament.name,
+      finishedAt: tournament.finished_at,
+      totalEntries: entries.length,
+      results: finishedEntries,
+    };
   }
 
   async getLeaderboard(id: string): Promise<TournamentLeaderboardEntryDto[]> {
@@ -299,9 +369,166 @@ export class TournamentsService {
       tournaments.map((t) => t.id),
     );
 
-    return tournaments.map((t) =>
-      this.toResponseDto(t, entryCounts.get(t.id) || 0),
+    // Fetch entries for all tournaments to include registration status
+    const allEntries = await Promise.all(
+      tournaments.map((t) => this.tournamentRepository.getEntries(t.id)),
     );
+
+    return tournaments.map((t, idx) =>
+      this.toResponseDtoWithEntries(
+        t,
+        entryCounts.get(t.id) || 0,
+        allEntries[idx],
+      ),
+    );
+  }
+
+  /**
+   * Find the user's current table in a tournament.
+   * Returns table info or null if user is eliminated or not playing.
+   */
+  async findUserCurrentTable(
+    tournamentId: string,
+    userId: string,
+  ): Promise<{
+    tableId: string;
+    tableNumber: number;
+    seatPosition: number;
+    remainingPlayers: number;
+    currentBlindLevel: number;
+    gameId: string | null;
+  } | null> {
+    // Find user's active seat in tournament
+    const seat = await this.tournamentRepository.findUserCurrentSeat(
+      tournamentId,
+      userId,
+    );
+
+    if (!seat || !seat.tournament_table) {
+      return null;
+    }
+
+    // Count remaining active players
+    const remainingPlayers =
+      await this.tournamentRepository.countActivePlayers(tournamentId);
+
+    // Get current blind level
+    const currentLevel =
+      await this.tournamentRepository.getCurrentLevel(tournamentId);
+
+    return {
+      tableId: seat.tournament_table_id,
+      tableNumber: seat.tournament_table.table_number,
+      seatPosition: seat.seat_number,
+      remainingPlayers,
+      currentBlindLevel: currentLevel?.level || 1,
+      gameId: seat.tournament_table.game_id,
+    };
+  }
+
+  /**
+   * Finalize tournament by calculating finish positions and payouts.
+   * Called when tournament ends (last player eliminated).
+   */
+  async finalizeTournament(tournamentId: string): Promise<void> {
+    const tournament =
+      await this.tournamentRepository.findByIdOrThrow(tournamentId);
+
+    // Get all entries for this tournament, sorted by elimination order
+    const entries = await this.tournamentRepository.getResults(tournamentId);
+
+    // Separate finalized from non-finalized entries
+    const nonFinalizedEntries = entries.filter(
+      (e) => e.finish_position === null,
+    );
+
+    if (nonFinalizedEntries.length === 0) {
+      // Already finalized
+      return;
+    }
+
+    // Sort by bust_level (descending) - higher bust_level means better finish
+    // Then by ID (for deterministic ordering of ties)
+    const sortedEntries = nonFinalizedEntries.sort((a, b) => {
+      const bustDiff = (b.bust_level ?? 0) - (a.bust_level ?? 0);
+      if (bustDiff !== 0) return bustDiff;
+      return a.id.localeCompare(b.id);
+    });
+
+    // Calculate payouts
+    const prizePool = entries.length * Number(tournament.buy_in);
+    const payouts = this.calculatePayouts(prizePool, sortedEntries.length);
+
+    // Update finish positions and payouts
+    for (let i = 0; i < sortedEntries.length; i++) {
+      const position = i + 1;
+      const payout = payouts[i] || 0;
+      await this.tournamentRepository.setEntryPayout(
+        tournamentId,
+        sortedEntries[i].bot_id,
+        payout,
+        position,
+      );
+    }
+
+    // Mark tournament as finished
+    await this.tournamentRepository.updateStatus(tournamentId, "finished");
+    this.logger.log(
+      `Tournament ${tournamentId} finalized with ${sortedEntries.length} entries`,
+    );
+  }
+
+  /**
+   * Calculate payouts for tournament entries.
+   * Uses a standard payout structure: top 10% or minimum 3 players receive payouts.
+   */
+  private calculatePayouts(prizePool: number, entryCount: number): number[] {
+    const payouts: number[] = new Array(entryCount).fill(0);
+
+    // Determine number of paid places (top 10% or minimum 3, maximum 50%)
+    const paidPlaces = Math.max(
+      3,
+      Math.min(entryCount * 0.5, entryCount * 0.1),
+    );
+    const numPaid = Math.floor(paidPlaces);
+
+    if (numPaid === 0 || prizePool === 0) {
+      return payouts;
+    }
+
+    // Payout structure (percentage of prize pool for each position)
+    // Weighted towards top finishers
+    const payoutPercentages = [
+      0.3, // 1st: 30%
+      0.2, // 2nd: 20%
+      0.15, // 3rd: 15%
+      0.1, // 4th: 10%
+      0.08, // 5th: 8%
+      0.07, // 6th: 7%
+      0.05, // 7th: 5%
+      0.03, // 8th: 3%
+      0.02, // 9th: 2%
+    ];
+
+    let remainingPrizePool = prizePool;
+
+    // Pay out top positions using predefined percentages
+    for (let i = 0; i < Math.min(numPaid, payoutPercentages.length); i++) {
+      const payout = Math.floor(prizePool * payoutPercentages[i]);
+      payouts[i] = payout;
+      remainingPrizePool -= payout;
+    }
+
+    // Distribute remaining prize pool equally among remaining paid places
+    if (numPaid > payoutPercentages.length && remainingPrizePool > 0) {
+      const remainingPlaces = numPaid - payoutPercentages.length;
+      const payPerPlace = Math.floor(remainingPrizePool / remainingPlaces);
+      for (let i = payoutPercentages.length; i < numPaid; i++) {
+        payouts[i] = payPerPlace;
+      }
+    }
+
+    return payouts;
   }
 
   private toResponseDto(
@@ -325,6 +552,39 @@ export class TournamentsService {
       started_at: tournament.started_at,
       finished_at: tournament.finished_at,
       entries_count: entriesCount,
+      created_at: tournament.created_at,
+    };
+  }
+
+  private toResponseDtoWithEntries(
+    tournament: Tournament,
+    entriesCount: number,
+    entries: any[],
+  ): TournamentResponseDto {
+    return {
+      id: tournament.id,
+      name: tournament.name,
+      type: tournament.type,
+      status: tournament.status,
+      buy_in: Number(tournament.buy_in),
+      starting_chips: Number(tournament.starting_chips),
+      min_players: tournament.min_players,
+      max_players: tournament.max_players,
+      players_per_table: tournament.players_per_table,
+      turn_timeout_ms: tournament.turn_timeout_ms,
+      late_reg_ends_level: tournament.late_reg_ends_level,
+      rebuys_allowed: tournament.rebuys_allowed,
+      scheduled_start_at: tournament.scheduled_start_at,
+      started_at: tournament.started_at,
+      finished_at: tournament.finished_at,
+      entries_count: entriesCount,
+      entries: entries.map((e) => ({
+        id: e.id,
+        user_id: e.bot?.user_id,
+        bot_id: e.bot_id,
+        user: e.bot?.user,
+        bot: e.bot,
+      })),
       created_at: tournament.created_at,
     };
   }

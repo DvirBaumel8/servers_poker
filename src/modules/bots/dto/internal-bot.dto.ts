@@ -95,9 +95,9 @@ export class CreateInternalBotDto {
   @IsString()
   @MinLength(2)
   @MaxLength(100)
-  @Matches(/^[a-zA-Z0-9_-]+$/, {
+  @Matches(/^[a-zA-Z0-9_\- ]+$/, {
     message:
-      "Bot name can only contain letters, numbers, underscores, and hyphens",
+      "Bot name can only contain letters, numbers, underscores, hyphens, and spaces",
   })
   name: string;
 
@@ -175,6 +175,16 @@ export class SimulateActionDto {
 }
 
 export class UpdateBotDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  @Matches(/^[a-zA-Z0-9_\- ]+$/, {
+    message:
+      "Bot name can only contain letters, numbers, underscores, hyphens, and spaces",
+  })
+  name?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(500)

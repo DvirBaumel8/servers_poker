@@ -54,7 +54,12 @@ export class PotManager {
   }
 
   getTotalPot(): number {
-    return this.pots.reduce((sum, p) => sum + p.amount, 0);
+    // Return sum of all chips bet in the current hand
+    // This is the authoritative record of chips out of stacks
+    return Object.values(this.playerTotalBets).reduce(
+      (sum, bet) => sum + bet,
+      0,
+    );
   }
 
   calculatePots(players: Player[]): void {

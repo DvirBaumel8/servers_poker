@@ -1,50 +1,86 @@
 # Quick Start
 
-Get a bot playing poker in under 5 minutes.
+Get a live poker game running in under 2 minutes.
 
 ---
 
-## Step 1: Register an Account
+## One-Command Demo
 
-Go to `/register` and create an account with your email and password.
+```bash
+npm run game:watch
+```
 
-In dev mode, the verification code is printed to the backend console. Look for `[DEV MODE] Email to ...` in the logs.
+This starts everything:
+- ✅ Backend (port 3000)
+- ✅ Frontend (port 5173)
+- ✅ Live game with 5 bots
+- 🌐 Opens browser to game URL automatically
 
-## Step 2: Go to the Bot Builder
+Watch the bots play in real-time!
 
-Navigate to `/bots/build`.
+---
 
-## Step 3: Choose a Personality Preset
+## Manual Setup (Advanced)
 
-Pick a preset that matches the playstyle you want:
+For more control over game creation and bot configuration:
 
-| Preset | Style |
-|--------|-------|
-| `shark` | Tight-aggressive, solid fundamentals |
-| `maniac` | Hyper-aggressive, plays many hands |
-| `rock` | Ultra-tight, only plays premium hands |
-| `calling_station` | Passive, calls a lot, rarely folds |
-| `balanced_pro` | Well-rounded, balanced play |
+### Step 1: Start the Stack
 
-Select a preset or customize the sliders manually. See the [Bot Builder Guide](./BOT_DEVELOPER_GUIDE.md) for details on all tiers and options.
+```bash
+# Terminal 1: Backend
+npm run dev
 
-## Step 4: Save Your Bot
+# Terminal 2: Frontend
+cd frontend && npm run dev
+```
 
-Give your bot a name and click Save. Your bot is now ready to play.
+### Step 2: Create a Bot
 
-## Step 5: Join a Tournament or Cash Table
+1. Go to `http://localhost:5173/bots/build`
+2. Register account if needed (email verification auto-skips in dev)
+3. Choose a personality preset or customize sliders:
+   - `shark` — Tight-aggressive
+   - `maniac` — Hyper-aggressive
+   - `rock` — Ultra-tight
+   - `calling_station` — Passive
+   - `balanced_pro` — Balanced
+4. Save your bot
 
-- **Tournament**: Go to `/tournaments`, find an open tournament, and register your bot.
-- **Cash Game**: Go to the game lobby and join an available table with your bot.
+### Step 3: Create a Live Game (Via API)
 
-## Step 6: Watch Your Bot Play
+```bash
+curl -X POST http://localhost:3000/api/v1/testing/live-game \
+  -H "Content-Type: application/json"
+```
 
-Open the game view to watch your bot in action. The UI shows cards, bets, pot size, and all player actions in real time.
+Returns `{ gameId, gameUrl }`. Open the URL to watch the game.
+
+### Step 4: Watch Live
+
+Open the game at `http://localhost:5173/games/{gameId}` to see real-time poker:
+- Cards, bets, pot size, player actions
+- Socket.IO live updates
+- Game history
+
+---
+
+## Testing Without UI
+
+Use the automated testing system:
+
+```bash
+# Run 50 games with 6 bots, validate invariants
+npm run test:poker -- --games=50 --bots=6
+
+# Output: POKER_BUGS.md with any issues found
+```
+
+See [TESTING.md](../TESTING.md) for details.
 
 ---
 
 ## Next Steps
 
-- **Upgrade your strategy**: Switch to Strategy or Pro tier for IF/THEN rules and range charts
-- **Test scenarios**: Use the What-If Simulator to test specific hands
-- **Read the full guide**: [Bot Builder Guide](./BOT_DEVELOPER_GUIDE.md)
+- **Design QA**: `bash scripts/detect-ui-bugs.sh` to analyze UI design quality
+- **Seed tournaments**: `npm run seed:tournaments` for tournament data
+- **Read the full guide**: [Bot Developer Guide](../BOT_DEVELOPER_GUIDE.md)

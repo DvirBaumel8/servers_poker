@@ -12,7 +12,6 @@ import { BotRepository } from "../../repositories/bot.repository";
 import { GameRepository } from "../../repositories/game.repository";
 import { Table, TableStatus } from "../../entities/table.entity";
 import { LiveGameManagerService } from "../../services/game/live-game-manager.service";
-import { GameWorkerManagerService } from "../../services/game/game-worker-manager.service";
 import { TournamentDirectorService } from "../tournaments/tournament-director.service";
 import {
   CreateTableDto,
@@ -29,23 +28,16 @@ import {
 @Injectable()
 export class TablesService {
   private readonly logger = new Logger(TablesService.name);
-  private readonly useWorkerThreads: boolean;
 
   constructor(
     private readonly tableRepository: TableRepository,
     private readonly botRepository: BotRepository,
     private readonly gameRepository: GameRepository,
     private readonly liveGameManager: LiveGameManagerService,
-    private readonly gameWorkerManager: GameWorkerManagerService,
     private readonly dataSource: DataSource,
     @Inject(forwardRef(() => TournamentDirectorService))
     private readonly tournamentDirector: TournamentDirectorService,
-  ) {
-    this.useWorkerThreads = this.gameWorkerManager.isEnabled();
-    if (this.useWorkerThreads) {
-      this.logger.log("Using worker threads for game execution");
-    }
-  }
+  ) {}
 
   async create(dto: CreateTableDto): Promise<Table> {
     try {
@@ -176,95 +168,7 @@ export class TablesService {
       throw new ConflictException("Bot is deactivated");
     }
 
-    if (this.useWorkerThreads) {
-      return this.joinTableWithWorker(tableId, table, bot);
-    }
-
     return this.joinTableInProcess(tableId, table, bot);
-  }
-
-  private async joinTableWithWorker(
-    tableId: string,
-    table: Table,
-    bot: { id: string; name: string; strategy: Record<string, any> | null },
-  ): Promise<JoinTableResponseDto> {
-    const result = await this.dataSource.transaction(
-      "SERIALIZABLE",
-      async (manager) => {
-        const joinResult = await this.tableRepository.atomicJoinTable(
-          tableId,
-          bot.id,
-          table.max_players,
-          manager,
-        );
-
-        if (!joinResult.ok) {
-          throw new ConflictException(joinResult.error);
-        }
-
-        let gameDbId: string;
-        const hasWorker = this.gameWorkerManager.hasGame(tableId);
-
-        if (!hasWorker) {
-          const gameRow = await this.gameRepository.createGame(
-            tableId,
-            undefined,
-            manager,
-          );
-          gameDbId = gameRow.id;
-        } else {
-          const games = this.gameWorkerManager.getAllGames();
-          const existing = games.find((g) => g.tableId === tableId);
-          gameDbId = existing?.gameDbId || "";
-        }
-
-        await this.gameRepository.addGamePlayer(
-          gameDbId,
-          bot.id,
-          Number(table.starting_chips),
-          manager,
-        );
-
-        return { gameDbId, hadWorker: hasWorker };
-      },
-    );
-
-    if (!result.hadWorker) {
-      this.gameWorkerManager.createGame(
-        {
-          tableId,
-          gameDbId: result.gameDbId,
-          smallBlind: Number(table.small_blind),
-          bigBlind: Number(table.big_blind),
-          ante: 0,
-          startingChips: Number(table.starting_chips),
-          turnTimeoutMs: table.turn_timeout_ms,
-        },
-        [{ id: bot.id, name: bot.name, strategy: bot.strategy }],
-      );
-    } else {
-      this.gameWorkerManager.addPlayer(tableId, {
-        id: bot.id,
-        name: bot.name,
-        strategy: bot.strategy,
-      });
-    }
-
-    const seatCount = await this.tableRepository.getSeatCount(tableId);
-    await this.tableRepository.updateStatus(
-      tableId,
-      seatCount >= 2 ? "running" : "waiting",
-    );
-
-    return {
-      message:
-        seatCount >= 2
-          ? `${bot.name} joined. Game is now running!`
-          : `${bot.name} joined. Waiting for more players.`,
-      tableId,
-      botId: bot.id,
-      playerCount: seatCount,
-    };
   }
 
   private async joinTableInProcess(
@@ -347,15 +251,6 @@ export class TablesService {
   }
 
   async getTableState(tableId: string): Promise<any> {
-    // Try worker manager first if enabled
-    if (this.useWorkerThreads) {
-      const workerState = this.gameWorkerManager.getGameState(tableId);
-      if (workerState) {
-        return workerState;
-      }
-    }
-
-    // Fall back to in-process game manager
     const state = this.liveGameManager.getGameState(tableId);
     if (state) {
       return state;
@@ -372,20 +267,9 @@ export class TablesService {
   }
 
   private toTableResponseDto(table: Table): TableResponseDto {
-    let state: any = null;
-    let gameDbId: string | undefined;
-
-    // First try cash game managers
-    if (this.useWorkerThreads) {
-      state = this.gameWorkerManager.getGameState(table.id);
-      const games = this.gameWorkerManager.getAllGames();
-      const workerGame = games.find((g) => g.tableId === table.id);
-      gameDbId = workerGame?.gameDbId;
-    } else {
-      const liveGame = this.liveGameManager.getGame(table.id);
-      state = this.liveGameManager.getGameState(table.id);
-      gameDbId = liveGame?.gameDbId;
-    }
+    const liveGame = this.liveGameManager.getGame(table.id);
+    let state: any = this.liveGameManager.getGameState(table.id);
+    const gameDbId: string | undefined = liveGame?.gameDbId;
 
     // If no state found, check if this table is part of an active tournament
     if (!state || !state.players?.length) {

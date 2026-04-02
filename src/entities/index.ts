@@ -23,17 +23,11 @@ export { GamePlayer } from "./game-player.entity";
 export { Hand, HandStage } from "./hand.entity";
 export { HandPlayer } from "./hand-player.entity";
 export { Action, ActionType, ActionStage } from "./action.entity";
-export { AuditLog, AuditAction } from "./audit-log.entity";
-export { ChipMovement, MovementType } from "./chip-movement.entity";
 export {
   GameStateSnapshot,
   SnapshotStatus,
 } from "./game-state-snapshot.entity";
 export { HandSeed } from "./hand-seed.entity";
 export { BotSubscription, SubscriptionStatus } from "./bot-subscription.entity";
-export { PlatformMetrics } from "./platform-metrics.entity";
 export { AnalyticsEvent, AnalyticsEventType } from "./analytics-event.entity";
-export { DailySummary, SummaryStatus } from "./daily-summary.entity";
 export { StrategyDecision } from "./strategy-decision.entity";
-export { StrategyAnalysisReport } from "./strategy-analysis-report.entity";
-export { StrategyTunerRun } from "./strategy-tuner-run.entity";

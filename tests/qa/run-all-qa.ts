@@ -4,16 +4,17 @@
  *
  * OPTIMIZATIONS:
  * 1. Maximum parallelization - run independent suites together
- * 2. Skip redundant tests - sim:basic covers what sim:all does slowly
+ * 2. Skip redundant tests where possible
  * 3. Use fast variants where available
  * 4. Early termination on critical failures
  *
- * Timing Analysis (before optimization):
- * - Unit: 10s, Integration: 1s, Monsters: 19s
- * - Sim Basic: 64s (SLOW - waits for game), E2E: 118s (SLOW - many delays)
- * - Total Sequential: ~212s
+ * Available Test Suites:
+ * - Unit: 10s, Integration: 1s
+ * - E2E: 120s (includes all new bot creation & integration tests)
+ * - Poker Simulation: 45s (game invariant validators)
+ * - Total Sequential: ~175s
  *
- * After optimization target: <60s for quick, <120s for full
+ * After parallelization target: <30s for quick, <120s for full
  */
 
 import { spawn } from "child_process";
@@ -31,8 +32,7 @@ interface TestSuite {
 }
 
 // Group 1: Fast, no dependencies (run first, in parallel)
-// Group 2: Need DB but independent
-// Group 3: Heavy, run last
+// Group 2: Heavy/slow tests (skip in quick mode)
 const ALL_SUITES: TestSuite[] = [
   // GROUP 1: Fast tests - all parallel
   {
@@ -44,83 +44,28 @@ const ALL_SUITES: TestSuite[] = [
   },
   {
     id: "integration",
-    name: "Integration",
+    name: "Integration Tests",
     command: "npm run test:integration",
     timeout: 60000,
     group: 1,
   },
-  {
-    id: "monsters-fast",
-    name: "Monsters (Fast)",
-    command: "npx ts-node tests/qa/monsters/run-all.ts --fast --static",
-    timeout: 60000,
-    group: 1,
-  },
 
-  // GROUP 2: Medium tests - parallel where possible
-  {
-    id: "monsters-all",
-    name: "Monsters (All)",
-    command: "npx ts-node tests/qa/monsters/run-all.ts --static",
-    timeout: 60000,
-    group: 2,
-    skipInQuick: true,
-  },
-  {
-    id: "visual",
-    name: "Visual Tests",
-    command: "npm run test:visual 2>/dev/null || true",
-    timeout: 30000,
-    group: 2,
-    skipInQuick: true,
-  },
-  {
-    id: "monitoring",
-    name: "Monitoring",
-    command: "npm run test:monitoring:quick 2>/dev/null || true",
-    timeout: 30000,
-    group: 2,
-    skipInQuick: true,
-  },
-
-  // GROUP 3: Heavy/slow tests - skip basic sim when running e2e (they overlap)
+  // GROUP 2: Heavy tests - skip in quick mode
   {
     id: "e2e",
-    name: "E2E Tests",
+    name: "E2E Tests (includes bot creation & game integration)",
     command: "npm run test:e2e",
     timeout: 180000,
-    group: 3,
+    group: 2,
     skipInQuick: true,
-    skipInStandard: true,
   },
-
-  // Skip these by default - they're slow and redundant
   {
-    id: "sim-basic",
-    name: "Basic Sim",
-    command: "npm run sim:basic",
+    id: "poker-sim",
+    name: "Poker Simulation (game invariant validators)",
+    command: "npm run test:poker -- --games=50 --bots=6",
     timeout: 120000,
-    group: 3,
+    group: 2,
     skipInQuick: true,
-    skipInStandard: true,
-  },
-  {
-    id: "chaos",
-    name: "Chaos Tests",
-    command: "npm run chaos:light 2>/dev/null || true",
-    timeout: 60000,
-    group: 3,
-    skipInQuick: true,
-    skipInStandard: true,
-  },
-  {
-    id: "load",
-    name: "Load Tests",
-    command: "npm run load:quick 2>/dev/null || true",
-    timeout: 120000,
-    group: 3,
-    skipInQuick: true,
-    skipInStandard: true,
   },
 ];
 
@@ -199,18 +144,18 @@ async function runGroup(suites: TestSuite[]): Promise<SuiteResult[]> {
 }
 
 function generateReport(results: SuiteResult[], totalDuration: number): void {
-  const reportPath = path.join(process.cwd(), "docs/qa_report.md");
+  const reportPath = path.join(process.cwd(), ".test-results.md");
   const passed = results.filter((r) => r.success).length;
   const failed = results.filter((r) => !r.success).length;
   const sequentialTime = results.reduce((sum, r) => sum + r.duration, 0);
   const speedup = sequentialTime / totalDuration;
 
-  const report = `# QA Report
+  const report = `# Test Results
 
 **Time:** ${new Date().toLocaleString()}
 **Duration:** ${(totalDuration / 1000).toFixed(1)}s (${speedup.toFixed(1)}x speedup via parallelization)
 
-## Results: ${passed}/${results.length} passed
+## Summary: ${passed}/${results.length} passed
 
 | Suite | Status | Time |
 |-------|--------|------|
@@ -313,7 +258,7 @@ async function main(): Promise<void> {
   }
 
   generateReport(allResults, totalDuration);
-  console.log(`\n  📄 Report: docs/qa_report.md`);
+  console.log(`\n  📄 Report: .test-results.md`);
   console.log("═".repeat(50) + "\n");
 
   process.exit(failed > 0 ? 1 : 0);

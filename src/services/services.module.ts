@@ -3,7 +3,6 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { LiveGameManagerService } from "./game/live-game-manager.service";
-import { GameWorkerManagerService } from "./game/game-worker-manager.service";
 import { GameStatePersistenceService } from "./game/game-state-persistence.service";
 import { GameRecoveryService } from "./game/game-recovery.service";
 import { ProvablyFairService } from "./provably-fair.service";
@@ -16,8 +15,6 @@ import { RedisHealthService } from "./redis/redis-health.service";
 import { RedisSocketStateService } from "./redis/redis-socket-state.service";
 import { BotActivityService } from "./bot/bot-activity.service";
 import { BotAutoRegistrationService } from "./bot/bot-auto-registration.service";
-import { PlatformAnalyticsService } from "./platform-analytics.service";
-import { DailySummaryService } from "./daily-summary.service";
 import { EmailService } from "./email.service";
 import { BotSubscription } from "../entities/bot-subscription.entity";
 import { BotSubscriptionRepository } from "../repositories/bot-subscription.repository";
@@ -30,15 +27,11 @@ import { Action } from "../entities/action.entity";
 import { GamePlayer } from "../entities/game-player.entity";
 import { BotStats } from "../entities/bot-stats.entity";
 import { BotEvent } from "../entities/bot-event.entity";
-import { ChipMovement } from "../entities/chip-movement.entity";
-import { AuditLog } from "../entities/audit-log.entity";
 import { Tournament } from "../entities/tournament.entity";
 import { TournamentEntry } from "../entities/tournament-entry.entity";
 import { TournamentSeat } from "../entities/tournament-seat.entity";
 import { Table } from "../entities/table.entity";
-import { PlatformMetrics } from "../entities/platform-metrics.entity";
 import { AnalyticsEvent } from "../entities/analytics-event.entity";
-import { DailySummary } from "../entities/daily-summary.entity";
 import { User } from "../entities/user.entity";
 import { GameStateRepository } from "../repositories/game-state.repository";
 import { HandSeedRepository } from "../repositories/hand-seed.repository";
@@ -65,16 +58,12 @@ import { JwtConfigModule } from "../common/jwt";
       GamePlayer,
       BotStats,
       BotEvent,
-      ChipMovement,
-      AuditLog,
       Tournament,
       TournamentEntry,
       TournamentSeat,
       Table,
       BotSubscription,
-      PlatformMetrics,
       AnalyticsEvent,
-      DailySummary,
       User,
     ]),
     SecurityModule,
@@ -82,7 +71,6 @@ import { JwtConfigModule } from "../common/jwt";
   ],
   providers: [
     LiveGameManagerService,
-    GameWorkerManagerService,
     GameStatePersistenceService,
     GameRecoveryService,
     ProvablyFairService,
@@ -95,8 +83,6 @@ import { JwtConfigModule } from "../common/jwt";
     RedisSocketStateService,
     BotActivityService,
     BotAutoRegistrationService,
-    PlatformAnalyticsService,
-    DailySummaryService,
     EmailService,
     BotSubscriptionRepository,
     GameStateRepository,
@@ -105,7 +91,6 @@ import { JwtConfigModule } from "../common/jwt";
   ],
   exports: [
     LiveGameManagerService,
-    GameWorkerManagerService,
     GameStatePersistenceService,
     GameRecoveryService,
     ProvablyFairService,
@@ -117,8 +102,6 @@ import { JwtConfigModule } from "../common/jwt";
     RedisSocketStateService,
     BotActivityService,
     BotAutoRegistrationService,
-    PlatformAnalyticsService,
-    DailySummaryService,
     EmailService,
     BotSubscriptionRepository,
   ],

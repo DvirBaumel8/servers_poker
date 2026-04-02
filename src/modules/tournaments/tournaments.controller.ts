@@ -88,9 +88,10 @@ export class TournamentsController {
   }
 
   @Public()
+  @Public()
   @Get(":id/results")
   async getResults(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tournamentsService.getResults(id);
+    return this.tournamentsService.getCompleteResults(id);
   }
 
   @Public()
@@ -138,6 +139,16 @@ export class TournamentsController {
     return { success: true };
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post(":id/leave")
+  async leave(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.tournamentsService.leaveAsUser(id, user.id);
+    return { success: true };
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("admin")
   @Post(":id/start")
@@ -179,6 +190,24 @@ export class TournamentsController {
       };
     }
     return state;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(":id/my-current-table")
+  async getMyCurrentTable(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    const tableInfo = await this.tournamentsService.findUserCurrentTable(
+      id,
+      user.id,
+    );
+    if (!tableInfo) {
+      throw new NotFoundException(
+        "You are not currently playing in this tournament or have been eliminated",
+      );
+    }
+    return tableInfo;
   }
 
   /**

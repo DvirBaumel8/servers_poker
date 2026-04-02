@@ -1,0 +1,122 @@
+{
+  "tableId": "table-60673200",
+  "gameId": "ui-qa-game-1-c34bbef2",
+  "handNumber": 1,
+  "status": "running",
+  "stage": "river",
+  "communityCards": [
+    "Q♣",
+    "4♣",
+    "10♦",
+    "3♥",
+    "5♠"
+  ],
+  "pot": 2000,
+  "currentBet": 0,
+  "activePlayerId": null,
+  "smallBlind": 10,
+  "bigBlind": 20,
+  "ante": 0,
+  "players": [
+    {
+      "id": "bot-0-b9466b",
+      "name": "Shark",
+      "chips": 0,
+      "folded": false,
+      "allIn": true,
+      "disconnected": false,
+      "strikes": 0,
+      "position": null,
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    },
+    {
+      "id": "bot-1-33f87b",
+      "name": "Rock",
+      "chips": 0,
+      "folded": false,
+      "allIn": true,
+      "disconnected": false,
+      "strikes": 0,
+      "position": null,
+      "bet": 0,
+      "holeCards": [
+        "??",
+        "??"
+      ]
+    }
+  ],
+  "log": [
+    {
+      "message": "Hand #1 started. Dealer: Shark",
+      "timestamp": 1774705470737
+    },
+    {
+      "message": "Shark posts small blind: 10",
+      "timestamp": 1774705470737
+    },
+    {
+      "message": "Rock posts big blind: 20",
+      "timestamp": 1774705470737
+    },
+    {
+      "message": "Shark raises by 69",
+      "timestamp": 1774705470738
+    },
+    {
+      "message": "Rock raises by 69",
+      "timestamp": 1774705470738
+    },
+    {
+      "message": "Shark raises by 69",
+      "timestamp": 1774705470738
+    },
+    {
+      "message": "Rock raises by 69",
+      "timestamp": 1774705470738
+    },
+    {
+      "message": "Shark raises by 69",
+      "timestamp": 1774705470739
+    },
+    {
+      "message": "Rock raises by 69",
+      "timestamp": 1774705470739
+    },
+    {
+      "message": "Shark raises by 69",
+      "timestamp": 1774705470739
+    },
+    {
+      "message": "Rock raises by 69",
+      "timestamp": 1774705470739
+    },
+    {
+      "message": "Flop: Q♣ 4♣ 10♦",
+      "timestamp": 1774705470739
+    },
+    {
+      "message": "Rock raises by 428",
+      "timestamp": 1774705470740
+    },
+    {
+      "message": "Shark calls 428",
+      "timestamp": 1774705470740
+    },
+    {
+      "message": "Turn: 3♥",
+      "timestamp": 1774705470740
+    },
+    {
+      "message": "Shark raises by 69",
+      "timestamp": 1774705470740
+    },
+    {
+      "message": "River: 5♠",
+      "timestamp": 1774705470740
+    }
+  ]
+}

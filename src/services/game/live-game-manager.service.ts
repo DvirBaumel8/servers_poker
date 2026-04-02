@@ -37,6 +37,7 @@ export interface LiveGame {
 export interface GameStateSnapshot {
   tableId: string;
   gameId: string;
+  tournamentId?: string;
   status: "waiting" | "running" | "finished" | "error";
   handNumber: number;
   stage: string;
@@ -166,6 +167,7 @@ export class GameInstance {
       ante?: number;
       startingChips?: number;
       turnTimeoutMs?: number;
+      sleepMs?: number;
     },
     provablyFairService?: ProvablyFairService,
   ) {
@@ -177,6 +179,7 @@ export class GameInstance {
     this.ante = config.ante ?? 0;
     this.startingChips = config.startingChips ?? 1000;
     this.turnTimeoutMs = config.turnTimeoutMs ?? 10000;
+    this.sleepMs = config.sleepMs ?? 4000;
     this.provablyFairService = provablyFairService || null;
   }
 
@@ -298,9 +301,11 @@ export class GameInstance {
   async startGame(): Promise<void> {
     this.running = true;
     this.status = "running";
+    this.logger.log(`[game:${this.gameId.slice(0, 8)}] started`);
 
     while (this.running) {
       const playable = this.playablePlayers();
+
       if (playable.length < 2) {
         const winner = playable[0];
         this.logEvent({
@@ -315,11 +320,11 @@ export class GameInstance {
           winnerName: winner?.name,
           reason: "last_player_standing",
           handNumber: this.handNumber,
-          players: this.players.map((p) => ({
-            id: p.id,
-            chips: p.chips,
-          })),
+          players: this.players.map((p) => ({ id: p.id, chips: p.chips })),
         });
+        this.logger.log(
+          `[game:${this.gameId.slice(0, 8)}] finished — winner: ${winner?.name ?? "none"} after ${this.handNumber} hands`,
+        );
         break;
       }
 
@@ -333,7 +338,7 @@ export class GameInstance {
         this.handInProgress = false;
         this.drainPendingMutations();
         this.logger.error(
-          `Hand ${this.handNumber} crashed — stopping game`,
+          `[game:${this.gameId.slice(0, 8)}] hand ${this.handNumber} crashed — ${e.message}`,
           e.stack,
         );
         this.running = false;
@@ -342,12 +347,25 @@ export class GameInstance {
         throw e;
       }
 
-      this.dealerIndex = (this.dealerIndex + 1) % this.players.length;
+      // Advance dealer to the next player who still has chips (skip eliminated seats)
+      let nextDealer = (this.dealerIndex + 1) % this.players.length;
+      for (let i = 0; i < this.players.length; i++) {
+        if (
+          this.players[nextDealer].chips > 0 &&
+          !this.players[nextDealer].disconnected
+        )
+          break;
+        nextDealer = (nextDealer + 1) % this.players.length;
+      }
+      this.dealerIndex = nextDealer;
       await this.sleep(this.sleepMs);
     }
   }
 
   async playHand(): Promise<void> {
+    this.logger.log(
+      `[playHand] ========== STARTING HAND ${this.handNumber + 1} ==========`,
+    );
     this.handNumber++;
     this.stage = "pre-flop";
     this.communityCards = [];
@@ -359,6 +377,7 @@ export class GameInstance {
       p.folded = p.chips === 0 || p.disconnected;
       p.allIn = false;
     }
+    this.logger.log(`[playHand] Reset players for hand ${this.handNumber}`);
 
     // Generate provably fair seed for this hand
     let deck;
@@ -418,7 +437,12 @@ export class GameInstance {
       this.logEvent({ message: `Antes posted: ${this.ante} each` });
     }
 
-    const sbIndex = this.nextActiveIndex(this.dealerIndex);
+    // In heads-up, dealer posts small blind. In 3+ players, SB is to dealer's left
+    const numPlayers = this.activePlayers().length;
+    const sbIndex =
+      numPlayers === 2
+        ? this.dealerIndex
+        : this.nextActiveIndex(this.dealerIndex);
     const bbIndex = this.nextActiveIndex(sbIndex);
     const sb = this.players[sbIndex];
     const bb = this.players[bbIndex];
@@ -434,13 +458,23 @@ export class GameInstance {
 
     this.logEvent({ message: `${sb.name} posts small blind: ${sbAmt}` });
     this.logEvent({ message: `${bb.name} posts big blind: ${bbAmt}` });
+    // Emit state after blinds posted so frontend sees pot value
     this.emitStateUpdate();
 
+    this.logger.log(`[playHand] Pre-flop betting starting...`);
     await this.bettingRoundLoop("pre-flop", this.nextActiveIndex(bbIndex), {
       initialBet: this.bigBlind,
       betsThisRound: { [sb.id]: sbAmt, [bb.id]: bbAmt },
     });
-    if (this.activePlayers().length <= 1) return this.awardPot();
+    this.logger.log(
+      `[playHand] Pre-flop betting done. Active players: ${this.activePlayers().length}`,
+    );
+    if (this.activePlayers().length <= 1) {
+      this.logger.log(
+        `[playHand] Only 1 player left after pre-flop, calling awardPot()`,
+      );
+      return await this.awardPot();
+    }
 
     di++;
     this.communityCards = [deck[di++], deck[di++], deck[di++]];
@@ -448,8 +482,18 @@ export class GameInstance {
       message: `Flop: ${this.communityCards.map(cardToString).join(" ")}`,
     });
     this.emitStateUpdate();
+    await this.animSleep(400);
+    this.logger.log(`[playHand] Flop betting starting...`);
     await this.bettingRoundLoop("flop", this.nextActiveIndex(this.dealerIndex));
-    if (this.activePlayers().length <= 1) return this.awardPot();
+    this.logger.log(
+      `[playHand] Flop betting done. Active players: ${this.activePlayers().length}`,
+    );
+    if (this.activePlayers().length <= 1) {
+      this.logger.log(
+        `[playHand] Only 1 player left after flop, calling awardPot()`,
+      );
+      return await this.awardPot();
+    }
 
     di++;
     this.communityCards.push(deck[di++]);
@@ -457,8 +501,18 @@ export class GameInstance {
       message: `Turn: ${cardToString(this.communityCards[3])}`,
     });
     this.emitStateUpdate();
+    await this.animSleep(400);
+    this.logger.log(`[playHand] Turn betting starting...`);
     await this.bettingRoundLoop("turn", this.nextActiveIndex(this.dealerIndex));
-    if (this.activePlayers().length <= 1) return this.awardPot();
+    this.logger.log(
+      `[playHand] Turn betting done. Active players: ${this.activePlayers().length}`,
+    );
+    if (this.activePlayers().length <= 1) {
+      this.logger.log(
+        `[playHand] Only 1 player left after turn, calling awardPot()`,
+      );
+      return await this.awardPot();
+    }
 
     di++;
     this.communityCards.push(deck[di++]);
@@ -466,13 +520,24 @@ export class GameInstance {
       message: `River: ${cardToString(this.communityCards[4])}`,
     });
     this.emitStateUpdate();
+    await this.animSleep(400);
+    this.logger.log(`[playHand] River betting starting...`);
     await this.bettingRoundLoop(
       "river",
       this.nextActiveIndex(this.dealerIndex),
     );
-    if (this.activePlayers().length <= 1) return this.awardPot();
+    this.logger.log(
+      `[playHand] River betting done. Active players: ${this.activePlayers().length}`,
+    );
+    if (this.activePlayers().length <= 1) {
+      this.logger.log(
+        `[playHand] Only 1 player left after river, calling awardPot()`,
+      );
+      return await this.awardPot();
+    }
 
-    return this.showdown();
+    this.logger.log(`[playHand] All streets complete, calling showdown()`);
+    return await this.showdown();
   }
 
   private async bettingRoundLoop(
@@ -483,6 +548,9 @@ export class GameInstance {
       betsThisRound?: Record<string, number>;
     } = {},
   ): Promise<void> {
+    this.logger.log(
+      `[bettingRoundLoop] Starting ${stageName} - ${this.activePlayers().length} active players`,
+    );
     this.stage = stageName;
     this.bettingRound = new BettingRound({
       players: this.players,
@@ -499,8 +567,16 @@ export class GameInstance {
       this.bettingRound.currentBet = options.initialBet || 0;
     }
 
+    // Set active player to the first to act this round
+    const firstToAct = this.players[startIndex];
+    if (!firstToAct.folded && !firstToAct.allIn) {
+      this.activePlayer = firstToAct;
+    }
+    this.emitStateUpdate();
+
     let currentIndex = startIndex;
     let maxIterations = this.players.length * 4;
+    let actionCount = 0;
 
     while (!this.bettingRound.isBettingComplete() && maxIterations-- > 0) {
       const player = this.players[currentIndex];
@@ -518,6 +594,9 @@ export class GameInstance {
 
       const result = this.bettingRound.applyAction(player, action as any);
       if (!result.valid) {
+        this.logger.log(
+          `[bettingRoundLoop] Invalid action from ${player.name}: ${result.error}`,
+        );
         this.logEvent({
           message: `Invalid action from ${player.name}: ${result.error} — folding`,
         });
@@ -534,12 +613,20 @@ export class GameInstance {
       }
 
       this.emitStateUpdate();
+
+      await this.animSleep(600);
+
       currentIndex = this.nextActiveIndex(currentIndex);
+      actionCount++;
     }
 
+    this.logger.log(
+      `[bettingRoundLoop] ${stageName} complete after ${actionCount} actions. Calculating pots...`,
+    );
     this.activePlayer = null;
     this.bettingRound = null;
     this.potManager!.calculatePots(this.players);
+    this.logger.log(`[bettingRoundLoop] ${stageName} done`);
   }
 
   private getPlayerActionSafe(
@@ -579,16 +666,21 @@ export class GameInstance {
     }
   }
 
-  private awardPot(): void {
-    this.stage = "showdown";
+  private async awardPot(): Promise<void> {
+    // Don't set stage to showdown - everyone folded, no cards to reveal
+    this.logger.log(`[awardPot] Starting for hand ${this.handNumber}`);
     const winner = this.activePlayers()[0];
     const total = this.potManager!.getTotalPot();
     winner.chips += total;
-    this.potManager!.pots = [{ amount: 0, eligiblePlayerIds: [] }];
     this.logEvent({
       message: `${winner.name} wins ${total} (everyone else folded)`,
     });
+    this.potManager!.pots = [{ amount: 0, eligiblePlayerIds: [] }];
+    this.potManager!.playerTotalBets = {};
     this.emitStateUpdate();
+    this.logger.log(`[awardPot] Emitted state, now sleeping for 1.5s...`);
+    await this.animSleep(1500);
+    this.logger.log(`[awardPot] Sleep done, emitting handComplete`);
     this.eventEmitter.emit("game.handComplete", {
       tableId: this.tableId,
       gameId: this.gameId,
@@ -611,10 +703,15 @@ export class GameInstance {
     });
   }
 
-  private showdown(): void {
+  private async showdown(): Promise<void> {
+    this.logger.log(`[showdown] Starting showdown for hand ${this.handNumber}`);
     this.stage = "showdown";
     const active = this.activePlayers();
+    this.logger.log(`[showdown] Active players in showdown: ${active.length}`);
     this.potManager!.calculatePots(this.players);
+    this.logger.log(
+      `[showdown] Calculated pots: ${this.potManager!.pots.length} pot(s)`,
+    );
     const results: any[] = [];
 
     for (const pot of this.potManager!.pots) {
@@ -622,6 +719,9 @@ export class GameInstance {
         pot.eligiblePlayerIds.includes(p.id),
       );
       if (eligible.length === 0) continue;
+      this.logger.log(
+        `[showdown] Determining winners for pot of ${pot.amount} with ${eligible.length} eligible players`,
+      );
       const { winners } = determineWinners(eligible, this.communityCards);
       const share = Math.floor(pot.amount / winners.length);
       const remainder = pot.amount - share * winners.length;
@@ -630,7 +730,15 @@ export class GameInstance {
         if (!player) return;
         const amount = share + (i === 0 ? remainder : 0);
         player.chips += amount;
-        results.push({ playerId: w.playerId, amount, hand: w.hand });
+        results.push({
+          playerId: w.playerId,
+          playerName: player.name,
+          amount,
+          hand: w.hand,
+        });
+        this.logger.log(
+          `[showdown] ${player.name} wins ${amount} with ${w.hand.name}`,
+        );
         this.logEvent({
           message: `${player.name} wins ${amount} with ${w.hand.name}`,
         });
@@ -639,7 +747,12 @@ export class GameInstance {
 
     const totalPot = results.reduce((sum, r) => sum + r.amount, 0);
     this.potManager!.pots = [{ amount: 0, eligiblePlayerIds: [] }];
+    this.potManager!.playerTotalBets = {};
+    this.logger.log(`[showdown] Emitting state update before sleep...`);
     this.emitStateUpdate();
+    this.logger.log(`[showdown] Sleeping to show cards...`);
+    await this.animSleep(3000);
+    this.logger.log(`[showdown] Sleep done, emitting handComplete event...`);
     this.eventEmitter.emit("game.handComplete", {
       tableId: this.tableId,
       gameId: this.gameId,
@@ -660,6 +773,7 @@ export class GameInstance {
         ? this.provablyFairService?.getVerificationData(this.currentHandSeed)
         : undefined,
     });
+    this.logger.log(`[showdown] Showdown complete`);
   }
 
   private buildBotPayload(player: GamePlayer): BotPayload {
@@ -721,6 +835,7 @@ export class GameInstance {
     const state: GameStateSnapshot = {
       tableId: this.tableId,
       gameId: this.gameId,
+      tournamentId: this.tournamentId,
       handNumber: this.handNumber,
       status: this.status,
       stage: this.stage,
@@ -842,10 +957,14 @@ export class GameInstance {
   }
 
   private emitStateUpdate(): void {
+    const state = this.getPublicState();
+    this.logger.debug(
+      `📡 Emitting state update: hand=${this.handNumber}, stage=${this.stage}, players=${state.players?.length}`,
+    );
     this.eventEmitter.emit("game.stateUpdated", {
       tableId: this.tableId,
       gameId: this.gameId,
-      state: this.getPublicState(),
+      state,
     });
   }
 
@@ -901,6 +1020,11 @@ export class GameInstance {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // Like sleep() but skipped entirely when sleepMs=0 (simulator / fast mode)
+  private animSleep(ms: number): Promise<void> {
+    return this.sleep(this.sleepMs === 0 ? 0 : ms);
   }
 
   stop(): void {
@@ -1205,7 +1329,9 @@ export class LiveGameManagerService implements OnModuleDestroy {
     };
 
     this.liveGames.set(config.tableId, liveGame);
-    this.logger.log(`Created live game for table ${config.tableId}`);
+    this.logger.log(
+      `[createGame] table=${config.tableId.slice(0, 8)} game=${config.gameDbId.slice(0, 8)} (${this.liveGames.size} active)`,
+    );
 
     if (this.isRedisEnabled()) {
       await this.redisGameStateService!.saveGameState(
@@ -1270,14 +1396,40 @@ export class LiveGameManagerService implements OnModuleDestroy {
   }
 
   getGame(tableId: string): LiveGame | undefined {
-    return this.liveGames.get(tableId);
+    // First try direct lookup by tableId
+    let liveGame = this.liveGames.get(tableId);
+
+    // If not found, try finding by gameDbId (in case tableId is actually a gameId)
+    if (!liveGame) {
+      for (const [_, game] of this.liveGames) {
+        if (game.gameDbId === tableId) {
+          liveGame = game;
+          break;
+        }
+      }
+    }
+
+    return liveGame;
   }
 
   getGameState(tableId: string): GameStateSnapshot | undefined {
-    const liveGame = this.liveGames.get(tableId);
+    // First try direct lookup by tableId
+    let liveGame = this.liveGames.get(tableId);
+
+    // If not found, try finding by gameDbId (in case tableId is actually a gameId)
+    if (!liveGame) {
+      for (const [, game] of this.liveGames) {
+        if (game.gameDbId === tableId) {
+          liveGame = game;
+          break;
+        }
+      }
+    }
+
     if (liveGame) {
       return liveGame.game.getPublicState();
     }
+
     return this.gameStates.get(tableId);
   }
 

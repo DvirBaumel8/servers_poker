@@ -84,20 +84,29 @@ export class GameOwnershipService implements OnModuleInit, OnModuleDestroy {
   }
 
   async releaseGameOwnership(tableId: string): Promise<boolean> {
-    const key = OWNERSHIP_KEY_PREFIX + tableId;
-    const result = await this.redisService.eval(
-      this.releaseScript,
-      [key],
-      [this.instanceId],
-    );
+    try {
+      const key = OWNERSHIP_KEY_PREFIX + tableId;
+      const result = await this.redisService.eval(
+        this.releaseScript,
+        [key],
+        [this.instanceId],
+      );
 
-    if (result === 1) {
+      if (result === 1) {
+        this.ownedGames.delete(tableId);
+        this.logger.log(`Released ownership of game ${tableId}`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      // Handle cases where Redis is already closed during shutdown
       this.ownedGames.delete(tableId);
-      this.logger.log(`Released ownership of game ${tableId}`);
-      return true;
+      this.logger.debug(
+        `Failed to release game ownership (likely Redis closed): ${tableId}`,
+      );
+      return false;
     }
-
-    return false;
   }
 
   async isGameOwner(tableId: string): Promise<boolean> {
@@ -128,20 +137,29 @@ export class GameOwnershipService implements OnModuleInit, OnModuleDestroy {
   }
 
   async releaseTournamentOwnership(tournamentId: string): Promise<boolean> {
-    const key = TOURNAMENT_OWNERSHIP_KEY_PREFIX + tournamentId;
-    const result = await this.redisService.eval(
-      this.releaseScript,
-      [key],
-      [this.instanceId],
-    );
+    try {
+      const key = TOURNAMENT_OWNERSHIP_KEY_PREFIX + tournamentId;
+      const result = await this.redisService.eval(
+        this.releaseScript,
+        [key],
+        [this.instanceId],
+      );
 
-    if (result === 1) {
+      if (result === 1) {
+        this.ownedTournaments.delete(tournamentId);
+        this.logger.log(`Released ownership of tournament ${tournamentId}`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      // Handle cases where Redis is already closed during shutdown
       this.ownedTournaments.delete(tournamentId);
-      this.logger.log(`Released ownership of tournament ${tournamentId}`);
-      return true;
+      this.logger.debug(
+        `Failed to release tournament ownership (likely Redis closed): ${tournamentId}`,
+      );
+      return false;
     }
-
-    return false;
   }
 
   async isTournamentOwner(tournamentId: string): Promise<boolean> {
@@ -221,15 +239,20 @@ export class GameOwnershipService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async releaseAllOwnership(): Promise<void> {
-    const gamePromises = Array.from(this.ownedGames).map((tableId) =>
-      this.releaseGameOwnership(tableId),
-    );
+    try {
+      const gamePromises = Array.from(this.ownedGames).map((tableId) =>
+        this.releaseGameOwnership(tableId),
+      );
 
-    const tournamentPromises = Array.from(this.ownedTournaments).map(
-      (tournamentId) => this.releaseTournamentOwnership(tournamentId),
-    );
+      const tournamentPromises = Array.from(this.ownedTournaments).map(
+        (tournamentId) => this.releaseTournamentOwnership(tournamentId),
+      );
 
-    await Promise.all([...gamePromises, ...tournamentPromises]);
-    this.logger.log("Released all ownership on shutdown");
+      await Promise.all([...gamePromises, ...tournamentPromises]);
+      this.logger.log("Released all ownership on shutdown");
+    } catch (error) {
+      // Ignore errors during shutdown - best effort cleanup
+      this.logger.debug("Error during ownership release (likely Redis closed)");
+    }
   }
 }

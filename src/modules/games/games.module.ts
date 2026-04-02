@@ -50,6 +50,7 @@ import { HandSeed } from "../../entities/hand-seed.entity";
     GamesGateway,
     GameRepository,
     TableRepository,
+    BotRepository,
   ],
 })
 export class GamesModule {}

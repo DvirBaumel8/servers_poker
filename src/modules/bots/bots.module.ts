@@ -19,12 +19,8 @@ import { BotSubscriptionRepository } from "../../repositories/bot-subscription.r
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
 import { StrategyDecision } from "../../entities/strategy-decision.entity";
-import { StrategyAnalysisReport } from "../../entities/strategy-analysis-report.entity";
-import { StrategyTunerRun } from "../../entities/strategy-tuner-run.entity";
 import { DecisionLoggerService } from "../bot-strategy/decision-logger.service";
 import { DecisionAnalyzerService } from "../bot-strategy/decision-analyzer.service";
-import { StrategyTunerService } from "../bot-strategy/strategy-tuner.service";
-import { StrategyTunerController } from "../bot-strategy/strategy-tuner.controller";
 
 @Module({
   imports: [
@@ -39,15 +35,12 @@ import { StrategyTunerController } from "../bot-strategy/strategy-tuner.controll
       TournamentSeat,
       TournamentBlindLevel,
       StrategyDecision,
-      StrategyAnalysisReport,
-      StrategyTunerRun,
     ]),
   ],
   controllers: [
     BotsInternalController,
     BotsController,
     SubscriptionsController,
-    StrategyTunerController,
   ],
   providers: [
     BotsService,
@@ -58,7 +51,6 @@ import { StrategyTunerController } from "../bot-strategy/strategy-tuner.controll
     AnalyticsRepository,
     DecisionLoggerService,
     DecisionAnalyzerService,
-    StrategyTunerService,
   ],
   exports: [
     BotsService,
@@ -67,7 +59,6 @@ import { StrategyTunerController } from "../bot-strategy/strategy-tuner.controll
     BotSubscriptionRepository,
     DecisionLoggerService,
     DecisionAnalyzerService,
-    StrategyTunerService,
   ],
 })
 export class BotsModule {}

@@ -9,6 +9,7 @@ import {
 } from "../entities/tournament-table.entity";
 import { TournamentSeat } from "../entities/tournament-seat.entity";
 import { TournamentBlindLevel } from "../entities/tournament-blind-level.entity";
+import { Bot } from "../entities/bot.entity";
 import { BaseRepository } from "./base.repository";
 
 @Injectable()
@@ -95,7 +96,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
   ): Promise<TournamentEntry[]> {
     return this.getEntryRepo(manager).find({
       where: { tournament_id: tournamentId },
-      relations: ["bot"],
+      relations: ["bot", "bot.user"],
     });
   }
 
@@ -105,7 +106,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
   ): Promise<TournamentEntry[]> {
     return this.getEntryRepo(manager).find({
       where: { tournament_id: tournamentId, finish_position: IsNull() },
-      relations: ["bot"],
+      relations: ["bot", "bot.user"],
     });
   }
 
@@ -338,6 +339,47 @@ export class TournamentRepository extends BaseRepository<Tournament> {
         parseInt(r.count, 10),
       ]),
     );
+  }
+
+  /**
+   * Find a user's current active seat in a tournament.
+   * Returns the seat with associated table and bot info.
+   */
+  async findUserCurrentSeat(
+    tournamentId: string,
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<
+    | (TournamentSeat & {
+        tournament_table: TournamentTable;
+        bot: Bot & { user: { id: string } };
+      })
+    | null
+  > {
+    return this.getSeatRepo(manager)
+      .createQueryBuilder("seat")
+      .leftJoinAndSelect("seat.tournament_table", "table")
+      .leftJoinAndSelect("seat.bot", "bot")
+      .leftJoinAndSelect("bot.user", "user")
+      .where("seat.tournament_id = :tournamentId", { tournamentId })
+      .andWhere("user.id = :userId", { userId })
+      .andWhere("seat.busted = false")
+      .getOne();
+  }
+
+  /**
+   * Count remaining active players in a tournament.
+   */
+  async countActivePlayers(
+    tournamentId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const result = await this.getSeatRepo(manager)
+      .createQueryBuilder("seat")
+      .where("seat.tournament_id = :tournamentId", { tournamentId })
+      .andWhere("seat.busted = false")
+      .getCount();
+    return result;
   }
 
   /**

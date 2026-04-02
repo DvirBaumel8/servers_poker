@@ -163,29 +163,4 @@ export class EmailService {
   generateVerificationCode(): string {
     return randomInt(100000, 1000000).toString();
   }
-
-  async sendDailySummary(
-    recipients: string[],
-    subject: string,
-    textContent: string,
-    htmlContent: string,
-  ): Promise<boolean> {
-    let allSent = true;
-
-    for (const recipient of recipients) {
-      const sent = await this.sendEmail({
-        to: recipient,
-        subject,
-        text: textContent,
-        html: htmlContent,
-      });
-
-      if (!sent) {
-        allSent = false;
-        this.logger.error(`Failed to send daily summary to ${recipient}`);
-      }
-    }
-
-    return allSent;
-  }
 }
