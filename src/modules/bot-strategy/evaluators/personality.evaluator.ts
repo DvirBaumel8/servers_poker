@@ -113,7 +113,6 @@ function computeActionWeights(
   const w = getBaseDistribution(category);
   const sigAgg = sigmoid(p.aggression);
   const sigTight = sigmoid(p.tightness);
-  const sigBluff = sigmoid(p.bluffFrequency);
   const sigRisk = sigmoid(p.riskTolerance);
 
   const handQuality =
@@ -150,8 +149,10 @@ function computeActionWeights(
   }
 
   // 3. Bluff frequency → inject raise weight for weak/draw hands
+  // Linear mapping (not sigmoid) so low-frequency bluffers (Shark, Rock) still get
+  // proportional boosts instead of being compressed to ~0 by the steep sigmoid.
   if (category === "weak" || category === "draw") {
-    const bluffBoost = sigBluff * 15;
+    const bluffBoost = (p.bluffFrequency / 100) * 50;
     w.raise += bluffBoost;
     w.fold -= bluffBoost * 0.7;
     w.call -= bluffBoost * 0.3;

@@ -100,7 +100,7 @@ export const STRATEGY_TUNABLES = {
      * Overrides risk-tolerance so even aggressive bots avoid clearly losing calls.
      * Formula: penalty = (1 - evRatio) * negativeEvFoldBoost
      */
-    negativeEvFoldBoost: 55,
+    negativeEvFoldBoost: 75,
   },
 
   /**

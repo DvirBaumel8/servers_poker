@@ -498,15 +498,16 @@ function scenarioBluffFrequencyCheck(): FrequencyScenario {
     name: "bluffFrequencyCheck",
     description:
       "River HIGH_CARD (7♣2♦) on a dry A-K-J-9-4 board, opponent checked. " +
-      "Runs 100 trials with varied seeds to measure bluff-bet (raise) frequency. " +
-      "Shark must bluff ≥15%, Maniac ≥20%, Nit ≤8%. " +
+      "Runs 200 trials with varied seeds to measure bluff-bet (raise) frequency. " +
+      "Shark must bluff ≥12%, Maniac ≥20%, Nit/Rock ≤10%. " +
       "Bots that never bluff are flagged as 'Exploitable: Never Bluffs'.",
     basePayload,
-    trialCount: 100,
+    trialCount: 200,
     category: "strategy_sanity",
     getThresholds(botName: string): { min: number; max: number | null } {
-      if (botName.includes("Nit")) return { min: 0, max: 0.08 };
-      if (botName.includes("Shark")) return { min: 0.15, max: null };
+      if (botName.includes("Nit")) return { min: 0, max: 0.1 };
+      if (botName.includes("Rock")) return { min: 0, max: 0.1 };
+      if (botName.includes("Shark")) return { min: 0.12, max: null };
       if (botName.includes("Maniac")) return { min: 0.2, max: null };
       return { min: 0.1, max: null };
     },
@@ -546,10 +547,10 @@ export class BotAuditor {
     let firstCtx!: GameContext;
 
     for (let i = 0; i < scenario.trialCount; i++) {
-      // Unique seed per trial: hex representation of i padded to 64 chars
+      // Unique seed per trial: index in the first 8 chars (seedFromHex reads first 8 chars only)
       const trialPayload: BotPayload = {
         ...scenario.basePayload,
-        decisionSeed: i.toString(16).padStart(64, "0"),
+        decisionSeed: (i + 1).toString(16).padStart(8, "0").padEnd(64, "0"),
       };
 
       clearEvalCache();

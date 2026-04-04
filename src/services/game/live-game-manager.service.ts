@@ -757,6 +757,28 @@ export class GameInstance {
     player: GamePlayer,
     botPayload: BotPayload,
   ): Promise<{ type: string; amount?: number }> {
+    // Simulation fast path: evaluateHydrated is synchronous, so skip Promise.race
+    // and the 200ms timer entirely — saves ~2 timer allocs + microtask yields per action.
+    if (this.sleepMs === 0) {
+      try {
+        const result = evaluateHydrated(player.hydratedStrategy, botPayload);
+        player.strikes = 0;
+        const action = result.action;
+        if (action.type === "all_in") {
+          return { type: "raise", amount: botPayload.action.maxRaise };
+        }
+        return action;
+      } catch (_e: any) {
+        player.strikes++;
+        if (player.strikes >= MAX_STRIKES && player.seatStatus === "active") {
+          player.seatStatus = "sitting_out";
+        }
+        return botPayload.action.canCheck
+          ? { type: "check" }
+          : { type: "fold" };
+      }
+    }
+
     const TIMEOUT_MS = 200;
 
     // evaluateHydrated is synchronous; Promise.race establishes the 200ms SLA
@@ -1371,6 +1393,7 @@ export class GameInstance {
   }
 
   private sleep(ms: number): Promise<void> {
+    if (ms === 0) return Promise.resolve();
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 

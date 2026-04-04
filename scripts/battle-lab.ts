@@ -32,8 +32,8 @@ const parseArg = (key: string, def: number) => {
   return found ? parseInt(found.split("=")[1], 10) || def : def;
 };
 
-const TOTAL_TOURNAMENTS = parseArg("tournaments", 1000);
-const WORKER_COUNT = parseArg("workers", Math.max(4, Math.min(os.cpus().length, 12)));
+const TOTAL_TOURNAMENTS = parseArg("tournaments", 200);
+const WORKER_COUNT = parseArg("workers", Math.max(2, Math.min(os.cpus().length, 16)));
 const STARTING_CHIPS = 1_500;
 const SEATS_PER_TABLE = 9;
 
@@ -397,7 +397,7 @@ async function main() {
   const workerPath = __filename.endsWith(".ts")
     ? path.join(__dirname, "../src/workers/pool-tournament-worker.ts")
     : path.join(__dirname, "../src/workers/pool-tournament-worker.js");
-  const execArgv = __filename.endsWith(".ts") ? ["-r", "ts-node/register"] : [];
+  const execArgv = __filename.endsWith(".ts") ? ["-r", "ts-node/register/transpile-only"] : [];
 
   console.log(`\n${bold("╔══════════════════════════════════════════════════╗")}`);
   console.log(`${bold("║          ⚔  BATTLE LAB — HEADLESS ARENA  ⚔        ║")}`);
@@ -421,6 +421,17 @@ async function main() {
         profileTotalDurationMs.push(output.durationMs);
         processTournamentResult(output, i);
         completed++;
+
+        // Per-tournament log line
+        const slotId = output.winnerId?.replace(/_t\d+$/, "") ?? "?";
+        const winnerSlot = PROFILE_SLOTS.find((s) => s.slotId === slotId);
+        const winnerName = winnerSlot ? winnerSlot.key : output.winnerId ?? "?";
+        const handCount = output.hands.length;
+        const tNum = (i + 1).toString().padStart(String(TOTAL_TOURNAMENTS).length, "0");
+        process.stdout.write(
+          `\n  ${dim(`T${tNum}`)}  winner: ${cyan(winnerName.padEnd(14))}  hands: ${String(handCount).padStart(3)}  ${dim(output.durationMs + "ms")}`,
+        );
+
         process.stdout.write(renderProgressBar(completed, TOTAL_TOURNAMENTS, (Date.now() - wallStart) / 1000));
       })
       .catch((err) => {

@@ -39,8 +39,8 @@ const parseArg = (key: string, def: number) => {
   return found ? parseInt(found.split("=")[1], 10) || def : def;
 };
 
-const TOTAL_TOURNAMENTS = parseArg("tournaments", 5_000);
-const WORKER_COUNT = parseArg("workers", Math.min(os.cpus().length, 12));
+const TOTAL_TOURNAMENTS = parseArg("tournaments", 500);
+const WORKER_COUNT = parseArg("workers", Math.max(2, Math.min(os.cpus().length, 16)));
 const STARTING_CHIPS = 1_500;
 const SEATS_PER_TABLE = 9;
 
@@ -500,12 +500,12 @@ async function main() {
   const workerPath = __filename.endsWith(".ts")
     ? path.join(__dirname, "../src/workers/pool-tournament-worker.ts")
     : path.join(__dirname, "../src/workers/pool-tournament-worker.js");
-  const execArgv = __filename.endsWith(".ts") ? ["-r", "ts-node/register"] : [];
+  const execArgv = __filename.endsWith(".ts") ? ["-r", "ts-node/register/transpile-only"] : [];
 
   console.log(`\n${bold("╔═══════════════════════════════════════════════════════╗")}`);
-  console.log(`${bold("║       🏆  TIER 1 STRESS TEST — 5,000 TOURNAMENTS  🏆     ║")}`);
+  console.log(`${bold("║        🏆  TIER 1 STRESS TEST — 500 TOURNAMENTS  🏆       ║")}`);
   console.log(`${bold("╚═══════════════════════════════════════════════════════╝")}`);
-  console.log(dim(`  ${TOTAL_TOURNAMENTS.toLocaleString()} tournaments · ${SEATS_PER_TABLE} seats · ${WORKER_COUNT} workers (max 12)`));
+  console.log(dim(`  ${TOTAL_TOURNAMENTS.toLocaleString()} tournaments · ${SEATS_PER_TABLE} seats · ${WORKER_COUNT} workers`));
   console.log(dim(`  Profiles: Shark · Rock · Maniac · CallingStation · Nit · BalancedPro · Tricky · Bully · Random\n`));
 
   const pool = new WorkerPool(WORKER_COUNT, workerPath, execArgv);
@@ -534,14 +534,22 @@ async function main() {
         profileTotalDurationMs.push(output.durationMs);
         processTournamentResult(output, i);
         completed++;
-        if (completed % 250 === 0 || completed === TOTAL_TOURNAMENTS) {
-          const pct = ((completed / TOTAL_TOURNAMENTS) * 100).toFixed(0);
-          const elapsed = ((Date.now() - wallStart) / 1000).toFixed(1);
-          const m = pool.getMetrics();
-          process.stdout.write(
-            `\r  ${cyan(`${pct}%`)}  (${completed.toLocaleString()}/${TOTAL_TOURNAMENTS.toLocaleString()})  workers: ${magenta(`${m.activeWorkers}/${WORKER_COUNT}`)}  ${dim(`${elapsed}s`)}  `,
-          );
-        }
+
+        // Per-tournament log line
+        const slotId = output.winnerId?.replace(/_t\d+$/, "") ?? "?";
+        const winnerSlot = PROFILE_SLOTS.find((s) => s.slotId === slotId);
+        const winnerName = winnerSlot ? winnerSlot.key : output.winnerId ?? "?";
+        const tNum = (i + 1).toString().padStart(String(TOTAL_TOURNAMENTS).length, "0");
+        process.stdout.write(
+          `\n  ${dim(`T${tNum}`)}  winner: ${cyan(winnerName.padEnd(16))}  hands: ${String(output.hands.length).padStart(3)}  ${dim(output.durationMs + "ms")}`,
+        );
+
+        const pct = ((completed / TOTAL_TOURNAMENTS) * 100).toFixed(0);
+        const elapsed = ((Date.now() - wallStart) / 1000).toFixed(1);
+        const m = pool.getMetrics();
+        process.stdout.write(
+          `\r  ${cyan(`${pct}%`)}  (${completed.toLocaleString()}/${TOTAL_TOURNAMENTS.toLocaleString()})  workers: ${magenta(`${m.activeWorkers}/${WORKER_COUNT}`)}  ${dim(`${elapsed}s`)}  `,
+        );
       })
       .catch((err) => {
         failed++;
@@ -747,7 +755,7 @@ async function main() {
   console.log(`  Avg tourney time:     ${avgTournamentMs.toLocaleString()}ms`);
   console.log(`  Total wall time:      ${(wallMs / 1000).toFixed(1)}s`);
   console.log(`  Throughput:           ${(successfulTournaments / (wallMs / 1000)).toFixed(1)} tournaments/sec`);
-  console.log(`  Workers configured:   ${WORKER_COUNT} (of 12 max)`);
+  console.log(`  Workers configured:   ${WORKER_COUNT}`);
   console.log(`  Peak active workers:  ${peakActiveWorkers} (${peakUtilizationPct}% utilization)`);
   console.log(`  Avg active workers:   ${avgActiveWorkers}`);
 

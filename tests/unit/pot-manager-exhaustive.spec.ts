@@ -1447,3 +1447,85 @@ describe("G. Chip Conservation End-to-End", () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// H. BettingRound: isPreFlop and 3-bet (migrated from betting-advanced.spec.ts)
+// ---------------------------------------------------------------------------
+describe("H. BettingRound: isPreFlop and 3-bet", () => {
+  describe("H1. Pre-flop: BB option (isPreFlop=true)", () => {
+    it("BTN calls, SB completes, BB checks → betting complete", () => {
+      const players = [
+        { id: "btn", chips: 1000n, folded: false, allIn: false },
+        { id: "sb", chips: 1000n, folded: false, allIn: false },
+        { id: "bb", chips: 1000n, folded: false, allIn: false },
+      ];
+
+      const round = new BettingRound({
+        players,
+        smallBlind: 10n,
+        bigBlind: 20n,
+        isPreFlop: true,
+        dealerIndex: 0,
+      });
+
+      round.betsThisRound["sb"] = 10n;
+      players[1].chips -= 10n;
+      round.betsThisRound["bb"] = 20n;
+      players[2].chips -= 20n;
+      round.currentMaxBet = 20n;
+
+      const btnCall = round.applyAction(players[0], { type: "call" });
+      expect(btnCall.valid).toBe(true);
+      expect(btnCall.amountAdded).toBe(20n);
+
+      const sbCall = round.applyAction(players[1], { type: "call" });
+      expect(sbCall.valid).toBe(true);
+      expect(sbCall.amountAdded).toBe(10n);
+
+      const bbCheck = round.applyAction(players[2], { type: "check" });
+      expect(bbCheck.valid).toBe(true);
+
+      expect(round.isBettingComplete()).toBe(true);
+    });
+  });
+
+  describe("H2. 3-bet: raise → re-raise → call", () => {
+    it("3-player raise/re-raise sequence completes correctly", () => {
+      const players = [
+        { id: "p1", chips: 1000n, folded: false, allIn: false },
+        { id: "p2", chips: 1000n, folded: false, allIn: false },
+        { id: "p3", chips: 1000n, folded: false, allIn: false },
+      ];
+
+      const round = new BettingRound({
+        players,
+        smallBlind: 10n,
+        bigBlind: 20n,
+        isPreFlop: false,
+        dealerIndex: 0,
+      });
+
+      const raise1 = round.applyAction(players[0], {
+        type: "raise",
+        amount: 50,
+      });
+      expect(raise1.valid).toBe(true);
+      expect(round.currentMaxBet).toBe(50n);
+
+      const reRaise = round.applyAction(players[1], {
+        type: "raise",
+        amount: 100,
+      });
+      expect(reRaise.valid).toBe(true);
+      expect(round.currentMaxBet > 50n).toBe(true);
+
+      const call = round.applyAction(players[2], { type: "call" });
+      expect(call.valid).toBe(true);
+
+      const p1Call = round.applyAction(players[0], { type: "call" });
+      expect(p1Call.valid).toBe(true);
+
+      expect(round.isBettingComplete()).toBe(true);
+    });
+  });
+});

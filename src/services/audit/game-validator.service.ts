@@ -417,6 +417,17 @@ export class GameValidatorService {
   // =========================================================================
 
   private checkZeroSum(hand: Hand): BugInsert[] {
+    // Skip hands with no actions — crash-recovery artifacts written before any actions were recorded.
+    if ((hand.actions ?? []).length === 0) return [];
+    // Skip incomplete hands (crash-recovery artifacts have null end_chips)
+    if (
+      (hand.players ?? []).some(
+        (hp) => hp.end_chips === null || hp.end_chips === undefined,
+      )
+    ) {
+      return [];
+    }
+
     const startTotal = (hand.players ?? []).reduce(
       (sum, hp) => sum + hp.start_chips,
       0n,
@@ -449,6 +460,11 @@ export class GameValidatorService {
   // =========================================================================
 
   private checkPotMatching(hand: Hand): BugInsert[] {
+    // Skip hands with no actions — crash-recovery artifacts written before any actions were recorded.
+    if ((hand.actions ?? []).length === 0) return [];
+    // Skip crash-recovery artifacts where pot was never populated (pot=0 with no completed hand).
+    if (hand.pot === 0n) return [];
+
     // BatchTournamentPersistenceService doesn't populate amount_bet for simulation hands.
     // When all players have amount_bet=0, try to reconstruct from actions.
     // If reconstruction also gives 0 (e.g., blinds not stored as actions), skip — insufficient data.
@@ -951,6 +967,13 @@ export class GameValidatorService {
 
   private checkWinnerAmounts(hand: Hand): BugInsert[] {
     const bugs: BugInsert[] = [];
+
+    // Skip crash-recovery artifacts (pot=0) and simulation hands where amount_bet
+    // is unpopulated (BatchTournamentPersistenceService doesn't record it).
+    // amount_won stores NET profit, not gross received, so sum(amount_won) ≠ hand.pot
+    // when players have non-zero bets — skip when we lack bet data to verify correctly.
+    const allBetZero = (hand.players ?? []).every((hp) => hp.amount_bet === 0n);
+    if (hand.pot === 0n || allBetZero) return bugs;
 
     // 1. sum(amount_won for winners) must equal hand.pot
     const winnersTotal = (hand.players ?? [])

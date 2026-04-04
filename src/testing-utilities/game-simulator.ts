@@ -54,7 +54,14 @@ export async function runSimulatedGame(config: {
   gameId?: string;
 }): Promise<SimulationResult> {
   const startTime = Date.now();
-  const logger = new Logger("GameSimulator");
+  const logger = {
+    log: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+    verbose: () => {},
+    fatal: () => {},
+  } as unknown as Logger;
   const eventEmitter = new EventEmitter2();
   const gameId = config.gameId || `sim-${randomUUID().substring(0, 8)}`;
   const tableId = `table-${randomUUID().substring(0, 8)}`;

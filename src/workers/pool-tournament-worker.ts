@@ -18,12 +18,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Logger } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
 import { GameInstance } from "../services/game/live-game-manager.service";
-import {
-  getOrHydrateStrategy,
-  clearHydrationCache,
-  clearEvalCache,
-  clearStreetMemos,
-} from "../modules/bot-strategy/strategy-engine.service";
+import { getOrHydrateStrategy } from "../modules/bot-strategy/strategy-engine.service";
 import type { BotStrategy } from "../domain/bot-strategy/strategy.types";
 import {
   SimulationInput,
@@ -396,10 +391,9 @@ parentPort.on("message", async (msg: PoolToWorkerMessage) => {
   try {
     const output = await runTournament(input);
     clearInterval(heartbeatInterval);
-    // Clean up strategy caches between tasks to prevent memory bloat in reused workers
-    clearHydrationCache();
-    clearEvalCache();
-    clearStreetMemos();
+    // Keep hydration cache warm between tasks — same strategy profiles repeat across
+    // all tournaments, so re-hydrating every task is pure waste.
+    // Eval cache and street memos are already cleared per-hand inside the game loop.
     parentPort!.postMessage({
       type: "result",
       taskId,
@@ -407,9 +401,6 @@ parentPort.on("message", async (msg: PoolToWorkerMessage) => {
     } satisfies WorkerToPoolMessage);
   } catch (err: any) {
     clearInterval(heartbeatInterval);
-    clearHydrationCache();
-    clearEvalCache();
-    clearStreetMemos();
     parentPort!.postMessage({
       type: "error",
       taskId,

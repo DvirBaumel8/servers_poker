@@ -46,8 +46,7 @@
     "bugs:detect": "npx ts-node src/testing-utilities/ui-bug-reporter.ts",
     "audit:games": "npx ts-node --transpile-only scripts/audit-games.ts",
     "audit:bots": "npx ts-node --transpile-only scripts/audit-bots.ts",
-    "battle:lab": "npx ts-node --transpile-only scripts/battle-lab.ts",
-    "battle:lab:quick": "npx ts-node --transpile-only scripts/battle-lab.ts --tournaments=100"
+    "battle:lab": "npx ts-node --transpile-only scripts/battle-lab.ts"
   },
   "keywords": [
     "poker",
