@@ -18,7 +18,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@sentry/react": "^10.47.0",
     "@tailwindcss/vite": "^4.2.2",
-    "@types/uuid": "^10.0.0",
+    "@types/uuid": "^11.0.0",
     "axios": "^1.13.6",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.7.0",
