@@ -126,7 +126,7 @@ jobs:
 
       - name: Upload QA Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qa-report
           path: docs/qa_report.md
@@ -222,7 +222,7 @@ jobs:
           CI: true
 
       - name: Upload Monster Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: monster-army-report
           path: |
