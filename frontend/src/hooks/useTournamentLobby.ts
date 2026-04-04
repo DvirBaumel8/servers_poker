@@ -93,9 +93,9 @@ export function useTournamentLobby({
     })
 
     // Initial registered players list
-    socket.on('tournament_registered_players', (data: any) => {
+    socket.on('tournament_registered_players', (data: { players: Array<{ id: string; botId: string; botName: string; userId: string; userName: string; joinedAt?: string }> }) => {
       setRegisteredPlayers(
-        data.players.map((p: any) => ({
+        data.players.map((p) => ({
           id: p.id,
           botId: p.botId,
           botName: p.botName,
@@ -110,7 +110,7 @@ export function useTournamentLobby({
     })
 
     // Tournament state updates
-    socket.on('tournament_state_updated', (update: any) => {
+    socket.on('tournament_state_updated', (update: { status: string; registeredCount?: number }) => {
       setTournamentStatus(update.status)
 
       if (update.registeredCount !== undefined) {
@@ -125,7 +125,7 @@ export function useTournamentLobby({
     })
 
     // Player action updates
-    socket.on('tournament_player_action', (action: any) => {
+    socket.on('tournament_player_action', (action: { action: string; botId: string; botName: string; userId: string; userName: string; timestamp: string }) => {
       if (action.action === 'joined') {
         setRegisteredPlayers((prev) => {
           // Check if player already exists

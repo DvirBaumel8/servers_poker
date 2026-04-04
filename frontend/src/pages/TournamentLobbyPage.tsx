@@ -80,21 +80,7 @@ export default function TournamentLobbyPage() {
     }
   }, [tournament?.status, loading, handleTournamentStarted])
 
-  useEffect(() => {
-    if (id) {
-      // Initial load sets loading state
-      fetchTournamentDetail(true)
-      // Poll tournament status every 30 seconds as a fallback
-      // (WebSocket handles real-time updates)
-      // Note: polling calls don't set loading = true to keep socket alive
-      const statusCheckInterval = setInterval(() => {
-        fetchTournamentDetail(false)
-      }, 30000)
-      return () => clearInterval(statusCheckInterval)
-    }
-  }, [id])
-
-  async function fetchTournamentDetail(isInitialLoad = false) {
+  const fetchTournamentDetail = useCallback(async (isInitialLoad = false) => {
     if (isInitialLoad) {
       setLoading(true)
     }
@@ -112,7 +98,21 @@ export default function TournamentLobbyPage() {
         setLoading(false)
       }
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    if (id) {
+      // Initial load sets loading state
+      fetchTournamentDetail(true)
+      // Poll tournament status every 30 seconds as a fallback
+      // (WebSocket handles real-time updates)
+      // Note: polling calls don't set loading = true to keep socket alive
+      const statusCheckInterval = setInterval(() => {
+        fetchTournamentDetail(false)
+      }, 30000)
+      return () => clearInterval(statusCheckInterval)
+    }
+  }, [id, fetchTournamentDetail])
 
   const handleLeaveTournament = async () => {
     setLeaving(true)

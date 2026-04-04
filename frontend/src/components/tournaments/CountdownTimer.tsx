@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -76,9 +76,10 @@ export default function CountdownTimer({
   onTimeUp,
   size = 'medium',
 }: CountdownTimerProps) {
-  const targetTime = typeof scheduledStartTime === 'string'
-    ? new Date(scheduledStartTime)
-    : scheduledStartTime
+  const targetTime = useMemo(
+    () => typeof scheduledStartTime === 'string' ? new Date(scheduledStartTime) : scheduledStartTime,
+    [scheduledStartTime],
+  )
 
   const isInvalidDate = isNaN(targetTime.getTime())
 
@@ -101,7 +102,7 @@ export default function CountdownTimer({
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [targetTime, isInvalidDate])
+  }, [targetTime, isInvalidDate, hasStarted, onTimeUp])
 
   const displayText = isInvalidDate ? 'Starting soon...' : formatTimeRemaining(timeRemaining)
   const isStartingSoon = timeRemaining.totalSeconds > 0 && timeRemaining.totalSeconds <= 60

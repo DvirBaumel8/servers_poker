@@ -311,8 +311,8 @@ export default function ScenarioLabPage() {
         currentAction: currentAction || undefined,
       })
       setResult(res.data)
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Analysis failed.')
+    } catch (e: unknown) {
+      setError((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Analysis failed.')
     } finally {
       setLoading(false)
     }

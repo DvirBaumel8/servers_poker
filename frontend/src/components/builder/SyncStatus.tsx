@@ -13,8 +13,8 @@ export function SyncStatus({ isSaving, savedJustNow, isDirty }: SyncStatusProps)
 
   useEffect(() => {
     if (!savedJustNow) {
-      setFading(false)
-      return
+      const t = setTimeout(() => setFading(false), 0)
+      return () => clearTimeout(t)
     }
     const t = setTimeout(() => setFading(true), 2000)
     return () => clearTimeout(t)

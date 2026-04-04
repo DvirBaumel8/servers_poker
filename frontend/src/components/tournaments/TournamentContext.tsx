@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import api from '../../lib/axios'
 import { useTournamentSocket } from '../../hooks/useTournamentSocket'
 
@@ -69,10 +69,25 @@ export default function TournamentContext({
     enabled: !!tournamentId,
   })
 
+  const fetchTournamentInfo = useCallback(async () => {
+    try {
+      const [tournamentRes, stateRes] = await Promise.all([
+        api.get<Tournament>(`/tournaments/${tournamentId}`),
+        api.get<TournamentState>(`/tournaments/${tournamentId}/state`),
+      ])
+      setTournament(tournamentRes.data)
+      setState(stateRes.data)
+    } catch (err) {
+      console.error('Failed to fetch tournament info:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [tournamentId])
+
   // Initial load + subscribe to live updates
   useEffect(() => {
     fetchTournamentInfo()
-  }, [tournamentId])
+  }, [tournamentId, fetchTournamentInfo])
 
   // Update state when WebSocket sends live updates
   useEffect(() => {
@@ -88,22 +103,7 @@ export default function TournamentContext({
         totalEntrants: state?.totalEntrants || 0,
       })
     }
-  }, [latestUpdate])
-
-  async function fetchTournamentInfo() {
-    try {
-      const [tournamentRes, stateRes] = await Promise.all([
-        api.get<Tournament>(`/tournaments/${tournamentId}`),
-        api.get<TournamentState>(`/tournaments/${tournamentId}/state`),
-      ])
-      setTournament(tournamentRes.data)
-      setState(stateRes.data)
-    } catch (err) {
-      console.error('Failed to fetch tournament info:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [latestUpdate, state?.name, state?.playersRemaining, state?.totalEntrants])
 
   if (loading || !tournament || !state) {
     return (

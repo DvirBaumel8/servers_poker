@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import api from '../lib/axios'
 import { Sidebar } from '../components/Sidebar'
 import { useAuthStore } from '../store/authStore'
@@ -232,11 +232,7 @@ export default function LeaderboardPage() {
   const [page, setPage] = useState(0)
   const limit = 25
 
-  useEffect(() => {
-    fetchLeaderboard()
-  }, [period, sortBy, minGames, page])
-
-  async function fetchLeaderboard() {
+  const fetchLeaderboard = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
@@ -255,7 +251,11 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [period, sortBy, minGames, page, limit])
+
+  useEffect(() => {
+    fetchLeaderboard()
+  }, [period, sortBy, minGames, page, fetchLeaderboard])
 
   const totalPages = Math.ceil(total / limit)
 

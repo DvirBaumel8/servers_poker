@@ -208,6 +208,8 @@ export function useGameSocket(gameId: string): {
   const tournamentIdRef = useRef<string | null>(null)
   const handResultRef = useRef<HandResultInfo | null>(null)
   const [myBotIds, setMyBotIds] = useState<string[]>([])
+  const myBotIdsRef = useRef<string[]>([])
+  const [socketState, setSocketState] = useState<Socket | null>(null)
   const token = useAuthStore((s) => s.token)
   const userId = useAuthStore((s) => s.user?.id)
 
@@ -237,7 +239,9 @@ export function useGameSocket(gameId: string): {
       try {
         const response = await api.get('/bots')
         const bots = Array.isArray(response.data) ? response.data : (response.data?.data || [])
-        setMyBotIds(bots.map((b: any) => b.id))
+        const ids = bots.map((b: { id: string }) => b.id)
+        myBotIdsRef.current = ids
+        setMyBotIds(ids)
       } catch {
         // ignore — myBotIds stays empty if fetch fails
       }
@@ -262,6 +266,7 @@ export function useGameSocket(gameId: string): {
     })
 
     socketRef.current = socket
+    setSocketState(socket)
 
     // Connection events
     socket.on('connect', () => {
@@ -278,7 +283,7 @@ export function useGameSocket(gameId: string): {
       setConnectionStatus('error')
     })
 
-    socket.on('error', (error: any) => {
+    socket.on('error', (error: unknown) => {
       console.error('⚠️ [useGameSocket] Socket error event:', error)
     })
 
@@ -294,7 +299,7 @@ export function useGameSocket(gameId: string): {
       setGameState({
         ...mapped,
         handResult: handResultRef.current,
-        myBotIds,
+        myBotIds: myBotIdsRef.current,
       })
     })
 
@@ -342,7 +347,7 @@ export function useGameSocket(gameId: string): {
           setGameState({
             ...mapped,
             handResult: handResultRef.current,
-            myBotIds,
+            myBotIds: myBotIdsRef.current,
           })
         }
       }
@@ -372,6 +377,7 @@ export function useGameSocket(gameId: string): {
       }
       socket.disconnect()
       socketRef.current = null
+      setSocketState(null)
     }
   }, [gameId, token])
 
@@ -392,7 +398,6 @@ export function useGameSocket(gameId: string): {
   return {
     gameState,
     connectionStatus,
-    // eslint-disable-next-line react-hooks/refs
-    socket: socketRef.current,
+    socket: socketState,
   }
 }
