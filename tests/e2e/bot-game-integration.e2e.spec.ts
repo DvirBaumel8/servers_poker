@@ -1,13 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { INestApplication } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
-import { AuthModule } from "../../src/modules/auth/auth.module";
-import { BotsModule } from "../../src/modules/bots/bots.module";
-import { GamesModule } from "../../src/modules/games/games.module";
-import { ServicesModule } from "../../src/services/services.module";
-import { createTestApp, closeTestApp, TestAppContext } from "./shared/test-app";
+import { getSharedApp } from "./shared/app-singleton";
 import {
   createTestUser,
   createTestTable,
@@ -22,23 +18,16 @@ import {
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 describe("Bot Creation & Game Integration E2E Tests", () => {
-  let ctx: TestAppContext;
   let app: INestApplication;
   let dataSource: DataSource;
   let jwtService: JwtService;
 
   beforeAll(async () => {
-    ctx = await createTestApp({
-      imports: [ServicesModule, AuthModule, BotsModule, GamesModule],
-    });
-    app = ctx.app;
-    dataSource = ctx.dataSource;
-    jwtService = ctx.jwtService;
-  });
-
-  afterAll(async () => {
-    await closeTestApp(ctx);
-  });
+    const shared = await getSharedApp();
+    app = shared.app;
+    dataSource = shared.dataSource;
+    jwtService = shared.jwtService;
+  }, 60000);
 
   describe("Bot Creation → Table Join Full Flow", () => {
     it("should create bot via API → create table → join table → verify seated", async () => {

@@ -98,9 +98,10 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for a full getting-started guide.
 | `npm run ci:local:quick` | Quick local CI (lint + types + unit tests) |
 | `npm run ci:local:fix` | Auto-fix lint/format issues |
 | `bash scripts/db-backup.sh` | Database backup with retention pruning |
-| `npm run monsters:quick` | Quick QA validation (API + Invariant) |
-| `npm run monsters:pr` | PR validation (Layers 1+2) |
-| `npm run monsters:nightly` | Full QA coverage |
+| `npm run test:poker` | Simulate 100 poker games (8 invariant checks) |
+| `npm run audit:games` | Offline audit of completed hands (18 invariant checks) |
+| `npm run audit:bots` | Bot decision-making sanity checks (6 assertions) |
+| `npm run battle:lab:quick` | Stress test (100 bot tournaments) |
 
 ## Strategy Engine
 
@@ -151,7 +152,7 @@ frontend/
 - [Deployment](docs/guides/DEPLOYMENT.md) — production deployment guide
 - [Security](docs/guides/SECURITY.md) — security measures and best practices
 - [Monitoring](docs/MONITORING.md) — observability and metrics
-- [QA Monster Army](tests/qa/monsters/README.md) — comprehensive QA system
+- [Testing](docs/TESTING.md) — game invariants, simulation engine, bot auditor, UI QA
 
 ## Docker
 
@@ -168,15 +169,15 @@ docker compose --profile migrate up
 
 ## QA Testing
 
-The Monster Army is a comprehensive, self-improving QA system:
-
 ```bash
-npm run monsters:quick    # Fast validation before commits
-npm run monsters:pr       # Full PR validation
-npm run monsters:nightly  # Comprehensive nightly tests
+npm run test:poker          # Simulate 100 games, validate 8 invariants
+npm run audit:games         # Audit completed hands from DB (18 checks)
+npm run audit:bots          # Audit bot decision-making (6 sanity checks)
+npm run battle:lab:quick    # Stress test — 100 bot tournaments
+npm run bugs:detect         # UI bug detection via Playwright + Gemini AI
 ```
 
-See [tests/qa/monsters/README.md](tests/qa/monsters/README.md) for the complete QA architecture.
+See [docs/TESTING.md](docs/TESTING.md) for the complete QA architecture.
 
 ## License
 

@@ -64,4 +64,12 @@ export class SimulationResult extends BaseEntity {
    */
   @Column({ type: "float", default: 0 })
   equity_realization: number = 0;
+
+  /**
+   * Cumulative profit sampled every 100 hands.
+   * Index 0 = hand 0 (profit 0), last entry = final profit.
+   * Empty for simulations run before this feature was added.
+   */
+  @Column({ type: "jsonb", default: [] })
+  profit_curve: number[] = [];
 }

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
 import { Sidebar } from '../components/Sidebar'
+import BaseCard from '../components/BaseCard'
+import { C, T, barTrack, barFill, microLabel } from '../styles/tokens'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,21 +43,7 @@ interface ConflictData {
   message?: string
 }
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-
-const C = {
-  bg: '#0a0a1a',
-  card: '#13132a',
-  cardHover: '#161630',
-  border: '#1e1e3f',
-  accent: '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
-  text: '#ffffff',
-  muted: '#9ca3af',
-  danger: '#e24b4a',
-  success: '#1d9e75',
-  font: "'Trebuchet MS', sans-serif",
-}
+// C, T, barTrack, barFill, microLabel imported from '../styles/tokens'
 
 // ─── Top bar ──────────────────────────────────────────────────────────────────
 
@@ -245,34 +233,33 @@ const TRAIT_META: { key: keyof Personality; label: string; color: string }[] = [
 function BotDNA({ personality }: { personality?: Personality }) {
   if (!personality) {
     return (
-      <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', padding: '6px 0' }}>
+      <div style={{ fontSize: T.xs, color: C.muted, fontStyle: 'italic', padding: '6px 0' }}>
         No personality configured
       </div>
     )
   }
   return (
     <div>
-      <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 7 }}>
+      <div style={{ ...microLabel, marginBottom: 7 }}>
         Bot DNA
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {TRAIT_META.map(({ key, label, color }) => (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 10, color: C.muted, width: 30, flexShrink: 0, textAlign: 'right' }}>
-              {label}
-            </span>
-            <div style={{ flex: 1, height: 5, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{
-                width: `${personality[key]}%`, height: '100%',
-                background: color, borderRadius: 3,
-                transition: 'width 0.3s ease, background 0.3s ease',
-              }} />
+        {TRAIT_META.map(({ key, label, color }) => {
+          const isCyan = color === '#00e5ff'
+          return (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: T.xs, color: C.muted, width: 30, flexShrink: 0, textAlign: 'right' }}>
+                {label}
+              </span>
+              <div style={{ ...barTrack }}>
+                <div style={barFill(personality[key], color, isCyan)} />
+              </div>
+              <span style={{ fontSize: T.xs, color: C.muted, width: 22, textAlign: 'right' }}>
+                {personality[key]}
+              </span>
             </div>
-            <span style={{ fontSize: 10, color: C.muted, width: 22, textAlign: 'right' }}>
-              {personality[key]}
-            </span>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -283,13 +270,13 @@ function BotDNA({ personality }: { personality?: Personality }) {
 function StatChip({ label, value, color }: { label: string; value: string | null; color: string }) {
   return (
     <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>
+      <div style={{ ...microLabel, marginBottom: 3 }}>
         {label}
       </div>
       {value === null ? (
-        <div style={{ width: 40, height: 14, background: C.border, borderRadius: 3 }} />
+        <div style={{ width: 40, height: 16, background: C.border, borderRadius: 3 }} />
       ) : (
-        <div style={{ fontSize: 13, fontWeight: 700, color }}>{value}</div>
+        <div style={{ fontSize: T.sm, fontWeight: 700, color }}>{value}</div>
       )}
     </div>
   )
@@ -315,24 +302,9 @@ const BotCard = memo(function BotCard({
   onEdit, onDuplicate, onSimulate, onDelete,
   onConflictHover, onActionHover,
 }: BotCardProps) {
-  const [hovered, setHovered] = useState(false)
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: hovered ? C.cardHover : C.card,
-        border: `1px solid ${hovered ? C.accent : C.border}`,
-        borderRadius: 14, padding: 20,
-        display: 'flex', flexDirection: 'column', gap: 14,
-        fontFamily: C.font,
-        transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s',
-        boxShadow: hovered
-          ? '0 0 0 1px rgba(0,229,255,0.15), 0 8px 32px rgba(0,229,255,0.08)'
-          : 'none',
-      }}
-    >
+    <BaseCard style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ minWidth: 0 }}>
@@ -349,7 +321,7 @@ const BotCard = memo(function BotCard({
             {bot.name}
           </button>
           {bot.strategy?.tier && (
-            <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 }}>
+            <div style={{ ...microLabel, marginTop: 2 }}>
               {bot.strategy.tier} tier
             </div>
           )}
@@ -366,7 +338,7 @@ const BotCard = memo(function BotCard({
                 position: 'absolute', bottom: '100%', right: 0,
                 background: C.danger, color: '#fff',
                 padding: '8px 10px', borderRadius: 8,
-                fontSize: 11, whiteSpace: 'pre-wrap',
+                fontSize: T.xs, whiteSpace: 'pre-wrap',
                 boxShadow: '0 4px 12px rgba(226,75,74,0.4)',
                 maxWidth: 220, zIndex: 200, pointerEvents: 'none', marginBottom: 6,
               }}>
@@ -412,7 +384,8 @@ const BotCard = memo(function BotCard({
             onMouseLeave={() => onActionHover(null)}
             style={{
               width: 36, height: 36, padding: 0,
-              background: 'transparent', border: `1px solid ${actionHover === `edit-${bot.id}` ? C.accent : C.border}`,
+              background: actionHover === `edit-${bot.id}` ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${actionHover === `edit-${bot.id}` ? C.accent : C.border}`,
               borderRadius: 6, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: actionHover === `edit-${bot.id}` ? C.accent : C.muted,
@@ -427,7 +400,7 @@ const BotCard = memo(function BotCard({
             <div style={{
               position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
               background: C.card, border: `1px solid ${C.border}`, borderRadius: 6,
-              padding: '4px 8px', fontSize: 11, color: C.text, whiteSpace: 'nowrap',
+              padding: '4px 8px', fontSize: T.xs, color: C.text, whiteSpace: 'nowrap',
               pointerEvents: 'none', zIndex: 100, marginBottom: 6,
             }}>
               Edit Bot
@@ -444,7 +417,8 @@ const BotCard = memo(function BotCard({
             onMouseLeave={() => onActionHover(null)}
             style={{
               width: 36, height: 36, padding: 0,
-              background: 'transparent', border: `1px solid ${actionHover === `dup-${bot.id}` ? C.accent : C.border}`,
+              background: actionHover === `dup-${bot.id}` ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${actionHover === `dup-${bot.id}` ? C.accent : C.border}`,
               borderRadius: 6, cursor: actionLoading[bot.id] ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               opacity: actionLoading[bot.id] ? 0.6 : 1,
@@ -460,7 +434,7 @@ const BotCard = memo(function BotCard({
             <div style={{
               position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
               background: C.card, border: `1px solid ${C.border}`, borderRadius: 6,
-              padding: '4px 8px', fontSize: 11, color: C.text, whiteSpace: 'nowrap',
+              padding: '4px 8px', fontSize: T.xs, color: C.text, whiteSpace: 'nowrap',
               pointerEvents: 'none', zIndex: 100, marginBottom: 6,
             }}>
               Duplicate
@@ -476,7 +450,8 @@ const BotCard = memo(function BotCard({
             onMouseLeave={() => onActionHover(null)}
             style={{
               width: 36, height: 36, padding: 0,
-              background: 'transparent', border: `1px solid ${actionHover === `sim-${bot.id}` ? C.accent : C.border}`,
+              background: actionHover === `sim-${bot.id}` ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${actionHover === `sim-${bot.id}` ? C.accent : C.border}`,
               borderRadius: 6, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: actionHover === `sim-${bot.id}` ? C.accent : C.muted,
@@ -491,7 +466,7 @@ const BotCard = memo(function BotCard({
             <div style={{
               position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
               background: C.card, border: `1px solid ${C.border}`, borderRadius: 6,
-              padding: '4px 8px', fontSize: 11, color: C.text, whiteSpace: 'nowrap',
+              padding: '4px 8px', fontSize: T.xs, color: C.text, whiteSpace: 'nowrap',
               pointerEvents: 'none', zIndex: 100, marginBottom: 6,
             }}>
               Test in Simulation Lab
@@ -507,7 +482,8 @@ const BotCard = memo(function BotCard({
             onMouseLeave={() => onActionHover(null)}
             style={{
               width: 36, height: 36, padding: 0,
-              background: 'transparent', border: `1px solid ${actionHover === `del-${bot.id}` ? C.danger : C.border}`,
+              background: actionHover === `del-${bot.id}` ? 'rgba(226,75,74,0.08)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${actionHover === `del-${bot.id}` ? C.danger : C.border}`,
               borderRadius: 6, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: actionHover === `del-${bot.id}` ? C.danger : C.muted,
@@ -522,7 +498,7 @@ const BotCard = memo(function BotCard({
             <div style={{
               position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
               background: C.card, border: `1px solid ${C.border}`, borderRadius: 6,
-              padding: '4px 8px', fontSize: 11, color: C.text, whiteSpace: 'nowrap',
+              padding: '4px 8px', fontSize: T.xs, color: C.text, whiteSpace: 'nowrap',
               pointerEvents: 'none', zIndex: 100, marginBottom: 6,
             }}>
               Delete
@@ -530,7 +506,7 @@ const BotCard = memo(function BotCard({
           )}
         </div>
       </div>
-    </div>
+    </BaseCard>
   )
 })
 

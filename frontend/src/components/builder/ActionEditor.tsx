@@ -1,3 +1,5 @@
+import CustomSelect from '../CustomSelect'
+
 type ActionType = 'fold' | 'check' | 'call' | 'raise' | 'all_in'
 type SizingMode = 'pot_fraction' | 'bb_multiple' | 'previous_bet_multiple' | 'fixed'
 
@@ -154,27 +156,17 @@ export default function ActionEditor({ action, onChange }: ActionEditorProps) {
               >
                 Sizing Mode
               </label>
-              <select
+              <CustomSelect
                 value={sizing.mode}
-                onChange={(e) => handleSizingChange(e.target.value as SizingMode, sizing.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: '0.375rem',
-                  color: C.text,
-                  fontFamily: C.font,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <option value="pot_fraction">Pot Fraction (e.g., 2.5×)</option>
-                <option value="bb_multiple">BB Multiple (e.g., 3×)</option>
-                <option value="previous_bet_multiple">
-                  Previous Bet Multiple
-                </option>
-                <option value="fixed">Fixed Amount</option>
-              </select>
+                onChange={(v) => handleSizingChange(v as SizingMode, sizing.value)}
+                options={[
+                  { value: 'pot_fraction', label: 'Pot Fraction (e.g., 2.5×)' },
+                  { value: 'bb_multiple', label: 'BB Multiple (e.g., 3×)' },
+                  { value: 'previous_bet_multiple', label: 'Previous Bet Multiple' },
+                  { value: 'fixed', label: 'Fixed Amount' },
+                ]}
+                size="sm"
+              />
             </div>
 
             {/* Value */}

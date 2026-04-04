@@ -29,9 +29,12 @@ interface Condition {
   value: ConditionValue
 }
 
+type ActionType = 'fold' | 'check' | 'call' | 'raise' | 'all_in'
+type SizingMode = 'pot_fraction' | 'bb_multiple' | 'previous_bet_multiple' | 'fixed'
+
 interface ActionDefinition {
-  type: string
-  sizing?: { mode: string; value: number }
+  type: ActionType
+  sizing?: { mode: SizingMode; value: number }
 }
 
 interface Rule {
@@ -106,6 +109,7 @@ function SortableRuleCard({ rule, index, fields, onChange, onDelete }: SortableR
         transition,
         opacity: isDragging ? 0.5 : 1,
         position: 'relative',
+        marginBottom: '0.5rem',
       }}
     >
       {/* Priority badge + drag handle row */}
@@ -125,7 +129,7 @@ function SortableRuleCard({ rule, index, fields, onChange, onDelete }: SortableR
         >
           ⠿
         </span>
-        <span style={{ fontSize: '0.7rem', color: C.muted, fontFamily: C.font }}>
+        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: C.muted, fontFamily: C.font }}>
           #{index + 1}
         </span>
       </div>
@@ -193,7 +197,7 @@ export default function RulesEditor({ rules = {}, fields, onChange }: RulesEdito
       <div
         style={{
           display: 'flex',
-          gap: '0.75rem',
+          gap: '1rem',
           marginBottom: '1.5rem',
           borderBottom: `1px solid ${C.border}`,
           paddingBottom: '1rem',
@@ -211,8 +215,9 @@ export default function RulesEditor({ rules = {}, fields, onChange }: RulesEdito
               border: `1px solid ${activeStreet === street ? C.accent : C.border}`,
               borderRadius: '0.375rem',
               fontFamily: C.font,
-              fontSize: '0.875rem',
+              fontSize: '1rem',
               fontWeight: activeStreet === street ? 'bold' : 'normal',
+              letterSpacing: activeStreet === street ? '0.02em' : 'normal',
               cursor: 'pointer',
               transition: 'all 0.2s',
               textTransform: 'capitalize',
@@ -248,7 +253,7 @@ export default function RulesEditor({ rules = {}, fields, onChange }: RulesEdito
           </div>
         ) : (
           <div style={{ marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: '0.7rem', color: C.muted, marginBottom: '0.5rem', fontFamily: C.font }}>
+            <div style={{ fontSize: '0.75rem', color: C.muted, marginBottom: '0.5rem', fontFamily: C.font }}>
               ↕ Drag to reorder — top rule wins on first match
             </div>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -283,6 +288,7 @@ export default function RulesEditor({ rules = {}, fields, onChange }: RulesEdito
             fontWeight: 'bold',
             cursor: 'pointer',
             transition: 'all 0.2s',
+            marginTop: '0.5rem',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = `${C.accent}10`

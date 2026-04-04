@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
-import { useSidebarStore } from '../store/sidebarStore'
+import { Sidebar } from '../components/Sidebar'
 import PersonalityEditor from '../components/builder/PersonalityEditor'
 import RulesEditor from '../components/builder/RulesEditor'
 import RangeChartComponent from '../components/builder/RangeChart'
@@ -17,18 +17,22 @@ interface Personality {
   bluffFrequency: number
   riskTolerance: number
   tightness: number
+  [key: string]: number
 }
 
 interface Condition {
   category: string
   field: string
   operator: string
-  value: string | number | boolean
+  value: string | number | boolean | string[] | number[] | [number, number]
 }
 
+type ActionType = 'fold' | 'check' | 'call' | 'raise' | 'all_in'
+type SizingMode = 'pot_fraction' | 'bb_multiple' | 'previous_bet_multiple' | 'fixed'
+
 interface ActionDefinition {
-  type: string
-  sizing?: { mode: string; value: number }
+  type: ActionType
+  sizing?: { mode: SizingMode; value: number }
 }
 
 interface Rule {
@@ -82,12 +86,19 @@ interface PersonalityPreset {
   styleDescription: string
 }
 
+type ConditionCategory = 'hand' | 'board' | 'opponent' | 'position' | 'stack' | 'pot'
+
 interface ConditionFieldDef {
-  category: string
+  category: ConditionCategory
   field: string
+  type: 'enum' | 'number' | 'boolean'
+  label: string
   description: string
-  operators: string[]
-  valueType: string
+  enumValues?: string[]
+  min?: number
+  max?: number
+  tier: string
+  streets?: ('preflop' | 'flop' | 'turn' | 'river')[]
 }
 
 // Design tokens
@@ -108,7 +119,7 @@ const C = {
 export default function BotBuilder() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { isAuthenticated, user, logout } = useAuthStore()
+  const { isAuthenticated } = useAuthStore()
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -146,14 +157,10 @@ export default function BotBuilder() {
   const [conditionFields, setConditionFields] = useState<ConditionFieldDef[]>([])
   const [presets, setPresets] = useState<PersonalityPreset[]>([])
   const [conflicts, setConflicts] = useState<Record<string, unknown>[]>([])
-  const [sidebarVisible, setSidebarVisible] = useState(() => {
-    const saved = localStorage.getItem('botbuilder_sidebar_visible')
-    return saved !== null ? JSON.parse(saved) : true
-  })
-  const sidebarCollapsed = useSidebarStore((s) => s.collapsed)
   const [simulatorOpen, setSimulatorOpen] = useState(false)
   const personalityRef = useRef<HTMLDivElement>(null)
   const rulesRef = useRef<HTMLDivElement>(null)
+  const rangeChartRef = useRef<HTMLDivElement>(null)
 
   // Always holds the latest state so the unmount cleanup can access it
   const stateRef = useRef(state)
@@ -374,20 +381,11 @@ export default function BotBuilder() {
         personalityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       } else if (newTier === 'strategy') {
         rulesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else if (newTier === 'pro') {
+        rangeChartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }
     }, 0)
   }
-
-  // Toggle sidebar
-  const toggleSidebar = () => {
-    setSidebarVisible((prev) => {
-      const newVal = !prev
-      localStorage.setItem('botbuilder_sidebar_visible', JSON.stringify(newVal))
-      return newVal
-    })
-  }
-
-  const toggleSidebarCollapse = useSidebarStore((s) => s.toggle)
 
   if (!isAuthenticated) {
     return (
@@ -440,119 +438,7 @@ export default function BotBuilder() {
       }}
     >
       {/* Sidebar */}
-      {sidebarVisible && (
-        <div
-          style={{
-            width: sidebarCollapsed ? 60 : 210,
-            height: '100vh',
-            background: '#0d0d22',
-            borderRight: `1px solid ${C.border}`,
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'fixed',
-            left: 0,
-            top: 0,
-            zIndex: 40,
-            transition: 'width 0.2s',
-            overflow: 'visible',
-            flexShrink: 0,
-            fontFamily: C.font,
-          }}
-        >
-          {/* Logo */}
-          <div style={{ padding: sidebarCollapsed ? '12px 12px 8px' : '28px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-            {!sidebarCollapsed && (
-              <>
-                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', lineHeight: 1.1 }}>
-                  <span style={{ color: C.text }}>Bot</span>
-                  <span style={{ color: C.accent }}>Royale</span>
-                </div>
-                <div style={{ fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginTop: 6, whiteSpace: 'nowrap' }}>
-                  Automate. Compete. Win.
-                </div>
-              </>
-            )}
-            {sidebarCollapsed && <div style={{ fontSize: 16, color: C.accent }}>&#9670;</div>}
-          </div>
-
-          {/* Navigation */}
-          <nav style={{ flex: 1, padding: '20px 0', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSidebarCollapse() }}
-              style={{
-                position: 'absolute', right: '-17px', top: '50%', transform: 'translateY(-50%)',
-                width: 34, height: 34, background: 'transparent', border: 'none',
-                color: 'rgba(0,229,255,0.5)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, fontWeight: 'bold', transition: 'color 0.2s', zIndex: 10, padding: 0,
-              }}
-              title={sidebarCollapsed ? 'Expand' : 'Collapse'}
-            >
-              {sidebarCollapsed ? '\u00BB' : '\u00AB'}
-            </button>
-            {[
-              { label: 'Home', path: '/' },
-              { label: 'My Bots', path: '/bots' },
-              { label: 'Tournaments', path: '/tournaments' },
-              { label: 'Leaderboard', path: '/leaderboard' },
-              { label: 'Tournament Analytics', path: '/games' },
-              { label: 'Simulations', path: '/simulations' },
-            ].map(({ label, path }) => {
-              const active = location.pathname === path
-              const icons: Record<string, React.ReactNode> = {
-                Home: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
-                'My Bots': <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>,
-                Tournaments: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>,
-                Leaderboard: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="14" width="4" height="8"/><rect x="10" y="6" width="4" height="16"/><rect x="16" y="10" width="4" height="12"/></svg>,
-                'Tournament Analytics': <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>,
-                Simulations: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-              }
-              return (
-                <button
-                  key={path}
-                  onClick={() => navigate(path)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', gap: sidebarCollapsed ? 0 : 10,
-                    width: '100%', padding: sidebarCollapsed ? '10px 0' : '10px 20px',
-                    background: active ? C.accentDim : 'transparent',
-                    border: 'none', borderLeft: sidebarCollapsed ? 'none' : `3px solid ${active ? C.accent : 'transparent'}`,
-                    color: active ? C.text : C.muted,
-                    fontSize: 14, fontFamily: C.font, cursor: 'pointer',
-                    textAlign: 'left', transition: 'all 0.15s',
-                  }}
-                >
-                  <span style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {icons[label]}
-                  </span>
-                  {!sidebarCollapsed && label}
-                </button>
-              )
-            })}
-          </nav>
-
-          {/* User section */}
-          <div style={{ padding: sidebarCollapsed ? '20px 4px' : '16px 20px', borderTop: `1px solid ${C.border}`, position: 'relative' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', gap: 10 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #00e5ff, #0070ff)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 13, fontWeight: 700, color: '#000', flexShrink: 0,
-              }}>
-                {(user?.name?.[0] ?? '?').toUpperCase()}
-              </div>
-              {!sidebarCollapsed && (
-                <div style={{ overflow: 'hidden', flex: 1 }}>
-                  <div style={{ fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {user?.name ?? 'Player'}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.muted }}>{user?.role ?? 'user'}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <Sidebar />
 
       {/* Main content */}
       <div
@@ -560,8 +446,7 @@ export default function BotBuilder() {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          marginLeft: sidebarVisible ? (sidebarCollapsed ? '60px' : '210px') : '0',
-          transition: 'margin-left 0.3s ease',
+          minWidth: 0,
         }}
       >
         {/* Header */}
@@ -578,24 +463,6 @@ export default function BotBuilder() {
             zIndex: 20,
           }}
         >
-          {!sidebarVisible && (
-            <button
-              onClick={toggleSidebar}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: C.accent,
-                cursor: 'pointer',
-                padding: '0.5rem',
-                fontSize: '1.25rem',
-                marginTop: '0.5rem',
-              }}
-              title="Show sidebar"
-            >
-              ☰
-            </button>
-          )}
-
           <div>
             <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 'bold', color: C.muted, marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Bot Name
@@ -664,7 +531,7 @@ export default function BotBuilder() {
                 border: `2px solid ${state.tier === tier ? C.accent : C.border}`,
                 borderRadius: '0.375rem',
                 fontFamily: C.font,
-                fontSize: '0.9rem',
+                fontSize: '1rem',
                 fontWeight: state.tier === tier ? 'bold' : '600',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
@@ -716,13 +583,13 @@ export default function BotBuilder() {
                 border: `1px solid ${C.border}`,
               }}
             >
-              <h2 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1.5rem', margin: 0 }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', margin: 0 }}>
                 Personality (Tier 1)
               </h2>
               <PersonalityEditor
-                personality={state.strategy.personality}
-                presets={presets}
-                onChange={(personality) => updateStrategy({ personality })}
+                personality={state.strategy.personality as never}
+                presets={presets as never}
+                onChange={(personality) => updateStrategy({ personality: personality as never })}
               />
             </div>
 
@@ -749,7 +616,7 @@ export default function BotBuilder() {
                         </p>
                         <ul style={{ margin: 0, paddingLeft: '1.25rem', color: C.muted, fontSize: '0.875rem' }}>
                           {conflicts.map((c: Record<string, unknown>, i: number) => (
-                            <li key={i}>{c.description || c.message || 'Rule conflict detected'}</li>
+                            <li key={i}>{String(c.description ?? c.message ?? 'Rule conflict detected')}</li>
                           ))}
                         </ul>
                       </div>
@@ -767,19 +634,20 @@ export default function BotBuilder() {
                     border: `1px solid ${C.border}`,
                   }}
                 >
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1.5rem', margin: 0 }}>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', margin: 0 }}>
                     Rules (Tier 2)
                   </h2>
                   <RulesEditor
-                    rules={state.strategy.rules}
-                    fields={conditionFields}
-                    onChange={(rules) => updateStrategy({ rules })}
+                    rules={state.strategy.rules as never}
+                    fields={conditionFields as never}
+                    onChange={(rules) => updateStrategy({ rules: rules as never })}
                   />
                 </div>
 
                 {/* Range chart - only for Pro tier */}
                 {state.tier === 'pro' && (
                   <div
+                    ref={rangeChartRef}
                     style={{
                       marginBottom: '1.5rem',
                       padding: '1.5rem',
@@ -867,7 +735,7 @@ export default function BotBuilder() {
               🎮 Bot Simulator
             </h2>
 
-            <SimulatePanel strategy={state.strategy} />
+            <SimulatePanel strategy={state.strategy as never} />
           </div>
         </div>
       )}

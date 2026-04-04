@@ -1164,6 +1164,74 @@ SELECT description, details FROM logic_bugs WHERE check_name = 'zero_sum' LIMIT 
 
 ## Changelog
 
+### 2026-04-04: Professional Selector — CustomSelect Upgrade
+
+**Upgraded `CustomSelect` with dynamic width, real-time search, two-column grid, and elevated polish. No callers changed.**
+
+**Modified Files:**
+- `frontend/src/components/CustomSelect.tsx` — full rewrite with:
+  - **Dynamic width**: Dropdown uses `minWidth: '100%'`, `width: max-content`, `maxWidth: 480` — always at least as wide as the trigger, expands for long options, capped at 480px
+  - **Auto search bar**: When total options > 8, a sticky search input appears at top of dropdown (zinc-800 bg, no border, auto-focuses). Filters list in real-time as user types. Resets on open.
+  - **Two-column grid**: When flat `options` count > 8 (e.g. Hand Strength with 10 values), renders in a `1fr 1fr` CSS grid
+  - **Category header polish**: Group headers now have a subtle dark background (`rgba(0,0,0,0.35)` pill) to anchor the eye
+  - **Option padding**: Increased horizontal padding to 16px (was 14px) on all options
+  - **Elevation**: `maxHeight` raised to 400px (was 300px); `boxShadow` upgraded to `shadow-2xl` equivalent; `backdrop-blur` increased to 16px; scrollbar color changed to Zinc-700 (`#3f3f46`)
+
+**Behavior by use case:**
+- Field selector (grouped, 19 options): search ON, 2-col OFF (group headers preserved single-column)
+- Hand Strength value picker (flat, 10 options): search ON, 2-col ON
+- Operator selector (flat, 8 options): search OFF, 2-col OFF (≤8 threshold)
+
+### 2026-04-04: Simulation History — Delete & Clear History
+
+**Delete functionality for the Past Simulations list.**
+
+**New API endpoint:**
+- `DELETE /api/v1/simulations/:id` — 204 No Content; ownership-checked (user_id guard in repository)
+
+**Files Modified:**
+- `src/repositories/simulation.repository.ts` — Added `deleteById(id, userId)` using TypeORM `delete()` with ownership guard
+- `src/modules/simulations/simulations.service.ts` — Added `remove(id, userId)` with NotFoundException
+- `src/modules/simulations/simulations.controller.ts` — Added `@Delete(':id')` endpoint
+- `frontend/src/pages/SimulationsPage.tsx`:
+  - New state: `confirmDeleteId` (inline confirmation per row), `clearConfirm` (two-click guard for Clear History)
+  - New `deleteSimulation(id)`: calls API, removes from state, applies Always-On fallback (auto-selects next sim if deleted sim was selected), cleans up compare state
+  - New `clearAllSimulations()`: only deletes COMPLETED/FAILED, preserves PENDING/RUNNING
+  - Per-row trash icon (Lucide `Trash2`) visible on hover → click once shows "Confirm?" in red → confirm to delete; hover-away cancels
+  - "Clear History" button in section header → two-click confirm pattern
+
+---
+
+### 2026-04-04: Simulation Sandbox — Equity Curve, Tooltip Unification & Winning Highlight
+
+**Three polish improvements to the Simulation Sandbox (`SimulationsPage.tsx`):**
+
+**1. Overlaid Equity Curve (Compare Mode)**
+- Workers now sample cumulative profit every 100 hands into a `profitCurve: number[]` array (index 0 = hand 0, last entry = final profit)
+- Stored in `simulation_results.profit_curve` (JSONB, defaults to `[]` for old runs)
+- Rendered via recharts `LineChart` in `ComparePanel` — Run A cyan (#06b6d4), Run B orange (#f97316)
+- Custom tooltip shows hand #, profit A, profit B, and Δ B−A
+- Gracefully shows "No curve data — re-run both simulations" for old simulations
+
+**2. Unified Tooltip (`ActionTooltip` component)**
+- New inline `ActionTooltip` component matching the `MyBots.tsx` hover-tooltip pattern (dark card, border, 11px text, no `title=` attribute)
+- Applied to: Re-run (↺) button and Compare checkbox in simulation list rows
+
+**3. Winning Highlight in Compare Table**
+- Each metric row in `ComparePanel` detects the winning value per `higherIsBetter` flag
+- Winner gets `boxShadow: '0 0 0 1px rgba(29,158,117,0.5)'` + subtle green background
+
+**Files Modified:**
+- `src/workers/simulation.types.ts` — Added `profitCurve: number[]` to `HandSimulationOutput`
+- `src/workers/simulation-hand-worker.ts` — Sample every 100 hands + final value
+- `src/entities/simulation-result.entity.ts` — Added `profit_curve` JSONB column
+- `src/migrations/1745000000000-AddProfitCurveToSimulations.ts` — New migration (run ✅)
+- `src/repositories/simulation.repository.ts` — Added `profitCurve` to `saveResult()`
+- `src/modules/simulations/simulations.service.ts` — Passes `output.profitCurve` to `saveResult()`
+- `frontend/src/pages/SimulationsPage.tsx` — Chart, tooltip, highlight
+
+---
+
 ### 2026-04-04: Scenario Lab — Visual Strategy Workbench
 
 **Single-hand scenario editor that lets users construct any poker hand and see exactly how a bot reasons through the decision.**

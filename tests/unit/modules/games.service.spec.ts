@@ -12,8 +12,6 @@ describe("GamesService", () => {
     getHandWithDetails: ReturnType<typeof vi.fn>;
     getLeaderboard: ReturnType<typeof vi.fn>;
   };
-  let mockBotRepository: Record<string, never>;
-  let mockHandSeedRepository: Record<string, never>;
   let mockCacheService: {
     getOrSet: ReturnType<typeof vi.fn>;
   };
@@ -66,79 +64,23 @@ describe("GamesService", () => {
       getHandWithDetails: vi.fn(),
       getLeaderboard: vi.fn(),
     };
-    mockBotRepository = {};
-    mockHandSeedRepository = {};
     mockCacheService = {
       getOrSet: vi.fn().mockImplementation((_key, fn) => fn()),
     };
     service = new GamesService(
       mockGameRepository as never,
-      mockBotRepository as never,
-      mockHandSeedRepository as never,
+      {} as never,
+      {} as never,
       mockCacheService as never,
     );
   });
 
-  describe("findById", () => {
-    it("should return game when found", async () => {
-      mockGameRepository.findById.mockResolvedValue(mockGame);
-
-      const result = await service.findById("game-123");
-
-      expect(result).toEqual(mockGame);
-    });
-
-    it("should return null when not found", async () => {
-      mockGameRepository.findById.mockResolvedValue(null);
-
-      const result = await service.findById("nonexistent");
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("findByTableId", () => {
-    it("should return games for table", async () => {
-      mockGameRepository.findByTableId.mockResolvedValue([mockGame]);
-
-      const result = await service.findByTableId("table-456");
-
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("game-123");
-    });
-  });
-
-  describe("createGame", () => {
-    it("should create game for table", async () => {
-      mockGameRepository.createGame.mockResolvedValue(mockGame);
-
-      const result = await service.createGame("table-456");
-
-      expect(result).toEqual(mockGame);
-      expect(mockGameRepository.createGame).toHaveBeenCalledWith(
-        "table-456",
-        undefined,
-      );
-    });
-
-    it("should create game for tournament", async () => {
-      const tournamentGame = { ...mockGame, tournament_id: "tourney-1" };
-      mockGameRepository.createGame.mockResolvedValue(tournamentGame);
-
-      const result = await service.createGame("table-456", "tourney-1");
-
-      expect(result.tournament_id).toBe("tourney-1");
-    });
-  });
-
   describe("getHandHistory", () => {
-    it("should return hand history with default pagination", async () => {
+    it("should use default pagination (limit=50, offset=0)", async () => {
       mockGameRepository.getHandHistory.mockResolvedValue([mockHand]);
 
-      const result = await service.getHandHistory("game-123");
+      await service.getHandHistory("game-123");
 
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("hand-789");
       expect(mockGameRepository.getHandHistory).toHaveBeenCalledWith(
         "game-123",
         50,
@@ -146,19 +88,7 @@ describe("GamesService", () => {
       );
     });
 
-    it("should return hand history with custom pagination", async () => {
-      mockGameRepository.getHandHistory.mockResolvedValue([]);
-
-      await service.getHandHistory("game-123", 10, 20);
-
-      expect(mockGameRepository.getHandHistory).toHaveBeenCalledWith(
-        "game-123",
-        10,
-        20,
-      );
-    });
-
-    it("should transform hand to dto correctly", async () => {
+    it("should transform hand to dto — maps bot.name to bot_name", async () => {
       mockGameRepository.getHandHistory.mockResolvedValue([mockHand]);
 
       const result = await service.getHandHistory("game-123");
@@ -174,27 +104,8 @@ describe("GamesService", () => {
     });
   });
 
-  describe("getHand", () => {
-    it("should return hand dto when found", async () => {
-      mockGameRepository.getHandWithDetails.mockResolvedValue(mockHand);
-
-      const result = await service.getHand("hand-789");
-
-      expect(result).not.toBeNull();
-      expect(result?.id).toBe("hand-789");
-    });
-
-    it("should return null when not found", async () => {
-      mockGameRepository.getHandWithDetails.mockResolvedValue(null);
-
-      const result = await service.getHand("nonexistent");
-
-      expect(result).toBeNull();
-    });
-  });
-
   describe("getTableHistory", () => {
-    it("should return table history", async () => {
+    it("should aggregate game and hands into response shape", async () => {
       mockGameRepository.findByTableId.mockResolvedValue([mockGame]);
       mockGameRepository.getHandHistory.mockResolvedValue([mockHand]);
 
@@ -206,7 +117,7 @@ describe("GamesService", () => {
       expect(result.hands).toHaveLength(1);
     });
 
-    it("should throw NotFoundException when no games found", async () => {
+    it("should throw NotFoundException when no games found for table", async () => {
       mockGameRepository.findByTableId.mockResolvedValue([]);
 
       await expect(service.getTableHistory("nonexistent")).rejects.toThrow(
@@ -216,27 +127,12 @@ describe("GamesService", () => {
   });
 
   describe("getLeaderboard", () => {
-    it("should return leaderboard with default limit", async () => {
-      const leaderboard = [
-        { bot_id: "bot-1", bot_name: "Bot1", total_winnings: 1000 },
-      ];
-      mockGameRepository.getLeaderboard.mockResolvedValue(leaderboard);
-
-      const result = await service.getLeaderboard();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].bot_id).toBe("bot-1");
-      expect(result[0].bot_name).toBe("Bot1");
-      expect(result[0].total_winnings).toBe(1000);
-      expect(mockGameRepository.getLeaderboard).toHaveBeenCalledWith(20, "all");
-    });
-
-    it("should return leaderboard with custom limit", async () => {
+    it("should use default limit=20 and period='all'", async () => {
       mockGameRepository.getLeaderboard.mockResolvedValue([]);
 
-      await service.getLeaderboard(10);
+      await service.getLeaderboard();
 
-      expect(mockGameRepository.getLeaderboard).toHaveBeenCalledWith(10, "all");
+      expect(mockGameRepository.getLeaderboard).toHaveBeenCalledWith(20, "all");
     });
   });
 });

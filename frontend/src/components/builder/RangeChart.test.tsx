@@ -203,7 +203,7 @@ describe('onChange routing', () => {
 
     // Paint a cell
     const cell = screen.getByTitle(/AA: unset/)
-    const grid = cell.closest('[class]') ?? cell.parentElement!
+    cell.closest('[class]') ?? cell.parentElement!
     fireEvent.mouseDown(cell)
     // Fire mouseUp on document to trigger flush
     fireEvent.mouseUp(document.body)

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import api from '../lib/axios'
 import { useAnalyticsStore } from '../store/analyticsStore'
 import { Sidebar } from '../components/Sidebar'
+import CustomSelect from '../components/CustomSelect'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1146,22 +1147,15 @@ export default function TournamentAnalyticsPage() {
           </div>
 
           {/* Tournament selector */}
-          <select
+          <CustomSelect
             value={activeTournamentId ?? ''}
-            onChange={e => { if (e.target.value) setTournament(e.target.value) }}
+            onChange={v => { if (v) setTournament(v) }}
+            options={tournaments.map(t => ({ value: t.id, label: `${t.name} (${t.entries_count} players)` }))}
+            placeholder={tournamentsLoading ? 'Loading...' : 'Select a tournament'}
             disabled={tournamentsLoading}
-            style={{
-              background: C.card, border: `1px solid ${C.border}`, borderRadius: 6,
-              color: C.text, fontFamily: C.fontMono, fontSize: 12,
-              padding: '6px 10px', cursor: 'pointer', outline: 'none',
-              minWidth: 220,
-            }}
-          >
-            <option value="">{tournamentsLoading ? 'Loading...' : 'Select a tournament'}</option>
-            {tournaments.map(t => (
-              <option key={t.id} value={t.id}>{t.name} ({t.entries_count} players)</option>
-            ))}
-          </select>
+            size="sm"
+            style={{ minWidth: 220 }}
+          />
 
           {/* Separator */}
           <div style={{ flex: 1 }} />
@@ -1188,16 +1182,13 @@ export default function TournamentAnalyticsPage() {
                 style={{ ...btnStyle, opacity: activeHandIndex >= manifest.length - 1 ? 0.3 : 1 }}
               >⟩</button>
 
-              <select
-                value={playbackSpeed}
-                onChange={e => setPlaybackSpeedLocal(Number(e.target.value))}
-                style={{
-                  background: C.card, border: `1px solid ${C.border}`, borderRadius: 4,
-                  color: C.muted, fontFamily: C.fontMono, fontSize: 10, padding: '4px 6px',
-                }}
-              >
-                {[0.5, 1, 2, 4, 8].map(s => <option key={s} value={s}>{s}×</option>)}
-              </select>
+              <CustomSelect
+                value={String(playbackSpeed)}
+                onChange={v => setPlaybackSpeedLocal(Number(v))}
+                options={[0.5, 1, 2, 4, 8].map(s => ({ value: String(s), label: `${s}×` }))}
+                size="xs"
+                style={{ minWidth: 60 }}
+              />
             </div>
           )}
 

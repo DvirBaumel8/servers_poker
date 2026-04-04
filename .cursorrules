@@ -1,0 +1,81 @@
+# BotRoyale — Cursor Rules
+
+## Project Overview
+NestJS backend + React/Vite/Tailwind frontend for a competitive poker bot platform.
+All frontend styles are **inline** (`style={{ ... }}`), no CSS modules.
+Design tokens live in the `C` object per file (or imported from `frontend/src/styles/tokens.ts`).
+Font is always `'Trebuchet MS', sans-serif`.
+
+---
+
+## CRITICAL: Onboarding Flow Protection
+
+> Any changes to `App.tsx`, `Home.tsx`, `Sidebar.tsx`, or global styling **must** verify that the
+> `WelcomeCarousel` (Onboarding) remains functional. Specifically:
+>
+> 1. **localStorage gate** — The key `'hasSeenWelcomeCarousel'` must never be cleared, bypassed,
+>    or overwritten by unrelated code. Only `WelcomeCarousel`'s own close/upgrade handlers
+>    (via `Home.tsx`'s `handleCarouselClose` / `handleCarouselUpgrade`) may write this key.
+>
+> 2. **Visibility condition** — `Home.tsx` renders `<WelcomeCarousel>` only when:
+>    - `showCarousel === true` (derived from `localStorage.getItem('hasSeenWelcomeCarousel') !== 'true'`)
+>    - AND `user !== null` (authenticated user present from `useAuthStore`)
+>    Do not add additional guards that could silently prevent first-time users from seeing it.
+>
+> 3. **Theme consistency** — All four carousel slides use Cyan (`#00e5ff`) as the primary accent
+>    and Zinc-dark (`#0d0d22` / `#1e1e3f`) as backgrounds. If the global accent color token
+>    changes, update `WelcomeCarousel.tsx`'s local `C` object to match.
+>
+> 4. **Prop interface stability** — `WelcomeCarousel` accepts:
+>    - `userName: string`
+>    - `onClose: (persist: boolean) => void`
+>    - `onUpgrade: (persist: boolean) => void`
+>    Do not rename or remove these props without updating `Home.tsx` and the test suite.
+>
+> **Before merging any PR that touches the above files, manually verify:**
+> - Clear localStorage → load Dashboard → carousel appears on slide 1
+> - Set `localStorage.setItem('hasSeenWelcomeCarousel', 'true')` → reload → carousel absent
+> - Check "Don't show again" + click "Build Your First Bot" → carousel absent on next load
+
+---
+
+## Frontend Conventions
+
+- **Styles:** Always inline (`style={{ ... }}`). Never add CSS modules or class-based styling.
+- **Design tokens:** Use the `C` object. If a file doesn't have one, import from `../styles/tokens`.
+- **Sidebar:** Use `<Sidebar />` from `../components/Sidebar` with no props. Never inline a sidebar.
+- **Auth state:** `useAuthStore` from `../store/authStore` — `{ user, token, isAuthenticated }`.
+- **API client:** `api` from `../lib/axios` (auto-injects JWT, base URL from `VITE_API_URL`).
+- **Routing:** React Router v6. Protected routes use `<ProtectedRoute>` wrapper in `App.tsx`.
+- **Zustand stores:** `authStore`, `sidebarStore`, `analyticsStore` — use `persist` middleware for durable state.
+- **No `Math.random()` in game logic.** All randomness uses the provably fair HMAC-SHA256 chain or `crypto.randomBytes`.
+
+---
+
+## Backend Conventions
+
+- **Auth:** JWT in `Authorization: Bearer {token}` header. Guards: `JwtAuthGuard`, `RolesGuard`.
+- **Global prefix:** `api/v1` — all REST endpoints under `http://localhost:3000/api/v1`.
+- **Tournament statuses:** `registering | running | final_table | finished | cancelled`. No `pending` or `upcoming`.
+- **Entities:** Always export from `src/entities/index.ts`. Always export repos from `src/repositories/index.ts`.
+- **Migrations:** Run `npm run migration:run` after adding entities. File naming: `{timestamp}-{PascalCaseName}.ts`.
+
+---
+
+## Testing
+
+- Frontend: Vitest + React Testing Library (`npm test` in `frontend/`).
+- Backend: Vitest unit tests in `tests/unit/`, e2e in `tests/e2e/`.
+- Game logic: `npm run test:poker -- --games=100 --bots=8` after any game engine change.
+- TypeScript: `npx tsc --noEmit` in `frontend/` must pass before every PR.
+
+---
+
+## Documentation Updates (Required)
+
+After any non-trivial change:
+1. **New API endpoint** → update `docs/API.md`
+2. **Feature change/removal** → update `CLAUDE.md`
+3. **Major UI change** → update `CLAUDE.md` (GameSpectator section if relevant)
+4. **Security decisions** → update `docs/SECURITY.md`
+5. **Onboarding changes** → update `docs/onboarding.md`

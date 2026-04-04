@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -62,6 +65,20 @@ export class SimulationsController {
     @Param("id", ParseUUIDPipe) id: string,
   ) {
     return this.simulationsService.findOne(id, user.id);
+  }
+
+  /**
+   * Delete a simulation and its result.
+   *
+   * DELETE /api/v1/simulations/:id
+   */
+  @Delete(":id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(
+    @CurrentUser() user: { id: string },
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    return this.simulationsService.remove(id, user.id);
   }
 
   /**

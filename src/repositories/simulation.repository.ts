@@ -66,6 +66,7 @@ export class SimulationRepository extends BaseRepository<Simulation> {
     aggressionFactor: number;
     heatmapData: HeatmapData;
     equityRealization: number;
+    profitCurve: number[];
   }): Promise<SimulationResult> {
     const result = this.resultRepo.create({
       simulation_id: data.simulationId,
@@ -77,11 +78,17 @@ export class SimulationRepository extends BaseRepository<Simulation> {
       aggression_factor: data.aggressionFactor,
       heatmap_data: data.heatmapData,
       equity_realization: data.equityRealization,
+      profit_curve: data.profitCurve,
     });
     return this.resultRepo.save(result);
   }
 
   async findResult(simulationId: string): Promise<SimulationResult | null> {
     return this.resultRepo.findOne({ where: { simulation_id: simulationId } });
+  }
+
+  async deleteById(id: string, userId: string): Promise<boolean> {
+    const result = await this.repository.delete({ id, user_id: userId });
+    return (result.affected ?? 0) > 0;
   }
 }

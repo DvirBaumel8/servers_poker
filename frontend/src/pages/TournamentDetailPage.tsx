@@ -4,16 +4,9 @@ import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
 import { Sidebar } from '../components/Sidebar'
 import BotSelectionModal from '../components/tournaments/BotSelectionModal'
-import { useTournamentSocket, type TournamentNotification } from '../hooks/useTournamentSocket'
+import { useTournamentSocket } from '../hooks/useTournamentSocket'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Bot {
-  id: string
-  name: string
-  strategy?: { personality?: Record<string, number> }
-  active?: boolean
-}
 
 interface TournamentEntry {
   id: string
@@ -98,7 +91,7 @@ export default function TournamentDetailPage() {
   const userEntries = tournament?.entries?.filter((e) => e.user_id === user?.id) ?? []
   const hasJoined = userEntries.length > 0
   const isRegistrationOpen = tournament?.status === 'registering'
-  const canJoin = isRegistrationOpen && !hasJoined
+  // canJoin = isRegistrationOpen && !hasJoined (reserved for future use)
 
   useEffect(() => {
     if (id) {

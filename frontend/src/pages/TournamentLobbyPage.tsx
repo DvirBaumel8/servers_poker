@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
-import { useAuthStore } from '../store/authStore'
 import { Sidebar } from '../components/Sidebar'
 import { useTournamentLobby } from '../hooks/useTournamentLobby'
 import CountdownTimer from '../components/tournaments/CountdownTimer'
@@ -23,6 +22,7 @@ interface Tournament {
   current_participants?: number
   registered_count?: number
   rebuys_allowed?: boolean
+  min_players?: number
 }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -47,8 +47,6 @@ const C = {
 export default function TournamentLobbyPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
-
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -68,7 +66,6 @@ export default function TournamentLobbyPage() {
     registeredPlayers,
     currentPlayerCount,
     isConnected,
-    tournamentStatus,
     error: socketError,
   } = useTournamentLobby({
     tournamentId: id || '',
@@ -137,10 +134,8 @@ export default function TournamentLobbyPage() {
   const hasStartTimePassed = tournament?.scheduled_start_at
     ? new Date(tournament.scheduled_start_at).getTime() < Date.now()
     : false
-  const hasEnoughPlayers = tournament && currentPlayerCount >= tournament.min_players
+  const hasEnoughPlayers = tournament && currentPlayerCount >= (tournament.min_players ?? 2)
   const isCancelled = tournament?.status === 'cancelled'
-  const isInsufficientPlayers =
-    tournament?.status === 'registering' && hasStartTimePassed && !hasEnoughPlayers
 
   if (loading) {
     return (
@@ -183,7 +178,7 @@ export default function TournamentLobbyPage() {
             Tournament Cancelled
           </div>
           <div style={{ fontSize: 14, color: C.muted, marginBottom: 24, maxWidth: 400, textAlign: 'center' }}>
-            This tournament was cancelled because it did not have enough registered players when the scheduled start time arrived ({currentPlayerCount}/{tournament?.min_players} required).
+            This tournament was cancelled because it did not have enough registered players when the scheduled start time arrived ({currentPlayerCount}/{tournament?.min_players ?? 2} required).
           </div>
           <button
             onClick={() => navigate('/tournaments')}

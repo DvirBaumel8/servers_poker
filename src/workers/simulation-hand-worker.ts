@@ -91,6 +91,7 @@ async function runHandSimulation(
   let pfrHands = 0;
   let aggressiveActions = 0;
   let passiveActions = 0;
+  const profitCurve: number[] = [0]; // index 0 = hand 0, profit = 0
   const heatmap: Record<
     string,
     { wins: number; losses: number; hands: number }
@@ -100,7 +101,7 @@ async function runHandSimulation(
   let currentHandVpip = false;
   let currentHandPfr = false;
   let currentHandPosition = "Unknown";
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   let currentHandTargetStartChips = BigInt(startingChips);
   let targetBotStartChips = BigInt(startingChips);
 
@@ -177,6 +178,11 @@ async function runHandSimulation(
     if (currentHandVpip) vpipHands++;
     if (currentHandPfr) pfrHands++;
 
+    // Sample cumulative profit every 100 hands
+    if (handsPlayed % 100 === 0) {
+      profitCurve.push(Number(currentHandTargetStartChips) - startingChips);
+    }
+
     // Report progress every 200 hands
     if (handsPlayed % 200 === 0) {
       parentPort!.postMessage({
@@ -232,6 +238,9 @@ async function runHandSimulation(
   const targetBotEndChips =
     game.players.find((p) => p.id === targetBot.id)?.chips ?? 0n;
 
+  // Push final profit as the last curve point
+  profitCurve.push(Number(targetBotEndChips) - startingChips);
+
   return {
     simulationId,
     handsPlayed,
@@ -243,6 +252,7 @@ async function runHandSimulation(
     aggressiveActions,
     passiveActions,
     heatmap,
+    profitCurve,
     durationMs: 0, // filled by caller
   };
 }

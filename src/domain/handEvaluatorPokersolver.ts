@@ -5,7 +5,7 @@
  */
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const Hand = require("pokersolver");
+const { Hand } = require("pokersolver");
 
 interface Card {
   rank: string;

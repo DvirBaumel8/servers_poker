@@ -110,6 +110,7 @@ export class BotsService {
   ): Promise<PaginatedResponse<BotResponseDto>> {
     const [bots, total] = await this.botRepository.findAndCount({
       where: { user_id: userId },
+      relations: ["stats"],
       take: limit,
       skip: offset,
       order: { created_at: "DESC" },
@@ -290,6 +291,13 @@ export class BotsService {
   }
 
   private toResponseDto(bot: Bot): BotResponseDto {
+    const statsRow = bot.stats?.[0];
+    const totalTournaments = statsRow?.total_tournaments ?? 0;
+    const tournamentWins = statsRow?.tournament_wins ?? 0;
+    const winRate =
+      totalTournaments > 0
+        ? Math.round((tournamentWins / totalTournaments) * 100)
+        : 0;
     return {
       id: bot.id,
       name: bot.name,
@@ -298,6 +306,8 @@ export class BotsService {
       user_id: bot.user_id,
       created_at: bot.created_at,
       strategy: bot.strategy,
+      win_rate: winRate,
+      tournaments_count: totalTournaments,
     };
   }
 }

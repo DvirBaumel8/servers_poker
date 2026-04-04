@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowUp, GitCompare, TrendingUp, Trophy, X, Zap } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, GitCompare, Trash2, TrendingUp, Trophy, X, Zap } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import api from '../lib/axios'
 import { Sidebar } from '../components/Sidebar'
 import { METRIC_TOOLTIPS } from '../constants/simulation-metrics'
+import CustomSelect from '../components/CustomSelect'
+import { C, T, barTrack, barFill, microLabel, primaryButtonStyle, sectionHeaderStyle } from '../styles/tokens'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,28 +40,11 @@ interface SimulationResult {
   aggression_factor: number
   heatmap_data: Record<string, { wins: number; losses: number; hands: number }>
   equity_realization: number
+  profit_curve?: number[]
 }
 
 type OpponentProfile = 'AGGRESSIVE_SHARKS' | 'TIGHT_PASSIVE' | 'CURRENT_META'
 type TableSize = 2 | 3 | 6 | 9
-
-// ─── Design tokens ────────────────────────────────────────────────────────────
-
-const C = {
-  bg: '#0a0a1a',
-  card: '#13132a',
-  cardHover: '#161630',
-  border: '#1e1e3f',
-  accent: '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
-  text: '#ffffff',
-  muted: '#9ca3af',
-  danger: '#e24b4a',
-  success: '#1d9e75',
-  warning: '#f59e0b',
-  font: "'Trebuchet MS', sans-serif",
-  resultsBg: '#0c0c20',
-}
 
 // ─── Opponent mix config ──────────────────────────────────────────────────────
 
@@ -213,8 +199,8 @@ function StatusBadge({ status }: { status: Simulation['status'] }) {
 
 function ProgressBar({ pct }: { pct: number }) {
   return (
-    <div style={{ height: 4, background: C.border, borderRadius: 2, overflow: 'hidden', marginTop: 6 }}>
-      <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: C.accent, borderRadius: 2, transition: 'width 0.3s' }} />
+    <div style={{ ...barTrack, marginTop: 6 }}>
+      <div style={barFill(Math.min(100, pct), C.accent, true)} />
     </div>
   )
 }
@@ -251,6 +237,32 @@ function MetricTooltip({ label, tip }: { label: string; tip: string }) {
   )
 }
 
+// ─── Action icon tooltip (matches MyBots hover pattern) ──────────────────────
+
+function ActionTooltip({ label, children }: { label: string; children: React.ReactNode }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div
+      style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%',
+          transform: 'translateX(-50%)',
+          background: C.card, border: `1px solid ${C.border}`, borderRadius: 6,
+          padding: '4px 8px', fontSize: 11, color: C.text, whiteSpace: 'nowrap',
+          pointerEvents: 'none', zIndex: 100,
+        }}>
+          {label}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Position heatmap grid ────────────────────────────────────────────────────
 
 function Heatmap({ data, tableSize }: { data: Record<string, { wins: number; losses: number; hands: number }>; tableSize: number }) {
@@ -284,10 +296,7 @@ function Heatmap({ data, tableSize }: { data: Record<string, { wins: number; los
 
 // ─── Shared label style ───────────────────────────────────────────────────────
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 13, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8,
-  display: 'block', marginBottom: 8, fontWeight: 500,
-}
+const labelStyle: React.CSSProperties = { ...microLabel, display: 'block', marginBottom: 8 }
 
 // ─── Compare Mode components ─────────────────────────────────────────────────
 
@@ -466,26 +475,104 @@ function ComparePanel({
         </div>
       </div>
 
+      {/* Equity Curve Chart */}
+      {(() => {
+        const curveA = resultA.profit_curve
+        const curveB = resultB.profit_curve
+        const hasCurves = curveA && curveA.length > 1 && curveB && curveB.length > 1
+        const chartData = hasCurves
+          ? Array.from({ length: Math.max(curveA!.length, curveB!.length) }, (_, i) => ({
+              hand: i * 100,
+              a: curveA![i] ?? curveA![curveA!.length - 1],
+              b: curveB![i] ?? curveB![curveB!.length - 1],
+            }))
+          : []
+
+        const CustomTooltip = ({ active, payload, label }: any) => {
+          if (!active || !payload?.length) return null
+          const valA = payload.find((p: any) => p.dataKey === 'a')?.value ?? 0
+          const valB = payload.find((p: any) => p.dataKey === 'b')?.value ?? 0
+          const delta = valB - valA
+          return (
+            <div style={{
+              background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
+              padding: '8px 12px', fontSize: 11, fontFamily: C.font,
+            }}>
+              <div style={{ color: C.muted, marginBottom: 4 }}>Hand {label}</div>
+              <div style={{ color: '#06b6d4', marginBottom: 2 }}>A: {valA >= 0 ? '+' : ''}{valA}</div>
+              <div style={{ color: '#f97316', marginBottom: 4 }}>B: {valB >= 0 ? '+' : ''}{valB}</div>
+              <div style={{ color: delta >= 0 ? C.success : C.danger, fontWeight: 700 }}>
+                Δ {delta >= 0 ? '+' : ''}{delta}
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+              Equity Curve
+            </div>
+            {hasCurves ? (
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis
+                    dataKey="hand"
+                    tick={{ fill: C.muted, fontSize: 10 }}
+                    tickFormatter={v => v >= 1000 ? `${v / 1000}k` : String(v)}
+                    stroke={C.border}
+                  />
+                  <YAxis
+                    tick={{ fill: C.muted, fontSize: 10 }}
+                    tickFormatter={v => v >= 0 ? `+${v}` : String(v)}
+                    stroke={C.border}
+                    width={48}
+                  />
+                  <RechartsTooltip content={<CustomTooltip />} />
+                  <Line type="monotone" dataKey="a" stroke="#06b6d4" strokeWidth={2} dot={false} name="Run A" />
+                  <Line type="monotone" dataKey="b" stroke="#f97316" strokeWidth={2} dot={false} name="Run B" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ fontSize: 12, color: C.muted, padding: '14px 0', textAlign: 'center' }}>
+                No curve data — re-run both simulations to generate equity curves.
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* Metrics diff rows */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {metrics.map(m => (
-          <div key={m.label} style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 72px', gap: 8, alignItems: 'center',
-            background: '#0d0d22', border: `1px solid ${C.border}`, borderRadius: 7, padding: '9px 12px',
-          }}>
-            <div>
-              <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 2 }}>{m.label}</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: m.colA }}>{m.fmt(m.a)}</div>
+        {metrics.map(m => {
+          const hasSignificantDelta = Math.abs(m.delta) >= 0.005
+          const winnerA = hasSignificantDelta && (m.higherIsBetter ? m.a > m.b : m.a < m.b)
+          const winnerB = hasSignificantDelta && (m.higherIsBetter ? m.b > m.a : m.b < m.a)
+          const winGlow: React.CSSProperties = {
+            boxShadow: '0 0 0 1px rgba(29,158,117,0.5)',
+            borderRadius: 4, padding: '1px 5px',
+            background: 'rgba(29,158,117,0.08)',
+          }
+          return (
+            <div key={m.label} style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr 72px', gap: 8, alignItems: 'center',
+              background: '#0d0d22', border: `1px solid ${C.border}`, borderRadius: 7, padding: '9px 12px',
+            }}>
+              <div>
+                <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 2 }}>{m.label}</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: m.colA, display: 'inline-block', ...(winnerA ? winGlow : {}) }}>{m.fmt(m.a)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: 0.7, marginBottom: 2 }}>&nbsp;</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: m.colB, display: 'inline-block', ...(winnerB ? winGlow : {}) }}>{m.fmt(m.b)}</div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <Delta value={m.delta} unit={m.unit} higherIsBetter={m.higherIsBetter} />
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 10, letterSpacing: 0.7, marginBottom: 2 }}>&nbsp;</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: m.colB }}>{m.fmt(m.b)}</div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <Delta value={m.delta} unit={m.unit} higherIsBetter={m.higherIsBetter} />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Position heatmap comparison */}
@@ -683,7 +770,7 @@ const inputStyle: React.CSSProperties = {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-function CompareModePanel({ compareIds, simulations, compareResults, loadingCompare, clearCompare, formatBbPer100, formatPct, formatAF, simLabel, C }: {
+function CompareModePanel({ compareIds, simulations, compareResults, loadingCompare, clearCompare, formatBbPer100, formatPct, formatAF, simLabel }: {
   compareIds: string[]
   simulations: any[]
   compareResults: Record<string, any>
@@ -693,7 +780,6 @@ function CompareModePanel({ compareIds, simulations, compareResults, loadingComp
   formatPct: (v: number) => string
   formatAF: (v: number) => string
   simLabel: (s: any) => string
-  C: any
 }) {
   const [idA, idB] = compareIds
   const simA = simulations.find(s => s.id === idA)
@@ -755,6 +841,8 @@ export default function SimulationsPage() {
   const [simulations, setSimulations] = useState<Simulation[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [hoveredSimId, setHoveredSimId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [clearConfirm, setClearConfirm] = useState(false)
 
   const [selectedSim, setSelectedSim] = useState<Simulation | null>(null)
   const [result, setResult] = useState<SimulationResult | null>(null)
@@ -931,6 +1019,40 @@ export default function SimulationsPage() {
     }
   }
 
+  async function deleteSimulation(id: string) {
+    try {
+      await api.delete(`/simulations/${id}`)
+    } catch { /* already gone — still clean up UI */ }
+
+    const updated = simulations.filter(s => s.id !== id)
+    setSimulations(updated)
+    setConfirmDeleteId(null)
+
+    if (selectedSim?.id === id) {
+      if (updated.length > 0) loadResult(updated[0])
+      else { setSelectedSim(null); setResult(null) }
+    }
+
+    if ((compareIds as string[]).includes(id)) {
+      setCompareIds(compareIds.filter(cid => cid !== id) as [] | [string])
+      const nr = { ...compareResults }; delete nr[id]; setCompareResults(nr)
+      const nl = { ...loadingCompare }; delete nl[id]; setLoadingCompare(nl)
+    }
+  }
+
+  async function clearAllSimulations() {
+    const deletable = simulations.filter(s => s.status === 'COMPLETED' || s.status === 'FAILED')
+    await Promise.allSettled(deletable.map(s => api.delete(`/simulations/${s.id}`)))
+    const remaining = simulations.filter(s => s.status === 'PENDING' || s.status === 'RUNNING')
+    setSimulations(remaining)
+    setClearConfirm(false)
+    if (selectedSim && deletable.some(s => s.id === selectedSim.id)) {
+      if (remaining.length > 0) loadResult(remaining[0])
+      else { setSelectedSim(null); setResult(null) }
+    }
+    setCompareIds([]); setCompareResults({}); setLoadingCompare({})
+  }
+
   async function fetchCompareResult(simId: string) {
     if (compareResults[simId] || loadingCompare[simId]) return
     setLoadingCompare(prev => ({ ...prev, [simId]: true }))
@@ -1003,21 +1125,22 @@ export default function SimulationsPage() {
           <div style={{ flex: '0 0 60%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 24, overflowY: 'auto', padding: '28px' }}>
 
             {/* New Simulation form */}
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '24px 28px' }}>
-              <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 22 }}>New Simulation</div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '24px 28px', boxShadow: '0 4px 24px rgba(0,0,0,0.45)' }}>
+              <div style={{ ...sectionHeaderStyle, marginBottom: 22 }}>New Simulation</div>
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
                 {/* Bot selector */}
                 <div>
                   <label style={labelStyle}>Bot</label>
-                  <select
+                  <CustomSelect
                     value={selectedBotId}
-                    onChange={e => setSelectedBotId(e.target.value)}
-                    style={inputStyle}
-                  >
-                    {bots.length === 0 && <option value="">No active bots found</option>}
-                    {bots.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+                    onChange={setSelectedBotId}
+                    options={bots.length === 0
+                      ? [{ value: '', label: 'No active bots found' }]
+                      : bots.map(b => ({ value: b.id, label: b.name }))}
+                    placeholder={bots.length === 0 ? undefined : 'Select a bot…'}
+                    style={{ width: '100%' }}
+                  />
                 </div>
 
                 {/* Hand count */}
@@ -1086,10 +1209,11 @@ export default function SimulationsPage() {
                           type="button"
                           onClick={() => setOpponentProfile(profile)}
                           style={{
-                            padding: '11px 16px', borderRadius: 8, textAlign: 'left', cursor: 'pointer', fontFamily: C.font,
+                            padding: '12px 16px', borderRadius: 14, textAlign: 'left', cursor: 'pointer', fontFamily: C.font,
                             background: selected ? `${info.color}12` : 'transparent',
                             border: `1px solid ${selected ? info.color : C.border}`,
-                            transition: 'all 0.15s',
+                            boxShadow: selected ? `0 0 12px ${info.color}30` : 'none',
+                            transition: 'all 0.2s',
                           }}
                         >
                           <div style={{ fontSize: 14, fontWeight: 600, color: selected ? info.color : C.text }}>{info.label}</div>
@@ -1128,10 +1252,15 @@ export default function SimulationsPage() {
                     type="submit"
                     disabled={isButtonDisabled}
                     style={{
-                      padding: '12px 24px', background: isButtonDisabled ? C.border : C.accent, border: 'none', borderRadius: 8,
-                      color: isButtonDisabled ? C.muted : '#000', fontSize: 15, fontWeight: 700,
-                      cursor: isButtonDisabled ? 'not-allowed' : 'pointer',
-                      fontFamily: C.font, transition: 'background 0.15s',
+                      ...primaryButtonStyle,
+                      padding: '12px 24px', fontSize: 15,
+                      ...(isButtonDisabled && {
+                        background: C.border,
+                        boxShadow: 'none',
+                        color: C.muted,
+                        cursor: 'not-allowed',
+                        opacity: 0.7,
+                      }),
                     }}
                   >
                     Run Simulation
@@ -1144,34 +1273,53 @@ export default function SimulationsPage() {
             <div>
               {/* Section header row */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>Past Simulations</div>
-                {compareIds.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      background: compareMode ? 'rgba(0,229,255,0.1)' : 'rgba(245,158,11,0.08)',
-                      border: `1px solid ${compareMode ? 'rgba(0,229,255,0.4)' : 'rgba(245,158,11,0.4)'}`,
-                      borderRadius: 6, padding: '4px 10px',
-                    }}>
-                      <GitCompare size={13} color={compareMode ? C.accent : C.warning} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: compareMode ? C.accent : C.warning }}>
-                        {compareMode ? 'Compare Mode Active' : `${compareIds.length}/2 selected`}
-                      </span>
-                    </div>
+                <div style={sectionHeaderStyle}>Past Simulations</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {compareIds.length > 0 && (
+                    <>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: compareMode ? 'rgba(0,229,255,0.1)' : 'rgba(245,158,11,0.08)',
+                        border: `1px solid ${compareMode ? 'rgba(0,229,255,0.4)' : 'rgba(245,158,11,0.4)'}`,
+                        borderRadius: 6, padding: '4px 10px',
+                      }}>
+                        <GitCompare size={13} color={compareMode ? C.accent : C.warning} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: compareMode ? C.accent : C.warning }}>
+                          {compareMode ? 'Compare Mode Active' : `${compareIds.length}/2 selected`}
+                        </span>
+                      </div>
+                      <button
+                        onClick={clearCompare}
+                        title="Clear selection"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          background: 'none', border: `1px solid ${C.border}`, borderRadius: 5,
+                          color: C.muted, cursor: 'pointer', fontSize: 12, padding: '4px 8px',
+                          fontFamily: C.font,
+                        }}
+                      >
+                        <X size={12} /> Clear
+                      </button>
+                    </>
+                  )}
+                  {simulations.length > 0 && !compareMode && (
                     <button
-                      onClick={clearCompare}
-                      title="Clear selection"
+                      onClick={() => clearConfirm ? clearAllSimulations() : setClearConfirm(true)}
+                      onMouseLeave={() => setClearConfirm(false)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 4,
-                        background: 'none', border: `1px solid ${C.border}`, borderRadius: 5,
-                        color: C.muted, cursor: 'pointer', fontSize: 12, padding: '4px 8px',
-                        fontFamily: C.font,
+                        background: clearConfirm ? 'rgba(226,75,74,0.12)' : 'none',
+                        border: `1px solid ${clearConfirm ? 'rgba(226,75,74,0.5)' : C.border}`,
+                        borderRadius: 5, color: clearConfirm ? '#e24b4a' : C.muted,
+                        cursor: 'pointer', fontSize: 12, padding: '4px 8px',
+                        fontFamily: C.font, transition: 'all 0.15s',
                       }}
                     >
-                      <X size={12} /> Clear
+                      <Trash2 size={12} />
+                      {clearConfirm ? 'Confirm clear?' : 'Clear History'}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {loadingList ? (
@@ -1217,7 +1365,7 @@ export default function SimulationsPage() {
                       <div
                         key={sim.id}
                         onMouseEnter={() => setHoveredSimId(sim.id)}
-                        onMouseLeave={() => setHoveredSimId(null)}
+                        onMouseLeave={() => { setHoveredSimId(null); setConfirmDeleteId(null) }}
                         onClick={() => { if (!compareMode) loadResult(sim) }}
                         style={{
                           padding: '12px 16px',
@@ -1234,24 +1382,25 @@ export default function SimulationsPage() {
                           {/* Checkbox */}
                           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {canCompare ? (
-                              <div
-                                onClick={e => toggleCompare(sim, e)}
-                                title={atMax ? 'Deselect a run before adding another' : isCompared ? 'Remove from compare' : 'Add to compare'}
-                                style={{
-                                  width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                                  border: `2px solid ${isCompared ? slotColor : atMax ? C.border : C.muted}`,
-                                  background: isCompared ? `${slotColor}22` : 'transparent',
-                                  cursor: atMax ? 'not-allowed' : 'pointer',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  transition: 'all 0.15s',
-                                }}
-                              >
-                                {isCompared && (
-                                  <span style={{ fontSize: 10, fontWeight: 900, color: slotColor, lineHeight: 1 }}>
-                                    {compareSlot === 0 ? 'A' : 'B'}
-                                  </span>
-                                )}
-                              </div>
+                              <ActionTooltip label={atMax ? 'Deselect a run to add another' : isCompared ? 'Remove from compare' : 'Add to compare'}>
+                                <div
+                                  onClick={e => toggleCompare(sim, e)}
+                                  style={{
+                                    width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                                    border: `2px solid ${isCompared ? slotColor : atMax ? C.border : C.muted}`,
+                                    background: isCompared ? `${slotColor}22` : 'transparent',
+                                    cursor: atMax ? 'not-allowed' : 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    transition: 'all 0.15s',
+                                  }}
+                                >
+                                  {isCompared && (
+                                    <span style={{ fontSize: 10, fontWeight: 900, color: slotColor, lineHeight: 1 }}>
+                                      {compareSlot === 0 ? 'A' : 'B'}
+                                    </span>
+                                  )}
+                                </div>
+                              </ActionTooltip>
                             ) : (
                               <div style={{ width: 18, height: 18 }} />
                             )}
@@ -1278,17 +1427,45 @@ export default function SimulationsPage() {
                               {formatDateShort(sim.status === 'COMPLETED' ? sim.completed_at : sim.created_at)}
                             </span>
                             {isHovered && !compareMode && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleReRun(sim) }}
-                                title="Re-run this simulation"
-                                style={{
-                                  background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
-                                  color: C.muted, cursor: 'pointer', fontSize: 13, padding: '2px 7px',
-                                  fontFamily: C.font, lineHeight: 1.4,
-                                }}
-                              >↺</button>
+                              <ActionTooltip label="Re-run simulation">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleReRun(sim) }}
+                                  style={{
+                                    background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
+                                    color: C.muted, cursor: 'pointer', fontSize: 13, padding: '2px 7px',
+                                    fontFamily: C.font, lineHeight: 1.4,
+                                  }}
+                                >↺</button>
+                              </ActionTooltip>
                             )}
                             <StatusBadge status={sim.status} />
+                            {isHovered && !compareMode && (
+                              confirmDeleteId === sim.id ? (
+                                <button
+                                  onClick={e => { e.stopPropagation(); deleteSimulation(sim.id) }}
+                                  style={{
+                                    background: 'rgba(226,75,74,0.15)', border: '1px solid rgba(226,75,74,0.5)',
+                                    borderRadius: 4, color: '#e24b4a', cursor: 'pointer', fontSize: 11,
+                                    padding: '2px 7px', fontFamily: C.font, lineHeight: 1.4, whiteSpace: 'nowrap',
+                                  }}
+                                >Confirm?</button>
+                              ) : (
+                                <ActionTooltip label="Delete simulation">
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setConfirmDeleteId(sim.id) }}
+                                    style={{
+                                      background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
+                                      display: 'flex', alignItems: 'center', color: C.muted,
+                                      transition: 'color 0.15s',
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = C.muted)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </ActionTooltip>
+                              )
+                            )}
                           </div>
                         </div>
 
@@ -1325,7 +1502,6 @@ export default function SimulationsPage() {
                 formatPct={formatPct}
                 formatAF={formatAF}
                 simLabel={simLabel}
-                C={C}
               />
             ) : loadingList && !selectedSim ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
@@ -1359,8 +1535,8 @@ export default function SimulationsPage() {
                 {/* Results header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>Results</div>
-                    <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{simLabel(selectedSim)}</div>
+                    <div style={sectionHeaderStyle}>Results</div>
+                    <div style={{ fontSize: T.sm, color: C.muted, marginTop: 2 }}>{simLabel(selectedSim)}</div>
                   </div>
                   <StatusBadge status={selectedSim.status} />
                 </div>

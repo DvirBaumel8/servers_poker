@@ -1,3 +1,5 @@
+import CustomSelect from '../CustomSelect'
+
 type ConditionCategory = 'hand' | 'board' | 'opponent' | 'position' | 'stack' | 'pot'
 type ConditionOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'between'
 type ConditionValue = string | number | boolean | string[] | number[] | [number, number]
@@ -62,17 +64,17 @@ function getValidOperators(fieldType: string): ConditionOperator[] {
 function renderValueInput(
   fieldDef: ConditionFieldDef,
   operator: ConditionOperator,
-  value: string | number | boolean,
-  onChange: (val: string | number | boolean) => void,
+  value: ConditionValue,
+  onChange: (val: ConditionValue) => void,
 ) {
   if (fieldDef.type === 'enum') {
     if (operator === 'in') {
-      // Multi-select for "in" operator
+      // Multi-select for "in" operator — keep native for multi-select UX
       const selectedValues = Array.isArray(value) ? value : []
       return (
         <select
           multiple
-          value={selectedValues}
+          value={selectedValues as string[]}
           onChange={(e) => {
             const selected = Array.from(e.target.selectedOptions, (opt) =>
               opt.value,
@@ -98,59 +100,37 @@ function renderValueInput(
         </select>
       )
     } else {
-      // Single select for eq/neq
       return (
-        <select
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            flex: 1,
-            padding: '0.5rem',
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: '0.375rem',
-            color: C.text,
-            fontFamily: C.font,
-            fontSize: '0.875rem',
-          }}
-        >
-          <option value="">Select {fieldDef.label.toLowerCase()}</option>
-          {fieldDef.enumValues?.map((enumVal) => (
-            <option key={enumVal} value={enumVal}>
-              {enumVal}
-            </option>
-          ))}
-        </select>
+        <CustomSelect
+          value={String(value ?? '')}
+          onChange={onChange}
+          options={fieldDef.enumValues?.map(v => ({ value: v, label: v })) ?? []}
+          placeholder={`Select ${fieldDef.label.toLowerCase()}`}
+          style={{ flex: 1 }}
+          size="sm"
+        />
       )
     }
   }
 
   if (fieldDef.type === 'boolean') {
     return (
-      <select
+      <CustomSelect
         value={value === true ? 'true' : 'false'}
-        onChange={(e) => onChange(e.target.value === 'true')}
-        style={{
-          flex: 1,
-          padding: '0.5rem',
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: '0.375rem',
-          color: C.text,
-          fontFamily: C.font,
-          fontSize: '0.875rem',
-        }}
-      >
-        <option value="true">Yes</option>
-        <option value="false">No</option>
-      </select>
+        onChange={(v) => onChange(v === 'true')}
+        options={[
+          { value: 'true', label: 'Yes' },
+          { value: 'false', label: 'No' },
+        ]}
+        style={{ flex: 1 }}
+        size="sm"
+      />
     )
   }
 
   if (fieldDef.type === 'number') {
     if (operator === 'between') {
-      // Range input for between operator
-      const [min, max] = Array.isArray(value) && value.length === 2 ? value : [0, 0]
+      const [min, max] = Array.isArray(value) && value.length === 2 ? [Number(value[0]), Number(value[1])] : [0, 0]
       return (
         <div style={{ display: 'flex', gap: '0.5rem', flex: 1 }}>
           <input
@@ -192,11 +172,10 @@ function renderValueInput(
         </div>
       )
     } else {
-      // Single number input
       return (
         <input
           type="number"
-          value={value ?? ''}
+          value={typeof value === 'number' ? value : ''}
           onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
           min={fieldDef.min}
           max={fieldDef.max}
@@ -235,7 +214,7 @@ export default function ConditionRow({
     ? getValidOperators(currentField.type)
     : []
 
-  // Group fields by category
+  // Group fields by category for grouped dropdown
   const fieldsByCategory = fields.reduce(
     (acc, field) => {
       if (!acc[field.category]) {
@@ -246,6 +225,14 @@ export default function ConditionRow({
     },
     {} as Record<string, ConditionFieldDef[]>,
   )
+
+  const fieldGroups = Object.entries(fieldsByCategory).map(([category, categoryFields]) => ({
+    label: category,
+    options: categoryFields.map(f => ({
+      value: `${f.category}::${f.field}`,
+      label: f.label,
+    })),
+  }))
 
   return (
     <div
@@ -261,10 +248,10 @@ export default function ConditionRow({
       }}
     >
       {/* Field selector */}
-      <select
+      <CustomSelect
         value={`${condition.category}::${condition.field}`}
-        onChange={(e) => {
-          const [category, field] = e.target.value.split('::')
+        onChange={(val) => {
+          const [category, field] = val.split('::')
           const selectedField = fields.find(
             (f) => f.category === category && f.field === field,
           )
@@ -278,61 +265,21 @@ export default function ConditionRow({
             })
           }
         }}
-        style={{
-          padding: '0.5rem',
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: '0.375rem',
-          color: C.text,
-          fontFamily: C.font,
-          fontSize: '0.875rem',
-          minWidth: '140px',
-        }}
-      >
-        <option value="">Select field</option>
-        {Object.entries(fieldsByCategory).map(([category, categoryFields]) => (
-          <optgroup key={category} label={category}>
-            {categoryFields.map((field) => (
-              <option
-                key={`${field.category}::${field.field}`}
-                value={`${field.category}::${field.field}`}
-              >
-                {field.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+        groups={fieldGroups}
+        placeholder="Select field"
+        style={{ minWidth: 140 }}
+        size="sm"
+      />
 
       {/* Operator selector */}
-      <select
+      <CustomSelect
         value={condition.operator}
-        onChange={(e) => {
-          onChange({
-            ...condition,
-            operator: e.target.value as ConditionOperator,
-          })
-        }}
+        onChange={(val) => onChange({ ...condition, operator: val as ConditionOperator })}
+        options={validOperators.map(op => ({ value: op, label: op }))}
         disabled={!currentField}
-        style={{
-          padding: '0.5rem',
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: '0.375rem',
-          color: C.text,
-          fontFamily: C.font,
-          fontSize: '0.875rem',
-          minWidth: '80px',
-          opacity: !currentField ? 0.5 : 1,
-          cursor: !currentField ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {validOperators.map((op) => (
-          <option key={op} value={op}>
-            {op}
-          </option>
-        ))}
-      </select>
+        style={{ minWidth: 80 }}
+        size="sm"
+      />
 
       {/* Value input */}
       {currentField && (

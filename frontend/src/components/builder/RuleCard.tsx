@@ -12,9 +12,12 @@ interface Condition {
   value: ConditionValue
 }
 
+type ActionType = 'fold' | 'check' | 'call' | 'raise' | 'all_in'
+type SizingMode = 'pot_fraction' | 'bb_multiple' | 'previous_bet_multiple' | 'fixed'
+
 interface ActionDefinition {
-  type: string
-  sizing?: { mode: string; value: number }
+  type: ActionType
+  sizing?: { mode: SizingMode; value: number }
 }
 
 interface Rule {
@@ -117,7 +120,7 @@ export default function RuleCard({
         background: rule.enabled ? C.card : `${C.card}80`,
         border: `2px solid ${rule.enabled ? C.border : `${C.border}80`}`,
         borderRadius: '0.5rem',
-        marginBottom: '1rem',
+        marginBottom: '1.5rem',
         opacity: rule.enabled ? 1 : 0.6,
       }}
     >
@@ -157,7 +160,7 @@ export default function RuleCard({
               borderRadius: '0.375rem',
               color: C.text,
               fontFamily: C.font,
-              fontSize: '0.9rem',
+              fontSize: '1rem',
               fontWeight: 'bold',
               flex: 1,
               minWidth: '200px',
@@ -174,7 +177,7 @@ export default function RuleCard({
               border: 'none',
               borderRadius: '0.375rem',
               fontFamily: C.font,
-              fontSize: '0.75rem',
+              fontSize: '0.8125rem',
               fontWeight: 'bold',
               cursor: 'pointer',
               textTransform: 'uppercase',
@@ -209,7 +212,7 @@ export default function RuleCard({
       <div style={{ marginBottom: '1.5rem' }}>
         <div
           style={{
-            fontSize: '0.875rem',
+            fontSize: '1rem',
             fontWeight: 'bold',
             color: C.accent,
             textTransform: 'uppercase',
@@ -247,7 +250,7 @@ export default function RuleCard({
                     style={{
                       paddingLeft: '0.75rem',
                       marginBottom: '0.5rem',
-                      fontSize: '0.875rem',
+                      fontSize: '1rem',
                       fontWeight: 'bold',
                       color: C.accent,
                       textTransform: 'uppercase',
@@ -271,7 +274,7 @@ export default function RuleCard({
             color: C.accent,
             borderRadius: '0.375rem',
             fontFamily: C.font,
-            fontSize: '0.875rem',
+            fontSize: '1rem',
             fontWeight: 'bold',
             cursor: 'pointer',
           }}
@@ -284,7 +287,7 @@ export default function RuleCard({
       <div>
         <div
           style={{
-            fontSize: '0.875rem',
+            fontSize: '1rem',
             fontWeight: 'bold',
             color: C.accent,
             textTransform: 'uppercase',

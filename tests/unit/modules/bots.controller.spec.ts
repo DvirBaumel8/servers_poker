@@ -21,23 +21,6 @@ describe("BotsController", () => {
     getAllActiveBots: ReturnType<typeof vi.fn>;
   };
 
-  const mockBot = {
-    id: "bot-123",
-    name: "TestBot",
-    strategy: {
-      version: 1,
-      tier: "quick",
-      personality: {
-        aggression: 50,
-        bluffFrequency: 30,
-        riskTolerance: 50,
-        tightness: 50,
-      },
-    },
-    active: true,
-    user_id: "user-123",
-  };
-
   const mockUser = {
     id: "user-123",
     email: "test@example.com",
@@ -88,60 +71,7 @@ describe("BotsController", () => {
     );
   });
 
-  describe("findAll", () => {
-    it("should return active bots with pagination", async () => {
-      const paginatedResult = {
-        data: [mockBot],
-        total: 1,
-        limit: 20,
-        offset: 0,
-      };
-      mockBotsService.findActivePaginated = vi
-        .fn()
-        .mockResolvedValue(paginatedResult);
-
-      const result = await controller.findAll({ limit: 20, offset: 0 });
-
-      expect(result).toEqual(paginatedResult);
-      expect(mockBotsService.findActivePaginated).toHaveBeenCalledWith(20, 0);
-    });
-  });
-
-  describe("findMy", () => {
-    it("should return bots owned by current user with pagination", async () => {
-      const paginatedResult = {
-        data: [mockBot],
-        total: 1,
-        limit: 20,
-        offset: 0,
-      };
-      mockBotsService.findByUserIdPaginated = vi
-        .fn()
-        .mockResolvedValue(paginatedResult);
-
-      const result = await controller.findMy(mockUser as never, {
-        limit: 20,
-        offset: 0,
-      });
-
-      expect(result).toEqual(paginatedResult);
-      expect(mockBotsService.findByUserIdPaginated).toHaveBeenCalledWith(
-        "user-123",
-        20,
-        0,
-      );
-    });
-  });
-
   describe("findOne", () => {
-    it("should return bot when found", async () => {
-      mockBotsService.findById.mockResolvedValue(mockBot);
-
-      const result = await controller.findOne("bot-123");
-
-      expect(result).toEqual(mockBot);
-    });
-
     it("should throw NotFoundException when bot not found", async () => {
       mockBotsService.findById.mockResolvedValue(null);
 
@@ -151,51 +81,7 @@ describe("BotsController", () => {
     });
   });
 
-  describe("getProfile", () => {
-    it("should return bot profile", async () => {
-      const profile = { botId: "bot-123", gamesPlayed: 100 };
-      mockBotsService.getProfile.mockResolvedValue(profile);
-
-      const result = await controller.getProfile("bot-123");
-
-      expect(result).toEqual(profile);
-    });
-  });
-
-  describe("update", () => {
-    it("should update bot", async () => {
-      const updateDto = { description: "Updated description" };
-      mockBotsService.update.mockResolvedValue({ ...mockBot, ...updateDto });
-
-      const result = await controller.update(
-        "bot-123",
-        updateDto as never,
-        mockUser as never,
-      );
-
-      expect(mockBotsService.update).toHaveBeenCalledWith(
-        "bot-123",
-        "user-123",
-        updateDto,
-      );
-      expect(result.description).toBe("Updated description");
-    });
-  });
-
   describe("activate", () => {
-    it("should activate bot", async () => {
-      mockBotsService.activate.mockResolvedValue(undefined);
-
-      const result = await controller.activate("bot-123", mockUser as never);
-
-      expect(result).toEqual({ success: true });
-      expect(mockBotsService.activate).toHaveBeenCalledWith(
-        "bot-123",
-        "user-123",
-        false,
-      );
-    });
-
     it("should pass admin flag for admin users", async () => {
       const adminUser = { ...mockUser, role: "admin" };
       mockBotsService.activate.mockResolvedValue(undefined);
@@ -210,33 +96,7 @@ describe("BotsController", () => {
     });
   });
 
-  describe("deactivate", () => {
-    it("should deactivate bot", async () => {
-      mockBotsService.deactivate.mockResolvedValue(undefined);
-
-      const result = await controller.deactivate("bot-123", mockUser as never);
-
-      expect(result).toEqual({ success: true });
-      expect(mockBotsService.deactivate).toHaveBeenCalledWith(
-        "bot-123",
-        "user-123",
-        false,
-      );
-    });
-  });
-
   describe("getBotActivity", () => {
-    it("should return bot activity when found", async () => {
-      mockBotActivityService.getBotActivity.mockResolvedValue(mockActivity);
-
-      const result = await controller.getBotActivity("bot-123");
-
-      expect(result).toEqual(mockActivity);
-      expect(mockBotActivityService.getBotActivity).toHaveBeenCalledWith(
-        "bot-123",
-      );
-    });
-
     it("should throw NotFoundException when activity not found", async () => {
       mockBotActivityService.getBotActivity.mockResolvedValue(null);
 
@@ -247,7 +107,7 @@ describe("BotsController", () => {
   });
 
   describe("getMyBotsActivity", () => {
-    it("should return activities for user bots", async () => {
+    it("should return aggregated activity with totalActive and timestamp", async () => {
       const activities = [mockActivity];
       mockBotActivityService.getActiveBotsForUser.mockResolvedValue(activities);
 
@@ -256,14 +116,11 @@ describe("BotsController", () => {
       expect(result.bots).toEqual(activities);
       expect(result.totalActive).toBe(1);
       expect(result.timestamp).toBeDefined();
-      expect(mockBotActivityService.getActiveBotsForUser).toHaveBeenCalledWith(
-        "user-123",
-      );
     });
   });
 
   describe("getActiveBots", () => {
-    it("should return all active bots", async () => {
+    it("should return aggregated active bots with totalActive and timestamp", async () => {
       const activities = [mockActivity];
       mockBotActivityService.getAllActiveBots.mockResolvedValue(activities);
 

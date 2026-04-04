@@ -131,7 +131,7 @@ function parseCard(card: string | { rank: string; suit: string }): Card | null {
 
   return {
     rank,
-    suit: (suitMap[suitChar] || 'spades') as Card['suit'],
+    suit: (suitMap[suitChar ?? ''] || 'spades') as Card['suit'],
   }
 }
 
@@ -178,7 +178,7 @@ function mapBackendToGameState(
       small: snapshot.smallBlind || 0,
       big: snapshot.bigBlind || 0,
     },
-    communityCards: (snapshot.communityCards || []).map(parseCard),
+    communityCards: (snapshot.communityCards || []).map(parseCard).filter((c): c is Card => c !== null),
     pot: snapshot.pot,
     players,
     activePlayerIndex: activePlayerIndex >= 0 ? activePlayerIndex : null,

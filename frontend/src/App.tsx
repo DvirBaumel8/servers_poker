@@ -26,13 +26,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function Stub({ name }: { name: string }) {
-  return (
-    <div style={{ minHeight: '100vh', background: '#0a0a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontFamily: 'Trebuchet MS, sans-serif' }}>
-      {name} — coming soon
-    </div>
-  )
-}
 
 export default function App() {
   return (

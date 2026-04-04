@@ -213,6 +213,8 @@ export class BotResponseDto {
   user_id!: string;
   created_at!: Date;
   strategy!: Record<string, any> | null;
+  win_rate?: number;
+  tournaments_count?: number;
 }
 
 export interface BotActivityGame {

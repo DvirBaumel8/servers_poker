@@ -2,10 +2,13 @@ import { useEffect, useState, useRef } from 'react'
 import { Trophy } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../lib/axios'
-import { useAuthStore } from '../store/authStore'
 import { Sidebar } from '../components/Sidebar'
 import Toast from '../components/Toast'
 import BotSelectionModal from '../components/tournaments/BotSelectionModal'
+import BaseCard from '../components/BaseCard'
+import { C, T, barTrack, barFill, glassChip, primaryButtonStyle, sectionHeaderStyle } from '../styles/tokens'
+import { useAuthStore } from '../store/authStore'
+import WelcomeCarousel from '../components/WelcomeCarousel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,9 +56,10 @@ interface ActivityItem {
 }
 
 interface LeaderboardEntry {
-  botId: string
-  botName: string
-  tierBadge: string
+  userId?: string
+  userName?: string
+  botId?: string
+  botName?: string
   totalHands: number
   totalTournaments: number
   bb100: number
@@ -63,24 +67,7 @@ interface LeaderboardEntry {
   itmPct: number
 }
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-
-const C = {
-  bg: '#0a0a1a',
-  card: '#13132a',
-  cardHover: '#161630',
-  border: '#1e1e3f',
-  accent: '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
-  text: '#ffffff',
-  muted: '#9ca3af',
-  danger: '#e24b4a',
-  success: '#1d9e75',
-  gold: '#ffd700',
-  silver: '#c0c0c0',
-  bronze: '#cd7f32',
-  font: "'Trebuchet MS', sans-serif",
-}
+// C, T, barTrack, barFill, glassChip imported from '../styles/tokens'
 
 // ─── Top bar ──────────────────────────────────────────────────────────────────
 
@@ -94,13 +81,7 @@ function TopBar({ onCreateBot }: { onCreateBot: () => void }) {
       <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>Dashboard</div>
       <button
         onClick={onCreateBot}
-        style={{
-          padding: '9px 18px',
-          background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
-          border: 'none', borderRadius: 8,
-          color: '#000', fontWeight: 700, fontSize: 13,
-          fontFamily: C.font, cursor: 'pointer', letterSpacing: 1,
-        }}
+        style={{ ...primaryButtonStyle, padding: '9px 18px', fontFamily: C.font }}
       >
         + Create Bot
       </button>
@@ -145,10 +126,10 @@ function EmptyState({ icon, title, hint }: { icon: string; title: string; hint: 
 
 function SliderBar({ label, value }: { label: string; value: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: T.xs }}>
       <span style={{ color: C.muted, width: 60, flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2 }}>
-        <div style={{ width: `${value}%`, height: '100%', background: C.accent, borderRadius: 2 }} />
+      <div style={{ ...barTrack }}>
+        <div style={barFill(value, C.accent, true)} />
       </div>
       <span style={{ color: C.muted, width: 28, textAlign: 'right' }}>{value}</span>
     </div>
@@ -232,13 +213,7 @@ function DailyTournamentHero({
         <div style={{ flexShrink: 0 }}>
           <button
             onClick={() => navigate(bots.length > 0 ? '/tournaments' : '/bots')}
-            style={{
-              padding: '9px 20px', borderRadius: 8,
-              background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
-              border: 'none', color: '#000',
-              fontWeight: 700, fontSize: 13, fontFamily: C.font,
-              cursor: 'pointer',
-            }}
+            style={{ ...primaryButtonStyle, padding: '9px 20px', fontFamily: C.font }}
           >
             {bots.length > 0 ? 'View Tournaments →' : 'Create Bot →'}
           </button>
@@ -325,13 +300,7 @@ function DailyTournamentHero({
         ) : (
           <button
             onClick={hasBots ? () => onEnter(tournament) : () => navigate('/bots')}
-            style={{
-              padding: '9px 20px', borderRadius: 8,
-              background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
-              border: 'none', color: '#000',
-              fontWeight: 700, fontSize: 13, fontFamily: C.font,
-              cursor: 'pointer',
-            }}
+            style={{ ...primaryButtonStyle, padding: '9px 20px', fontFamily: C.font }}
           >
             {hasBots ? 'Register Now' : 'Create Bot'}
           </button>
@@ -341,99 +310,7 @@ function DailyTournamentHero({
   )
 }
 
-// ─── Enter tournament modal ────────────────────────────────────────────────────
 
-function EnterModal({
-  tournament,
-  bots,
-  onClose,
-  onSuccess,
-}: {
-  tournament: Tournament
-  bots: Bot[]
-  onClose: () => void
-  onSuccess: () => void
-}) {
-  const [selectedBot, setSelectedBot] = useState<string>(bots[0]?.id ?? '')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleEnter() {
-    if (!selectedBot) return
-    setLoading(true)
-    setError('')
-    try {
-      await api.post(`/tournaments/${tournament.id}/register`, { bot_id: selectedBot })
-      onSuccess()
-      onClose()
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg ?? 'Failed to register')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: C.font,
-    }} onClick={onClose}>
-      <div style={{
-        background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
-        padding: 28, width: 380, maxWidth: '90vw',
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 4 }}>Enter Tournament</div>
-        <div style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>{tournament.name}</div>
-
-        {error && (
-          <div style={{ background: 'rgba(226,75,74,0.1)', border: `1px solid ${C.danger}`, borderRadius: 8, padding: '8px 12px', color: C.danger, fontSize: 13, marginBottom: 16 }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10 }}>Select a bot</div>
-          {bots.map(bot => (
-            <label key={bot.id} style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-              background: selectedBot === bot.id ? C.accentDim : 'transparent',
-              border: `1px solid ${selectedBot === bot.id ? C.accent : C.border}`,
-              borderRadius: 8, cursor: 'pointer', marginBottom: 8,
-            }}>
-              <input type="radio" name="bot" value={bot.id} checked={selectedBot === bot.id} onChange={() => setSelectedBot(bot.id)} style={{ accentColor: C.accent }} />
-              <div>
-                <div style={{ fontSize: 14, color: C.text, fontWeight: 600 }}>{bot.name}</div>
-                {bot.description && <div style={{ fontSize: 12, color: C.muted }}>{bot.description}</div>}
-              </div>
-              {bot.active && <div style={{ marginLeft: 'auto', fontSize: 10, color: C.success, background: 'rgba(29,158,117,0.1)', padding: '2px 8px', borderRadius: 20 }}>Active</div>}
-            </label>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontFamily: C.font, cursor: 'pointer' }}>
-            Cancel
-          </button>
-          <button
-            onClick={handleEnter}
-            disabled={!selectedBot || loading}
-            style={{
-              flex: 1, padding: '10px',
-              background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
-              border: 'none', borderRadius: 8,
-              color: '#000', fontWeight: 700, fontFamily: C.font,
-              cursor: selectedBot && !loading ? 'pointer' : 'not-allowed',
-              opacity: !selectedBot || loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? 'Entering…' : 'Enter →'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ─── Tournament row ────────────────────────────────────────────────────────────
 
@@ -458,7 +335,7 @@ function TournamentRow({
     <div style={{
       display: 'flex', alignItems: 'center', gap: 16,
       padding: '12px 16px', background: C.card, border: `1px solid ${C.border}`,
-      borderRadius: 10, fontFamily: C.font,
+      borderRadius: 12, fontFamily: C.font,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tournament.name}</div>
@@ -474,11 +351,12 @@ function TournamentRow({
         onClick={canEnter ? onEnter : undefined}
         disabled={!canEnter}
         style={{
-          padding: '7px 16px', borderRadius: 7,
-          background: canEnter ? 'linear-gradient(90deg, #00e5ff, #0070ff)' : C.border,
-          border: 'none', color: canEnter ? '#000' : C.muted,
-          fontWeight: 700, fontSize: 12, fontFamily: C.font,
-          cursor: canEnter ? 'pointer' : 'not-allowed', flexShrink: 0,
+          ...(canEnter ? primaryButtonStyle : {}),
+          padding: '7px 16px', borderRadius: 7, fontSize: 12, fontFamily: C.font, flexShrink: 0,
+          ...(canEnter ? {} : {
+            background: C.border, border: 'none', color: C.muted,
+            cursor: 'not-allowed',
+          }),
         }}
       >
         {canEnter ? 'Enter' : 'No bot yet'}
@@ -490,14 +368,6 @@ function TournamentRow({
 // ─── Mini Leaderboard ─────────────────────────────────────────────────────────
 
 const RANK_COLORS = [C.gold, C.silver, C.bronze]
-const TIER_LABEL: Record<string, string> = {
-  TIER_1_QUICK: 'Quick',
-  TIER_2_MATRIX: 'Matrix',
-  TIER_3_ELITE: 'Elite',
-  QUICK: 'Quick',
-  MATRIX: 'Matrix',
-  ELITE: 'Elite',
-}
 
 function MiniLeaderboard({ entries, loading }: { entries: LeaderboardEntry[]; loading: boolean }) {
   if (loading) {
@@ -517,10 +387,10 @@ function MiniLeaderboard({ entries, loading }: { entries: LeaderboardEntry[]; lo
       {entries.map((entry, i) => {
         const totalGames = entry.totalTournaments ?? entry.totalHands ?? 0
         return (
-          <div key={entry.botId} style={{
+          <div key={entry.userId ?? entry.botId ?? i} style={{
             display: 'flex', alignItems: 'center', gap: 14,
             background: C.card, border: `1px solid ${C.border}`,
-            borderRadius: 10, padding: '16px 16px', fontFamily: C.font,
+            borderRadius: 12, padding: '16px 16px', fontFamily: C.font,
           }}>
             <div style={{
               width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
@@ -531,10 +401,10 @@ function MiniLeaderboard({ entries, loading }: { entries: LeaderboardEntry[]; lo
             }}>#{i + 1}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {entry.botName}
+                {entry.userName ?? entry.botName}
               </div>
               <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                {TIER_LABEL[entry.tierBadge] ?? entry.tierBadge} · {totalGames} games
+                {totalGames} games
               </div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -651,7 +521,7 @@ function ActivityFeed({ items, loading }: { items: ActivityItem[]; loading: bool
         <div key={i} style={{
           display: 'flex', alignItems: 'center', gap: 14,
           background: C.card, border: `1px solid ${C.border}`,
-          borderRadius: 10, padding: '18px 16px', fontFamily: C.font, opacity: 0.4,
+          borderRadius: 12, padding: '18px 16px', fontFamily: C.font, opacity: 0.4,
         }}>
           <ActivityIconChip pos={i === 0 ? null : i} index={i} />
           <div style={{ flex: 1, minWidth: 0, lineHeight: 1.6 }}>
@@ -670,7 +540,7 @@ function Section({ title, action, children }: { title: string; action?: React.Re
   return (
     <div style={{ marginBottom: 32, fontFamily: C.font }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: C.text, letterSpacing: 1, fontFamily: C.font }}>{title}</div>
+        <div style={{ ...sectionHeaderStyle, fontFamily: C.font }}>{title}</div>
         {action}
       </div>
       {children}
@@ -698,12 +568,7 @@ function EmptyDashboard({ tournaments, loadingTournaments, bots, onEnter }: { to
         <div style={{ fontSize: 15, color: C.muted, marginBottom: 20 }}>Build your first bot in 30 seconds and start competing in tournaments automatically.</div>
         <button
           onClick={() => navigate('/bots/build')}
-          style={{
-            padding: '10px 22px', borderRadius: 8,
-            background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
-            border: 'none', color: '#000',
-            fontWeight: 700, fontSize: 14, fontFamily: C.font, cursor: 'pointer', letterSpacing: 0.5,
-          }}
+          style={{ ...primaryButtonStyle, padding: '10px 22px', fontSize: 14, fontFamily: C.font }}
         >
           Create Your First Bot →
         </button>
@@ -760,7 +625,6 @@ function ReturningDashboard({
   activity,
   leaderboard,
   loadingBots,
-  loadingTournaments,
   loadingActivity,
   loadingLeaderboard,
   onTournamentsRefresh,
@@ -771,7 +635,6 @@ function ReturningDashboard({
   activity: ActivityItem[]
   leaderboard: LeaderboardEntry[]
   loadingBots: boolean
-  loadingTournaments: boolean
   loadingActivity: boolean
   loadingLeaderboard: boolean
   onTournamentsRefresh: () => void
@@ -780,7 +643,6 @@ function ReturningDashboard({
   const activeBots = bots.filter(b => b.active).length
   const [enterTarget, setEnterTarget] = useState<Tournament | null>(null)
   const [registeredBotId, setRegisteredBotId] = useState<string | null>(null)
-  const [hoverBotId, setHoverBotId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const isRegistered = registeredBotId !== null
 
@@ -845,36 +707,23 @@ function ReturningDashboard({
               const p = bot.strategy?.personality ?? {}
               const wr = bot.win_rate ?? 0
               return (
-                <div
+                <BaseCard
                   key={bot.id}
                   onClick={() => navigate(`/bots/build?id=${bot.id}`)}
-                  onMouseEnter={() => setHoverBotId(bot.id)}
-                  onMouseLeave={() => setHoverBotId(null)}
-                  style={{
-                    background: C.card,
-                    border: `1px solid ${hoverBotId === bot.id ? C.accent : C.border}`,
-                    borderRadius: 12, padding: 18, fontFamily: C.font,
-                    cursor: 'pointer',
-                    transform: hoverBotId === bot.id ? 'translateY(-2px)' : 'none',
-                    boxShadow: hoverBotId === bot.id ? '0 4px 20px rgba(0,229,255,0.12)' : 'none',
-                    transition: 'border-color 0.15s, transform 0.15s, box-shadow 0.15s',
-                  }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%',
-                      background: C.accentDim, border: `1px solid ${C.border}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 18, color: C.accent,
-                    }}>{BOT_EMOJIS[i % BOT_EMOJIS.length]}</div>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{bot.name}</div>
-                      <div style={{ fontSize: 11, color: wr > 50 ? C.success : wr > 0 ? C.danger : C.muted }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ ...glassChip(38), fontSize: 18, color: C.accent }}>
+                      {BOT_EMOJIS[i % BOT_EMOJIS.length]}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: T.base, fontWeight: 700, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bot.name}</div>
+                      <div style={{ fontSize: T.xs, color: wr > 50 ? C.success : wr > 0 ? C.danger : C.muted }}>
                         {wr > 0 ? `${wr}% win rate` : 'No games yet'}
                       </div>
                     </div>
                     {bot.id === registeredBotId && (
-                      <div style={{ marginLeft: 'auto', fontSize: 10, color: C.success, background: 'rgba(29,158,117,0.1)', padding: '2px 8px', borderRadius: 20, border: '1px solid rgba(29,158,117,0.3)' }}>
+                      <div style={{ fontSize: T.xs, color: C.success, background: 'rgba(29,158,117,0.1)', padding: '2px 8px', borderRadius: 20, border: '1px solid rgba(29,158,117,0.3)', flexShrink: 0 }}>
                         Registered
                       </div>
                     )}
@@ -886,11 +735,11 @@ function ReturningDashboard({
                     </div>
                   )}
                   {bot.tournaments_count !== undefined && (
-                    <div style={{ fontSize: 11, color: C.muted, marginTop: 12 }}>
+                    <div style={{ fontSize: T.xs, color: C.muted }}>
                       {bot.tournaments_count} tournament{bot.tournaments_count !== 1 ? 's' : ''}
                     </div>
                   )}
-                </div>
+                </BaseCard>
               )
             })}
           </div>
@@ -940,6 +789,7 @@ export default function Home() {
   const navigate = useNavigate()
   const location = useLocation()
   const initialLoadRef = useRef(true)
+  const user = useAuthStore((s) => s.user)
 
   const [bots, setBots] = useState<Bot[]>([])
   const [tournaments, setTournaments] = useState<Tournament[]>([])
@@ -952,6 +802,23 @@ export default function Home() {
   const [loadingActivity, setLoadingActivity] = useState(true)
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true)
   const [error, setError] = useState('')
+
+  // ─── Welcome carousel ───────────────────────────────────────────────────────
+  const [showCarousel, setShowCarousel] = useState(
+    () => localStorage.getItem('hasSeenWelcomeCarousel') !== 'true'
+  )
+  const [carouselToast, setCarouselToast] = useState<string | null>(null)
+
+  function handleCarouselClose(persist: boolean) {
+    if (persist) localStorage.setItem('hasSeenWelcomeCarousel', 'true')
+    setShowCarousel(false)
+  }
+
+  function handleCarouselUpgrade(persist: boolean) {
+    if (persist) localStorage.setItem('hasSeenWelcomeCarousel', 'true')
+    setShowCarousel(false)
+    setCarouselToast('Upgrade coming soon! Stay tuned.')
+  }
 
   async function fetchBots() {
     try {
@@ -1035,6 +902,14 @@ export default function Home() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: C.bg, fontFamily: C.font }}>
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
+      {showCarousel && user && (
+        <WelcomeCarousel
+          userName={user.name}
+          onClose={handleCarouselClose}
+          onUpgrade={handleCarouselUpgrade}
+        />
+      )}
+      {carouselToast && <Toast message={carouselToast} onClose={() => setCarouselToast(null)} />}
       <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <TopBar onCreateBot={() => navigate('/bots/build')} />
@@ -1066,7 +941,6 @@ export default function Home() {
               activity={activity}
               leaderboard={leaderboard}
               loadingBots={loadingBots}
-              loadingTournaments={loadingTournaments}
               loadingActivity={loadingActivity}
               loadingLeaderboard={loadingLeaderboard}
               onTournamentsRefresh={fetchTournaments}

@@ -122,6 +122,11 @@ export class SimulationsService {
     return { ...simulation, progress };
   }
 
+  async remove(id: string, userId: string): Promise<void> {
+    const deleted = await this.simulationRepository.deleteById(id, userId);
+    if (!deleted) throw new NotFoundException("Simulation not found");
+  }
+
   async getResult(id: string, userId: string) {
     const simulation = await this.simulationRepository.findById(id);
     if (!simulation) throw new NotFoundException("Simulation not found");
@@ -277,6 +282,7 @@ export class SimulationsService {
       aggressionFactor,
       heatmapData,
       equityRealization,
+      profitCurve: output.profitCurve ?? [],
     });
 
     await this.simulationRepository.updateStatus(simulationId, "COMPLETED", {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../lib/axios'
 import { Sidebar } from '../components/Sidebar'
+import CustomSelect from '../components/CustomSelect'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -363,20 +364,14 @@ export default function ScenarioLabPage() {
               <label style={{ display: 'block', fontSize: 11, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
                 Bot Profile
               </label>
-              <select
+              <CustomSelect
                 value={selectedBotId}
-                onChange={e => { setSelectedBotId(e.target.value); setResult(null) }}
-                style={{
-                  width: '100%', padding: '8px 12px', background: '#0a0a1a',
-                  border: `1px solid ${C.border}`, borderRadius: 6,
-                  color: C.text, fontFamily: C.font, fontSize: 14, cursor: 'pointer',
-                }}
-              >
-                <option value="" disabled>— Select a bot —</option>
-                {bots.map(b => (
-                  <option key={b.id} value={b.id}>{b.name} [{b.strategy?.tier ?? '?'}]</option>
-                ))}
-              </select>
+                onChange={v => { setSelectedBotId(v); setResult(null) }}
+                options={bots.map(b => ({ value: b.id, label: `${b.name} [${b.strategy?.tier ?? '?'}]` }))}
+                placeholder="— Select a bot —"
+                style={{ width: '100%' }}
+                size="sm"
+              />
               {selectedBot && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: C.muted }}>Tier:</span>
@@ -445,17 +440,12 @@ export default function ScenarioLabPage() {
                 ))}
                 <div>
                   <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>Position</div>
-                  <select
+                  <CustomSelect
                     value={position}
-                    onChange={e => { setPosition(e.target.value); setResult(null) }}
-                    style={{
-                      width: '100%', padding: '7px 10px',
-                      background: '#0a0a1a', border: `1px solid ${C.border}`, borderRadius: 6,
-                      color: C.text, fontFamily: C.font, fontSize: 14, cursor: 'pointer',
-                    }}
-                  >
-                    {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                    onChange={v => { setPosition(v); setResult(null) }}
+                    options={POSITIONS.map(p => ({ value: p, label: p }))}
+                    size="sm"
+                  />
                 </div>
               </div>
               <div style={{ marginTop: 10 }}>

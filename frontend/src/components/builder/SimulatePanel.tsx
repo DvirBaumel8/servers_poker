@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import api from '../../lib/axios'
+import CustomSelect from '../CustomSelect'
 
 const STREETS = ['preflop', 'flop', 'turn', 'river'] as const
 const POSITIONS = ['BTN', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'MP+1', 'HJ', 'CO'] as const
@@ -180,26 +181,12 @@ export default function SimulatePanel({ strategy }: SimulatePanelProps) {
             >
               Street
             </label>
-            <select
+            <CustomSelect
               value={scenario.street}
-              onChange={(e) => handleScenarioChange('street', e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                borderRadius: '0.375rem',
-                color: C.text,
-                fontFamily: C.font,
-                fontSize: '0.875rem',
-              }}
-            >
-              {STREETS.map((s) => (
-                <option key={s} value={s}>
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => handleScenarioChange('street', v)}
+              options={STREETS.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))}
+              size="sm"
+            />
           </div>
 
           {/* Hole cards */}
@@ -217,27 +204,14 @@ export default function SimulatePanel({ strategy }: SimulatePanelProps) {
             </label>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {([0, 1] as const).map((idx) => (
-                <select
+                <CustomSelect
                   key={idx}
                   value={scenario.holeCards[idx]}
-                  onChange={(e) => handleHoleCardChange(idx, e.target.value)}
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem',
-                    background: C.bg,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: '0.375rem',
-                    color: C.text,
-                    fontFamily: C.font,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  {cardRanks.map((rank) => (
-                    <option key={rank} value={rank}>
-                      {rank}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => handleHoleCardChange(idx, v)}
+                  options={cardRanks.map(r => ({ value: r, label: r }))}
+                  style={{ flex: 1 }}
+                  size="sm"
+                />
               ))}
             </div>
           </div>
@@ -255,26 +229,12 @@ export default function SimulatePanel({ strategy }: SimulatePanelProps) {
             >
               Position
             </label>
-            <select
+            <CustomSelect
               value={scenario.position}
-              onChange={(e) => handleScenarioChange('position', e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                borderRadius: '0.375rem',
-                color: C.text,
-                fontFamily: C.font,
-                fontSize: '0.875rem',
-              }}
-            >
-              {POSITIONS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => handleScenarioChange('position', v)}
+              options={POSITIONS.map(p => ({ value: p, label: p }))}
+              size="sm"
+            />
           </div>
 
           {/* Stack & Pot */}

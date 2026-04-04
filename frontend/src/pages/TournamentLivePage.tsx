@@ -38,7 +38,7 @@ export default function TournamentLivePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [eliminated, setEliminated] = useState(false)
-  const [tournamentFinished, setTournamentFinished] = useState(false)
+  const [, setTournamentFinished] = useState(false)
   const [tournamentStatus, setTournamentStatus] = useState<string | null>(null)
 
   // Fetch current table info

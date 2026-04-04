@@ -37,7 +37,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({ token: state.token, user: state.user, isAuthenticated: state.isAuthenticated }),
       onRehydrateStorage: () => (state) => {
         // After loading from storage, ensure state is valid
-        if (!state?.token) {
+        if (state && !state.token) {
           state.isAuthenticated = false
           state.user = null
         }

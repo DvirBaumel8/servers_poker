@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../lib/axios'
 import { Sidebar } from '../components/Sidebar'
 import { useAuthStore } from '../store/authStore'
+import CustomSelect from '../components/CustomSelect'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -299,19 +300,17 @@ export default function LeaderboardPage() {
           {/* Sort */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, color: C.muted }}>Sort</span>
-            <select
+            <CustomSelect
               value={sortBy}
-              onChange={e => { setSortBy(e.target.value); setPage(0) }}
-              style={{
-                padding: '3px 8px', borderRadius: 6,
-                border: `1px solid ${C.border}`, background: C.card, color: C.text,
-                fontSize: 11, fontFamily: C.font, outline: 'none', cursor: 'pointer',
-              }}
-            >
-              <option value="bb100">BB/100</option>
-              <option value="roi">ROI</option>
-              <option value="net_profit">Net Profit</option>
-            </select>
+              onChange={v => { setSortBy(v); setPage(0) }}
+              options={[
+                { value: 'bb100', label: 'BB/100' },
+                { value: 'roi', label: 'ROI' },
+                { value: 'net_profit', label: 'Net Profit' },
+              ]}
+              size="xs"
+              style={{ minWidth: 90 }}
+            />
           </div>
 
           {/* Min Hands */}

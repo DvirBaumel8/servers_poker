@@ -13,32 +13,14 @@
  * Target: < 60 seconds (no real game simulation — we simulate completion)
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication, ValidationPipe } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule } from "@nestjs/config";
-import { EventEmitterModule } from "@nestjs/event-emitter";
-import { ThrottlerModule } from "@nestjs/throttler";
-import { ScheduleModule } from "@nestjs/schedule";
-import { APP_GUARD } from "@nestjs/core";
+import { describe, it, expect, beforeAll } from "vitest";
+import { INestApplication } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import request from "supertest";
 import { v4 as uuidv4 } from "uuid";
-import * as entities from "../../src/entities";
-import { appConfig } from "../../src/config";
-import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
-import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
-import { BigIntInterceptor } from "../../src/common/interceptors/bigint.interceptor";
-import { ServicesModule } from "../../src/services/services.module";
-import { AuthModule } from "../../src/modules/auth/auth.module";
-import { BotsModule } from "../../src/modules/bots/bots.module";
-import { GamesModule } from "../../src/modules/games/games.module";
-import { TournamentsModule } from "../../src/modules/tournaments/tournaments.module";
-import { FinanceModule } from "../../src/modules/finance/finance.module";
-import { MatchmakingModule } from "../../src/modules/matchmaking/matchmaking.module";
+import { getSharedApp } from "./shared/app-singleton";
 import { MatchmakingService } from "../../src/modules/matchmaking/matchmaking.service";
 import { PrizeDistributionService } from "../../src/modules/matchmaking/prize-distribution.service";
 import { FinanceService } from "../../src/modules/finance/finance.service";
@@ -145,61 +127,15 @@ describe("Matchmaking & Finance E2E — Happy Flow", () => {
   const manualBots: TestBot[] = [];
 
   beforeAll(async () => {
-    const mod: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true, load: [appConfig] }),
-        TypeOrmModule.forRoot({
-          type: "postgres",
-          host: process.env.TEST_DB_HOST || "localhost",
-          port: parseInt(process.env.TEST_DB_PORT || "5432", 10),
-          username: process.env.TEST_DB_USERNAME || "postgres",
-          password: process.env.TEST_DB_PASSWORD || "postgres",
-          database: process.env.TEST_DB_NAME || "poker_test",
-          entities: Object.values(entities),
-          synchronize: true,
-          dropSchema: true,
-        }),
-        ThrottlerModule.forRoot([{ ttl: 60000, limit: 100000 }]),
-        EventEmitterModule.forRoot(),
-        ScheduleModule.forRoot(),
-        ServicesModule,
-        AuthModule,
-        BotsModule,
-        GamesModule,
-        TournamentsModule,
-        FinanceModule,
-        MatchmakingModule,
-      ],
-      providers: [
-        { provide: APP_GUARD, useClass: JwtAuthGuard },
-        { provide: APP_GUARD, useClass: CustomThrottlerGuard },
-      ],
-    }).compile();
-
-    app = mod.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalInterceptors(new BigIntInterceptor());
-    app.setGlobalPrefix("api/v1");
-    await app.init();
-
-    ds = mod.get(DataSource);
-    jwt = mod.get(JwtService);
-    matchmaking = mod.get(MatchmakingService);
-    prizes = mod.get(PrizeDistributionService);
-    finance = mod.get(FinanceService);
-    emitter = mod.get(EventEmitter2);
-  }, 30000);
-
-  afterAll(async () => {
-    if (ds?.isInitialized) await ds.destroy();
-    await app.close();
-  });
+    const shared = await getSharedApp();
+    app = shared.app;
+    ds = shared.dataSource;
+    jwt = shared.jwtService;
+    matchmaking = shared.module.get(MatchmakingService);
+    prizes = shared.module.get(PrizeDistributionService);
+    finance = shared.module.get(FinanceService);
+    emitter = shared.module.get(EventEmitter2);
+  }, 60000);
 
   // ── Step 0: Seed users, bots, wallets ──────────────────────────────────────
 

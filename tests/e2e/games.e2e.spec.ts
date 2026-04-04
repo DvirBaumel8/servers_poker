@@ -1,29 +1,15 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication, ValidationPipe } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule } from "@nestjs/config";
-import { EventEmitterModule } from "@nestjs/event-emitter";
+import { describe, it, expect, beforeAll } from "vitest";
+import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
-import { AuthModule } from "../../src/modules/auth/auth.module";
-import { BotsModule } from "../../src/modules/bots/bots.module";
-import { GamesModule } from "../../src/modules/games/games.module";
-import { TournamentsModule } from "../../src/modules/tournaments/tournaments.module";
-import { ServicesModule } from "../../src/services/services.module";
 import {
   createTestUser as createTestUserHelper,
   createTestBot as createTestBotHelper,
   TestUser,
   TestBot,
 } from "./test-helpers";
-import * as entities from "../../src/entities";
-import { appConfig } from "../../src/config";
-import { APP_GUARD } from "@nestjs/core";
-import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
-import { ThrottlerModule } from "@nestjs/throttler";
-import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
+import { getSharedApp } from "./shared/app-singleton";
 import { v4 as uuidv4 } from "uuid";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -34,64 +20,11 @@ describe("Games E2E Tests", () => {
   let jwtService: JwtService;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({
-          isGlobal: true,
-          load: [appConfig],
-        }),
-        TypeOrmModule.forRoot({
-          type: "postgres",
-          host: process.env.TEST_DB_HOST || "localhost",
-          port: parseInt(process.env.TEST_DB_PORT || "5432", 10),
-          username: process.env.TEST_DB_USERNAME || "postgres",
-          password: process.env.TEST_DB_PASSWORD || "postgres",
-          database: process.env.TEST_DB_NAME || "poker_test",
-          entities: Object.values(entities),
-          synchronize: true,
-          dropSchema: true,
-        }),
-        ThrottlerModule.forRoot([{ ttl: 60000, limit: 100000 }]),
-        EventEmitterModule.forRoot(),
-        ServicesModule,
-        AuthModule,
-        BotsModule,
-        GamesModule,
-        TournamentsModule,
-      ],
-      providers: [
-        {
-          provide: APP_GUARD,
-          useClass: JwtAuthGuard,
-        },
-        {
-          provide: APP_GUARD,
-          useClass: CustomThrottlerGuard,
-        },
-      ],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.setGlobalPrefix("api/v1");
-
-    await app.init();
-    dataSource = moduleFixture.get(DataSource);
-    jwtService = moduleFixture.get(JwtService);
-  });
-
-  afterAll(async () => {
-    if (dataSource?.isInitialized) {
-      await dataSource.destroy();
-    }
-    await app.close();
-  });
+    const shared = await getSharedApp();
+    app = shared.app;
+    dataSource = shared.dataSource;
+    jwtService = shared.jwtService;
+  }, 60000);
 
   async function createTestUser() {
     const id = uid();

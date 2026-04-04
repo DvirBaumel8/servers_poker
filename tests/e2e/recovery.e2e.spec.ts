@@ -1,20 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication, ValidationPipe } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule } from "@nestjs/config";
-import { EventEmitterModule } from "@nestjs/event-emitter";
-import { ThrottlerModule } from "@nestjs/throttler";
+import { describe, it, expect, beforeAll } from "vitest";
+import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { DataSource } from "typeorm";
-import { AuthModule } from "../../src/modules/auth/auth.module";
-import { BotsModule } from "../../src/modules/bots/bots.module";
-import { GamesModule } from "../../src/modules/games/games.module";
-import { ServicesModule } from "../../src/services/services.module";
-import * as entities from "../../src/entities";
-import { appConfig } from "../../src/config";
-import { APP_GUARD } from "@nestjs/core";
-import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
+import { getSharedApp } from "./shared/app-singleton";
 
 let testCounter = 1;
 const uid = () => `${testCounter++}${Math.random().toString(36).slice(2, 6)}`;
@@ -24,49 +12,10 @@ describe("Recovery E2E Tests", () => {
   let dataSource: DataSource;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true, load: [appConfig] }),
-        TypeOrmModule.forRoot({
-          type: "postgres",
-          host: process.env.TEST_DB_HOST || "localhost",
-          port: parseInt(process.env.TEST_DB_PORT || "5432", 10),
-          username: process.env.TEST_DB_USERNAME || "postgres",
-          password: process.env.TEST_DB_PASSWORD || "postgres",
-          database: process.env.TEST_DB_NAME || "poker_test",
-          entities: Object.values(entities),
-          synchronize: true,
-          dropSchema: true,
-        }),
-        ThrottlerModule.forRoot([
-          { name: "default", ttl: 60000, limit: 100000 },
-        ]),
-        EventEmitterModule.forRoot(),
-        ServicesModule,
-        AuthModule,
-        BotsModule,
-        GamesModule,
-      ],
-      providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.setGlobalPrefix("api/v1");
-    await app.init();
-    dataSource = moduleFixture.get(DataSource);
-  });
-
-  afterAll(async () => {
-    if (dataSource?.isInitialized) await dataSource.destroy();
-    await app.close();
-  });
+    const shared = await getSharedApp();
+    app = shared.app;
+    dataSource = shared.dataSource;
+  }, 60000);
 
   async function registerPlayer(): Promise<{
     accessToken: string;

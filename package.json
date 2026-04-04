@@ -23,7 +23,7 @@
     "test:cov:fast": "vitest run --coverage --exclude 'tests/e2e/**'",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "test:e2e": "vitest run tests/e2e",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:e2e:docker": "docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from test",
     "test:db:setup": "npx ts-node scripts/setup-test-db.ts",
     "test:all": "vitest run",
@@ -42,12 +42,12 @@
     "seed:system-bots": "npx ts-node scripts/seed-system-bots.ts",
     "tournament:quick-start": "npx ts-node scripts/tournament-quick-start.ts",
     "game:watch": "bash scripts/watch-live-game.sh",
-    "test:poker": "npx ts-node scripts/run-poker-tests.ts",
+    "test:poker": "npx ts-node --transpile-only scripts/run-poker-tests.ts",
     "bugs:detect": "npx ts-node src/testing-utilities/ui-bug-reporter.ts",
-    "audit:games": "npx ts-node scripts/audit-games.ts",
-    "audit:bots": "npx ts-node scripts/audit-bots.ts",
-    "battle:lab": "npx ts-node scripts/battle-lab.ts",
-    "battle:lab:quick": "npx ts-node scripts/battle-lab.ts --tournaments=100"
+    "audit:games": "npx ts-node --transpile-only scripts/audit-games.ts",
+    "audit:bots": "npx ts-node --transpile-only scripts/audit-bots.ts",
+    "battle:lab": "npx ts-node --transpile-only scripts/battle-lab.ts",
+    "battle:lab:quick": "npx ts-node --transpile-only scripts/battle-lab.ts --tournaments=100"
   },
   "keywords": [
     "poker",

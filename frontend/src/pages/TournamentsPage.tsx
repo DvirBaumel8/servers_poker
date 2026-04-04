@@ -164,7 +164,7 @@ function FeaturedCard({
   onClick: () => void
 }) {
   const [hovered, setHovered] = useState(false)
-  const [tick, setTick] = useState(0)
+  const [, setTick] = useState(0)
 
   // Tick every second to keep countdown live
   useEffect(() => {
@@ -340,7 +340,7 @@ function TournamentCard({
   onClick: () => void
   isRegistered?: boolean
 }) {
-  const [tick, setTick] = useState(0)
+  const [, setTick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000)
     return () => clearInterval(id)

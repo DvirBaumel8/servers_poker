@@ -125,6 +125,8 @@ export interface HandSimulationOutput {
   passiveActions: number;
   /** Win/loss/hands per position key. */
   heatmap: Record<string, { wins: number; losses: number; hands: number }>;
+  /** Cumulative profit sampled every 100 hands. Index 0 = hand 0 (profit 0), last entry = final profit. */
+  profitCurve: number[];
   durationMs: number;
 }
 

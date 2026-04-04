@@ -1,23 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
-import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication, ValidationPipe } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { EventEmitterModule } from "@nestjs/event-emitter";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { io, Socket } from "socket.io-client";
 import { JwtService } from "@nestjs/jwt";
-import { AuthModule } from "../../src/modules/auth/auth.module";
-import { BotsModule } from "../../src/modules/bots/bots.module";
-import { GamesModule } from "../../src/modules/games/games.module";
-import { ServicesModule } from "../../src/services/services.module";
-import * as entities from "../../src/entities";
-import { appConfig } from "../../src/config";
-import { APP_GUARD } from "@nestjs/core";
-import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
-import { ThrottlerModule } from "@nestjs/throttler";
-import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
+import { getSharedApp } from "./shared/app-singleton";
 import { sleep } from "../utils/test-helpers";
 import { v4 as uuidv4 } from "uuid";
 
@@ -31,72 +18,14 @@ describe("WebSocket E2E Tests", () => {
   let clientSocket: Socket | null = null;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({
-          isGlobal: true,
-          load: [appConfig],
-        }),
-        TypeOrmModule.forRoot({
-          type: "postgres",
-          host: process.env.TEST_DB_HOST || "localhost",
-          port: parseInt(process.env.TEST_DB_PORT || "5432", 10),
-          username: process.env.TEST_DB_USERNAME || "postgres",
-          password: process.env.TEST_DB_PASSWORD || "postgres",
-          database: process.env.TEST_DB_NAME || "poker_test",
-          entities: Object.values(entities),
-          synchronize: true,
-          dropSchema: true,
-        }),
-        ThrottlerModule.forRoot([{ ttl: 60000, limit: 100000 }]),
-        EventEmitterModule.forRoot(),
-        ServicesModule,
-        AuthModule,
-        BotsModule,
-        GamesModule,
-      ],
-      providers: [
-        {
-          provide: APP_GUARD,
-          useClass: JwtAuthGuard,
-        },
-        {
-          provide: APP_GUARD,
-          useClass: CustomThrottlerGuard,
-        },
-      ],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.setGlobalPrefix("api/v1");
-
-    await app.init();
-    await app.listen(0);
-
+    const shared = await getSharedApp();
+    app = shared.app;
+    dataSource = shared.dataSource;
+    jwtService = shared.jwtService;
     const address = app.getHttpServer().address();
     const port = typeof address === "object" ? address?.port : 0;
     serverUrl = `http://localhost:${port}`;
-
-    dataSource = moduleFixture.get(DataSource);
-    jwtService = moduleFixture.get(JwtService);
-  });
-
-  afterAll(async () => {
-    if (clientSocket && clientSocket.connected) {
-      clientSocket.disconnect();
-    }
-    if (dataSource && dataSource.isInitialized) {
-      await dataSource.destroy();
-    }
-    await app.close();
-  });
+  }, 60000);
 
   afterEach(async () => {
     if (clientSocket && clientSocket.connected) {

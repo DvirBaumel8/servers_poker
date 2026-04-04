@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BookOpen, MessageCircle, HelpCircle } from 'lucide-react'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
 import { Sidebar } from '../components/Sidebar'
 import Toast from '../components/Toast'
+import CustomSelect from '../components/CustomSelect'
 
 const C = {
   bg: '#0a0a1a',
@@ -24,6 +26,27 @@ const SUBJECT_OPTIONS = [
   { value: 'Feature Request', label: 'Feature Request' },
   { value: 'Strategy Inquiry', label: 'Strategy Inquiry' },
   { value: 'Other', label: 'Other' },
+]
+
+const QUICK_RESOURCES = [
+  {
+    icon: BookOpen,
+    title: 'Documentation',
+    description: 'Learn how to build advanced bot logic.',
+    href: '#',
+  },
+  {
+    icon: MessageCircle,
+    title: 'Discord Community',
+    description: 'Connect with other developers.',
+    href: '#',
+  },
+  {
+    icon: HelpCircle,
+    title: 'FAQ',
+    description: 'Quick answers to common questions.',
+    href: '#',
+  },
 ]
 
 const MAX_MESSAGE_LENGTH = 1000
@@ -51,6 +74,7 @@ function FieldLabel({ text }: { text: string }) {
     </label>
   )
 }
+
 
 export default function SupportPage() {
   const navigate = useNavigate()
@@ -97,7 +121,8 @@ export default function SupportPage() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: C.bg, fontFamily: C.font }}>
       <Sidebar />
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+        {/* Main card */}
         <div style={{
           width: '100%', maxWidth: 560,
           background: C.card, border: `1px solid ${C.border}`,
@@ -159,28 +184,18 @@ export default function SupportPage() {
                 {/* Subject */}
                 <div style={{ marginBottom: 20 }}>
                   <FieldLabel text="Subject" />
-                  <select
+                  <CustomSelect
                     value={subject}
-                    onChange={(e) => { setSubject(e.target.value); setErrors(prev => ({ ...prev, subject: undefined })) }}
-                    style={{
-                      ...inputStyle,
-                      appearance: 'none',
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 7L11 1' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 14px center',
-                      paddingRight: 36,
-                      cursor: 'pointer',
-                      color: subject ? C.text : C.muted,
-                      borderColor: errors.subject ? C.danger : C.border,
-                    }}
-                  >
-                    {SUBJECT_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value} disabled={opt.value === ''} style={{ background: '#0c0c1e', color: C.text }}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.subject && <div style={{ fontSize: 12, color: C.danger, marginTop: 6 }}>{errors.subject}</div>}
+                    onChange={(val) => { setSubject(val); setErrors(prev => ({ ...prev, subject: undefined })) }}
+                    options={SUBJECT_OPTIONS.filter(o => o.value !== '')}
+                    placeholder={SUBJECT_OPTIONS[0].label}
+                    error={!!errors.subject}
+                  />
+                  {errors.subject && (
+                    <div style={{ fontSize: 13, fontWeight: 500, color: C.danger, marginTop: 6 }}>
+                      {errors.subject}
+                    </div>
+                  )}
                 </div>
 
                 {/* Message */}
@@ -208,7 +223,11 @@ export default function SupportPage() {
                       borderColor: errors.message ? C.danger : C.border,
                     }}
                   />
-                  {errors.message && <div style={{ fontSize: 12, color: C.danger, marginTop: 6 }}>{errors.message}</div>}
+                  {errors.message && (
+                    <div style={{ fontSize: 13, fontWeight: 500, color: C.danger, marginTop: 6 }}>
+                      {errors.message}
+                    </div>
+                  )}
                 </div>
 
                 {/* Submit */}
@@ -241,9 +260,55 @@ export default function SupportPage() {
             </>
           )}
         </div>
+
+        {/* Quick Resources */}
+        <div style={{ width: '100%', maxWidth: 560, marginTop: 16 }}>
+          <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: 2 }}>
+            Quick Resources
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {QUICK_RESOURCES.map((res) => (
+              <ResourceCard key={res.title} {...res} />
+            ))}
+          </div>
+        </div>
       </div>
       {toast && <Toast message={toast} onClose={() => setToast('')} />}
     </div>
+  )
+}
+
+function ResourceCard({
+  icon: Icon,
+  title,
+  description,
+  href,
+}: {
+  icon: React.ElementType
+  title: string
+  description: string
+  href: string
+}) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <a
+      href={href}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'block',
+        background: hovered ? 'rgba(19,19,42,0.9)' : C.card,
+        border: `1px solid ${hovered ? 'rgba(0,229,255,0.3)' : C.border}`,
+        borderRadius: 12,
+        padding: 16,
+        textDecoration: 'none',
+        transition: 'border-color 0.2s, background 0.2s',
+      }}
+    >
+      <Icon size={20} color={C.accent} style={{ marginBottom: 8 }} />
+      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{title}</div>
+      <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>{description}</div>
+    </a>
   )
 }
 
@@ -262,7 +327,8 @@ function Spinner() {
 
 function SuccessState({ onBack }: { onBack: () => void }) {
   return (
-    <div style={{ textAlign: 'center', padding: '20px 0' }}>
+    <div style={{ textAlign: 'center', padding: '20px 0', animation: 'fadeIn 0.4s ease-out forwards' }}>
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }`}</style>
       <div style={{
         width: 64, height: 64, borderRadius: '50%',
         background: 'rgba(29,158,117,0.15)', border: '1px solid rgba(29,158,117,0.4)',
@@ -273,7 +339,10 @@ function SuccessState({ onBack }: { onBack: () => void }) {
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </div>
-      <h2 style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 700, color: C.text }}>Message Sent!</h2>
+      <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, color: C.text }}>Message Sent!</h2>
+      <p style={{ margin: '0 0 6px', fontSize: 13, color: C.accent, fontWeight: 500 }}>
+        We'll get back to you within 24 hours.
+      </p>
       <p style={{ margin: '0 0 32px', fontSize: 14, color: C.muted, lineHeight: 1.6 }}>
         Thanks for reaching out. We'll get back to you as soon as possible.
       </p>

@@ -308,7 +308,9 @@ export class TournamentDirectorService
     }
 
     if (tournament.status !== "registering") {
-      throw new Error("Tournament cannot be started");
+      throw new Error(
+        `Tournament cannot be started (status: ${tournament.status})`,
+      );
     }
 
     const entries = await this.tournamentRepository.getEntries(tournamentId);
@@ -331,17 +333,19 @@ export class TournamentDirectorService
       this.redisService,
     );
 
+    // Mark as running BEFORE inserting tables so the scheduler never double-starts
+    // if director.start() fails mid-way (partial tables already inserted).
+    await this.tournamentRepository.updateStatus(tournamentId, "running");
     this.activeDirectors.set(tournamentId, director);
 
     try {
       await director.start();
-      // Only update status to running AFTER director successfully starts
-      await this.tournamentRepository.updateStatus(tournamentId, "running");
     } catch (error) {
-      // If tournament startup fails, clean up and re-throw
+      // Start failed — cancel so it doesn't get stuck in limbo
       this.activeDirectors.delete(tournamentId);
+      await this.tournamentRepository.updateStatus(tournamentId, "cancelled");
       this.logger.error(
-        `Failed to start tournament ${tournamentId}:`,
+        `Failed to start tournament ${tournamentId}, marked as cancelled:`,
         error instanceof Error ? error.message : String(error),
       );
       throw error;

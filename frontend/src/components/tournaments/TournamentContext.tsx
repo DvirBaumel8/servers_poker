@@ -58,7 +58,6 @@ const C = {
 export default function TournamentContext({
   tournamentId,
   currentTable,
-  onEliminated,
 }: TournamentContextProps) {
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [state, setState] = useState<TournamentState | null>(null)
@@ -127,7 +126,7 @@ export default function TournamentContext({
     )
   }
 
-  const playerPosition = Math.max(1, state.playersRemaining - currentTable.remainingPlayers + 1)
+  // playerPosition available if needed: Math.max(1, state.playersRemaining - currentTable.remainingPlayers + 1)
   const blindInfo = `Level ${currentTable.currentBlindLevel}`
 
   return (
