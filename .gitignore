@@ -39,4 +39,4 @@ tests/qa/performance/reports/
 .aider*
 
 # Claude Code temp files
-.claude/worktrees/
+.claude/

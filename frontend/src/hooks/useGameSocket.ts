@@ -207,7 +207,7 @@ export function useGameSocket(gameId: string): {
   const lastSnapshotRef = useRef<BackendGameState | null>(null)
   const tournamentIdRef = useRef<string | null>(null)
   const handResultRef = useRef<HandResultInfo | null>(null)
-  const [myBotIds, setMyBotIds] = useState<string[]>([])
+  const [_myBotIds, setMyBotIds] = useState<string[]>([])
   const myBotIdsRef = useRef<string[]>([])
   const [socketState, setSocketState] = useState<Socket | null>(null)
   const token = useAuthStore((s) => s.token)
