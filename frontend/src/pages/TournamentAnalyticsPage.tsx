@@ -672,9 +672,9 @@ function PlayerCard({
 
   useEffect(() => {
     if (Math.abs(delta) > 0.05) {
-      setShowDelta(true)
-      const t = setTimeout(() => setShowDelta(false), 1800)
-      return () => clearTimeout(t)
+      const t0 = setTimeout(() => setShowDelta(true), 0)
+      const t1 = setTimeout(() => setShowDelta(false), 1800)
+      return () => { clearTimeout(t0); clearTimeout(t1) }
     }
   }, [delta])
 
@@ -835,7 +835,13 @@ function ActionArena({
   error: boolean
   handNumber: number
 }) {
-  const prevEquityRef = useRef<Record<string, number>>({})
+  const [prevEquity, setPrevEquity] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (!hand) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPrevEquity(Object.fromEntries(hand.players.map(p => [p.bot_id, estimateEquity(p)])))
+  }, [hand?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -848,12 +854,6 @@ function ActionArena({
   if (error || !hand) {
     return <DataLossCard handNumber={handNumber} />
   }
-
-  // Snapshot prev equity before render
-  const prevEquity = { ...prevEquityRef.current }
-  hand.players.forEach(p => {
-    prevEquityRef.current[p.bot_id] = estimateEquity(p)
-  })
 
   const winnerIds = new Set(hand.players.filter(p => p.won).map(p => p.bot_id))
   const pot = Number(hand.pot)

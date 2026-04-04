@@ -87,6 +87,7 @@ export function useTournamentSocket({
     })
 
     socketRef.current = socket
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSocket(socket)
 
     // Connection events

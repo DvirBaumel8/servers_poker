@@ -266,6 +266,7 @@ export function useGameSocket(gameId: string): {
     })
 
     socketRef.current = socket
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSocketState(socket)
 
     // Connection events
