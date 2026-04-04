@@ -31,54 +31,50 @@ const C = {
   font: "'Trebuchet MS', sans-serif",
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export default function Podium({ topThree, userId }: PodiumProps) {
-  // Arrange positions for visual podium: 2nd (left), 1st (center), 3rd (right)
-  const first = topThree[0]
-  const second = topThree[1]
-  const third = topThree[2]
-
-  const getMedalColor = (position: number) => {
-    switch (position) {
-      case 1:
-        return '#ffd700' // Gold
-      case 2:
-        return '#c0c0c0' // Silver
-      case 3:
-        return '#cd7f32' // Bronze
-      default:
-        return C.accent
-    }
+function getMedalColor(position: number): string {
+  switch (position) {
+    case 1:
+      return '#ffd700' // Gold
+    case 2:
+      return '#c0c0c0' // Silver
+    case 3:
+      return '#cd7f32' // Bronze
+    default:
+      return C.accent
   }
+}
 
-  const getMedalEmoji = (position: number) => {
-    switch (position) {
-      case 1:
-        return '🥇'
-      case 2:
-        return '🥈'
-      case 3:
-        return '🥉'
-      default:
-        return '🏅'
-    }
+function getMedalEmoji(position: number): string {
+  switch (position) {
+    case 1:
+      return '🥇'
+    case 2:
+      return '🥈'
+    case 3:
+      return '🥉'
+    default:
+      return '🏅'
   }
+}
 
-  const getHeightPercent = (position: number) => {
-    switch (position) {
-      case 1:
-        return 100
-      case 2:
-        return 75
-      case 3:
-        return 60
-      default:
-        return 50
-    }
+function getHeightPercent(position: number): number {
+  switch (position) {
+    case 1:
+      return 100
+    case 2:
+      return 75
+    case 3:
+      return 60
+    default:
+      return 50
   }
+}
 
-  const PodiumPlace = ({ entry, position }: { entry?: ResultEntry; position: 1 | 2 | 3 }) => {
+// ─── PodiumPlace (module-scope to avoid re-creation on every render) ──────────
+
+function PodiumPlace({ entry, position, currentUserId }: { entry?: ResultEntry; position: 1 | 2 | 3; currentUserId?: string }) {
     if (!entry) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
@@ -113,7 +109,7 @@ export default function Podium({ topThree, userId }: PodiumProps) {
       )
     }
 
-    const isCurrentUser = userId === entry.userId
+    const isCurrentUser = currentUserId === entry.userId
     const medalColor = getMedalColor(position)
 
     return (
@@ -235,6 +231,14 @@ export default function Podium({ topThree, userId }: PodiumProps) {
     )
   }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function Podium({ topThree, userId }: PodiumProps) {
+  // Arrange positions for visual podium: 2nd (left), 1st (center), 3rd (right)
+  const first = topThree[0]
+  const second = topThree[1]
+  const third = topThree[2]
+
   return (
     <div
       style={{
@@ -248,17 +252,17 @@ export default function Podium({ topThree, userId }: PodiumProps) {
     >
       {/* 2nd place (left) */}
       <div style={{ flex: 1, minWidth: 200 }}>
-        <PodiumPlace entry={second} position={2} />
+        <PodiumPlace entry={second} position={2} currentUserId={userId} />
       </div>
 
       {/* 1st place (center - tallest) */}
       <div style={{ flex: 1, minWidth: 200 }}>
-        <PodiumPlace entry={first} position={1} />
+        <PodiumPlace entry={first} position={1} currentUserId={userId} />
       </div>
 
       {/* 3rd place (right) */}
       <div style={{ flex: 1, minWidth: 200 }}>
-        <PodiumPlace entry={third} position={3} />
+        <PodiumPlace entry={third} position={3} currentUserId={userId} />
       </div>
     </div>
   )

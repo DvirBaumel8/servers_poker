@@ -135,5 +135,9 @@
     "typescript-eslint": "^8.58.0",
     "vitest": "^4.1.2",
     "ws": "^8.20.0"
+  },
+  "overrides": {
+    "picomatch": "^4.0.4",
+    "path-to-regexp": "^8.4.0"
   }
 }
