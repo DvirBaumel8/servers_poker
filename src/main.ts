@@ -3,6 +3,7 @@ import { ValidationPipe, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import helmet from "helmet";
+import { json, urlencoded } from "express";
 import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { SanitizePipe } from "./common/pipes/sanitize.pipe";
@@ -26,7 +27,13 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
+    bodyParser: false, // We register body-parser manually below with a higher limit
   });
+
+  // Body parser: 5MB limit to accommodate large bot strategies and range charts.
+  // NestJS default is 100KB which is too small for complex strategy payloads.
+  app.use(json({ limit: "5mb" }));
+  app.use(urlencoded({ extended: true, limit: "5mb" }));
 
   if (isProduction) {
     app.useLogger(app.get(PinoLogger));
@@ -74,26 +81,6 @@ async function bootstrap() {
         ? { maxAge: 31536000, includeSubDomains: true, preload: true }
         : false,
     }),
-  );
-
-  // Security: Request body size limits (1MB default, 100KB for most endpoints)
-  app.use(
-    (req: { path: string }, _res: unknown, next: (err?: Error) => void) => {
-      const contentLength = parseInt(
-        (req as { headers?: Record<string, string> }).headers?.[
-          "content-length"
-        ] || "0",
-        10,
-      );
-      const maxSize = req.path.includes("/upload") ? 10 * 1024 * 1024 : 102400; // 10MB for uploads, 100KB otherwise
-
-      if (contentLength > maxSize) {
-        const error = new Error("Request body too large");
-        (error as Error & { status: number }).status = 413;
-        return next(error);
-      }
-      next();
-    },
   );
 
   // Serialize BigInt values as strings in all HTTP responses

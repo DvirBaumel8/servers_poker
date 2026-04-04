@@ -62,100 +62,15 @@ node dist/src/main.js
 
 **ONE COMMAND TO RUN ALL TESTS:**
 ```bash
-npm run qa:all        # Standard: Unit + Integration + Monsters (~33s)
-npm run qa:all:quick  # Quick: Unit + Integration + Fast Monsters (~12s)
-npm run qa:all:full   # Full: All tests including E2E + Simulations (~150s)
+npm run test:all   # Unit + Integration + E2E
 ```
 
 **Individual test suites:**
 - **Unit tests**: `npm run test:unit` — no DB needed (~10s)
 - **Integration tests**: `npm run test:integration` — no DB needed (~1s)
 - **E2E tests**: `npm run test:e2e` — requires PostgreSQL (~118s)
-- **Monsters**: `npm run monsters:all` — all 25 QA monsters (~19s)
 - **Lint**: `npx eslint "{src,apps,libs,test}/**/*.ts"` (backend)
 
 ### Email verification in dev mode
 
 The `EmailService` logs verification codes to stdout instead of sending emails. Look for `[DEV MODE] Email to ...` in the backend logs for codes.
-
-### QA Monster Framework (IMPORTANT)
-
-**Every feature, refactor, or significant UI change MUST include QA Monster updates.**
-
-All QA testing lives in `tests/qa/monsters/` — the consolidated "Monster Army" system.
-
-**When Monsters Run (automatic):**
-
-| Trigger | What Runs | Time | Purpose |
-|---------|-----------|------|---------|
-| Pre-commit | Fast monsters | ~10s | Catch issues before git history |
-| Every PR | All 25 monsters | ~17s | Full validation before merge |
-| Push to main | All + E2E | ~2min | Post-merge verification |
-| Nightly | Full + Chaos | ~5min | Deep testing, baselines |
-
-**Server auto-start:** Monsters automatically start BE/FE if they aren't running, and tear them down when finished. If servers are already running, they are left untouched. Use `--no-auto-start` to disable this, or `--static` to only run static-analysis monsters.
-
-**Quick commands:**
-```bash
-# Run all 25 monsters in parallel (auto-starts BE/FE if needed)
-npm run monsters:all
-
-# Fast monsters only (~10s)
-npm run monsters:all:fast
-
-# 🎰 Simulation Monster - Professional QA (most important!)
-npm run monsters:simulation           # Standard (~90s, 4 scenarios)
-npm run monsters:simulation:quick     # Quick (~30s, CI-friendly)
-npm run monsters:simulation:thorough  # Full (~5-10min, 7 scenarios)
-
-# Single monster
-npm run monsters:invariant
-npm run monsters:browser-qa
-npm run monsters:api
-
-# 🦸 Explorer Monster - autonomous UI crawler (medium preset; ~90s default, EXPLORER_MAX_RUNTIME)
-npm run monsters:explorer
-
-# 🔁 Regression Monster - bug-retrospectives guard
-npm run monsters:regression-check
-```
-
-**Key files:**
-- `tests/qa/monsters/README.md` — Monster Army overview & architecture
-- `tests/qa/monsters/orchestrator.ts` — Main entry point
-- `tests/qa/monsters/data/bug-retrospectives.json` — Bug analysis for monster improvement
-- `tests/qa/monsters/docs/CONTRIBUTING.md` — Guide for updating monster
-- `.cursor/rules/bug-to-monster-workflow.mdc` — Bug-to-Monster improvement process
-
-**What to update:**
-
-| Change Type | Update Location |
-|-------------|-----------------|
-| New API endpoint | `monsters/api-monster/api-monster.config.ts` |
-| Paginated list client vs controller | `monsters/contract-monster/contract-monster.ts` |
-| New page/route | `monsters/visual-monster/visual-monster.config.ts` |
-| New poker invariant | `monsters/invariant-monster/poker-invariants.ts` |
-| New user flow | `monsters/flows/` (game-flow, tournament-flow) |
-| Game logic changes | `monsters/simulation-monster/simulation-monster.ts` |
-| Entity/migration/DTO/schema changes | `monsters/data-integrity-monster/data-integrity-monster.ts` |
-| Logging/error-handling changes | `monsters/log-analyzer-monster/log-analyzer-monster.ts` |
-| Regression / reverted historical fixes | `monsters/regression-monster/regression-monster.ts` + `monsters/data/bug-retrospectives.json` |
-| Security concern | `monsters/guardian-monster/` |
-| CSS/styling issue | `monsters/browser-monster/css-lint-monster.ts` |
-| Layout/overlap issue | `monsters/browser-monster/layout-lint-monster.ts` |
-
-### Bug-to-Monster Workflow (CRITICAL)
-
-**Every bug found = Monster Army improvement opportunity.**
-
-When ANY bug is discovered (by user, AI, testing, or production):
-
-1. **STOP** and ask: Why didn't the Monster Army catch this?
-2. **LOG** the bug in `tests/qa/monsters/data/bug-retrospectives.json`
-3. **ANALYZE** which monster should have caught it
-4. **IMPROVE** the monster or create a new one
-5. **VERIFY** the improved monster now catches the bug
-
-See `.cursor/rules/bug-to-monster-workflow.mdc` for detailed process.
-
-See `tests/qa/monsters/README.md` for the full Monster Army architecture.

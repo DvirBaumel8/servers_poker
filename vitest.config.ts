@@ -10,14 +10,9 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 60000,
     pool: "threads",
-    // @ts-ignore
-    poolOptions: {
-      threads: {
-        singleThread: false,
-        minThreads: 1,
-        maxThreads: 4,
-      },
-    },
+    singleThread: false,
+    minThreads: 1,
+    maxThreads: 4,
     fileParallelism: false,
     sequence: {
       shuffle: false,

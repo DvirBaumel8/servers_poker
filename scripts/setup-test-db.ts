@@ -2,7 +2,7 @@
 /**
  * Test Database Setup Script
  *
- * Sets up a fresh test database with schema and seed data for QA Monster tests.
+ * Sets up a fresh test database with schema and seed data for automated tests.
  * This ensures tests have a consistent starting state with known test accounts.
  *
  * Usage:
