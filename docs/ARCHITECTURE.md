@@ -212,7 +212,6 @@ servers_poker/
 │   ├── integration/                 — Integration tests
 │   ├── e2e/                         — End-to-end tests
 │   └── qa/
-│       ├── monsters/                — Monster Army QA system (see tests/qa/monsters/README.md)
 │       ├── simulations/             — Game simulation tests
 │       ├── performance/             — Load and performance tests
 │       └── chaos/                   — Chaos engineering tests
@@ -235,18 +234,6 @@ servers_poker/
 │   ├── reports/                     — QA and audit reports
 │   └── AI_CONTEXT.md                — Context for AI assistants
 ```
-
-### Monster Army QA (`tests/qa/monsters/`)
-
-- **23** automated monsters in the full suite (`npm run monsters:all`); Explorer and Regression are included in presets with the rest of the army.
-- **Storage:** `shared/issue-tracker.ts` + `shared/issues.json` are the single source of truth (`memory/memory-store.ts` is deprecated).
-- **Visibility:** `BaseMonster` reports `checksPerformed` when there are zero findings.
-- **Lifecycle:** `lifecycle-runner.ts` runs **CodeFixer** (`evolution/code-fixer.ts`) for CSS fixes (overflow, hover, focus, z-index, contrast).
-- **Regression:** `regression-monster/regression-monster.ts` + `npm run monsters:regression-check` validate `tests/qa/monsters/data/bug-retrospectives.json`.
-- **Contract:** `contract-monster/contract-monster.ts` compares `frontend/src/api/*.ts` pagination `.map()` usage to backend controllers.
-- **Evolution report:** `run-all.ts` prints dead-weight analysis (5+ runs, 0 issues → BROKEN / INEFFECTIVE / WATCH) and refreshes `docs/MONSTER_EVOLUTION.md`.
-
-Details: `tests/qa/monsters/README.md`.
 
 ---
 

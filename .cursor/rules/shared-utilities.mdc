@@ -86,31 +86,6 @@ this.logger.error(`Failed to save state: ${error.message}`, error.stack);
 logOperationError(this.logger, "save game state", error, { gameId, playerId });
 ```
 
-## QA Monster Utilities (`tests/qa/monsters/shared/`)
-
-### Environment Config
-
-```typescript
-import { getEnv } from "../shared";
-
-// Instead of scattered process.env calls:
-const baseUrl = process.env.API_BASE_URL || process.env.API_URL || "http://localhost:3000";
-
-// Use:
-const env = getEnv();
-const baseUrl = env.apiBaseUrl;
-```
-
-### Authentication
-
-```typescript
-import { createAuthHelper } from "../shared";
-
-// Instead of duplicating auth logic:
-const authHelper = createAuthHelper();
-await authHelper.authenticateAsAdmin();
-const headers = authHelper.getAdminHeaders();
-```
 
 ### Health Checks
 
@@ -136,17 +111,6 @@ path = path.replace(":botId", "00000000-...");
 
 // Use:
 const resolvedPath = replacePathParams(path, { id: testId });
-```
-
-### CLI Runners
-
-```typescript
-import { runMonsterCli } from "../shared";
-
-// Instead of 30+ lines of CLI boilerplate:
-if (require.main === module) {
-  runMonsterCli(new MyMonster(), "my-monster-type");
-}
 ```
 
 ### Response Validation

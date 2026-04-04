@@ -13,7 +13,7 @@
  *   2. neverCallZeroEquity    — very negative EV call → should fold (strategy flag)
  *   3. minRaiseCompliance     — any raise must be >= minRaise (illegal move)
  *   4. neverFoldAllIn         — player is all-in → MUST NOT fold (illegal move)
- *   5. monsterHandValidation  — full house on river, single bet → MUST NOT fold (strategy sanity)
+ *   5. strongHandValidation  — full house on river, single bet → MUST NOT fold (strategy sanity)
  *   6. potOddsAwareness       — nut flush draw, 5:1 pot odds → MUST NOT fold (strategy sanity)
  *   7. bluffFrequencyCheck    — HIGH_CARD on dry river, 100 trials → Shark/Maniac must raise ≥15-20%
  */
@@ -386,7 +386,7 @@ function scenarioNeverFoldAllIn(): Scenario {
   };
 }
 
-function scenarioMonsterHandValidation(): Scenario {
+function scenarioStrongHandValidation(): Scenario {
   // Full house (KKK over AA) on the river, facing a single bet.
   // Folding a full house to any single bet on the river is never correct.
   const payload = makePayload({
@@ -404,17 +404,17 @@ function scenarioMonsterHandValidation(): Scenario {
   });
 
   return {
-    name: "monsterHandValidation",
+    name: "strongHandValidation",
     description:
       "Bot holds Full House (KKKAA) on the river facing a small bet (30 into 200). " +
-      "Folding a monster here is never correct — even The Nit should call.",
+      "Folding a strong hand here is never correct — even The Nit should call.",
     payload,
     assertions: [
       {
-        name: "monsterHandValidation",
+        name: "strongHandValidation",
         category: "strategy_sanity",
         fn: (_payload, action, ctx) => ({
-          assertionName: "monsterHandValidation",
+          assertionName: "strongHandValidation",
           category: "strategy_sanity",
           passed: action.type !== "fold",
           message:
@@ -528,7 +528,7 @@ export class BotAuditor {
       scenarioNeverCallZeroEquity(),
       scenarioMinRaiseCompliance(),
       scenarioNeverFoldAllIn(),
-      scenarioMonsterHandValidation(),
+      scenarioStrongHandValidation(),
       scenarioPotOddsAwareness(),
     ];
     this.frequencyScenarios = [scenarioBluffFrequencyCheck()];

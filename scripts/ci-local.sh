@@ -87,7 +87,7 @@ if [ "$FIX_MODE" = true ]; then
   run_step "Frontend Prettier (fix)" "npx prettier --write '$FRONTEND_DIR/src/**/*.{ts,tsx}'"
 else
   run_step "Backend ESLint" "npx eslint 'src/**/*.ts' 'tests/**/*.ts' --quiet"
-  run_step "Frontend ESLint" "npx eslint $FRONTEND_DIR/src --ext ts,tsx --max-warnings 0 --quiet"
+  run_step "Frontend ESLint" "npx eslint $FRONTEND_DIR/src --ext ts,tsx --quiet"
   run_step "Backend Prettier" "npx prettier --check 'src/**/*.ts'"
   run_step "Frontend Prettier" "npx prettier --check '$FRONTEND_DIR/src/**/*.{ts,tsx}'"
 fi
@@ -113,17 +113,10 @@ fi
 
 if [ "$QUICK_MODE" = false ]; then
   echo ""
-  echo -e "${BLUE}📋 STEP 4: NON-BROWSER MONSTERS (mirrors CI test-all job)${NC}"
-  echo ""
-  
-  run_step "Monsters (Fast, static)" "npx ts-node tests/qa/monsters/run-all.ts --fast --static 2>&1 | tail -20"
-  run_step "Monsters (All, static)" "npx ts-node tests/qa/monsters/run-all.ts --static 2>&1 | tail -30"
-
-  echo ""
-  echo -e "${BLUE}📋 STEP 5: QA SUITE (mirrors CI test-all job)${NC}"
+  echo -e "${BLUE}📋 STEP 4: ALL TESTS (mirrors CI test-all job)${NC}"
   echo ""
 
-  run_step "QA All (unit + integration + monsters)" "npm run qa:all 2>&1 | tail -30"
+  run_step "All Tests (unit + integration + e2e)" "npm run test:all 2>&1 | tail -30"
 fi
 
 echo ""

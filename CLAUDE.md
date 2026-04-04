@@ -1060,7 +1060,7 @@ Exit code 0 = all clean (or only strategy warnings), 1 = illegal-move violation(
 
 **Strategy Sanity Checks (warnings — non-fatal flags):**
 4. `neverCallZeroEquity` — equity=24.7% vs potOdds=70% = deeply negative EV → should fold
-5. `monsterHandValidation` — Full House KKKAA on river, small bet → MUST NOT fold
+5. `strongHandValidation` — Full House KKKAA on river, small bet → MUST NOT fold
 6. `potOddsAwareness` — Nut flush draw (~56% equity) vs 16.7% pot odds → MUST NOT fold
 
 ### How It Works
@@ -2324,18 +2324,12 @@ GET  /api/v1/tournaments/:id/simulation-result → SimulationOutput (full audit 
 - `docs/BOT_DEVELOPER_GUIDE.md` — Moved from guides/ (added status note)
 - `docs/guides/QUICKSTART.md` — Updated to current app
 - `docs/guides/DEMO-GAMES.md` — Updated with new commands
-- `docs/plans/` — Deleted abandoned plans (poker-ui-upgrade, visual-qa-monster); kept implemented plan
-- `docs/qa-reports/` — Deleted (old Monster Army QA reports, system no longer in use)
 - `CLAUDE.md` — Updated documentation section
 
 **Deleted (Stale/Obsolete):**
-- `docs/qa-reports/` (old Monster Army reports)
 - `docs/reports/` (stale performance/tech-debt audits, replaced by root docs)
-- `docs/MONSTERS_ISSUES.md` (Monster system artifact)
-- `docs/qa_report.md` (Monster system artifact)
 - `docs/AI_CONTEXT.md` (duplicates BOT_DEVELOPER_GUIDE.md, outdated UI paths)
 - `docs/plans/PLAN-poker-ui-upgrade.md` (abandoned, not implemented)
-- `docs/plans/PLAN-visual-qa-monster.md` (superseded by Gemini system)
 
 **Updated Core Docs:**
 - `docs/TESTING.md` — Removed deleted frontend test file references, added game invariant testing docs, added Gemini UI bug detection section

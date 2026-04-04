@@ -54,14 +54,6 @@ This file tracks technical debt, security hardening items, and improvements to a
 
 ## Testing Infrastructure
 
-### 🟢 Mobile/Tablet Viewport Testing
-**Added:** 2026-03-21
-**Context:** Browser QA Monster currently only tests desktop viewport (1920x1080) to speed up test runs.
-**Action Required:**
-- [ ] Add mobile viewport testing when responsive design is prioritized
-- [ ] Suggested viewports: iPhone 16 (393x852), iPad (768x1024)
-- [ ] Update `tests/qa/monsters/browser-monster/browser-qa-monster.ts` VIEWPORTS array
-
 ### 🟡 E2E Tests Stability
 **Added:** 2026-03-21
 **Updated:** 2026-03-22
@@ -69,7 +61,6 @@ This file tracks technical debt, security hardening items, and improvements to a
 
 **Current State:**
 - Schema conflicts fixed with `--no-file-parallelism`
-- `continue-on-error` removed from CI — monsters must pass
 - `game-mechanics.e2e.spec.ts` migrated from fixed sleeps to `waitForCondition()` polling
 - `ui-navigation.e2e.spec.ts` sleeps reduced/removed
 
