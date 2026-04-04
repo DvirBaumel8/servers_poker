@@ -95,6 +95,34 @@ function getMixCircles(profile: OpponentProfile, tableSize: number): string[] {
   return circles
 }
 
+// ─── Chart tooltip (module scope — must not be defined inside render) ──────────
+
+interface ChartTooltipProps {
+  active?: boolean
+  payload?: Array<{ dataKey: string; value: number }>
+  label?: number
+}
+
+const CustomTooltip = ({ active, payload, label }: ChartTooltipProps) => {
+  if (!active || !payload?.length) return null
+  const valA = payload.find(p => p.dataKey === 'a')?.value ?? 0
+  const valB = payload.find(p => p.dataKey === 'b')?.value ?? 0
+  const delta = valB - valA
+  return (
+    <div style={{
+      background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
+      padding: '8px 12px', fontSize: 11, fontFamily: C.font,
+    }}>
+      <div style={{ color: C.muted, marginBottom: 4 }}>Hand {label}</div>
+      <div style={{ color: '#06b6d4', marginBottom: 2 }}>A: {valA >= 0 ? '+' : ''}{valA}</div>
+      <div style={{ color: '#f97316', marginBottom: 4 }}>B: {valB >= 0 ? '+' : ''}{valB}</div>
+      <div style={{ color: delta >= 0 ? C.success : C.danger, fontWeight: 700 }}>
+        Δ {delta >= 0 ? '+' : ''}{delta}
+      </div>
+    </div>
+  )
+}
+
 /** Parses config_snapshot.opponents to produce "6 Sharks, 2 Nits" style summary. */
 function getLineupBreakdown(sim: Simulation): string | null {
   const opponents = sim.config_snapshot?.opponents
@@ -488,26 +516,6 @@ function ComparePanel({
             }))
           : []
 
-        const CustomTooltip = ({ active, payload, label }: any) => {
-          if (!active || !payload?.length) return null
-          const valA = payload.find((p: any) => p.dataKey === 'a')?.value ?? 0
-          const valB = payload.find((p: any) => p.dataKey === 'b')?.value ?? 0
-          const delta = valB - valA
-          return (
-            <div style={{
-              background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
-              padding: '8px 12px', fontSize: 11, fontFamily: C.font,
-            }}>
-              <div style={{ color: C.muted, marginBottom: 4 }}>Hand {label}</div>
-              <div style={{ color: '#06b6d4', marginBottom: 2 }}>A: {valA >= 0 ? '+' : ''}{valA}</div>
-              <div style={{ color: '#f97316', marginBottom: 4 }}>B: {valB >= 0 ? '+' : ''}{valB}</div>
-              <div style={{ color: delta >= 0 ? C.success : C.danger, fontWeight: 700 }}>
-                Δ {delta >= 0 ? '+' : ''}{delta}
-              </div>
-            </div>
-          )
-        }
-
         return (
           <div>
             <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
@@ -772,14 +780,14 @@ const inputStyle: React.CSSProperties = {
 
 function CompareModePanel({ compareIds, simulations, compareResults, loadingCompare, clearCompare, formatBbPer100, formatPct, formatAF, simLabel }: {
   compareIds: string[]
-  simulations: any[]
-  compareResults: Record<string, any>
+  simulations: Simulation[]
+  compareResults: Record<string, SimulationResult>
   loadingCompare: Record<string, boolean>
   clearCompare: () => void
   formatBbPer100: (v: number) => string
   formatPct: (v: number) => string
   formatAF: (v: number) => string
-  simLabel: (s: any) => string
+  simLabel: (s: Simulation) => string
 }) {
   const [idA, idB] = compareIds
   const simA = simulations.find(s => s.id === idA)
@@ -894,7 +902,7 @@ export default function SimulationsPage() {
       if (pollingRef.current) clearInterval(pollingRef.current)
     }
     return () => { if (pollingRef.current) clearInterval(pollingRef.current) }
-  }, [simulations]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [simulations])
 
   // Auto-load result the moment the selected sim transitions to COMPLETED
   useEffect(() => {
@@ -973,9 +981,9 @@ export default function SimulationsPage() {
     try {
       await api.post('/simulations', { botId: selectedBotId, handCount, opponentProfile, tableSize })
       await fetchSimulations()
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Failed to start simulation'
-      setFormError(Array.isArray(msg) ? msg.join(', ') : msg)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message ?? 'Failed to start simulation'
+      setFormError(Array.isArray(msg) ? (msg as string[]).join(', ') : String(msg))
     } finally {
       setSubmitting(false)
     }
@@ -1011,9 +1019,9 @@ export default function SimulationsPage() {
     try {
       await api.post('/simulations', { botId, handCount: sim.hand_count, opponentProfile: sim.opponent_profile, tableSize: sz })
       await fetchSimulations()
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Failed to start simulation'
-      setFormError(Array.isArray(msg) ? msg.join(', ') : msg)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message ?? 'Failed to start simulation'
+      setFormError(Array.isArray(msg) ? (msg as string[]).join(', ') : String(msg))
     } finally {
       setSubmitting(false)
     }

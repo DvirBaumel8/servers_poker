@@ -111,7 +111,7 @@ jobs:
         run: npm run build
 
       - name: Run ALL tests (optimized parallel)
-        run: npm run qa:all
+        run: npm run test:all
         env:
           NODE_ENV: test
           TEST_DB_HOST: localhost
