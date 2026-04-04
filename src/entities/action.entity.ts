@@ -1,5 +1,9 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index, Check } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import {
+  bigIntTransformer,
+  bigIntNullableTransformer,
+} from "../common/transformers/bigint.transformer";
 import { Hand } from "./hand.entity";
 import { Bot } from "./bot.entity";
 
@@ -18,6 +22,9 @@ export type ActionStage = "preflop" | "flop" | "turn" | "river";
 
 @Entity("actions")
 @Index(["hand_id", "action_seq"])
+@Check(
+  `"action_type" IN ('fold', 'check', 'call', 'bet', 'raise', 'all_in', 'small_blind', 'big_blind', 'ante')`,
+)
 @Check(`"action_seq" >= 0`)
 @Check(`"amount" >= 0`)
 export class Action extends BaseEntity {
@@ -37,14 +44,22 @@ export class Action extends BaseEntity {
   @Column({ type: "varchar", length: 20 })
   stage: ActionStage;
 
-  @Column({ type: "bigint", default: 0 })
-  amount: number;
+  @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
+  amount: bigint;
 
-  @Column({ type: "bigint", nullable: true })
-  pot_after: number | null;
+  @Column({
+    type: "bigint",
+    nullable: true,
+    transformer: bigIntNullableTransformer,
+  })
+  pot_after: bigint | null;
 
-  @Column({ type: "bigint", nullable: true })
-  chips_after: number | null;
+  @Column({
+    type: "bigint",
+    nullable: true,
+    transformer: bigIntNullableTransformer,
+  })
+  chips_after: bigint | null;
 
   @Column({ type: "integer", nullable: true })
   response_time_ms: number | null;

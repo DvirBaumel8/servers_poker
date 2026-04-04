@@ -1,22 +1,37 @@
-import { Entity, Column, Index, Check } from "typeorm";
+import { Entity, Column, Index, Check, ManyToOne, JoinColumn } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { Bot } from "./bot.entity";
+import { Game } from "./game.entity";
+import { Table } from "./table.entity";
+import { Tournament } from "./tournament.entity";
 
 export type SnapshotStatus = "active" | "recovered" | "orphaned" | "completed";
 
 @Entity("game_state_snapshots")
-@Index(["game_id"])
-@Index(["table_id"])
-@Index(["status"])
+@Index(["game_id", "status"])
+@Index(["table_id", "status"])
 @Check(`"hand_number" >= 0`)
 export class GameStateSnapshot extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
   game_id: string;
 
+  @ManyToOne(() => Game, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "game_id" })
+  game: Game;
+
   @Column({ type: "varchar", length: 36 })
   table_id: string;
 
+  @ManyToOne(() => Table, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "table_id" })
+  table: Table;
+
   @Column({ type: "varchar", length: 36, nullable: true })
   tournament_id: string | null;
+
+  @ManyToOne(() => Tournament, { onDelete: "CASCADE", nullable: true })
+  @JoinColumn({ name: "tournament_id" })
+  tournament: Tournament | null;
 
   @Column({ type: "varchar", length: 20, default: "active" })
   status: SnapshotStatus;
@@ -57,11 +72,15 @@ export class GameStateSnapshot extends BaseEntity {
   @Column({ type: "varchar", length: 36, nullable: true })
   active_player_id: string | null;
 
+  @ManyToOne(() => Bot, { onDelete: "SET NULL", nullable: true })
+  @JoinColumn({ name: "active_player_id" })
+  active_player: Bot | null;
+
   @Column({ type: "jsonb" })
   players: Array<{
     id: string;
     name: string;
-    endpoint: string;
+    strategy: Record<string, any> | null;
     chips: number;
     holeCards: Array<{ rank: string; suit: string }>;
     folded: boolean;

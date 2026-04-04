@@ -13,7 +13,7 @@ import {
   BotActivityDto,
   BotActivityGame,
   BotActivityTournament,
-} from "../../modules/bots/dto/bot.dto";
+} from "../../modules/bots/dto/internal-bot.dto";
 
 @Injectable()
 export class BotActivityService {
@@ -154,7 +154,7 @@ export class BotActivityService {
           tableName,
           status: liveGame.game.status,
           handNumber: liveGame.game.handNumber,
-          chips: player.chips,
+          chips: Number(player.chips),
           position: playerIndex >= 0 ? playerIndex + 1 : undefined,
           joinedAt: liveGame.startedAt.toISOString(),
         });

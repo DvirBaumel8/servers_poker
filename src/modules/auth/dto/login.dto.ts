@@ -5,7 +5,6 @@ import {
   MaxLength,
   Length,
   Matches,
-  IsUrl,
   IsOptional,
 } from "class-validator";
 
@@ -27,7 +26,7 @@ export class RegisterDto {
   @MaxLength(100, { message: "Name cannot exceed 100 characters" })
   @Matches(/^[a-zA-Z0-9][a-zA-Z0-9 _.-]*$/, {
     message:
-      "Name must start with a letter or number and contain only letters, numbers, spaces, dots, underscores, and hyphens",
+      "Name can only contain letters, numbers, spaces, dots, underscores, and hyphens",
   })
   name: string;
 
@@ -83,11 +82,6 @@ export class RefreshTokenDto {
   refreshToken: string;
 }
 
-export class ApiKeyAuthDto {
-  @IsString()
-  apiKey: string;
-}
-
 export class UserDto {
   id: string;
   email: string;
@@ -100,21 +94,13 @@ export class AuthResponseDto {
   accessToken: string;
   refreshToken?: string;
   expiresIn: number;
-  apiKey?: string;
   user: {
     id: string;
     email: string;
     name: string;
     role: string;
+    subscription_status: string;
   };
-}
-
-export class MeResponseDto {
-  user: UserDto;
-}
-
-export class RegenerateApiKeyResponseDto {
-  apiKey: string;
 }
 
 /**
@@ -132,7 +118,7 @@ export class RegisterDeveloperDto {
 
   @IsString()
   @MinLength(8, { message: "Password must be at least 8 characters" })
-  @MaxLength(72, { message: "Password cannot exceed 72 characters" }) // bcrypt limit
+  @MaxLength(72, { message: "Password cannot exceed 72 characters" })
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
     message:
       "Password must contain at least one uppercase letter, one lowercase letter, and one number",
@@ -148,16 +134,6 @@ export class RegisterDeveloperDto {
   })
   botName: string;
 
-  @IsUrl(
-    {
-      protocols: ["http", "https"],
-      require_protocol: true,
-      require_tld: false,
-    },
-    { message: "Bot endpoint must be a valid HTTP or HTTPS URL" },
-  )
-  botEndpoint: string;
-
   @IsOptional()
   @IsString()
   @MaxLength(500, { message: "Bot description cannot exceed 500 characters" })
@@ -168,9 +144,8 @@ export class RegisterDeveloperDto {
 }
 
 export class RegisterDeveloperResponseDto {
-  accessToken: string;
-  expiresIn: number;
-  apiKey: string;
+  message: string;
+  verificationCode?: string;
   user: {
     id: string;
     email: string;
@@ -179,7 +154,5 @@ export class RegisterDeveloperResponseDto {
   bot: {
     id: string;
     name: string;
-    endpoint: string;
   };
-  warnings?: string[];
 }

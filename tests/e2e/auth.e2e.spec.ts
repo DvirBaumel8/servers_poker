@@ -6,15 +6,25 @@ import { ConfigModule } from "@nestjs/config";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { JwtService } from "@nestjs/jwt";
 import { AuthModule } from "../../src/modules/auth/auth.module";
+import { BotsModule } from "../../src/modules/bots/bots.module";
+import { GamesModule } from "../../src/modules/games/games.module";
+import { TournamentsModule } from "../../src/modules/tournaments/tournaments.module";
+import { ServicesModule } from "../../src/services/services.module";
 import * as entities from "../../src/entities";
 import { appConfig } from "../../src/config";
+import { APP_GUARD } from "@nestjs/core";
+import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { CustomThrottlerGuard } from "../../src/common/guards/custom-throttler.guard";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 describe("Auth E2E Tests", () => {
   let app: INestApplication;
   let dataSource: DataSource;
+  let jwtService: JwtService;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -34,8 +44,23 @@ describe("Auth E2E Tests", () => {
           synchronize: true,
           dropSchema: true,
         }),
+        ThrottlerModule.forRoot([{ ttl: 60000, limit: 100000 }]),
         EventEmitterModule.forRoot(),
+        ServicesModule,
         AuthModule,
+        BotsModule,
+        GamesModule,
+        TournamentsModule,
+      ],
+      providers: [
+        {
+          provide: APP_GUARD,
+          useClass: JwtAuthGuard,
+        },
+        {
+          provide: APP_GUARD,
+          useClass: CustomThrottlerGuard,
+        },
       ],
     }).compile();
 
@@ -51,6 +76,7 @@ describe("Auth E2E Tests", () => {
 
     await app.init();
     dataSource = moduleFixture.get(DataSource);
+    jwtService = moduleFixture.get(JwtService);
   });
 
   afterAll(async () => {
@@ -206,9 +232,9 @@ describe("Auth E2E Tests", () => {
         [testEmail],
       );
 
-      expect(users[0].api_key_hash).toBeDefined();
-      expect(users[0].api_key_hash).not.toBe("MyPlainPassword123!");
-      expect(users[0].api_key_hash.length).toBeGreaterThan(20);
+      expect(users[0].password_hash).toBeDefined();
+      expect(users[0].password_hash).not.toBe("MyPlainPassword123!");
+      expect(users[0].password_hash.length).toBeGreaterThan(20);
     });
   });
 
@@ -309,17 +335,6 @@ describe("Auth E2E Tests", () => {
         .get("/api/v1/auth/me")
         .set("Authorization", "Bearer invalid-token")
         .expect(401);
-    });
-
-    it("should regenerate API key", async () => {
-      const { accessToken } = await createAuthenticatedUser();
-      const response = await request(app.getHttpServer())
-        .post("/api/v1/auth/regenerate-api-key")
-        .set("Authorization", `Bearer ${accessToken}`)
-        .expect(200);
-
-      expect(response.body).toHaveProperty("apiKey");
-      expect(response.body.apiKey).toBeDefined();
     });
   });
 });

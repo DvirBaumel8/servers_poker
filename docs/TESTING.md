@@ -2,98 +2,147 @@
 
 This document describes the testing strategy and how to run tests for the Poker Platform.
 
-## Frontend Testing
+## Testing Strategy Overview
 
-The frontend now has a dedicated UI-focused test setup under `frontend/`.
+The platform uses **three complementary testing layers**:
 
-### Frontend Test Stack
+1. **Game Invariants** — Automated validation of poker game logic (unit/property-based)
+2. **API & Integration** — Backend endpoint and service testing
+3. **UI Bug Detection** — AI-powered visual regression and UX testing
 
-- `Vitest` for FE test running
-- `@testing-library/react` for rendering and interaction
-- `@testing-library/jest-dom` for DOM assertions
-- `jsdom` for browser-like test environment
+---
 
-### Frontend Test Files
+## Game Invariant Testing
 
-Examples of FE test coverage now live in:
+The core strength of the poker system is **chip conservation** and **game logic correctness**. This is validated by running complete simulated poker games and checking invariants after every action.
 
-- `frontend/src/App.test.tsx` — route-to-shell mapping and access guards
-- `frontend/src/components/ui/primitives.test.tsx` — shared primitives and interaction patterns
-- `frontend/src/pages/Home.test.tsx` — marketing page rendering + stat loading
-- `frontend/src/pages/Tables.test.tsx` — lobby rendering
-- `frontend/src/pages/Tournaments.test.tsx` — tournament lobby rendering
-- `frontend/src/pages/Bots.test.tsx` — bot workspace rendering and switching
+### What It Tests
 
-### Frontend Test Setup
+Eight invariant validators check game correctness:
 
-Core FE test configuration lives in:
+1. **Total chips conserved** — `sum(player.chips) + pot === expected_total`
+2. **Pot equals stacked bets** — `mainPot ≈ sum(playerBetsThisRound)`
+3. **Valid card counts** — Each player has exactly 0 or 2 hole cards
+4. **Valid community cards** — Only 0, 3, 4, or 5 community cards allowed
+5. **Valid active players** — Non-negative active player count
+6. **No duplicate cards** — No card appears twice in the deck
+7. **Valid bet sizes** — No negative bets
+8. **Side pot math** — `sum(pots) === getTotalPot()` when multiple pots exist
 
-- `frontend/vitest.config.ts`
-- `frontend/src/test/setup.ts`
-- `frontend/src/test/test-utils.tsx`
+See `src/testing/validators.ts` for full implementation.
 
-### Run Frontend Tests
+### Running Game Tests
 
 ```bash
-cd frontend
+# Quick test: 20 games with 6 bots
+npm run test:poker -- --games=20 --bots=6
 
-# Watch mode
-npm test
+# Thorough test: 100 games with 8 bots
+npm run test:poker -- --games=100 --bots=8
 
-# Single run
-npm run test:run
-
-# Existing API contract checks against a running backend
-npm run test:contracts
+# Full coverage: 500 games
+npm run test:poker -- --games=500 --bots=6
 ```
 
-### Frontend Test Scope
+**Output:**
+- ✅ Pass/fail per game
+- 📊 Coverage metrics (side pots, heads-up, split pots, eliminations, showdowns)
+- 📋 `POKER_BUGS.md` — Auto-generated bug report (deduped, tracks new & resolved issues)
+- 📄 `test-coverage.json` — Detailed scenario coverage
 
-Use frontend tests for:
+---
 
-- shell routing and access control
-- primitive interaction contracts
-- loading, empty, error, and modal states
-- critical page rendering for redesigned surfaces
+## UI Bug Detection (Gemini AI + Playwright)
 
-Do not use frontend unit tests as a substitute for:
+Automated detection of visual bugs, layout issues, and UX problems during live gameplay using Google Gemini and Playwright screenshots.
 
-- backend API correctness
-- websocket protocol validation
-- full-system database flows
+### What It Tests
 
-Those remain covered by backend unit/integration/e2e testing.
+- Missing or broken UI elements
+- Incorrect data displays (pot, chips, player counts, cards)
+- Layout overlap and misalignment
+- Color contrast and readability issues
+- Animation/rendering glitches
+- Z-index and layering problems
+- Player state clarity (active, folded, waiting)
+
+### Running UI Bug Detection
+
+```bash
+# One command: creates live game, captures screenshots, detects bugs
+bash scripts/detect-ui-bugs.sh
+
+# Time: ~2 minutes
+# Output:
+#   - 5 screenshots captured (5 second interval over 15 seconds)
+#   - Analyzed via Gemini (3 parallel batches)
+#   - POKER_BUGS.md auto-updated with findings
+#   - ui-bug-reports/bugs-{gameId}-{timestamp}.md detailed report
+```
+
+**Performance optimized:**
+- 30s → 15s duration (2.7x faster)
+- 9 API calls → 3 parallel batches
+- Single screenshot folder with auto-cleanup
+- 70% less Google API quota per run
+
+### Bug Tracking
+
+Bugs are tracked in **POKER_BUGS.md** (auto-maintained):
+- Grouped by severity (Critical, High, Medium, Low)
+- Deduped (same bug not added twice)
+- Shows last detection timestamp
+- Tracks status (active vs resolved)
+- Includes reproduction steps and expected behavior
 
 ## Test Structure
 
 ```
 tests/
-├── unit/                     # Unit tests (no external dependencies)
+├── unit/                     # Unit tests (game logic, no external dependencies)
 │   ├── hand-evaluator.spec.ts
 │   ├── pot-manager.spec.ts
 │   ├── betting.spec.ts
 │   ├── chip-conservation.spec.ts
 │   ├── edge-cases.spec.ts
-│   ├── critical-edge-cases.spec.ts
-│   ├── bot-resilience.spec.ts
-│   └── bot-connectivity.spec.ts
-├── integration/              # Integration tests (may use mocks)
+│   └── edge-cases-tdd.spec.ts
+├── integration/              # Integration tests (services with mocks)
 │   ├── auth.integration.spec.ts
-│   ├── bots.integration.spec.ts
-│   ├── bot-caller.integration.spec.ts
 │   └── game-flow.integration.spec.ts
 ├── e2e/                      # End-to-end tests (requires database)
 │   ├── auth.e2e.spec.ts
 │   ├── bots.e2e.spec.ts
 │   ├── games.e2e.spec.ts
 │   ├── tournaments.e2e.spec.ts
+│   ├── game-mechanics.e2e.spec.ts
 │   └── websocket.e2e.spec.ts
+├── qa/                       # QA automation tests
+│   └── simulations/
+│       ├── game-simulator.ts      # Play complete games, collect bugs
+│       └── run-poker-tests.ts     # CLI: run bulk game tests
 └── utils/                    # Test utilities
     ├── test-app.ts           # NestJS test app factory
-    ├── test-helpers.ts       # Common test helpers
-    ├── mock-bot-server.ts    # Mock bot HTTP server
-    └── index.ts              # Exports
+    ├── test-helpers.ts       # Common test helpers (waitForCondition, createTestUser, etc.)
+    └── strategy-bot-factory.ts # Factory for creating bots with strategies
 ```
+
+See also:
+- `src/testing/validators.ts` — Game invariant checkers
+- `src/testing/ui-bug-detector.ts` — Gemini bug detection
+- `scripts/detect-ui-bugs.sh` — UI bug detection CLI
+
+## When to Use Each Test Type
+
+| Situation | Use | Command |
+|-----------|-----|---------|
+| **Modifying game logic** (betting, pot, hand eval) | Game invariant tests | `npm run test:poker -- --games=50 --bots=6` |
+| **Changing UI components** (cards, chips, layout) | Gemini UI detection | `bash scripts/detect-ui-bugs.sh` |
+| **API endpoint changes** | E2E tests | `npm run test:e2e` |
+| **Service/business logic** | Unit/integration tests | `npm test` |
+| **Debugging a live issue** | Live game demo | `npm run game:watch` |
+| **Quick feedback loop** | Type check + unit tests | `npm run ci:local:quick` |
+
+---
 
 ## Test Types
 
@@ -118,7 +167,6 @@ npm run test:unit
 Integration tests verify that multiple components work together correctly. They may use mock servers or services but don't require a database.
 
 **What they test:**
-- Bot caller service with mock HTTP servers
 - Game flow logic with mocked dependencies
 - Input validation
 - Authentication logic
@@ -147,25 +195,47 @@ npm run test:e2e
 
 ## Running Tests
 
-### All Tests (Excluding E2E)
+### Quick Local Test Suite
 
-The default test command runs unit and integration tests:
+Lint + type check + unit tests (no database needed):
+
+```bash
+npm run ci:local:quick
+```
+
+Time: ~30 seconds. Use for quick feedback during development.
+
+### Game Invariant Tests (Recommended for Game Logic Changes)
+
+After modifying game logic, validate with automatic game simulation:
+
+```bash
+# Quick validation
+npm run test:poker -- --games=20 --bots=6
+
+# Thorough validation
+npm run test:poker -- --games=100 --bots=8
+```
+
+Output: `POKER_BUGS.md` with any violations found.
+
+### All Backend Tests (Excluding E2E)
+
+Unit + integration tests:
 
 ```bash
 npm test
 ```
 
-### All Tests Including E2E
+### All Backend Tests Including E2E
 
-Requires a PostgreSQL database:
+Requires PostgreSQL:
 
 ```bash
 npm run test:all
 ```
 
-For frontend UI tests, use the frontend-local commands above instead of root-level backend test scripts.
-
-### With Coverage
+### With Coverage Report
 
 ```bash
 npm run test:cov
@@ -176,6 +246,16 @@ npm run test:cov
 ```bash
 npm run test:watch
 ```
+
+### Live Game Demo
+
+Start the full stack with a live game for manual testing:
+
+```bash
+npm run game:watch
+```
+
+Opens `http://localhost:5173/games/{gameId}` automatically. See [QUICKSTART.md](./guides/QUICKSTART.md) for details.
 
 ## Setting Up for E2E Tests
 
@@ -234,28 +314,22 @@ docker rm -f poker-test-db
 
 ## Test Utilities
 
-### MockBotServer
+### Strategy Bot Factory
 
-For testing bot interactions without real bot servers:
+For creating bots with specific strategies in tests:
 
 ```typescript
-import { createCallingBot, createFoldingBot } from '../utils/mock-bot-server';
+import { createStrategyBot, registerUserWithBot } from '../utils/strategy-bot-factory';
 
-const bot = createCallingBot(8080);
-await bot.start();
+// Create a bot with a calling strategy
+const bot = createStrategyBot({ personality: 'caller' });
 
-// Bot will respond with { type: "call" } or { type: "check" }
-const endpoint = bot.getEndpoint(); // http://localhost:8080
-
-await bot.stop();
+// Register a user and bot in one step (for E2E tests)
+const { user, bot } = await registerUserWithBot(app, {
+  botName: 'TestBot',
+  strategy: { tier: 'quick', aggression: 0.5 }
+});
 ```
-
-Available mock bots:
-- `createCallingBot(port)` - Always calls or checks
-- `createFoldingBot(port)` - Always folds
-- `createAggressiveBot(port)` - Raises when possible
-- `createSlowBot(port, latencyMs)` - Responds with delay
-- `createUnreliableBot(port, failureRate)` - Randomly fails
 
 ### Test Helpers
 
@@ -280,6 +354,18 @@ const table = await createTestTable(app, user.accessToken);
 await request(app.getHttpServer())
   .get('/api/v1/bots')
   .set(authHeader(user.accessToken));
+
+// Poll until a condition is met (preferred over fixed sleep())
+import { waitForCondition } from '../utils/test-helpers';
+await waitForCondition(
+  async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/games/${tableId}/state`)
+      .set(authHeader(user.accessToken));
+    return res.body.handNumber > 0;
+  },
+  { timeoutMs: 15000, label: 'game hand started' }
+);
 ```
 
 ## Writing Tests
@@ -314,38 +400,29 @@ describe('Hand Evaluator', () => {
 ### Integration Test Example
 
 ```typescript
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { Test } from '@nestjs/testing';
-import { BotCallerService } from '../../src/services/bot-caller.service';
-import { createCallingBot } from '../utils/mock-bot-server';
+import { BotsService } from '../../src/modules/bots/bots.service';
 
-describe('BotCaller', () => {
-  let service: BotCallerService;
-  let mockBot: MockBotServer;
+describe('BotsService', () => {
+  let service: BotsService;
 
   beforeAll(async () => {
-    mockBot = createCallingBot(19300);
-    await mockBot.start();
-
     const module = await Test.createTestingModule({
-      providers: [BotCallerService],
+      providers: [BotsService, /* ... mock providers */],
     }).compile();
 
-    service = module.get(BotCallerService);
+    service = module.get(BotsService);
   });
 
-  afterAll(async () => {
-    await mockBot.stop();
-  });
+  it('should create a bot with strategy', async () => {
+    const bot = await service.create({
+      name: 'TestBot',
+      strategy: { tier: 'quick', aggression: 0.5 },
+    }, 'user-id');
 
-  it('should call bot and receive response', async () => {
-    const result = await service.callBot(
-      'test-bot',
-      mockBot.getEndpoint(),
-      { gameId: 'test' }
-    );
-
-    expect(result.success).toBe(true);
+    expect(bot.strategy).toBeDefined();
+    expect(bot.name).toBe('TestBot');
   });
 });
 ```
@@ -389,6 +466,185 @@ describe('Auth E2E', () => {
   });
 });
 ```
+
+---
+
+## Tournament System Testing (NEW)
+
+Testing for tournament discovery, real-time registration, and access control features.
+
+### Test Structure
+
+```
+tests/
+├── unit/
+│   ├── tournaments/
+│   │   ├── tournaments-gateway.spec.ts       ← Socket.IO gateway
+│   │   ├── tournaments-service.spec.ts       ← Business logic
+│   │   └── tournaments-controller.spec.ts    ← HTTP endpoints
+│   └── hooks/
+│       └── useTournamentSocket.spec.ts       ← Frontend hook
+│
+├── integration/
+│   ├── tournament-registration.spec.ts       ← Join flow
+│   ├── tournament-realtime-updates.spec.ts   ← WebSocket broadcasts
+│   └── tournament-access-control.spec.ts     ← Game spectating auth
+│
+└── e2e/
+    ├── tournament-discovery.e2e.ts            ← Browse tournaments
+    ├── tournament-registration.e2e.ts        ← Full join flow
+    └── tournament-realtime.e2e.ts            ← Real-time updates
+```
+
+### What It Tests
+
+**Frontend Hook (useTournamentSocket.ts):**
+- ✅ WebSocket connection with JWT auth
+- ✅ Auto-reconnect logic (5 attempts with exponential backoff)
+- ✅ Subscribe/unsubscribe to tournament rooms
+- ✅ State updates from server
+- ✅ Player action tracking
+- ✅ Connection error handling
+- ✅ Cleanup on unmount
+
+**Backend Gateway (TournamentsGateway):**
+- ✅ JWT token verification on connect
+- ✅ Disconnect clients without valid token
+- ✅ Subscribe to tournament room
+- ✅ Broadcast state updates to all subscribers
+- ✅ Broadcast player actions (joined, busted)
+- ✅ Broadcast notifications (blind increase, milestones)
+- ✅ Handle reconnections
+
+**Access Control:**
+- ✅ Non-registered users blocked from live tournament games (403)
+- ✅ Registered users can watch live games (200)
+- ✅ Finished games are public (200 for anyone)
+- ✅ Admin can watch any game (200)
+
+**Registration Flow:**
+- ✅ Fetch upcoming tournaments
+- ✅ Select bot from modal
+- ✅ Join tournament via API
+- ✅ Verify registration in tournament
+- ✅ Real-time participant count updates
+- ✅ Success notifications
+
+### Running Tournament Tests
+
+```bash
+# Unit tests
+npm run test:unit -- tournaments
+
+# Integration tests
+npm run test:integration -- tournament
+
+# E2E tests
+npm run test:e2e -- tournament --no-file-parallelism
+
+# All with coverage
+npm run test -- tournaments --coverage
+
+# Watch mode
+npm run test -- tournaments --watch
+```
+
+### Test Scenarios
+
+**Access Control Tests:**
+```typescript
+// Non-registered users blocked
+GET /api/v1/games/live-game → 403 Forbidden
+
+// Registered users allowed
+GET /api/v1/games/live-game (with registration) → 200 OK
+
+// Finished games public
+GET /api/v1/games/finished-game (anyone) → 200 OK
+
+// Admin override
+GET /api/v1/games/any-game (admin) → 200 OK
+```
+
+**Real-Time Update Tests:**
+```typescript
+// WebSocket connects
+io.connect('/tournament', { auth: { token } })
+  → onConnect
+
+// Subscribe to tournament
+socket.emit('subscribe_tournament', { tournamentId })
+  → room: tournament:123
+
+// Receive state update
+socket.on('tournament_state_updated', { registered_count, ... })
+  → latestUpdate state updated
+
+// Receive player action
+socket.on('tournament_player_action', { botName, action, ... })
+  → playerUpdates array updated
+
+// Auto-reconnect on error
+connection drops → retry every 1-5s → reconnects
+```
+
+### Coverage Targets
+
+| Module | Target | Notes |
+|--------|--------|-------|
+| useTournamentSocket | 95%+ | Frontend hook |
+| TournamentsGateway | 90%+ | WebSocket gateway |
+| TournamentsService | 85%+ | Business logic |
+| TournamentDetailPage | 80%+ | React page component |
+| Integration flows | 85%+ | End-to-end scenarios |
+| **Overall** | **85%+** | Combined coverage |
+
+### Manual Testing Checklist
+
+- [ ] **Phase 1 (Access Control)**
+  - [ ] Non-registered user blocked from live game (403)
+  - [ ] Registered user can watch live game (200)
+  - [ ] Finished game is public (200)
+  - [ ] Admin can watch any game (200)
+
+- [ ] **Phase 2 (Real-Time)**
+  - [ ] WebSocket connects successfully
+  - [ ] Connection status shows 🟢 Live
+  - [ ] Tournament state updates <100ms
+  - [ ] Player action notifications instant
+  - [ ] Participant count auto-updates
+  - [ ] Auto-reconnect on disconnect
+  - [ ] Multiple clients see same updates
+
+- [ ] **Full Flow**
+  - [ ] Browse tournament list
+  - [ ] Open tournament detail
+  - [ ] See live participant count
+  - [ ] Register bot (modal)
+  - [ ] Success message appears
+  - [ ] Participant list updates
+  - [ ] Real-time notifications
+
+### Continuous Integration
+
+Add to CI pipeline:
+
+```yaml
+- name: Tournament Tests
+  run: |
+    npm run test:unit -- tournaments
+    npm run test:integration -- tournament
+    npm run test:e2e -- tournament --no-file-parallelism
+    npm run test -- tournaments --coverage --coverage-threshold=85
+```
+
+### See Also
+
+- `TOURNAMENT_TESTING.md` — Full test suite implementation with code examples
+- `TOURNAMENT_ARCHITECTURE.md` — Real-time architecture and design
+- `TOURNAMENT_REALTIME_BACKEND.md` — Backend gateway implementation
+
+---
 
 ## CI/CD Integration
 
@@ -468,13 +724,3 @@ npm run test:cov
 ```
 
 Coverage HTML report is generated at `coverage/index.html`.
-
-## CI/CD Integration
-
-Tests run automatically on every PR via GitHub Actions:
-
-- **Unit Tests**: Run with coverage reporting
-- **E2E Tests**: Run with PostgreSQL service container
-- **Coverage Report**: Posted as PR comment
-
-See `.github/workflows/ci.yml` for the full configuration.

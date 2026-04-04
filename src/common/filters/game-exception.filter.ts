@@ -38,16 +38,6 @@ export class InvalidActionError extends GameException {
   }
 }
 
-export class BotTimeoutError extends GameException {
-  constructor(botId: string, timeoutMs: number, context?: Record<string, any>) {
-    super(`Bot ${botId} timed out after ${timeoutMs}ms`, "BOT_TIMEOUT", {
-      botId,
-      timeoutMs,
-      ...context,
-    });
-  }
-}
-
 export class TournamentError extends GameException {
   constructor(message: string, context?: Record<string, any>) {
     super(message, "TOURNAMENT_ERROR", context);

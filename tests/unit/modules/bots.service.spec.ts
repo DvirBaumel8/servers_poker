@@ -7,7 +7,6 @@ import {
 } from "@nestjs/common";
 import { BotsService } from "../../../src/modules/bots/bots.service";
 import { BotOwnershipService } from "../../../src/modules/bots/bot-ownership.service";
-import { ConfigService } from "@nestjs/config";
 
 describe("BotsService", () => {
   let service: BotsService;
@@ -29,22 +28,26 @@ describe("BotsService", () => {
     getBotWithOwnershipCheck: ReturnType<typeof vi.fn>;
     assertOwnership: ReturnType<typeof vi.fn>;
   };
-  let mockConfigService: Partial<ConfigService>;
-  let mockUrlValidator: {
-    validate: ReturnType<typeof vi.fn>;
-    validateWithHealthCheck: ReturnType<typeof vi.fn>;
+
+  const defaultStrategy = {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 50,
+      bluffFrequency: 30,
+      riskTolerance: 50,
+      tightness: 50,
+    },
   };
 
   const mockBot = {
     id: "bot-123",
     name: "TestBot",
-    endpoint: "http://localhost:4000/action",
+    strategy: defaultStrategy,
     description: "A test bot",
     active: true,
     user_id: "user-123",
     created_at: new Date("2024-01-01"),
-    last_validation: null,
-    last_validation_score: null,
   };
 
   beforeEach(() => {
@@ -69,37 +72,23 @@ describe("BotsService", () => {
       assertOwnership: vi.fn(),
     };
 
-    mockConfigService = {
-      get: vi.fn().mockReturnValue(10000),
-    };
-
-    mockUrlValidator = {
-      validate: vi.fn().mockReturnValue({ valid: true }),
-      validateWithHealthCheck: vi.fn(),
-    };
-
     service = new BotsService(
       mockBotRepository as never,
       mockAnalyticsRepository as never,
       mockBotOwnershipService as never,
-      mockConfigService as ConfigService,
-      mockUrlValidator as never,
     );
   });
 
   describe("create", () => {
-    it("should create a bot successfully", async () => {
+    it("should create an internal bot successfully", async () => {
       mockBotRepository.findByUserId.mockResolvedValue([]);
       mockBotRepository.findByName.mockResolvedValue(null);
-      mockUrlValidator.validateWithHealthCheck.mockResolvedValue({
-        valid: true,
-      });
       mockBotRepository.create.mockResolvedValue(mockBot);
 
       const result = await service.create("user-123", {
         name: "TestBot",
-        endpoint: "http://localhost:4000/action",
-      });
+        strategy: defaultStrategy,
+      } as never);
 
       expect(result.name).toBe("TestBot");
       expect(mockBotRepository.create).toHaveBeenCalled();
@@ -112,8 +101,8 @@ describe("BotsService", () => {
       await expect(
         service.create("user-123", {
           name: "NewBot",
-          endpoint: "http://localhost:4001/action",
-        }),
+          strategy: defaultStrategy,
+        } as never),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -124,25 +113,9 @@ describe("BotsService", () => {
       await expect(
         service.create("user-123", {
           name: "TestBot",
-          endpoint: "http://localhost:4000/action",
-        }),
+          strategy: defaultStrategy,
+        } as never),
       ).rejects.toThrow(ConflictException);
-    });
-
-    it("should throw BadRequestException when URL validation fails", async () => {
-      mockBotRepository.findByUserId.mockResolvedValue([]);
-      mockBotRepository.findByName.mockResolvedValue(null);
-      mockUrlValidator.validateWithHealthCheck.mockResolvedValue({
-        valid: false,
-        error: "Invalid URL",
-      });
-
-      await expect(
-        service.create("user-123", {
-          name: "TestBot",
-          endpoint: "http://invalid-url",
-        }),
-      ).rejects.toThrow(BadRequestException);
     });
   });
 

@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "totalTournaments": 100,
+    "successfulTournaments": 100,
+    "failedTournaments": 0,
+    "seatsPerTable": 9,
+    "startingChips": 1500,
+    "payouts": {
+      "1": 4.5,
+      "2": 2.6999999999999997,
+      "3": 1.8
+    },
+    "workerCount": 12,
+    "avgHandsPerTournament": 298,
+    "avgTournamentMs": 3315,
+    "totalWallMs": 36970,
+    "throughputPerSec": 2.7,
+    "timestamp": "2026-04-04T09:49:01.466Z"
+  },
+  "profiles": {
+    "The Shark": {
+      "entries": 200,
+      "wins": 24,
+      "itmFinishes": 65,
+      "totalPayout": 199.8,
+      "profitLoss": -0.2,
+      "roi": -0.1,
+      "winPct": 12,
+      "itmPct": 32.5,
+      "totalHands": 59652,
+      "vpip": 9.43,
+      "pfr": 5.05,
+      "riverRaises": 1069,
+      "riverRaiseWins": 793,
+      "riverAggrWinPct": 74.18
+    },
+    "The Nit": {
+      "entries": 200,
+      "wins": 0,
+      "itmFinishes": 86,
+      "totalPayout": 191.7,
+      "profitLoss": -8.3,
+      "roi": -4.15,
+      "winPct": 0,
+      "itmPct": 43,
+      "totalHands": 59652,
+      "vpip": 9.86,
+      "pfr": 4.38,
+      "riverRaises": 744,
+      "riverRaiseWins": 520,
+      "riverAggrWinPct": 69.89
+    },
+    "Balanced Pro": {
+      "entries": 200,
+      "wins": 26,
+      "itmFinishes": 59,
+      "totalPayout": 193.5,
+      "profitLoss": -6.5,
+      "roi": -3.25,
+      "winPct": 13,
+      "itmPct": 29.5,
+      "totalHands": 59652,
+      "vpip": 10.2,
+      "pfr": 5.2,
+      "riverRaises": 1222,
+      "riverRaiseWins": 908,
+      "riverAggrWinPct": 74.3
+    },
+    "Random": {
+      "entries": 200,
+      "wins": 31,
+      "itmFinishes": 53,
+      "totalPayout": 190.8,
+      "profitLoss": -9.2,
+      "roi": -4.6,
+      "winPct": 15.5,
+      "itmPct": 26.5,
+      "totalHands": 59652,
+      "vpip": 9.93,
+      "pfr": 5.91,
+      "riverRaises": 1131,
+      "riverRaiseWins": 879,
+      "riverAggrWinPct": 77.72
+    },
+    "UserBot": {
+      "entries": 100,
+      "wins": 19,
+      "itmFinishes": 37,
+      "totalPayout": 124.2,
+      "profitLoss": 24.2,
+      "roi": 24.2,
+      "winPct": 19,
+      "itmPct": 37,
+      "totalHands": 29826,
+      "vpip": 13.13,
+      "pfr": 6.6,
+      "riverRaises": 832,
+      "riverRaiseWins": 627,
+      "riverAggrWinPct": 75.36
+    }
+  },
+  "integrity": {
+    "violations": 0,
+    "violationsByType": {},
+    "detailFile": null
+  }
+}

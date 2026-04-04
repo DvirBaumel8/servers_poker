@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from "@nestjs/common";
+import { Injectable, ForbiddenException, Logger } from "@nestjs/common";
 import { BotRepository } from "../../repositories/bot.repository";
 import { Bot } from "../../entities/bot.entity";
 
@@ -8,6 +8,8 @@ import { Bot } from "../../entities/bot.entity";
  */
 @Injectable()
 export class BotOwnershipService {
+  private readonly logger = new Logger(BotOwnershipService.name);
+
   constructor(private readonly botRepository: BotRepository) {}
 
   /**

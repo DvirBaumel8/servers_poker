@@ -10,15 +10,11 @@ import { APP_FILTER, APP_INTERCEPTOR, APP_GUARD } from "@nestjs/core";
 import { appConfig, getDatabaseConfig } from "./config";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { GameExceptionFilter } from "./common/filters/game-exception.filter";
-import { SentryExceptionFilter } from "./common/sentry/sentry.filter";
 import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
-import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor";
-import { MetricsInterceptor } from "./common/interceptors/metrics.interceptor";
 import { TimeoutInterceptor } from "./common/interceptors/timeout.interceptor";
-import { AuditLog } from "./entities/audit-log.entity";
+import { DistributedLockInterceptor } from "./common/interceptors/distributed-lock.interceptor";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
-import { IpBlockGuard } from "./common/guards/ip-block.guard";
 import { CustomThrottlerGuard } from "./common/guards/custom-throttler.guard";
 
 import { AuthModule } from "./modules/auth/auth.module";
@@ -32,8 +28,13 @@ import { ServicesModule } from "./services/services.module";
 import { SecurityModule } from "./common/security";
 import { JwtConfigModule } from "./common/jwt";
 import { HealthModule } from "./modules/health/health.module";
-import { MetricsModule } from "./modules/metrics/metrics.module";
-import { SentryModule } from "./common/sentry";
+import { TestingModule } from "./modules/testing/testing.module";
+import { FinanceModule } from "./modules/finance/finance.module";
+import { MatchmakingModule } from "./modules/matchmaking/matchmaking.module";
+import { ArchiveModule } from "./modules/archive/archive.module";
+import { SupportModule } from "./modules/support/support.module";
+import { LeaderboardModule } from "./modules/leaderboard/leaderboard.module";
+import { SimulationsModule } from "./modules/simulations/simulations.module";
 
 @Module({
   imports: [
@@ -112,13 +113,10 @@ import { SentryModule } from "./common/sentry";
     }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([AuditLog]),
     JwtConfigModule,
     SecurityModule,
     ServicesModule,
     HealthModule,
-    MetricsModule,
-    SentryModule,
     AuthModule,
     UsersModule,
     BotsModule,
@@ -126,12 +124,15 @@ import { SentryModule } from "./common/sentry";
     TournamentsModule,
     AnalyticsModule,
     PreviewModule,
+    TestingModule,
+    FinanceModule,
+    MatchmakingModule,
+    ArchiveModule,
+    SupportModule,
+    LeaderboardModule,
+    SimulationsModule,
   ],
   providers: [
-    {
-      provide: APP_FILTER,
-      useClass: SentryExceptionFilter,
-    },
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
@@ -150,15 +151,7 @@ import { SentryModule } from "./common/sentry";
     },
     {
       provide: APP_INTERCEPTOR,
-      useClass: AuditLogInterceptor,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: MetricsInterceptor,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: IpBlockGuard,
+      useClass: DistributedLockInterceptor,
     },
     {
       provide: APP_GUARD,

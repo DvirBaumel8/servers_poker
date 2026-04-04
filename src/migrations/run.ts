@@ -1,31 +1,33 @@
-import dataSource from "../config/typeorm.config";
+import { DataSource } from "typeorm";
+import { types } from "pg";
+import * as dotenv from "dotenv";
 
-async function runMigrations() {
-  console.log("Initializing database connection...");
+dotenv.config({ path: [".env.local", ".env"] });
 
-  try {
-    await dataSource.initialize();
-    console.log("Database connection established");
+types.setTypeParser(20, (val: string) => val);
 
-    console.log("Running migrations...");
-    const migrations = await dataSource.runMigrations();
+const dataSource = new DataSource({
+  type: "postgres",
+  host: process.env.DB_HOST ?? "localhost",
+  port: parseInt(process.env.DB_PORT ?? "5432", 10),
+  username: process.env.DB_USERNAME ?? "postgres",
+  password: process.env.DB_PASSWORD ?? "postgres",
+  database: process.env.DB_NAME ?? "poker",
+  entities: [__dirname + "/../entities/*.entity{.ts,.js}"],
+  migrations: [__dirname + "/*-*{.ts,.js}"],
+  logging: true,
+});
 
-    if (migrations.length === 0) {
-      console.log("No pending migrations");
-    } else {
-      console.log(`Executed ${migrations.length} migration(s):`);
-      migrations.forEach((m) => console.log(`  - ${m.name}`));
-    }
-
-    console.log("Migration complete!");
-  } catch (error) {
-    console.error("Migration failed:", error);
-    process.exit(1);
-  } finally {
-    await dataSource.destroy();
+async function run() {
+  await dataSource.initialize();
+  const migrations = await dataSource.runMigrations();
+  for (const m of migrations) {
+    process.stdout.write(`  ✓ ${m.name}\n`);
   }
+  await dataSource.destroy();
 }
 
-if (require.main === module) {
-  runMigrations();
-}
+run().catch((err) => {
+  console.error("Migration failed:", err);
+  process.exit(1);
+});

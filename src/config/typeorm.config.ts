@@ -11,7 +11,7 @@ export const dataSourceOptions: DataSourceOptions = {
   password: process.env.DB_PASSWORD || "postgres",
   database: process.env.DB_NAME || "poker",
   entities: [__dirname + "/../entities/*.entity{.ts,.js}"],
-  migrations: [__dirname + "/../migrations/*{.ts,.js}"],
+  migrations: [__dirname + "/../migrations/*-*{.ts,.js}"],
   synchronize: false,
   logging: process.env.NODE_ENV === "development",
   ssl:

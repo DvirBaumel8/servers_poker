@@ -39,7 +39,16 @@ describe("BotActivityService", () => {
   const mockBot = {
     id: "bot-123",
     name: "TestBot",
-    endpoint: "http://localhost:4000/action",
+    strategy: {
+      version: 1,
+      tier: "quick",
+      personality: {
+        aggression: 50,
+        bluffFrequency: 30,
+        riskTolerance: 50,
+        tightness: 50,
+      },
+    },
     active: true,
     user_id: "user-123",
   };

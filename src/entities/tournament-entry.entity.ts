@@ -1,5 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index, Check } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { bigIntTransformer } from "../common/transformers/bigint.transformer";
 import { Tournament } from "./tournament.entity";
 import { Bot } from "./bot.entity";
 
@@ -7,6 +8,7 @@ export type EntryType = "initial" | "rebuy" | "re_entry";
 
 @Entity("tournament_entries")
 @Index(["tournament_id", "bot_id"])
+@Index(["tournament_id", "finish_position"])
 @Check(`"payout" >= 0`)
 @Check(`"finish_position" IS NULL OR "finish_position" >= 1`)
 export class TournamentEntry extends BaseEntity {
@@ -25,8 +27,14 @@ export class TournamentEntry extends BaseEntity {
   @Column({ type: "integer", nullable: true })
   bust_level: number | null;
 
-  @Column({ type: "bigint", default: 0 })
-  payout: number;
+  @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
+  payout: bigint;
+
+  @Column({ type: "integer", nullable: true })
+  bust_hand_number: number | null;
+
+  @Column({ type: "integer", nullable: true })
+  chips_at_bust: number | null;
 
   @ManyToOne(() => Tournament, (tournament) => tournament.entries, {
     onDelete: "CASCADE",

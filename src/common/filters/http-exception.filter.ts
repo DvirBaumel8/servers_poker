@@ -5,11 +5,8 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-  Optional,
-  Inject,
 } from "@nestjs/common";
 import { Response, Request } from "express";
-import { MetricsService } from "../../modules/metrics/metrics.service";
 
 interface ErrorResponse {
   statusCode: number;
@@ -53,11 +50,7 @@ const USER_FRIENDLY_ERRORS: Record<string, string> = {
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
-  constructor(
-    @Optional()
-    @Inject(MetricsService)
-    private readonly metricsService: MetricsService | null,
-  ) {}
+  constructor() {}
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -82,7 +75,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error = responseObj.error || exception.name;
       }
 
-      if (USER_FRIENDLY_MESSAGES[exceptionName]) {
+      const originalMessage = message;
+      const isGenericOrValidationMessage =
+        originalMessage === "Bad Request" ||
+        originalMessage === "Conflict" ||
+        originalMessage === "Not Found" ||
+        originalMessage === "Forbidden" ||
+        originalMessage === "Unauthorized" ||
+        originalMessage === "Internal server error";
+
+      if (
+        USER_FRIENDLY_MESSAGES[exceptionName] &&
+        isGenericOrValidationMessage
+      ) {
         message = USER_FRIENDLY_MESSAGES[exceptionName];
       }
       if (USER_FRIENDLY_ERRORS[exceptionName]) {
@@ -115,42 +120,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       );
     }
 
-    // Record categorized error metric (GAP-7 fix)
-    if (this.metricsService) {
-      const errorType = this.categorizeError(exceptionName, status);
-      this.metricsService.recordError(errorType, request.url, status);
-    }
-
     response.status(status).json(errorResponse);
-  }
-
-  private categorizeError(exceptionName: string, status: number): string {
-    // Map exception names to error categories
-    const categoryMap: Record<string, string> = {
-      BadRequestException: "validation",
-      ValidationError: "validation",
-      UnauthorizedException: "auth",
-      ForbiddenException: "auth",
-      NotFoundException: "not_found",
-      ConflictException: "conflict",
-      ThrottlerException: "rate_limit",
-      PayloadTooLargeException: "payload",
-      GatewayTimeoutException: "timeout",
-      ServiceUnavailableException: "service_unavailable",
-    };
-
-    if (categoryMap[exceptionName]) {
-      return categoryMap[exceptionName];
-    }
-
-    // Fall back to status code based categories
-    if (status >= 500) {
-      return "server_error";
-    }
-    if (status >= 400) {
-      return "client_error";
-    }
-
-    return "unknown";
   }
 }

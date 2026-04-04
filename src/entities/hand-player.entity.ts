@@ -8,6 +8,10 @@ import {
   Check,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import {
+  bigIntTransformer,
+  bigIntNullableTransformer,
+} from "../common/transformers/bigint.transformer";
 import { Hand } from "./hand.entity";
 import { Bot } from "./bot.entity";
 
@@ -32,17 +36,25 @@ export class HandPlayer extends BaseEntity {
   @Column({ type: "jsonb", default: [] })
   hole_cards: Array<{ rank: string; suit: string }>;
 
-  @Column({ type: "bigint" })
-  start_chips: number;
+  @Column({ type: "bigint", transformer: bigIntTransformer })
+  start_chips: bigint;
 
-  @Column({ type: "bigint", nullable: true })
-  end_chips: number | null;
+  @Column({
+    type: "bigint",
+    nullable: true,
+    transformer: bigIntNullableTransformer,
+  })
+  end_chips: bigint | null;
 
-  @Column({ type: "bigint", default: 0 })
-  amount_bet: number;
+  @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
+  amount_bet: bigint;
 
-  @Column({ type: "bigint", nullable: true })
-  amount_won: number | null;
+  @Column({
+    type: "bigint",
+    nullable: true,
+    transformer: bigIntNullableTransformer,
+  })
+  amount_won: bigint | null;
 
   @Column({ type: "boolean", default: false })
   folded: boolean;
@@ -58,6 +70,10 @@ export class HandPlayer extends BaseEntity {
 
   @Column({ type: "boolean", default: false })
   saw_showdown: boolean;
+
+  /** Whether cards were shown, mucked, or hidden (folded before showdown). */
+  @Column({ type: "varchar", length: 10, default: "hidden" })
+  card_status: "shown" | "mucked" | "hidden";
 
   @Column({ type: "jsonb", nullable: true })
   best_hand: {

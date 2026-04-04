@@ -1,6 +1,6 @@
 # Poker Engine
 
-A No-Limit Texas Hold'em tournament platform where developers build HTTP-based bot servers that compete against each other in poker games and tournaments. The NestJS game server orchestrates gameplay: it calls each bot's HTTP endpoint with game state and expects an action response.
+A No-Limit Texas Hold'em tournament platform where users build bots via the BotBuilder UI. Bots use in-process strategy evaluation — no external servers required. The game engine evaluates each bot's strategy JSON directly during gameplay.
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -10,13 +10,9 @@ A No-Limit Texas Hold'em tournament platform where developers build HTTP-based b
 │  POST /games/:id/join           — join a table      │
 │  GET  /games/:id/state          — live game state   │
 │  WS   /game                     — real-time push    │
-└────────────────┬───────────────────┬────────────────┘
-                 │  POST /action      │  POST /action
-                 ▼                    ▼
-         ┌──────────────┐    ┌──────────────┐
-         │ Bot Server A │    │ Bot Server B │
-         │ (your code)  │    │ (your code)  │
-         └──────────────┘    └──────────────┘
+│                                                      │
+│  StrategyEngineService — in-process bot evaluation  │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
@@ -25,7 +21,7 @@ A No-Limit Texas Hold'em tournament platform where developers build HTTP-based b
 |-------|-----------|
 | Backend | Node.js 22, NestJS, TypeORM, PostgreSQL 16 |
 | Frontend | React 19, Vite, Tailwind CSS v4, Zustand |
-| Auth | JWT (users), API Key (bots) |
+| Auth | JWT (users & bot ownership) |
 | Real-time | Socket.IO via @nestjs/websockets |
 | Testing | Vitest |
 | CI/CD | GitHub Actions, CodeQL, Lighthouse CI |
@@ -61,23 +57,28 @@ This starts the backend on `http://localhost:3000` and frontend on `http://local
 
 ### Create Your First Bot
 
-```bash
-# Start the mock bot server
-npx ts-node scripts/mock-bot-server.ts
+**Option 1: BotBuilder UI**
+1. Navigate to `http://localhost:3001/register` and create an account
+2. Go to `/bots/build` to open the BotBuilder wizard
+3. Choose a tier (Quick Bot, Strategy Builder, or Pro Builder)
+4. Configure your bot's personality and strategy
+5. Submit to create your bot
 
-# Register as a developer (creates account + bot in one call)
+**Option 2: API**
+```bash
 curl -X POST http://localhost:3000/api/v1/auth/register-developer \
   -H "Content-Type: application/json" \
   -d '{
     "email": "you@example.com",
     "name": "YourName",
     "password": "SecurePassword123",
-    "botName": "MyBot",
-    "botEndpoint": "http://localhost:4000/action"
+    "botName": "MyBot"
   }'
 ```
 
-See [docs/QUICKSTART.md](docs/QUICKSTART.md) for a full 5-minute getting-started guide.
+This creates an account and bot with a default strategy. Customize it later via the BotBuilder UI.
+
+See [docs/QUICKSTART.md](docs/QUICKSTART.md) for a full getting-started guide.
 
 ## NPM Scripts
 
@@ -96,25 +97,20 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for a full 5-minute getting-started
 | `npm run ci:local` | **Run local CI simulation before PRs** |
 | `npm run ci:local:quick` | Quick local CI (lint + types + unit tests) |
 | `npm run ci:local:fix` | Auto-fix lint/format issues |
+| `bash scripts/db-backup.sh` | Database backup with retention pruning |
 | `npm run monsters:quick` | Quick QA validation (API + Invariant) |
 | `npm run monsters:pr` | PR validation (Layers 1+2) |
 | `npm run monsters:nightly` | Full QA coverage |
 
-## Bot Protocol
+## Strategy Engine
 
-Your bot is an HTTP server that responds to `POST /action` with a JSON action:
+Bots are powered by a strategy JSON definition that is evaluated in-process by `StrategyEngineService`. Strategies are created via the BotBuilder UI with three tiers of complexity:
 
-```json
-{ "type": "fold" }
-{ "type": "check" }
-{ "type": "call" }
-{ "type": "raise", "amount": 200 }
-{ "type": "all_in" }
-```
+- **Quick Bot** — Personality sliders (aggression, bluff frequency, risk tolerance)
+- **Strategy Builder** — Visual IF/THEN rule builder
+- **Pro Builder** — Full range chart editor with per-position control
 
-The server sends your bot the full game state including your hole cards, community cards, pot size, and available actions. See [docs/BOT_DEVELOPER_GUIDE.md](docs/BOT_DEVELOPER_GUIDE.md) for the complete protocol.
-
-Bot SDKs are available in [bots/sdk/](bots/sdk/) for JavaScript, Python, and Java.
+The game engine calls `evaluateStrategy(strategy, gameState)` for each bot's turn, returning an action (fold, check, call, raise, all_in) without any external HTTP calls.
 
 ## Project Structure
 
@@ -125,12 +121,12 @@ src/
 ├── migrations/      # Database migrations
 ├── modules/
 │   ├── auth/        # Registration, login, JWT, email verification
-│   ├── bots/        # Bot CRUD, validation, health monitoring
+│   ├── bots/        # Bot CRUD, strategy management, subscriptions
 │   ├── games/       # Game tables, hand history, leaderboard
 │   ├── tournaments/ # Tournament lifecycle, blind levels, payouts
 │   └── users/       # User management
 ├── repositories/    # Data access layer
-├── services/        # Bot caller, game persistence, provably fair
+├── services/        # Game persistence, provably fair, bot activity
 ├── game/            # Core poker engine (invariants, state)
 ├── betting.ts       # Pot manager and betting round logic
 └── main.ts          # Application entry point
@@ -169,16 +165,6 @@ docker compose --profile dev up
 # Run migrations
 docker compose --profile migrate up
 ```
-
-## Monitoring
-
-The platform includes a full observability stack:
-
-- **Prometheus** — metrics collection (`/metrics` endpoint)
-- **Grafana** — dashboards and visualization
-- **Alertmanager** — alerting and notifications
-
-Configuration files are in the `monitoring/` directory. See [docs/MONITORING.md](docs/MONITORING.md) for setup details.
 
 ## QA Testing
 

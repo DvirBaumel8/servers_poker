@@ -1,6 +1,13 @@
+function bigMin(a: bigint, b: bigint): bigint {
+  return a < b ? a : b;
+}
+function bigMax(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
+}
+
 interface Player {
   id: string;
-  chips: number;
+  chips: bigint;
   folded: boolean;
   allIn: boolean;
 }
@@ -11,7 +18,7 @@ interface Action {
 }
 
 interface Pot {
-  amount: number;
+  amount: bigint;
   eligiblePlayerIds: string[];
 }
 
@@ -25,11 +32,11 @@ interface Winner {
  */
 export class PotManager {
   pots: Pot[];
-  playerBetsThisRound: { [key: string]: number };
-  playerTotalBets: { [key: string]: number };
+  playerBetsThisRound: Record<string, bigint>;
+  playerTotalBets: Record<string, bigint>;
 
   constructor() {
-    this.pots = [{ amount: 0, eligiblePlayerIds: [] }];
+    this.pots = [{ amount: 0n, eligiblePlayerIds: [] }];
     this.playerBetsThisRound = {};
     this.playerTotalBets = {};
   }
@@ -38,39 +45,44 @@ export class PotManager {
     this.playerBetsThisRound = {};
   }
 
-  addBet(playerId: string, amount: number): void {
+  addBet(playerId: string, amount: bigint): void {
     this.playerBetsThisRound[playerId] =
-      (this.playerBetsThisRound[playerId] || 0) + amount;
+      (this.playerBetsThisRound[playerId] ?? 0n) + amount;
     this.playerTotalBets[playerId] =
-      (this.playerTotalBets[playerId] || 0) + amount;
+      (this.playerTotalBets[playerId] ?? 0n) + amount;
   }
 
-  getPlayerBetThisRound(playerId: string): number {
-    return this.playerBetsThisRound[playerId] || 0;
+  getPlayerBetThisRound(playerId: string): bigint {
+    return this.playerBetsThisRound[playerId] ?? 0n;
   }
 
-  getPlayerTotalBet(playerId: string): number {
-    return this.playerTotalBets[playerId] || 0;
+  getPlayerTotalBet(playerId: string): bigint {
+    return this.playerTotalBets[playerId] ?? 0n;
   }
 
-  getTotalPot(): number {
-    return this.pots.reduce((sum, p) => sum + p.amount, 0);
+  getTotalPot(): bigint {
+    // Return sum of all chips bet in the current hand
+    // This is the authoritative record of chips out of stacks
+    return Object.values(this.playerTotalBets).reduce(
+      (sum, bet) => sum + bet,
+      0n,
+    );
   }
 
   calculatePots(players: Player[]): void {
     const activeBets = players
-      .filter((p) => this.playerTotalBets[p.id] > 0)
+      .filter((p) => (this.playerTotalBets[p.id] ?? 0n) > 0n)
       .map((p) => ({
         id: p.id,
-        total: this.playerTotalBets[p.id],
+        total: this.playerTotalBets[p.id]!,
         folded: p.folded,
       }))
-      .sort((a, b) => a.total - b.total);
+      .sort((a, b) => (a.total < b.total ? -1 : a.total > b.total ? 1 : 0));
 
     if (activeBets.length === 0) return;
 
     const pots: Pot[] = [];
-    let previousLevel = 0;
+    let previousLevel = 0n;
     const allBetLevels = [...new Set(activeBets.map((b) => b.total))];
 
     for (const level of allBetLevels) {
@@ -79,13 +91,34 @@ export class PotManager {
         .filter((b) => b.total >= level && !b.folded)
         .map((b) => b.id);
       const contributors = activeBets.filter((b) => b.total >= level);
-      const potAmount = contribution * contributors.length;
-      if (potAmount > 0)
-        pots.push({ amount: potAmount, eligiblePlayerIds: eligible });
+      const potAmount = contribution * BigInt(contributors.length);
+      if (potAmount > 0n) {
+        if (eligible.length > 0) {
+          pots.push({ amount: potAmount, eligiblePlayerIds: eligible });
+        } else {
+          // Dead money: every player who reached this bet level has folded.
+          // Merge into the nearest lower pot that has eligible players so
+          // chips are never silently dropped at showdown.
+          let merged = false;
+          for (let i = pots.length - 1; i >= 0; i--) {
+            if (pots[i].eligiblePlayerIds.length > 0) {
+              pots[i].amount += potAmount;
+              merged = true;
+              break;
+            }
+          }
+          if (!merged) {
+            // No eligible pot exists yet — keep chips here; showdown will
+            // use all active players as a fallback.
+            pots.push({ amount: potAmount, eligiblePlayerIds: [] });
+          }
+        }
+      }
       previousLevel = level;
     }
 
-    this.pots = pots.length > 0 ? pots : [{ amount: 0, eligiblePlayerIds: [] }];
+    this.pots =
+      pots.length > 0 ? pots : [{ amount: 0n, eligiblePlayerIds: [] }];
   }
 
   /**
@@ -99,12 +132,12 @@ export class PotManager {
    * @returns Distribution mapping playerId -> amount won
    */
   distributePot(
-    potAmount: number,
+    potAmount: bigint,
     winners: Winner[],
     playerOrder: string[],
     dealerIndex: number,
-  ): Record<string, number> {
-    const distribution: Record<string, number> = {};
+  ): Record<string, bigint> {
+    const distribution: Record<string, bigint> = {};
 
     if (winners.length === 0) {
       return distribution;
@@ -116,22 +149,22 @@ export class PotManager {
     }
 
     const winnerIds = new Set(winners.map((w) => w.id));
-    const baseShare = Math.floor(potAmount / winners.length);
-    const remainder = potAmount % winners.length;
+    const baseShare = potAmount / BigInt(winners.length);
+    const remainder = potAmount % BigInt(winners.length);
 
     for (const winner of winners) {
       distribution[winner.id] = baseShare;
     }
 
-    if (remainder > 0) {
-      let oddChipsGiven = 0;
+    if (remainder > 0n) {
+      let oddChipsGiven = 0n;
       let searchIndex = (dealerIndex + 1) % playerOrder.length;
 
       while (oddChipsGiven < remainder) {
         const playerId = playerOrder[searchIndex];
         if (winnerIds.has(playerId)) {
-          distribution[playerId]++;
-          oddChipsGiven++;
+          distribution[playerId] += 1n;
+          oddChipsGiven += 1n;
         }
         searchIndex = (searchIndex + 1) % playerOrder.length;
 
@@ -149,15 +182,15 @@ export class PotManager {
  */
 export class BettingRound {
   players: Player[];
-  smallBlind: number;
-  bigBlind: number;
+  smallBlind: bigint;
+  bigBlind: bigint;
   isPreFlop: boolean;
   dealerIndex: number;
-  currentBet: number;
-  minRaise: number;
+  currentMaxBet: bigint;
+  lastRaiseDelta: bigint;
   lastRaiserIndex: number;
   actedPlayers: Set<string>;
-  betsThisRound: { [key: string]: number };
+  betsThisRound: Record<string, bigint>;
   private lastRaiseWasFull: boolean = true;
   private bettingReopenedFor: Set<string> = new Set();
 
@@ -169,8 +202,8 @@ export class BettingRound {
     dealerIndex,
   }: {
     players: Player[];
-    smallBlind: number;
-    bigBlind: number;
+    smallBlind: bigint;
+    bigBlind: bigint;
     isPreFlop?: boolean;
     dealerIndex: number;
   }) {
@@ -179,8 +212,8 @@ export class BettingRound {
     this.bigBlind = bigBlind;
     this.isPreFlop = isPreFlop;
     this.dealerIndex = dealerIndex;
-    this.currentBet = 0;
-    this.minRaise = bigBlind;
+    this.currentMaxBet = 0n;
+    this.lastRaiseDelta = bigBlind;
     this.lastRaiserIndex = -1;
     this.actedPlayers = new Set();
     this.betsThisRound = {};
@@ -188,19 +221,19 @@ export class BettingRound {
     this.bettingReopenedFor = new Set();
   }
 
-  getPlayerBet(playerId: string): number {
-    return this.betsThisRound[playerId] || 0;
+  getPlayerBet(playerId: string): bigint {
+    return this.betsThisRound[playerId] ?? 0n;
   }
 
-  getCallAmount(player: Player): number {
-    return Math.min(
-      this.currentBet - this.getPlayerBet(player.id),
+  getCallAmount(player: Player): bigint {
+    return bigMin(
+      this.currentMaxBet - this.getPlayerBet(player.id),
       player.chips,
     );
   }
 
   canCheck(player: Player): boolean {
-    return this.getPlayerBet(player.id) >= this.currentBet;
+    return this.getPlayerBet(player.id) >= this.currentMaxBet;
   }
 
   /**
@@ -211,82 +244,87 @@ export class BettingRound {
   applyAction(
     player: Player,
     action: Action,
-  ): { valid: boolean; error?: string; amountAdded: number } {
+  ): { valid: boolean; error?: string; amountAdded: bigint } {
     const { type, amount } = action;
     const alreadyBet = this.getPlayerBet(player.id);
-    const toCall = this.currentBet - alreadyBet;
+    const toCall = this.currentMaxBet - alreadyBet;
 
     if (type === "fold") {
       player.folded = true;
       this.actedPlayers.add(player.id);
-      return { valid: true, amountAdded: 0 };
+      return { valid: true, amountAdded: 0n };
     }
 
     if (type === "check") {
-      if (toCall > 0)
+      if (toCall > 0n)
         return {
           valid: false,
           error: `Must call ${toCall} or fold`,
-          amountAdded: 0,
+          amountAdded: 0n,
         };
       this.actedPlayers.add(player.id);
-      return { valid: true, amountAdded: 0 };
+      return { valid: true, amountAdded: 0n };
     }
 
     if (type === "call") {
-      const callAmount = Math.min(toCall, player.chips);
+      const callAmount = bigMin(toCall, player.chips);
       player.chips -= callAmount;
       this.betsThisRound[player.id] = alreadyBet + callAmount;
-      if (player.chips === 0) player.allIn = true;
+      if (player.chips === 0n) player.allIn = true;
       this.actedPlayers.add(player.id);
       return { valid: true, amountAdded: callAmount };
     }
 
     if (type === "raise" || type === "bet") {
-      // amount = additional chips on top of what the player has already put in this round
-      const raiseBy = Number(amount);
+      // amount = raise delta (chips above the current max bet, on top of the call)
+      const raiseBy = amount != null ? BigInt(Math.round(amount)) : 0n;
 
-      if (!raiseBy || raiseBy <= 0) {
+      if (raiseBy <= 0n) {
         return {
           valid: false,
           error: "Raise amount must be a positive number",
-          amountAdded: 0,
+          amountAdded: 0n,
         };
       }
 
-      // Total the player will have bet after this action
-      const newPlayerTotal = alreadyBet + toCall + raiseBy;
-      const additional = newPlayerTotal - alreadyBet; // toCall + raiseBy
+      // Total the player will have bet after this action (= currentMaxBet + raiseBy)
+      const newTotalAmount = alreadyBet + toCall + raiseBy;
+      const additional = newTotalAmount - alreadyBet; // toCall + raiseBy
 
-      if (raiseBy < this.minRaise && player.chips > additional) {
+      // Delta Rule: new total must be >= currentMaxBet + lastRaiseDelta
+      if (
+        newTotalAmount < this.currentMaxBet + this.lastRaiseDelta &&
+        player.chips > additional
+      ) {
         return {
           valid: false,
-          error: `Minimum raise is ${this.minRaise}`,
-          amountAdded: 0,
+          error: `Minimum raise is to ${this.currentMaxBet + this.lastRaiseDelta}`,
+          amountAdded: 0n,
         };
       }
 
-      const actualAdditional = Math.min(additional, player.chips);
+      const actualAdditional = bigMin(additional, player.chips);
       player.chips -= actualAdditional;
       this.betsThisRound[player.id] = alreadyBet + actualAdditional;
 
-      if (player.chips === 0) player.allIn = true;
+      if (player.chips === 0n) player.allIn = true;
 
       const newBet = this.betsThisRound[player.id];
-      const raiseAmount = newBet - this.currentBet;
+      const raiseAmount = newBet - this.currentMaxBet;
 
-      if (newBet > this.currentBet) {
-        const isFullRaise = raiseAmount >= this.minRaise;
+      if (newBet > this.currentMaxBet) {
+        const isFullRaise = raiseAmount >= this.lastRaiseDelta;
         this.lastRaiseWasFull = isFullRaise;
 
         if (isFullRaise) {
-          this.minRaise = raiseAmount;
+          // Use bigMax to ensure lastRaiseDelta never falls below 1 BB
+          this.lastRaiseDelta = bigMax(this.bigBlind, raiseAmount);
           this.bettingReopenedFor = new Set(
             this.players.filter((p) => p.id !== player.id).map((p) => p.id),
           );
         }
 
-        this.currentBet = newBet;
+        this.currentMaxBet = newBet;
         this.lastRaiserIndex = this.players.findIndex(
           (p) => p.id === player.id,
         );
@@ -299,7 +337,7 @@ export class BettingRound {
     return {
       valid: false,
       error: `Unknown action type: ${type}`,
-      amountAdded: 0,
+      amountAdded: 0n,
     };
   }
 
@@ -308,13 +346,13 @@ export class BettingRound {
     if (notFolded.length <= 1) return true;
 
     const canAct = this.players.filter(
-      (p) => !p.folded && !p.allIn && p.chips > 0,
+      (p) => !p.folded && !p.allIn && p.chips > 0n,
     );
     if (canAct.length === 0) return true;
 
     for (const p of canAct) {
       if (!this.actedPlayers.has(p.id)) return false;
-      if (this.getPlayerBet(p.id) < this.currentBet && p.chips > 0)
+      if (this.getPlayerBet(p.id) < this.currentMaxBet && p.chips > 0n)
         return false;
     }
 
@@ -329,7 +367,7 @@ export class BettingRound {
   canReraise(playerId: string): boolean {
     const player = this.players.find((p) => p.id === playerId);
     if (!player) return false;
-    if (player.folded || player.allIn || player.chips === 0) return false;
+    if (player.folded || player.allIn || player.chips === 0n) return false;
 
     if (!this.lastRaiseWasFull) {
       return false;
@@ -358,17 +396,21 @@ export class BettingRound {
     actions.push("fold");
 
     const toCall = this.getCallAmount(player);
-    if (toCall === 0) {
+    if (toCall === 0n) {
       actions.push("check");
     } else if (player.chips >= toCall) {
       actions.push("call");
     }
 
-    if (player.chips > toCall && this.canReraise(player.id)) {
+    // Allow raise if no one has bet yet (first open) OR betting was reopened after a full raise
+    const canBetOrRaise =
+      player.chips > toCall &&
+      (this.lastRaiserIndex === -1 || this.canReraise(player.id));
+    if (canBetOrRaise) {
       actions.push("raise");
     }
 
-    if (player.chips > 0 && toCall > 0) {
+    if (player.chips > 0n && toCall > 0n) {
       actions.push("all_in");
     }
 

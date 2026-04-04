@@ -1,8 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { ConfigModule } from "@nestjs/config";
 import { BotsController } from "./bots.controller";
-import { BotsConnectivityController } from "./bots-connectivity.controller";
+import { BotsInternalController } from "./bots-internal.controller";
 import { SubscriptionsController } from "./subscriptions.controller";
 import { BotsService } from "./bots.service";
 import { BotOwnershipService } from "./bot-ownership.service";
@@ -19,7 +18,6 @@ import { BotRepository } from "../../repositories/bot.repository";
 import { BotSubscriptionRepository } from "../../repositories/bot-subscription.repository";
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
-import { UrlValidatorService } from "../../common/validators/url-validator.service";
 
 @Module({
   imports: [
@@ -34,11 +32,10 @@ import { UrlValidatorService } from "../../common/validators/url-validator.servi
       TournamentSeat,
       TournamentBlindLevel,
     ]),
-    ConfigModule,
   ],
   controllers: [
+    BotsInternalController,
     BotsController,
-    BotsConnectivityController,
     SubscriptionsController,
   ],
   providers: [
@@ -48,7 +45,6 @@ import { UrlValidatorService } from "../../common/validators/url-validator.servi
     BotSubscriptionRepository,
     TournamentRepository,
     AnalyticsRepository,
-    UrlValidatorService,
   ],
   exports: [
     BotsService,

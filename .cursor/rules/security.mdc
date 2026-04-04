@@ -76,17 +76,6 @@ const secret = "my-jwt-secret";
 const secret = this.config.get("jwtSecret");
 ```
 
-## Bot Endpoint Validation
-
-Validate bot endpoints before making requests:
-
-```typescript
-// The UrlValidatorService checks:
-// - Valid URL format
-// - Not localhost/private IPs in production
-// - HTTPS in production
-```
-
 ## Sensitive Data in Logs
 
 Never log:

@@ -13,18 +13,11 @@ import { Request } from "express";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { createHash } from "crypto";
-import { PlatformAnalyticsService } from "../../services/platform-analytics.service";
-import { DailySummaryService } from "../../services/daily-summary.service";
 import { AnalyticsEvent } from "../../entities/analytics-event.entity";
 import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
-import {
-  RecordEventDto,
-  PlatformStatsDto,
-  AdminStatsDto,
-  MetricsHistoryQueryDto,
-} from "./dto/analytics.dto";
+import { RecordEventDto, MetricsHistoryQueryDto } from "./dto/analytics.dto";
 
 interface AuthenticatedUser {
   id: string;
@@ -37,70 +30,9 @@ export class AnalyticsController {
   private readonly logger = new Logger(AnalyticsController.name);
 
   constructor(
-    private readonly analyticsService: PlatformAnalyticsService,
-    private readonly dailySummaryService: DailySummaryService,
     @InjectRepository(AnalyticsEvent)
     private readonly eventRepository: Repository<AnalyticsEvent>,
   ) {}
-
-  @Public()
-  @Get("platform/stats")
-  async getPlatformStats(): Promise<PlatformStatsDto> {
-    return this.analyticsService.getPlatformStats();
-  }
-
-  @Roles("admin")
-  @Get("admin/stats")
-  async getAdminStats(
-    @Query() query: MetricsHistoryQueryDto,
-  ): Promise<AdminStatsDto> {
-    const days = query.days ?? 30;
-
-    const [stats, topPerformers, metricsHistory] = await Promise.all([
-      this.analyticsService.getPlatformStats(),
-      this.analyticsService.getTopPerformers(10),
-      this.analyticsService.getMetricsHistory(days),
-    ]);
-
-    return {
-      ...stats,
-      topPerformers,
-      metricsHistory: metricsHistory.map((m) => ({
-        date: m.date.toISOString().split("T")[0],
-        hands_dealt: m.hands_dealt,
-        games_played: m.games_played,
-        active_users: m.active_users,
-        active_bots: m.active_bots,
-      })),
-    };
-  }
-
-  @Roles("admin")
-  @Post("admin/trigger-summary")
-  async triggerDailySummary(): Promise<{ success: boolean; message: string }> {
-    const success = await this.dailySummaryService.triggerManualSummary();
-    return {
-      success,
-      message: success
-        ? "Daily summary sent successfully"
-        : "Failed to send daily summary",
-    };
-  }
-
-  @Roles("admin")
-  @Post("admin/save-metrics")
-  async saveMetricsSnapshot(): Promise<{ success: boolean; message: string }> {
-    try {
-      await this.analyticsService.saveDailyMetrics();
-      return {
-        success: true,
-        message: "Metrics snapshot saved successfully",
-      };
-    } catch (error) {
-      this.logger.error("Failed to save metrics snapshot:", error);
-      throw new InternalServerErrorException("Failed to save metrics snapshot");
-    }
-  }
 
   @Public()
   @Post("events")
@@ -157,13 +89,6 @@ export class AnalyticsController {
     }
 
     return summary;
-  }
-
-  @Roles("admin")
-  @Get("metrics/history")
-  async getMetricsHistory(@Query() query: MetricsHistoryQueryDto) {
-    const days = query.days ?? 30;
-    return this.analyticsService.getMetricsHistory(days);
   }
 
   private getClientIp(req: Request): string {

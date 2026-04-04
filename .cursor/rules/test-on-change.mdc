@@ -36,8 +36,13 @@ npx vitest run tests/e2e/auth.e2e.spec.ts
 Run quick validation:
 
 ```bash
-npm run qa:monster:quick
+npm run ci:local:quick
 ```
+
+This runs:
+- Backend & frontend linting
+- Backend & frontend type checking
+- Unit tests
 
 ## If Tests Fail
 

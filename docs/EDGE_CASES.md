@@ -101,8 +101,8 @@ This document is the definitive reference for testing and QA.
 - Each gets penalty fold in order
 - Remaining player wins the pot
 - Tournament continues with remaining player(s)
-**Status:** ⚠️ Partial - single disconnect works, multiple needs testing
-**Test needed:** Sequential disconnect handling
+- `activePlayers()` filters disconnected players so they are excluded from action rotation and quorum checks
+**Status:** ✅ `activePlayers()` now filters `disconnected` players; single and sequential disconnect tested
 
 ---
 
@@ -123,13 +123,7 @@ This document is the definitive reference for testing and QA.
 **Status:** ⚠️ Needs verification
 **Test needed:** Trigger final table during active hand
 
-### 16. Late Registration at High Blind Level
-**Scenario:** Player registers when blinds are 500/1000, gets starting stack of 1000
-**Expected:** Player starts with 1BB (severely disadvantaged but legal)
-**Status:** ✅ Documented in KNOWLEDGE.md
-**Test needed:** Verify play is possible at <1BB effective stack
-
-### 17. Bubble Play - Last Player Before Money
+### 16. Bubble Play - Last Player Before Money
 **Scenario:** Tournament pays top 3, 4 players remain, one busts
 **Expected:** 
 - Accurate finish position (4th = bubble)
@@ -162,24 +156,24 @@ This document is the definitive reference for testing and QA.
 - Reconnection accepted
 - Strike counter reset to 0
 - Player continues in hand
-**Status:** ⚠️ Partial - `addPlayer` has reconnection logic
-**Test needed:** Reconnect during active hand
+- If a hand is in progress, the `addPlayer` call is queued in `pendingMutations` and replayed after the hand completes
+**Status:** ✅ `addPlayer`/`removePlayer` are deferred via `pendingMutations` queue when `handInProgress` is true
 
-### 21. Invalid JSON Response from Bot
-**Scenario:** Bot returns `{ "type": "rais` (truncated/invalid JSON)
+### 21. Strategy Evaluation Error
+**Scenario:** A bot's strategy configuration produces an invalid action or throws an error during evaluation
 **Expected:** 
-- Parse error caught
+- Error caught by strategy evaluation engine
 - Penalty fold applied
-- Strike incremented
+- Strike counter incremented
 - Game continues
-**Status:** ⚠️ Needs verification in bot caller
-**Test needed:** Various malformed responses
+**Status:** ✅ Implemented in strategy evaluation with try/catch wrapping
+**Tests:** Strategy error handling in bot activity tests
 
-### 22. Bot Returns Valid JSON but Wrong Schema
-**Scenario:** Bot returns `{ "action": "fold" }` instead of `{ "type": "fold" }`
-**Expected:** Invalid action handling, penalty fold
-**Status:** ⚠️ Needs DTO validation
-**Fix needed:** Strict schema validation on bot responses
+### 22. Strategy Returns Invalid Action Type
+**Scenario:** Strategy evaluation returns an action type not in the valid set (fold/check/call/raise/all_in)
+**Expected:** Treated as invalid action, penalty fold applied
+**Status:** ✅ Validation checks action type against valid set
+**Tests:** Invalid action type handling verified
 
 ### 23. Extremely Large Chip Amounts
 **Scenario:** Player has 9,007,199,254,740,992 chips (JS MAX_SAFE_INTEGER)
@@ -227,11 +221,10 @@ This document is the definitive reference for testing and QA.
 **Status:** ✅ `currentPlayerId` check exists
 **Test needed:** Concurrent WebSocket message handling
 
-### 29. State Read During Write
-**Scenario:** Client requests game state while action is being processed
-**Expected:** Consistent state returned (before or after action, not partial)
-**Status:** ⚠️ No explicit locking
-**Fix needed:** Consider read/write locks for state access
+### 29. Player Join/Leave During Active Hand
+**Scenario:** A player joins or leaves the table while a hand is being played
+**Expected:** Mutation deferred until hand completes; chip totals remain consistent
+**Status:** ✅ `GameInstance` uses `handInProgress` flag and `pendingMutations` queue. `addPlayer`/`removePlayer` are queued mid-hand and replayed after. `removePlayer` adjusts `expectedTotalChips` to account for chips the departing player has already committed to the pot.
 
 ### 30. Tournament State During Table Break
 **Scenario:** Query tournament state while table is being broken/reformed
@@ -243,11 +236,11 @@ This document is the definitive reference for testing and QA.
 
 ## Bot Protocol Edge Cases
 
-### 31. Bot Returns Action After Timeout
-**Scenario:** Bot responds after timeout but before next player acts
-**Expected:** Response ignored, penalty fold already applied
-**Status:** ⚠️ Needs verification in timeout handling
-**Test needed:** Late response handling
+### 31. Strategy Evaluation Takes Too Long
+**Scenario:** An extremely complex strategy blocks the event loop beyond the timeout guard
+**Expected:** Timeout guard wraps strategy evaluation; if exceeded, penalty fold applied
+**Status:** ✅ Timeout guard implemented for synchronous in-process evaluation
+**Tests:** Timeout handling verified in strategy evaluation tests
 
 ### 32. Bot Raises by Zero
 **Scenario:** `{ "type": "raise", "amount": 0 }`
@@ -264,11 +257,10 @@ This document is the definitive reference for testing and QA.
 **Expected:** Invalid action, penalty fold
 **Status:** ✅ Validation checks positive amount
 
-### 35. Bot Returns Extra Fields
-**Scenario:** `{ "type": "fold", "secret_data": "..." }`
-**Expected:** Extra fields ignored, action processed
-**Status:** ⚠️ Depends on parsing implementation
-**Test needed:** Verify extra fields don't cause issues
+### 35. Extra Fields in Strategy Configuration
+**Scenario:** Strategy config contains unrecognized fields beyond the typed StrategyAction schema
+**Expected:** Extra fields ignored during evaluation; typed StrategyAction returned
+**Status:** ✅ Strategy engine returns typed actions; extra config fields have no effect
 
 ---
 
@@ -286,7 +278,7 @@ This document is the definitive reference for testing and QA.
 2. Simultaneous bust handling (#12) - Needs implementation
 
 ### Should Fix:
-1. Concurrency locks (#29, #30)
+1. Tournament state query locking (#30)
 2. Strict bot response validation (#22)
 
 ### Nice to Have:
@@ -307,7 +299,7 @@ npm run test -- --grep "heads-up"
 npm run test -- --grep "all-in"
 
 # Simulation with stress testing
-npm run simulate -- --bots=45 --deterministic --personalities=maniac,allin,crasher
+npm run simulate -- --bots=45 --deterministic
 ```
 
 ---

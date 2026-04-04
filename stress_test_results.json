@@ -1,0 +1,434 @@
+{
+  "meta": {
+    "totalTournaments": 5000,
+    "successfulTournaments": 4999,
+    "failedTournaments": 1,
+    "seatsPerTable": 9,
+    "startingChips": 1500,
+    "payouts": {
+      "1": 4.5,
+      "2": 2.6999999999999997,
+      "3": 1.8
+    },
+    "workerCount": 12,
+    "peakActiveWorkers": 12,
+    "peakUtilizationPct": 100,
+    "avgActiveWorkers": 11.9,
+    "avgHandsPerTournament": 235,
+    "avgTournamentMs": 2620,
+    "totalWallMs": 1107849,
+    "throughputPerSec": 4.51,
+    "timestamp": "2026-04-04T10:57:50.612Z"
+  },
+  "profiles": {
+    "The Shark": {
+      "entries": 4999,
+      "wins": 622,
+      "itmFinishes": 1808,
+      "totalPayout": 5437.8,
+      "profitLoss": 438.8,
+      "roi": 8.78,
+      "winPct": 12.44,
+      "itmPct": 36.17,
+      "totalHands": 1174694,
+      "vpip": 10.16,
+      "pfr": 5.42,
+      "riverRaises": 22829,
+      "riverRaiseWins": 16808,
+      "riverAggrWinPct": 73.63
+    },
+    "The Rock": {
+      "entries": 4999,
+      "wins": 67,
+      "itmFinishes": 2296,
+      "totalPayout": 5323.5,
+      "profitLoss": 324.5,
+      "roi": 6.49,
+      "winPct": 1.34,
+      "itmPct": 45.93,
+      "totalHands": 1174694,
+      "vpip": 10.95,
+      "pfr": 4.87,
+      "riverRaises": 17322,
+      "riverRaiseWins": 12443,
+      "riverAggrWinPct": 71.83
+    },
+    "The Maniac": {
+      "entries": 4999,
+      "wins": 1018,
+      "itmFinishes": 1388,
+      "totalPayout": 5392.8,
+      "profitLoss": 393.8,
+      "roi": 7.88,
+      "winPct": 20.36,
+      "itmPct": 27.77,
+      "totalHands": 1174694,
+      "vpip": 8.71,
+      "pfr": 5.53,
+      "riverRaises": 22563,
+      "riverRaiseWins": 18847,
+      "riverAggrWinPct": 83.53
+    },
+    "Calling Station": {
+      "entries": 4999,
+      "wins": 465,
+      "itmFinishes": 1396,
+      "totalPayout": 4211.1,
+      "profitLoss": -787.9,
+      "roi": -15.76,
+      "winPct": 9.3,
+      "itmPct": 27.93,
+      "totalHands": 1174694,
+      "vpip": 13.63,
+      "pfr": 5.86,
+      "riverRaises": 25418,
+      "riverRaiseWins": 18409,
+      "riverAggrWinPct": 72.43
+    },
+    "The Nit": {
+      "entries": 4999,
+      "wins": 42,
+      "itmFinishes": 2455,
+      "totalPayout": 5689.8,
+      "profitLoss": 690.8,
+      "roi": 13.82,
+      "winPct": 0.84,
+      "itmPct": 49.11,
+      "totalHands": 1174694,
+      "vpip": 11.37,
+      "pfr": 5.03,
+      "riverRaises": 17907,
+      "riverRaiseWins": 12697,
+      "riverAggrWinPct": 70.91
+    },
+    "Balanced Pro": {
+      "entries": 4999,
+      "wins": 695,
+      "itmFinishes": 1603,
+      "totalPayout": 5158.8,
+      "profitLoss": 159.8,
+      "roi": 3.2,
+      "winPct": 13.9,
+      "itmPct": 32.07,
+      "totalHands": 1174694,
+      "vpip": 11.64,
+      "pfr": 6.01,
+      "riverRaises": 27436,
+      "riverRaiseWins": 20382,
+      "riverAggrWinPct": 74.29
+    },
+    "Tricky": {
+      "entries": 4999,
+      "wins": 492,
+      "itmFinishes": 1322,
+      "totalPayout": 4087.8,
+      "profitLoss": -911.2,
+      "roi": -18.23,
+      "winPct": 9.84,
+      "itmPct": 26.45,
+      "totalHands": 1174694,
+      "vpip": 10.66,
+      "pfr": 6.46,
+      "riverRaises": 22886,
+      "riverRaiseWins": 16429,
+      "riverAggrWinPct": 71.79
+    },
+    "The Bully": {
+      "entries": 4999,
+      "wins": 954,
+      "itmFinishes": 1368,
+      "totalPayout": 5210.1,
+      "profitLoss": 211.1,
+      "roi": 4.22,
+      "winPct": 19.08,
+      "itmPct": 27.37,
+      "totalHands": 1174694,
+      "vpip": 9.82,
+      "pfr": 5.49,
+      "riverRaises": 25191,
+      "riverRaiseWins": 20251,
+      "riverAggrWinPct": 80.39
+    },
+    "Random": {
+      "entries": 4999,
+      "wins": 644,
+      "itmFinishes": 1361,
+      "totalPayout": 4479.3,
+      "profitLoss": -519.7,
+      "roi": -10.4,
+      "winPct": 12.88,
+      "itmPct": 27.23,
+      "totalHands": 1174694,
+      "vpip": 10.06,
+      "pfr": 5.94,
+      "riverRaises": 22168,
+      "riverRaiseWins": 16552,
+      "riverAggrWinPct": 74.67
+    }
+  },
+  "variance": {
+    "The Shark": {
+      "first1k": 0.53,
+      "mid3k": 11.16,
+      "last1k": 9.89,
+      "delta": 9.36
+    },
+    "The Rock": {
+      "first1k": 5.12,
+      "mid3k": 7.08,
+      "last1k": 6.11,
+      "delta": 0.99
+    },
+    "The Maniac": {
+      "first1k": 10.61,
+      "mid3k": 7.05,
+      "last1k": 7.64,
+      "delta": -2.97
+    },
+    "Calling Station": {
+      "first1k": -10.99,
+      "mid3k": -18.19,
+      "last1k": -13.24,
+      "delta": -2.25
+    },
+    "The Nit": {
+      "first1k": 23.3,
+      "mid3k": 11.16,
+      "last1k": 12.32,
+      "delta": -10.98
+    },
+    "Balanced Pro": {
+      "first1k": 7.46,
+      "mid3k": 0.98,
+      "last1k": 5.57,
+      "delta": -1.89
+    },
+    "Tricky": {
+      "first1k": -21.61,
+      "mid3k": -17.8,
+      "last1k": -16.12,
+      "delta": 5.49
+    },
+    "The Bully": {
+      "first1k": 6.02,
+      "mid3k": 7.26,
+      "last1k": -6.67,
+      "delta": -12.69
+    },
+    "Random": {
+      "first1k": -20.44,
+      "mid3k": -8.68,
+      "last1k": -5.5,
+      "delta": 14.94
+    }
+  },
+  "exploitationMatrix": {
+    "killCounts": {
+      "The Shark": {
+        "The Shark": 0,
+        "The Rock": 648,
+        "The Maniac": 505,
+        "Calling Station": 473,
+        "The Nit": 512,
+        "Balanced Pro": 426,
+        "Tricky": 429,
+        "The Bully": 406,
+        "Random": 530
+      },
+      "The Rock": {
+        "The Shark": 213,
+        "The Rock": 0,
+        "The Maniac": 190,
+        "Calling Station": 150,
+        "The Nit": 227,
+        "Balanced Pro": 125,
+        "Tricky": 137,
+        "The Bully": 120,
+        "Random": 147
+      },
+      "The Maniac": {
+        "The Shark": 1106,
+        "The Rock": 1091,
+        "The Maniac": 0,
+        "Calling Station": 1334,
+        "The Nit": 1080,
+        "Balanced Pro": 1122,
+        "Tricky": 1085,
+        "The Bully": 1209,
+        "Random": 1152
+      },
+      "Calling Station": {
+        "The Shark": 428,
+        "The Rock": 531,
+        "The Maniac": 560,
+        "Calling Station": 0,
+        "The Nit": 515,
+        "Balanced Pro": 451,
+        "Tricky": 440,
+        "The Bully": 475,
+        "Random": 406
+      },
+      "The Nit": {
+        "The Shark": 127,
+        "The Rock": 249,
+        "The Maniac": 147,
+        "Calling Station": 172,
+        "The Nit": 0,
+        "Balanced Pro": 155,
+        "Tricky": 127,
+        "The Bully": 118,
+        "Random": 114
+      },
+      "Balanced Pro": {
+        "The Shark": 498,
+        "The Rock": 582,
+        "The Maniac": 526,
+        "Calling Station": 585,
+        "The Nit": 685,
+        "Balanced Pro": 0,
+        "Tricky": 701,
+        "The Bully": 611,
+        "Random": 572
+      },
+      "Tricky": {
+        "The Shark": 425,
+        "The Rock": 441,
+        "The Maniac": 463,
+        "Calling Station": 453,
+        "The Nit": 506,
+        "Balanced Pro": 580,
+        "Tricky": 0,
+        "The Bully": 590,
+        "Random": 481
+      },
+      "The Bully": {
+        "The Shark": 1024,
+        "The Rock": 883,
+        "The Maniac": 1044,
+        "Calling Station": 927,
+        "The Nit": 948,
+        "Balanced Pro": 1004,
+        "Tricky": 1135,
+        "The Bully": 0,
+        "Random": 1157
+      },
+      "Random": {
+        "The Shark": 712,
+        "The Rock": 627,
+        "The Maniac": 688,
+        "Calling Station": 617,
+        "The Nit": 603,
+        "Balanced Pro": 629,
+        "Tricky": 648,
+        "The Bully": 719,
+        "Random": 0
+      }
+    },
+    "exploitRates": {
+      "The Shark": {
+        "The Shark": 0,
+        "The Rock": 13,
+        "The Maniac": 10.1,
+        "Calling Station": 9.5,
+        "The Nit": 10.2,
+        "Balanced Pro": 8.5,
+        "Tricky": 8.6,
+        "The Bully": 8.1,
+        "Random": 10.6
+      },
+      "The Rock": {
+        "The Shark": 4.3,
+        "The Rock": 0,
+        "The Maniac": 3.8,
+        "Calling Station": 3,
+        "The Nit": 4.5,
+        "Balanced Pro": 2.5,
+        "Tricky": 2.7,
+        "The Bully": 2.4,
+        "Random": 2.9
+      },
+      "The Maniac": {
+        "The Shark": 22.1,
+        "The Rock": 21.8,
+        "The Maniac": 0,
+        "Calling Station": 26.7,
+        "The Nit": 21.6,
+        "Balanced Pro": 22.4,
+        "Tricky": 21.7,
+        "The Bully": 24.2,
+        "Random": 23
+      },
+      "Calling Station": {
+        "The Shark": 8.6,
+        "The Rock": 10.6,
+        "The Maniac": 11.2,
+        "Calling Station": 0,
+        "The Nit": 10.3,
+        "Balanced Pro": 9,
+        "Tricky": 8.8,
+        "The Bully": 9.5,
+        "Random": 8.1
+      },
+      "The Nit": {
+        "The Shark": 2.5,
+        "The Rock": 5,
+        "The Maniac": 2.9,
+        "Calling Station": 3.4,
+        "The Nit": 0,
+        "Balanced Pro": 3.1,
+        "Tricky": 2.5,
+        "The Bully": 2.4,
+        "Random": 2.3
+      },
+      "Balanced Pro": {
+        "The Shark": 10,
+        "The Rock": 11.6,
+        "The Maniac": 10.5,
+        "Calling Station": 11.7,
+        "The Nit": 13.7,
+        "Balanced Pro": 0,
+        "Tricky": 14,
+        "The Bully": 12.2,
+        "Random": 11.4
+      },
+      "Tricky": {
+        "The Shark": 8.5,
+        "The Rock": 8.8,
+        "The Maniac": 9.3,
+        "Calling Station": 9.1,
+        "The Nit": 10.1,
+        "Balanced Pro": 11.6,
+        "Tricky": 0,
+        "The Bully": 11.8,
+        "Random": 9.6
+      },
+      "The Bully": {
+        "The Shark": 20.5,
+        "The Rock": 17.7,
+        "The Maniac": 20.9,
+        "Calling Station": 18.5,
+        "The Nit": 19,
+        "Balanced Pro": 20.1,
+        "Tricky": 22.7,
+        "The Bully": 0,
+        "Random": 23.1
+      },
+      "Random": {
+        "The Shark": 14.2,
+        "The Rock": 12.5,
+        "The Maniac": 13.8,
+        "Calling Station": 12.3,
+        "The Nit": 12.1,
+        "Balanced Pro": 12.6,
+        "Tricky": 13,
+        "The Bully": 14.4,
+        "Random": 0
+      }
+    }
+  },
+  "integrity": {
+    "violations": 0,
+    "violationsByType": {},
+    "detailFile": null
+  }
+}

@@ -14,7 +14,7 @@ Use `domain.action` format:
 // Good
 this.eventEmitter.emit("game.handStarted", { gameId, handNumber });
 this.eventEmitter.emit("tournament.botRegistered", { tournamentId, botId });
-this.eventEmitter.emit("bot.healthCheckFailed", { botId, reason });
+this.eventEmitter.emit("bot.strategyEvaluated", { botId, action });
 
 // Bad - inconsistent naming
 this.eventEmitter.emit("startHand", data);

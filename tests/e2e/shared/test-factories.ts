@@ -32,7 +32,6 @@ export interface TestUser {
 export interface TestBot {
   id: string;
   name: string;
-  endpoint: string;
   userId: string;
 }
 
@@ -48,12 +47,11 @@ export async function createTestUser(
   const role = overrides.role || "user";
   const passwordHash =
     "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC"; // "TestPassword123!"
-  const apiKeyHash = uuidv4().replace(/-/g, "");
 
   await dataSource.query(
-    `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, true, true, NOW(), NOW())`,
-    [userId, email, name, passwordHash, apiKeyHash, role],
+    `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, true, true, NOW(), NOW())`,
+    [userId, email, name, passwordHash, role],
   );
 
   const accessToken = jwtService.sign({ sub: userId, email });
@@ -71,20 +69,32 @@ export async function createTestAdmin(
 export async function createTestBot(
   dataSource: DataSource,
   userId: string,
-  overrides: Partial<{ name: string; endpoint: string }> = {},
+  overrides: Partial<{
+    name: string;
+    strategy: Record<string, unknown>;
+  }> = {},
 ): Promise<TestBot> {
   const id = uid();
   const botId = uuidv4();
   const name = overrides.name || `TestBot-${id}`;
-  const endpoint = overrides.endpoint || `http://localhost:9999/bot-${id}`;
+  const strategy = overrides.strategy || {
+    version: 1,
+    tier: "quick",
+    personality: {
+      aggression: 50,
+      bluffFrequency: 30,
+      riskTolerance: 50,
+      tightness: 50,
+    },
+  };
 
   await dataSource.query(
-    `INSERT INTO bots (id, user_id, name, endpoint, active, created_at, updated_at)
+    `INSERT INTO bots (id, user_id, name, strategy, active, created_at, updated_at)
      VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
-    [botId, userId, name, endpoint],
+    [botId, userId, name, JSON.stringify(strategy)],
   );
 
-  return { id: botId, name, endpoint, userId };
+  return { id: botId, name, userId };
 }
 
 export async function createTestTable(

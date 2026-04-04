@@ -11,10 +11,12 @@ import {
   NotFoundException,
   BadRequestException,
   ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { TournamentsService } from "./tournaments.service";
 import { TournamentDirectorService } from "./tournament-director.service";
+import { SimulationService } from "./simulation.service";
 import {
   CreateTournamentDto,
   RegisterBotDto,
@@ -33,15 +35,21 @@ import { assertFound } from "../../common/utils";
 
 @Controller("tournaments")
 export class TournamentsController {
+  private readonly logger = new Logger(TournamentsController.name);
+
   constructor(
     private readonly tournamentsService: TournamentsService,
     private readonly tournamentDirector: TournamentDirectorService,
+    private readonly simulationService: SimulationService,
   ) {}
 
   @Public()
   @Get()
   async findAll(@Query() query: TournamentQueryDto) {
-    return this.tournamentsService.findAll(query.status as TournamentStatus);
+    return this.tournamentsService.findAll(
+      query.status as TournamentStatus,
+      query.limit,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -65,6 +73,18 @@ export class TournamentsController {
     return this.tournamentsService.getUpcomingScheduled();
   }
 
+  @Roles("admin")
+  @Get("simulation/pool-metrics")
+  getPoolMetrics() {
+    return this.simulationService.getPoolMetrics();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("my-activity")
+  async getMyActivity(@CurrentUser() user: User) {
+    return this.tournamentsService.getMyActivity(user.id);
+  }
+
   @Public()
   @Get(":id")
   async findOne(@Param("id", ParseUUIDPipe) id: string) {
@@ -85,9 +105,10 @@ export class TournamentsController {
   }
 
   @Public()
+  @Public()
   @Get(":id/results")
   async getResults(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tournamentsService.getResults(id);
+    return this.tournamentsService.getCompleteResults(id);
   }
 
   @Public()
@@ -111,17 +132,8 @@ export class TournamentsController {
     @Body() dto: RegisterBotDto,
     @CurrentUser() user: User,
   ) {
-    // Get current level for late registration check
-    const state = this.tournamentDirector.getTournamentState(id);
-    const currentLevel = state?.level;
-
-    await this.tournamentsService.register(
-      id,
-      dto.bot_id,
-      user.id,
-      currentLevel,
-    );
-    return { success: true, lateRegistration: currentLevel !== undefined };
+    await this.tournamentsService.register(id, dto.bot_id, user.id);
+    return { success: true };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -132,6 +144,16 @@ export class TournamentsController {
     @CurrentUser() _user: User,
   ) {
     await this.tournamentsService.unregister(id, botId);
+    return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(":id/leave")
+  async leave(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.tournamentsService.leaveAsUser(id, user.id);
     return { success: true };
   }
 
@@ -178,6 +200,34 @@ export class TournamentsController {
     return state;
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get(":id/hands-manifest")
+  async getHandsManifest(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    const hands = await this.tournamentsService.getHandsManifest(id, user.id);
+    return { hands };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(":id/my-current-table")
+  async getMyCurrentTable(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    const tableInfo = await this.tournamentsService.findUserCurrentTable(
+      id,
+      user.id,
+    );
+    if (!tableInfo) {
+      throw new NotFoundException(
+        "You are not currently playing in this tournament or have been eliminated",
+      );
+    }
+    return tableInfo;
+  }
+
   /**
    * Update tournament schedule (admin only).
    */
@@ -216,6 +266,10 @@ export class TournamentsController {
       try {
         this.tournamentDirector.updateSchedulerCron(dto.cron_expression);
       } catch (error) {
+        this.logger.error(
+          `Invalid cron expression: ${dto.cron_expression}`,
+          error instanceof Error ? error.stack : String(error),
+        );
         throw new BadRequestException(
           `Invalid cron expression: ${dto.cron_expression}`,
         );
@@ -226,5 +280,65 @@ export class TournamentsController {
       success: true,
       ...this.tournamentDirector.getSchedulerStatus(),
     };
+  }
+
+  /**
+   * Start a headless simulation of a tournament (admin only).
+   * Spawns a Worker Thread and returns a jobId immediately.
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Post(":id/simulate")
+  async startSimulation(@Param("id", ParseUUIDPipe) id: string) {
+    return this.simulationService.startSimulation(id);
+  }
+
+  /**
+   * Poll the status of a running simulation job.
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get(":id/simulate/:jobId")
+  async getSimulationStatus(
+    @Param("id", ParseUUIDPipe) _id: string,
+    @Param("jobId", ParseUUIDPipe) jobId: string,
+  ) {
+    const job = this.simulationService.getStatus(jobId);
+    if (!job) {
+      throw new NotFoundException(`Simulation job ${jobId} not found`);
+    }
+    return {
+      jobId: job.jobId,
+      tournamentId: job.tournamentId,
+      status: job.status,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+      error: job.error,
+      summary: job.result
+        ? {
+            totalHands: job.result.totalHands,
+            durationMs: job.result.durationMs,
+            winnerId: job.result.winnerId,
+            winnerName: job.result.winnerName,
+            eliminations: job.result.bustOrder.length,
+          }
+        : undefined,
+    };
+  }
+
+  /**
+   * Retrieve the full in-memory audit trail produced by a completed simulation.
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get(":id/simulation-result")
+  async getSimulationResult(@Param("id", ParseUUIDPipe) id: string) {
+    const result = this.simulationService.getResult(id);
+    if (!result) {
+      throw new NotFoundException(
+        `No completed simulation found for tournament ${id}`,
+      );
+    }
+    return result;
   }
 }

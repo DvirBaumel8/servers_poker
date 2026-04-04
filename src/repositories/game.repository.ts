@@ -10,12 +10,12 @@ import { BaseRepository } from "./base.repository";
 
 export interface HandCompletionData {
   handId: string;
-  pot: number;
+  pot: bigint;
   communityCards: Array<{ rank: string; suit: string }>;
   players: Array<{
     botId: string;
-    endChips: number;
-    amountWon: number;
+    endChips: bigint;
+    amountWon: bigint;
     folded: boolean;
     allIn: boolean;
     won: boolean;
@@ -110,7 +110,7 @@ export class GameRepository extends BaseRepository<Game> {
   async addGamePlayer(
     gameId: string,
     botId: string,
-    startChips: number,
+    startChips: bigint,
     manager?: EntityManager,
   ): Promise<GamePlayer> {
     const repo = this.getGamePlayerRepo(manager);
@@ -125,7 +125,7 @@ export class GameRepository extends BaseRepository<Game> {
   async finalizeGamePlayer(
     gameId: string,
     botId: string,
-    endChips: number,
+    endChips: bigint,
     finishPosition: number,
     manager?: EntityManager,
   ): Promise<void> {
@@ -160,9 +160,9 @@ export class GameRepository extends BaseRepository<Game> {
       actionSeq: number;
       actionType: ActionType;
       stage: ActionStage;
-      amount: number;
-      potAfter?: number;
-      chipsAfter?: number;
+      amount: bigint;
+      potAfter?: bigint;
+      chipsAfter?: bigint;
       responseTimeMs?: number;
     },
     manager?: EntityManager,

@@ -1,5 +1,10 @@
 import { TypeOrmModuleOptions } from "@nestjs/typeorm";
 import { ConfigService } from "@nestjs/config";
+import { types } from "pg";
+
+// OID 20 = bigint. The pg driver already returns strings by default;
+// this makes the intent explicit and guards against driver version changes.
+types.setTypeParser(20, (val: string) => val);
 
 export const getDatabaseConfig = (
   configService: ConfigService,
@@ -14,7 +19,7 @@ export const getDatabaseConfig = (
     password: configService.get<string>("DB_PASSWORD", "postgres"),
     database: configService.get<string>("DB_NAME", "poker"),
     entities: [__dirname + "/../entities/*.entity{.ts,.js}"],
-    migrations: [__dirname + "/../migrations/*{.ts,.js}"],
+    migrations: [__dirname + "/../migrations/*-*{.ts,.js}"],
     migrationsRun: false,
     synchronize: false,
     logging: !isProduction,

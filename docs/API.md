@@ -16,18 +16,9 @@ Most endpoints require JWT authentication. Include the token in the Authorizatio
 Authorization: Bearer <jwt_token>
 ```
 
-### API Key Authentication
-
-For bot endpoints, API key authentication is also supported:
-
-```
-Authorization: Bearer <api_key>
-```
-
 ## Rate Limiting
 
 - Default: 100 requests per minute per IP
-- Bot action endpoints: 1000 requests per minute
 - WebSocket connections: 10 concurrent per user
 
 ## Endpoints
@@ -77,10 +68,6 @@ Authenticate an existing user.
 
 Get current user info. Requires authentication.
 
-#### POST /auth/regenerate-api-key
-
-Generate a new API key. Requires authentication.
-
 ---
 
 ### Bots
@@ -95,10 +82,10 @@ List all active bots. Public endpoint.
   {
     "id": "uuid",
     "name": "MyBot",
-    "endpoint": "https://mybot.example.com/action",
     "description": "An intelligent poker bot",
     "active": true,
-    "created_at": "2024-01-01T00:00:00Z"
+    "created_at": "2024-01-01T00:00:00Z",
+    "strategy": {}
   }
 ]
 ```
@@ -107,48 +94,27 @@ List all active bots. Public endpoint.
 
 List bots owned by current user. Requires authentication.
 
-#### POST /bots
-
-Create a new bot. Requires authentication.
-
-**Request:**
-```json
-{
-  "name": "MyBot",
-  "endpoint": "https://mybot.example.com/action",
-  "description": "Optional description"
-}
-```
-
-**Validation:**
-- `name`: 2-100 characters, alphanumeric with underscores/hyphens
-- `endpoint`: Valid public HTTP(S) URL (no internal IPs)
-
 #### PUT /bots/:id
 
 Update bot configuration. Requires ownership.
 
-#### POST /bots/:id/validate
+#### POST /bots/:id/activate
 
-Test bot endpoint connectivity and response.
+Re-activate a deactivated bot. Requires ownership (`operate:bots` scope).
 
-**Response:**
-```json
-{
-  "valid": true,
-  "score": 100,
-  "details": {
-    "reachable": true,
-    "respondedCorrectly": true,
-    "responseTimeMs": 150,
-    "errors": []
-  }
-}
-```
+**Response:** `{ "success": true }`
 
 #### DELETE /bots/:id
 
 Deactivate a bot. Requires ownership.
+
+**Response:** `{ "success": true }`
+
+#### POST /bots/:id/duplicate
+
+Create a copy of an existing bot with all its strategy settings. The duplicated bot will have " (Copy)" appended to its name. Requires ownership and that the user hasn't exceeded the bot limit.
+
+**Response:** Created bot representation (same as POST /bots/internal)
 
 #### GET /bots/active
 
@@ -182,6 +148,102 @@ Get activity for a specific bot. Public endpoint.
 #### GET /bots/:id/profile
 
 Get detailed bot profile with stats.
+
+---
+
+### Bot Builder (Internal Bots)
+
+Metadata and creation endpoints for no-code / rule-builder bots (`bot_type: internal`). Paths are under `/api/v1/bots/internal`.
+
+#### GET /bots/internal/presets
+
+List personality presets for the bot builder. Public endpoint (no JWT).
+
+**Response:**
+```json
+{
+  "presets": []
+}
+```
+
+Each preset is a `PersonalityPreset` object. The API returns **8** presets: `shark`, `rock`, `maniac`, `calling_station`, `nit`, `balanced_pro`, `tricky`, `bully`.
+
+#### GET /bots/internal/condition-fields
+
+List condition field definitions for the rule builder. Public endpoint (no JWT).
+
+**Response:**
+```json
+{
+  "fields": []
+}
+```
+
+The API returns **19** `ConditionFieldDef` entries describing fields usable in strategy rules.
+
+#### POST /bots/internal
+
+Create an internal bot with a JSON strategy document. Requires JWT and the **`operate:bots`** OAuth-style scope.
+
+**Rate limit:** 10 requests per hour per scope (Throttler default bucket).
+
+**Request:**
+```json
+{
+  "name": "MyInternalBot",
+  "strategy": {},
+  "description": "Optional description"
+}
+```
+
+- `name` (string, required): 2–100 characters; letters, numbers, underscores, hyphens only.
+- `strategy` (object, required): validated strategy JSON for the bot engine.
+- `description` (string, optional): max 500 characters; must not contain angle brackets (HTML).
+
+**Response:** Created bot representation (includes `strategy`).
+
+#### POST /bots/internal/simulate
+
+Simulate a bot action for a given strategy and scenario (What-If Simulator).
+Requires JWT. Does not persist anything — purely stateless computation.
+
+**Rate limit:** 30 requests per minute.
+
+**Request:**
+```json
+{
+  "strategy": {
+    "version": 1,
+    "tier": "quick",
+    "personality": { "aggression": 70, "bluffFrequency": 30, "riskTolerance": 50, "tightness": 60 }
+  },
+  "scenario": {
+    "stage": "pre-flop",
+    "holeCards": ["As", "Ah"],
+    "communityCards": [],
+    "position": "UTG",
+    "stackSize": 1000,
+    "potSize": 15,
+    "bigBlind": 10,
+    "facingBet": false,
+    "betAmount": 0,
+    "playersInHand": 6
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "action": { "type": "raise", "amount": 31 },
+  "source": "personality",
+  "explanation": "Opening raise (aggression: 70%, hand quality: 95%)"
+}
+```
+
+- `action.type`: one of `fold`, `check`, `call`, `raise`, `all_in`
+- `source`: what triggered the decision — `personality`, `rule`, `range_chart`, or `position_override`
+- `explanation`: human-readable reason for the action
 
 ---
 
@@ -252,7 +314,7 @@ List tournaments with optional status filter.
 
 #### GET /tournaments/:id
 
-Get tournament details.
+Get tournament details. If the tournament is currently running, includes live blind state.
 
 **Response:**
 ```json
@@ -268,7 +330,54 @@ Get tournament details.
   "playersPerTable": 9,
   "turnTimeoutMs": 10000,
   "entriesCount": 5,
+  "currentLevel": 3,
+  "smallBlind": 50,
+  "bigBlind": 100,
   "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+#### GET /tournaments/:id/state
+
+Get live tournament state including current blind level, hand progress, and table information. Public endpoint.
+
+**Response (running tournament):**
+```json
+{
+  "tournamentId": "uuid",
+  "name": "Daily Freeroll",
+  "status": "running",
+  "level": 3,
+  "handsThisLevel": 12,
+  "handsPerLevel": 20,
+  "blinds": {
+    "small": 50,
+    "big": 100,
+    "ante": 10
+  },
+  "playersRemaining": 45,
+  "totalEntrants": 100,
+  "tables": [
+    {
+      "tableId": "table-uuid",
+      "tableNumber": 1,
+      "isFinalTable": false,
+      "gameState": { }
+    }
+  ],
+  "buyIn": 0,
+  "prizePool": 5000
+}
+```
+
+**Response (non-running tournament):**
+```json
+{
+  "tournamentId": "uuid",
+  "name": "Daily Freeroll",
+  "status": "registering",
+  "playersRemaining": 0,
+  "totalEntrants": 5
 }
 ```
 
@@ -397,6 +506,59 @@ Get detailed hand information including all actions.
 
 ---
 
+### Testing
+
+#### POST /testing/run-simulation
+
+Run automated poker game simulations to validate game invariants. Public endpoint (no auth required).
+
+**Rate limit:** 30 requests per minute.
+
+**Request:**
+```json
+{
+  "gameCount": 10,
+  "botCount": 6,
+  "startingChips": 1000,
+  "smallBlind": 10,
+  "bigBlind": 20
+}
+```
+
+- `gameCount` (number, required): Number of games to simulate
+- `botCount` (number, required): Number of bots per game (2-9)
+- `startingChips` (number, optional): Starting chips per bot (default: 1000)
+- `smallBlind` (number, optional): Small blind amount (default: 10)
+- `bigBlind` (number, optional): Big blind amount (default: 20)
+
+**Response:**
+```json
+{
+  "totalGames": 10,
+  "successful": 10,
+  "failed": 0,
+  "bugsFound": 0,
+  "bugsFile": "/path/to/POKER_BUGS.md",
+  "coverage": {
+    "allInWithSidePots": 5,
+    "headsUp": 8,
+    "splitPot": 2,
+    "playerElimination": 15,
+    "everyoneFoldsToBlind": 3,
+    "showdown": 12
+  },
+  "duration": 45000
+}
+```
+
+- `bugsFile`: Path to generated bug report (created at project root)
+- `coverage`: Scenario coverage metrics from these games
+- `duration`: Total execution time in milliseconds
+
+Bugs are logged to `POKER_BUGS.md` at project root and appended across runs.
+
+---
+
 ### Health
 
 #### GET /health
@@ -426,16 +588,6 @@ Kubernetes liveness probe. Checks memory only.
 #### GET /health/detailed
 
 Detailed health check including disk space. Public endpoint.
-
----
-
-### Metrics
-
-#### GET /metrics
-
-Prometheus metrics endpoint. Public endpoint.
-
-Returns Prometheus-formatted metrics for scraping.
 
 ---
 
@@ -629,86 +781,6 @@ Bot-specific information:
 
 ---
 
-## Bot Endpoint Specification
-
-Your bot must implement an HTTP POST endpoint that responds to action requests.
-
-### Request Format
-
-```json
-{
-  "gameId": "uuid",
-  "handNumber": 15,
-  "stage": "flop",
-  "you": {
-    "name": "MyBot",
-    "chips": 9500,
-    "holeCards": ["Ah", "Kh"],
-    "bet": 100,
-    "position": "BTN",
-    "bestHand": {
-      "name": "High Card",
-      "cards": ["Ah", "Kh", "Qd", "Jc", "9s"]
-    }
-  },
-  "action": {
-    "canCheck": false,
-    "toCall": 100,
-    "minRaise": 200,
-    "maxRaise": 9400
-  },
-  "table": {
-    "pot": 350,
-    "currentBet": 200,
-    "communityCards": ["Qd", "Jc", "9s"],
-    "smallBlind": 50,
-    "bigBlind": 100,
-    "ante": 0
-  },
-  "players": [
-    {
-      "name": "Opponent1",
-      "chips": 8000,
-      "bet": 200,
-      "folded": false,
-      "allIn": false,
-      "position": "SB"
-    }
-  ]
-}
-```
-
-### Response Format
-
-```json
-{
-  "type": "call"
-}
-```
-
-Or with amount:
-```json
-{
-  "type": "raise",
-  "amount": 300
-}
-```
-
-**Valid Actions:**
-- `fold` - Forfeit the hand
-- `check` - Pass (when toCall is 0)
-- `call` - Match the current bet
-- `raise` / `bet` - Increase the bet (requires `amount`)
-- `all_in` - Bet entire stack
-
-### Timeouts
-
-- Default timeout: 10 seconds
-- After 3 consecutive timeouts, the bot is disconnected
-- Timeouts count as a fold
-
----
-
 ## Error Responses
 
 All errors follow this format:
@@ -733,3 +805,136 @@ All errors follow this format:
 | 404 | Not Found - Resource doesn't exist |
 | 429 | Too Many Requests - Rate limited |
 | 500 | Internal Server Error |
+
+---
+
+## Support
+
+### POST /contact
+
+Submit a support ticket. No authentication required.
+
+**Rate limit:** 3 requests per IP per hour.
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "subject": "Issue with hand history",
+  "message": "Detailed description of the issue (min 10 chars).",
+  "handId": "optional-hand-uuid",
+  "tournamentId": "optional-tournament-uuid"
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "open"
+}
+```
+
+**Behavior:**
+- Ticket is persisted to `support_tickets` table with `status = open`.
+- Metadata (userAgent, referer URL, handId, tournamentId) is stored in a JSONB column for debugging.
+- An admin notification email is sent to `SUPPORT_ADMIN_EMAIL` asynchronously (fire-and-forget). If the email fails with a 5xx SMTP error it retries up to 3 times with exponential backoff (1s/2s/4s). 4xx errors are logged without retry. Email failure never affects the HTTP response.
+- If `handId` is provided, the admin email includes a link to `/api/v1/hands/{handId}`.
+
+---
+
+### Leaderboard
+
+#### GET /leaderboard
+
+Get the bot leaderboard with advanced poker metrics, filterable by strategy tier, time period, and sort order. **Public — no auth required.**
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tier` | `QUICK \| MATRIX \| ELITE` | — | Filter by strategy tier |
+| `period` | `daily \| weekly \| monthly \| all_time` | `all_time` | Time period for stats |
+| `sortBy` | `bb100 \| roi` | `bb100` | Sort by BB/100 or ROI |
+| `minGames` | number | `10` | Minimum hands played to appear |
+| `limit` | number | `50` | Page size (max 100) |
+| `offset` | number | `0` | Pagination offset |
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "botId": "uuid",
+      "botName": "SharkBot",
+      "userId": "uuid",
+      "tierBadge": "TIER_3_ELITE",
+      "bb100": 12.5,
+      "itmPct": 22.3,
+      "roiPct": 45.0,
+      "totalHands": 5000,
+      "totalTournaments": 50,
+      "tournamentWins": 8,
+      "totalNet": "150000",
+      "totalPayout": "300000",
+      "rank": 1
+    }
+  ],
+  "total": 142,
+  "limit": 50,
+  "offset": 0,
+  "lastRefreshedAt": "2026-04-04T12:00:00.000Z"
+}
+```
+
+**Tier Badge Mapping:**
+- `TIER_1_QUICK` — Quick tier (personality sliders only)
+- `TIER_2_MATRIX` — Strategy tier (rules + range chart)
+- `TIER_3_ELITE` — Pro tier (position overrides)
+
+**Behavior:**
+- `all_time` period reads from a materialized view (sub-millisecond). Other periods compute aggregates at query time filtered by `finished_at`.
+- The materialized view refreshes every 15 minutes via a cron job.
+- BB/100 = `SUM(net_chips) / SUM(big_blind) * 100` (standard poker win rate metric).
+- ITM% = percentage of finished tournaments where finish position was in the top 15%.
+- ROI% = `(total_payout - total_buy_in) / total_buy_in * 100`.
+
+---
+
+#### GET /leaderboard/:botId
+
+Get detailed performance metrics for a specific bot, including hot streak and consistency index. **Public — no auth required.**
+
+**Response (200):**
+```json
+{
+  "botId": "uuid",
+  "botName": "SharkBot",
+  "tierBadge": "TIER_3_ELITE",
+  "bb100": 12.5,
+  "itmPct": 22.3,
+  "roiPct": 45.0,
+  "totalHands": 5000,
+  "totalTournaments": 50,
+  "tournamentWins": 8,
+  "totalNet": "150000",
+  "totalPayout": "300000",
+  "hotStreak": [
+    {
+      "tournamentId": "uuid",
+      "tournamentName": "Daily Master 2026-04-03",
+      "finishPosition": 2,
+      "maxPlayers": 45,
+      "isItm": true,
+      "finishedAt": "2026-04-03T22:30:00.000Z"
+    }
+  ],
+  "consistencyIndex": 3.2
+}
+```
+
+**Response (404):** Bot not found on leaderboard.
+
+**Behavior:**
+- `hotStreak` returns the last 5 finished tournament results with ITM status.
+- `consistencyIndex` is the standard deviation of finish positions across all finished tournaments. Lower values indicate more consistent performance. Returns `null` if fewer than 2 tournaments played.

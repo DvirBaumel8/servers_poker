@@ -18,10 +18,9 @@ describe("AuthService", () => {
   let service: AuthService;
   let mockUserRepository: {
     findByEmail: ReturnType<typeof vi.fn>;
-    findByApiKey: ReturnType<typeof vi.fn>;
+    findByName: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
-    generateApiKey: ReturnType<typeof vi.fn>;
   };
   let mockBotRepository: {
     findByName: ReturnType<typeof vi.fn>;
@@ -38,9 +37,6 @@ describe("AuthService", () => {
     sendVerificationCode: ReturnType<typeof vi.fn>;
     sendWelcomeEmail: ReturnType<typeof vi.fn>;
     sendPasswordResetCode: ReturnType<typeof vi.fn>;
-  };
-  let mockUrlValidator: {
-    validateWithHealthCheck: ReturnType<typeof vi.fn>;
   };
   let mockDataSource: {
     transaction: ReturnType<typeof vi.fn>;
@@ -63,13 +59,9 @@ describe("AuthService", () => {
 
     mockUserRepository = {
       findByEmail: vi.fn(),
-      findByApiKey: vi.fn(),
+      findByName: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
-      generateApiKey: vi.fn().mockReturnValue({
-        raw: "api-key-raw",
-        hash: "api-key-hash",
-      }),
     };
 
     mockBotRepository = {
@@ -92,10 +84,6 @@ describe("AuthService", () => {
       sendPasswordResetCode: vi.fn().mockResolvedValue(true),
     };
 
-    mockUrlValidator = {
-      validateWithHealthCheck: vi.fn().mockResolvedValue({ valid: true }),
-    };
-
     mockDataSource = {
       transaction: vi
         .fn()
@@ -116,7 +104,6 @@ describe("AuthService", () => {
       mockJwtService as JwtService,
       mockConfigService as ConfigService,
       mockEmailService as never,
-      mockUrlValidator as never,
       mockDataSource as never,
     );
 
@@ -129,6 +116,7 @@ describe("AuthService", () => {
   describe("register", () => {
     it("should register new user successfully", async () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
+      mockUserRepository.findByName.mockResolvedValue(null);
       mockUserRepository.create.mockResolvedValue({
         ...mockUser,
         email: "new@example.com",
@@ -173,6 +161,7 @@ describe("AuthService", () => {
 
     it("should use transaction for atomic check and insert (race condition fix)", async () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
+      mockUserRepository.findByName.mockResolvedValue(null);
       mockUserRepository.create.mockResolvedValue({
         ...mockUser,
         email: "new@example.com",
@@ -221,7 +210,6 @@ describe("AuthService", () => {
       });
 
       expect(result.accessToken).toBe("jwt-token");
-      expect(result.apiKey).toBe("api-key-raw");
     });
 
     it("should throw BadRequestException for non-existent user", async () => {
@@ -451,14 +439,28 @@ describe("AuthService", () => {
   });
 
   describe("registerDeveloper", () => {
-    it("should register developer with bot successfully", async () => {
+    it("should register developer with bot and require email verification", async () => {
+      const devUser = {
+        ...mockUser,
+        email_verified: false,
+        verification_code: "123456",
+      };
       mockUserRepository.findByEmail.mockResolvedValue(null);
       mockBotRepository.findByName.mockResolvedValue(null);
-      mockUserRepository.create.mockResolvedValue(mockUser);
+      mockUserRepository.create.mockResolvedValue(devUser);
       mockBotRepository.create.mockResolvedValue({
         id: "bot-123",
         name: "TestBot",
-        endpoint: "http://localhost:4000/action",
+        strategy: {
+          version: 1,
+          tier: "quick",
+          personality: {
+            aggression: 20,
+            bluffFrequency: 10,
+            riskTolerance: 30,
+            tightness: 40,
+          },
+        },
       });
 
       const result = await service.registerDeveloper({
@@ -466,12 +468,15 @@ describe("AuthService", () => {
         password: "password123",
         name: "Developer",
         botName: "TestBot",
-        botEndpoint: "http://localhost:4000/action",
       });
 
-      expect(result.accessToken).toBe("jwt-token");
-      expect(result.apiKey).toBe("api-key-raw");
+      expect(result.message).toContain("verify your email");
+      expect(result.accessToken).toBeUndefined();
       expect(result.bot.name).toBe("TestBot");
+      expect(mockEmailService.sendVerificationCode).toHaveBeenCalledWith(
+        devUser.email,
+        "123456",
+      );
     });
 
     it("should throw ConflictException for existing email", async () => {
@@ -483,7 +488,6 @@ describe("AuthService", () => {
           password: "password123",
           name: "Developer",
           botName: "TestBot",
-          botEndpoint: "http://localhost:4000/action",
         }),
       ).rejects.toThrow(ConflictException);
     });
@@ -498,63 +502,8 @@ describe("AuthService", () => {
           password: "password123",
           name: "Developer",
           botName: "ExistingBot",
-          botEndpoint: "http://localhost:4000/action",
         }),
       ).rejects.toThrow(ConflictException);
-    });
-
-    it("should throw BadRequestException for invalid endpoint", async () => {
-      mockUserRepository.findByEmail.mockResolvedValue(null);
-      mockBotRepository.findByName.mockResolvedValue(null);
-      mockUrlValidator.validateWithHealthCheck.mockResolvedValue({
-        valid: false,
-        error: "Invalid URL",
-      });
-
-      await expect(
-        service.registerDeveloper({
-          email: "dev@example.com",
-          password: "password123",
-          name: "Developer",
-          botName: "TestBot",
-          botEndpoint: "invalid-url",
-        }),
-      ).rejects.toThrow(BadRequestException);
-    });
-  });
-
-  describe("validateApiKey", () => {
-    it("should return user for valid API key", async () => {
-      mockUserRepository.findByApiKey.mockResolvedValue(mockUser);
-
-      const result = await service.validateApiKey("valid-api-key");
-
-      expect(result).toEqual({
-        user: mockUser,
-        expiresIn: undefined,
-      });
-    });
-
-    it("should return null for invalid API key", async () => {
-      mockUserRepository.findByApiKey.mockResolvedValue(null);
-
-      const result = await service.validateApiKey("invalid-api-key");
-
-      expect(result).toEqual({ user: null });
-    });
-  });
-
-  describe("regenerateApiKey", () => {
-    it("should generate new API key", async () => {
-      mockUserRepository.update.mockResolvedValue(mockUser);
-
-      const result = await service.regenerateApiKey("user-123");
-
-      expect(result.apiKey).toBe("api-key-raw");
-      expect(mockUserRepository.update).toHaveBeenCalledWith(
-        "user-123",
-        expect.objectContaining({ api_key_hash: "api-key-hash" }),
-      );
     });
   });
 });

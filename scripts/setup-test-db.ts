@@ -19,7 +19,6 @@
 
 import { DataSource } from "typeorm";
 import { v4 as uuid } from "uuid";
-import * as crypto from "crypto";
 import * as bcrypt from "bcrypt";
 import * as dotenv from "dotenv";
 import * as entities from "../src/entities";
@@ -36,14 +35,6 @@ const TEST_DB_CONFIG = {
 
 const SALT_ROUNDS = 12;
 const TEST_PASSWORD = "TestPassword123!";
-
-function hashApiKey(key: string): string {
-  const hashSecret =
-    process.env.API_KEY_HMAC_SECRET || "development-api-key-hash-secret";
-  return crypto
-    .pbkdf2Sync(key, hashSecret, 210000, 32, "sha256")
-    .toString("hex");
-}
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -91,14 +82,12 @@ async function setupTestDatabase(): Promise<void> {
 
     for (const account of TEST_ACCOUNTS) {
       const userId = uuid();
-      const apiKey = `api_${uuid().replace(/-/g, "")}`;
-      const apiKeyHash = hashApiKey(apiKey);
 
       await queryRunner.query(
-        `INSERT INTO users (id, email, name, password_hash, api_key_hash, role, active, email_verified, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, true, true, NOW(), NOW())
+        `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, true, true, NOW(), NOW())
          ON CONFLICT (email) DO UPDATE SET password_hash = $4, email_verified = true`,
-        [userId, account.email, account.name, passwordHash, apiKeyHash, account.role]
+        [userId, account.email, account.name, passwordHash, account.role]
       );
       console.log(`   ✓ ${account.email} (${account.role})`);
     }

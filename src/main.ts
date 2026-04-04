@@ -1,15 +1,22 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import helmet from "helmet";
 import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { SanitizePipe } from "./common/pipes/sanitize.pipe";
-import { RedisIoAdapter } from "./common/redis/redis-io.adapter";
+import { BigIntInterceptor } from "./common/interceptors/bigint.interceptor";
 import {
   DEFAULT_CORS_ORIGINS,
   DEFAULT_DEV_CONNECT_SRC,
 } from "./config/app.config";
+
+// BigInt → string for WebSocket JSON.stringify (Socket.IO) and any other non-HTTP path.
+// HTTP responses are handled by BigIntInterceptor below.
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -27,11 +34,14 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  // Security: Enforce JWT_SECRET in production
+  // Security: Enforce JWT_SECRET in all non-development environments
   const jwtSecret = configService.get<string>("jwtSecret");
-  if (isProduction && (!jwtSecret || jwtSecret === "change-me-in-production")) {
+  if (
+    nodeEnv !== "development" &&
+    (!jwtSecret || jwtSecret === "change-me-in-production")
+  ) {
     logger.error(
-      "FATAL: JWT_SECRET environment variable must be set in production",
+      "FATAL: JWT_SECRET environment variable must be set in non-development environments",
     );
     process.exit(1);
   }
@@ -86,6 +96,9 @@ async function bootstrap() {
     },
   );
 
+  // Serialize BigInt values as strings in all HTTP responses
+  app.useGlobalInterceptors(new BigIntInterceptor());
+
   // Security: Input sanitization (XSS protection)
   app.useGlobalPipes(
     new SanitizePipe(),
@@ -110,22 +123,19 @@ async function bootstrap() {
 
   app.setGlobalPrefix("api/v1");
 
-  // Setup Socket.IO Redis adapter for horizontal scaling
-  const redisAdapter = new RedisIoAdapter(app, configService);
-  try {
-    await redisAdapter.connectToRedis();
-    app.useWebSocketAdapter(redisAdapter);
-    logger.log("Socket.IO Redis adapter enabled for horizontal scaling");
-  } catch (err) {
-    logger.warn(
-      `Failed to connect Socket.IO Redis adapter: ${err instanceof Error ? err.message : err}`,
-    );
-    logger.warn(
-      "Falling back to in-memory adapter (not suitable for horizontal scaling)",
-    );
-  }
+  // Swagger / OpenAPI documentation
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle("BotRoyale Poker API")
+    .setDescription("No-Limit Texas Hold'em tournament platform")
+    .setVersion("1.0")
+    .addBearerAuth()
+    .build();
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup("api/docs", app, swaggerDocument);
 
   const port = configService.get<number>("port") || 3000;
+
+  app.enableShutdownHooks();
 
   await app.listen(port);
   logger.log(`Poker server running on port ${port}`);

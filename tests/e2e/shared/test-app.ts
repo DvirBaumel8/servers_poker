@@ -11,6 +11,7 @@ import * as entities from "../../../src/entities";
 import { appConfig } from "../../../src/config";
 import { JwtAuthGuard } from "../../../src/common/guards/jwt-auth.guard";
 import { CustomThrottlerGuard } from "../../../src/common/guards/custom-throttler.guard";
+import { BigIntInterceptor } from "../../../src/common/interceptors/bigint.interceptor";
 
 export interface TestAppContext {
   app: INestApplication;
@@ -70,6 +71,7 @@ export async function createTestApp(
       transform: true,
     }),
   );
+  app.useGlobalInterceptors(new BigIntInterceptor());
   app.setGlobalPrefix("api/v1");
 
   await app.init();

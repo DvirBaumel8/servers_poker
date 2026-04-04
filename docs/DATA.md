@@ -48,7 +48,6 @@ For complete schema with TypeORM entities, see `DATA_DICTIONARY.md`.
 | id | UUID PK | Generated UUID |
 | email | VARCHAR UNIQUE | Required |
 | name | VARCHAR | Display name |
-| api_key_hash | VARCHAR | SHA-256 hash of API key |
 | role | VARCHAR | 'admin' or 'user' |
 | active | BOOLEAN | Soft delete flag |
 | last_login_at | TIMESTAMP | Updated on each login |
@@ -60,11 +59,9 @@ For complete schema with TypeORM entities, see `DATA_DICTIONARY.md`.
 | id | UUID PK | |
 | user_id | UUID FK→users | Owner |
 | name | VARCHAR UNIQUE | Display name |
-| endpoint | VARCHAR | HTTP URL for action calls |
 | description | TEXT | Optional |
+| strategy | JSONB NOT NULL | Bot strategy configuration |
 | active | BOOLEAN | CHECK (active IN (true, false)) |
-| last_validation | TIMESTAMP | When last validated |
-| last_validation_score | INTEGER | 0–100 |
 | created_at / updated_at | TIMESTAMP | |
 
 ### `tournaments`
@@ -79,7 +76,6 @@ For complete schema with TypeORM entities, see `DATA_DICTIONARY.md`.
 | min_players / max_players | INTEGER | |
 | players_per_table | INTEGER | Default 9 |
 | turn_timeout_ms | INTEGER | Default 30000 |
-| late_reg_ends_level | INTEGER | |
 | rebuys_allowed | BOOLEAN | |
 | scheduled_start_at | TIMESTAMP | For scheduled tournaments |
 | started_at / finished_at | TIMESTAMP | |
@@ -332,4 +328,3 @@ HAVING SUM(CASE WHEN cm.movement_type IN ('bet', 'ante', 'blind') THEN cm.amount
 | Tournament entries | Indefinite | Payout records |
 | Bot events | 90 days | Operational |
 | Audit logs | 30 days | Operational |
-| Bot validation results | 7 days | Can re-run |

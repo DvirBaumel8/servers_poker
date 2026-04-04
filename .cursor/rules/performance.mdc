@@ -94,9 +94,9 @@ this.server.emit("playerAction", { playerId, action, amount });
 Use dynamic imports for large pages:
 
 ```tsx
-const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics"));
+const GameSpectator = lazy(() => import("./pages/GameSpectator"));
 
 <Suspense fallback={<Loading />}>
-  <AdminAnalytics />
+  <GameSpectator />
 </Suspense>
 ```

@@ -24,7 +24,16 @@ describe("BotsController", () => {
   const mockBot = {
     id: "bot-123",
     name: "TestBot",
-    endpoint: "http://localhost:4000/action",
+    strategy: {
+      version: 1,
+      tier: "quick",
+      personality: {
+        aggression: 50,
+        bluffFrequency: 30,
+        riskTolerance: 50,
+        tightness: 50,
+      },
+    },
     active: true,
     user_id: "user-123",
   };
@@ -153,24 +162,6 @@ describe("BotsController", () => {
     });
   });
 
-  describe("create", () => {
-    it("should create bot for current user", async () => {
-      const createDto = { name: "NewBot", endpoint: "http://localhost:4001" };
-      mockBotsService.create.mockResolvedValue({ ...mockBot, ...createDto });
-
-      const result = await controller.create(
-        createDto as never,
-        mockUser as never,
-      );
-
-      expect(mockBotsService.create).toHaveBeenCalledWith(
-        "user-123",
-        createDto,
-      );
-      expect(result.name).toBe("NewBot");
-    });
-  });
-
   describe("update", () => {
     it("should update bot", async () => {
       const updateDto = { description: "Updated description" };
@@ -188,17 +179,6 @@ describe("BotsController", () => {
         updateDto,
       );
       expect(result.description).toBe("Updated description");
-    });
-  });
-
-  describe("validate", () => {
-    it("should validate bot", async () => {
-      const validationResult = { valid: true, score: 100 };
-      mockBotsService.validate.mockResolvedValue(validationResult);
-
-      const result = await controller.validate("bot-123");
-
-      expect(result).toEqual(validationResult);
     });
   });
 

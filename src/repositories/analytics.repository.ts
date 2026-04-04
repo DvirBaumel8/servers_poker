@@ -15,9 +15,16 @@ export interface LeaderboardEntry {
   total_hands: number;
 }
 
+export interface BotProfileStats {
+  totalHands: number;
+  totalTournaments: number;
+  tournamentWins: number;
+  totalNet: bigint;
+}
+
 export interface BotProfile {
   bot: Bot;
-  stats: BotStats | null;
+  stats: BotProfileStats;
   recentTournaments: TournamentEntry[];
   vpip: number;
   pfr: number;
@@ -164,7 +171,19 @@ export class AnalyticsRepository {
 
     return {
       bot,
-      stats,
+      stats: stats
+        ? {
+            totalHands: stats.total_hands,
+            totalTournaments: stats.total_tournaments,
+            tournamentWins: stats.tournament_wins,
+            totalNet: stats.total_net,
+          }
+        : {
+            totalHands: 0,
+            totalTournaments: 0,
+            tournamentWins: 0,
+            totalNet: 0n,
+          },
       recentTournaments,
       vpip,
       pfr,
@@ -201,5 +220,52 @@ export class AnalyticsRepository {
     `,
       [tournamentId, botId],
     );
+  }
+
+  async reconcileBotStats(botId: string): Promise<{
+    computed_total_hands: number;
+    stored_total_hands: number;
+    match: boolean;
+  }> {
+    const [result] = await this.dataSource.query(
+      `
+      SELECT
+        (SELECT COUNT(*) FROM hand_players WHERE bot_id = $1) as computed_total_hands,
+        (SELECT COALESCE(total_hands, 0) FROM bot_stats WHERE bot_id = $1) as stored_total_hands
+    `,
+      [botId],
+    );
+    return {
+      computed_total_hands: Number(result?.computed_total_hands ?? 0),
+      stored_total_hands: Number(result?.stored_total_hands ?? 0),
+      match:
+        Number(result?.computed_total_hands ?? 0) ===
+        Number(result?.stored_total_hands ?? 0),
+    };
+  }
+
+  async chipConservationAudit(gameId: string): Promise<{
+    total_in: number;
+    total_out: number;
+    balanced: boolean;
+  }> {
+    const [result] = await this.dataSource.query(
+      `
+      SELECT
+        COALESCE(SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END), 0) as total_in,
+        COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total_out
+      FROM chip_movements
+      WHERE game_id = $1
+      GROUP BY game_id
+    `,
+      [gameId],
+    );
+    const totalIn = Number(result?.total_in ?? 0);
+    const totalOut = Number(result?.total_out ?? 0);
+    return {
+      total_in: totalIn,
+      total_out: totalOut,
+      balanced: totalIn === totalOut,
+    };
   }
 }

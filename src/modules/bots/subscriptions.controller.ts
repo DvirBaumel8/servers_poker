@@ -9,6 +9,7 @@ import {
   UseGuards,
   BadRequestException,
   ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -28,6 +29,8 @@ import { assertFound } from "../../common/utils";
 @Controller("bots/:botId/subscriptions")
 @UseGuards(JwtAuthGuard)
 export class SubscriptionsController {
+  private readonly logger = new Logger(SubscriptionsController.name);
+
   constructor(
     private readonly subscriptionRepository: BotSubscriptionRepository,
     private readonly tournamentRepository: TournamentRepository,

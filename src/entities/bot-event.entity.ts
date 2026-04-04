@@ -1,6 +1,8 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index } from "typeorm";
 import { BaseEntity } from "./base.entity";
 import { Bot } from "./bot.entity";
+import { Game } from "./game.entity";
+import { Hand } from "./hand.entity";
 
 export type EventType =
   | "strike"
@@ -19,8 +21,16 @@ export class BotEvent extends BaseEntity {
   @Column({ type: "varchar", length: 36, nullable: true })
   game_id: string | null;
 
+  @ManyToOne(() => Game, { onDelete: "CASCADE", nullable: true })
+  @JoinColumn({ name: "game_id" })
+  game: Game | null;
+
   @Column({ type: "varchar", length: 36, nullable: true })
   hand_id: string | null;
+
+  @ManyToOne(() => Hand, { onDelete: "CASCADE", nullable: true })
+  @JoinColumn({ name: "hand_id" })
+  hand: Hand | null;
 
   @Column({ type: "varchar", length: 20 })
   event_type: EventType;

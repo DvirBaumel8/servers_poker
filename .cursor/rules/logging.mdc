@@ -32,15 +32,14 @@ export class MyService {
 }
 ```
 
-## Frontend (logger utility)
+## Frontend
+
+Use the browser console for frontend logging. In development, use `console.log/warn/error` with context:
 
 ```typescript
-import { logger } from "../utils/logger";
-
-logger.debug("Rendering component", "GameView", { tableId });
-logger.info("Connected to WebSocket", "WebSocket");
-logger.warn("Reconnecting...", "WebSocket", { attempt: 3 });
-logger.error("Failed to load", error, "TournamentStore", { id });
+console.log("Component rendered", { gameId, players: count });
+console.warn("Connection lost, retrying...", { attempt: 3 });
+console.error("Failed to fetch tournament", error, { id });
 ```
 
 ## What to Log

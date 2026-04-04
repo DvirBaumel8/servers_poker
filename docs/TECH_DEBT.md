@@ -10,27 +10,18 @@ This file tracks technical debt, security hardening items, and improvements to a
 
 ---
 
-## Security Hardening
+## Observability
 
-### 🔴 Enforce HTTPS-Only Bot Endpoints
-**Added:** 2026-03-20
-**Context:** Currently allowing HTTP and localhost for bot endpoints to ease local development.
-**Risk:** In production, HTTP endpoints expose game state and bot actions to interception. Localhost allows potential SSRF attacks.
+### 🟡 Monitoring Stack Not Implemented
+**Added:** 2026-03-27
+**Context:** Prometheus, Grafana, and Alertmanager were documented (README, API.md, ARCHITECTURE.md) but never implemented. No `/metrics` endpoint exists. No `monitoring/` directory exists. Only health checks (`@nestjs/terminus`) and structured logging (`nestjs-pino`) are in place.
 **Action Required:**
-- [ ] Add environment-based validation (`NODE_ENV=production`)
-- [ ] Reject `http://` URLs in production (require `https://`)
-- [ ] Block localhost, 127.0.0.1, and private IP ranges (10.x, 192.168.x, 172.16-31.x)
-- [ ] Block cloud metadata endpoints (169.254.169.254)
-- [ ] Add DNS resolution check before accepting endpoint
+- [ ] Implement Prometheus metrics endpoint (`prom-client`)
+- [ ] Add Grafana dashboard configuration
+- [ ] Configure Alertmanager for alerting
+- [ ] Integrate Sentry for error tracking (also documented but absent)
 
-### 🔴 Require Email Verification Before Playing
-**Added:** 2026-03-20
-**Context:** Currently skipping email verification for developer convenience.
-**Risk:** Allows spam registrations, fake accounts, harder to contact users about issues.
-**Action Required:**
-- [ ] Enable email verification flow for API registrations
-- [ ] Bot cannot join games until email is verified
-- [ ] Consider grace period (e.g., 1 game allowed before verification)
+**Deferred:** Post-MVP.
 
 ---
 
@@ -71,24 +62,21 @@ This file tracks technical debt, security hardening items, and improvements to a
 - [ ] Suggested viewports: iPhone 16 (393x852), iPad (768x1024)
 - [ ] Update `tests/qa/monsters/browser-monster/browser-qa-monster.ts` VIEWPORTS array
 
-### 🟠 E2E Tests Stability
+### 🟡 E2E Tests Stability
 **Added:** 2026-03-21
-**Context:** E2E tests have intermittent failures related to:
-- ECONNRESET errors when bot servers are under load
-- Schema conflicts when tests run in parallel (now fixed with `--no-file-parallelism`)
-- `register-developer` endpoint health checks timing out
+**Updated:** 2026-03-22
+**Context:** E2E tests had intermittent failures from fixed `sleep()` calls and parallel schema conflicts.
 
 **Current State:**
-- E2E tests marked as `continue-on-error: true` in CI to allow PRs to merge
-- Running sequentially to prevent schema conflicts
-- ~87 tests still failing (down from ~150)
+- Schema conflicts fixed with `--no-file-parallelism`
+- `continue-on-error` removed from CI — monsters must pass
+- `game-mechanics.e2e.spec.ts` migrated from fixed sleeps to `waitForCondition()` polling
+- `ui-navigation.e2e.spec.ts` sleeps reduced/removed
 
 **Action Required:**
-- [ ] Add retry logic to bot server health checks
-- [ ] Increase timeouts for bot endpoint validation in test environment
-- [ ] Consider using a shared bot server pool instead of per-test servers
-- [ ] Add proper cleanup in afterAll hooks to prevent port conflicts
+- [ ] Migrate remaining WebSocket E2E sleeps to event-based waits
 - [ ] Consider splitting E2E tests into separate jobs that run against different databases
+- [ ] Fix `strategy-analyzer-pipeline.e2e.spec.ts` — currently skipped because background game workers from prior test suites corrupt the DB connection pool, causing `DecisionLoggerService.forceFlush()` to silently fail. Root cause: E2E test suites don't stop running games in `afterAll`, so their workers survive into the next suite's `dropSchema: true`
 
 ---
 

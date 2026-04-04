@@ -48,7 +48,7 @@ export class RedisService implements OnModuleDestroy {
     });
 
     this.client.on("error", (err) => {
-      this.logger.error(`Redis error: ${err.message}`);
+      this.logger.error(`Redis error: ${err.message}`, err.stack);
     });
 
     this.client.on("close", () => {
@@ -154,6 +154,11 @@ export class RedisService implements OnModuleDestroy {
     } while (cursor !== "0");
 
     return keys;
+  }
+
+  /** Start a Redis MULTI/EXEC atomic transaction pipeline. */
+  multi() {
+    return this.client.multi();
   }
 
   async eval(

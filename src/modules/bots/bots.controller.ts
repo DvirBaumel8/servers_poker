@@ -9,23 +9,23 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  Logger,
 } from "@nestjs/common";
-import { Throttle } from "@nestjs/throttler";
 import { BotsService } from "./bots.service";
 import { BotActivityService } from "../../services/bot/bot-activity.service";
-import { CreateBotDto, UpdateBotDto } from "./dto/bot.dto";
+import { UpdateBotDto } from "./dto/internal-bot.dto";
 import { PaginationDto } from "../../common/dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
-import { ScopesGuard } from "../../common/guards/scopes.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { RequireScopes } from "../../common/decorators/scopes.decorator";
 import { Public } from "../../common/decorators/public.decorator";
 import { User } from "../../entities/user.entity";
 import { assertFound } from "../../common/utils";
 
 @Controller("bots")
-@UseGuards(JwtAuthGuard, ScopesGuard)
+@UseGuards(JwtAuthGuard)
 export class BotsController {
+  private readonly logger = new Logger(BotsController.name);
+
   constructor(
     private readonly botsService: BotsService,
     private readonly botActivityService: BotActivityService,
@@ -41,7 +41,6 @@ export class BotsController {
   }
 
   @Get("my")
-  @RequireScopes("operate:bots")
   async findMy(@CurrentUser() user: User, @Query() pagination: PaginationDto) {
     return this.botsService.findByUserIdPaginated(
       user.id,
@@ -51,7 +50,6 @@ export class BotsController {
   }
 
   @Get("my/activity")
-  @RequireScopes("operate:bots")
   async getMyBotsActivity(@CurrentUser() user: User) {
     const activities = await this.botActivityService.getActiveBotsForUser(
       user.id,
@@ -96,15 +94,7 @@ export class BotsController {
     return activity;
   }
 
-  @Post()
-  @RequireScopes("operate:bots")
-  @Throttle({ default: { ttl: 3600000, limit: 10 } }) // 10 bots per hour
-  async create(@Body() dto: CreateBotDto, @CurrentUser() user: User) {
-    return this.botsService.create(user.id, dto);
-  }
-
   @Put(":id")
-  @RequireScopes("operate:bots")
   async update(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateBotDto,
@@ -113,15 +103,7 @@ export class BotsController {
     return this.botsService.update(id, user.id, dto);
   }
 
-  @Post(":id/validate")
-  @RequireScopes("operate:bots")
-  @Throttle({ default: { ttl: 60000, limit: 10 } }) // 10 validations per minute (makes external HTTP calls)
-  async validate(@Param("id", ParseUUIDPipe) id: string) {
-    return this.botsService.validate(id);
-  }
-
   @Post(":id/activate")
-  @RequireScopes("operate:bots")
   async activate(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
@@ -130,8 +112,15 @@ export class BotsController {
     return { success: true };
   }
 
+  @Post(":id/duplicate")
+  async duplicate(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.botsService.duplicate(id, user.id);
+  }
+
   @Delete(":id")
-  @RequireScopes("operate:bots")
   async deactivate(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,

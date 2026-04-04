@@ -68,35 +68,22 @@ A player with fewer chips than the ante posts what they have (all-in ante).
 ## 5. Registration
 
 ### Rolling Tournaments
-Registration opens immediately when the tournament is created. The tournament starts automatically once the **minimum number of players** is reached. Registration may remain open for late entries after the tournament starts (see §6).
+Registration opens immediately when the tournament is created. The tournament starts automatically once the **minimum number of players** is reached.
 
 ### Scheduled Tournaments
-A start time is defined in advance. Registration opens before the start time and closes at the end of the late registration period (see §6).
+A start time is defined in advance. Registration opens before the start time and closes when the tournament starts.
 
 ### Capacity
-Each tournament has a maximum player limit. Once full, no further registrations or rebuys are accepted.
+Each tournament has a maximum player limit. Once full, no further registrations are accepted.
 
 ---
 
-## 6. Late Registration
-
-Late registration allows bots to enter a tournament **after it has already started**.
-
-- Late registration closes at the **end of blind level defined by `late_reg_ends_level`** (default: level 4)
-- Late entrants receive the full starting stack of 5,000 chips
-- Late entrants are seated at the table with the fewest players
-- Late registration closes early if the tournament reaches the money (payouts begin)
-
-After late registration closes, no new entries or rebuys are accepted.
-
----
-
-## 7. Rebuys
+## 6. Rebuys
 
 Rebuys are available in tournaments where `rebuys_allowed = true` (freezeout tournaments do not permit rebuys).
 
 - A bot may rebuy **after busting** (reaching 0 chips)
-- Rebuys are only permitted while late registration is still open
+- Rebuys are only permitted while the tournament is still in the registering phase
 - A rebuy creates a **new entry row** — the bot re-enters with a fresh starting stack of 5,000 chips
 - Rebuys add to the prize pool at the same rate as the original buy-in
 - A bot may only have **one active entry** at a time (one entry with no finish position)
@@ -135,7 +122,7 @@ A failed action (timeout, network error, invalid response, illegal move) counts 
 A disconnected bot's chips remain in play but the bot is treated as having busted. The bot's finish position is recorded at the time of disconnection.
 
 ### Reconnection
-A disconnected bot may rejoin the same tournament by re-registering via `POST /tournaments/:id/register`, provided late registration is still open. The bot receives the chips remaining at the time of disconnection, not a fresh stack.
+A disconnected bot's position is forfeited. Re-registration is not available once a tournament has started.
 
 ### Chip Commitment
 Any chips a bot has committed to the pot (blinds, antes, calls, raises) before disconnecting remain in the pot. This follows standard poker rules — money in the pot stays there.
@@ -157,7 +144,6 @@ Approximately **15% of the field** receives a payout. Payouts are weighted towar
 | 91–180 | 18 | 25% | 15% | 11% | 9% | distributed |
 
 - Payout amounts are floored to whole chips. Any remainder from rounding goes to 1st place.
-- Payout structure is finalized once late registration closes and rebuys are no longer accepted.
 - Payouts are awarded in tournament chips (not real currency) unless otherwise specified.
 
 ---
@@ -183,7 +169,6 @@ These tournaments are provisioned from `tournaments.config.js`. The operator may
 | Min players | 2 |
 | Max players | 18 |
 | Rebuys | Yes |
-| Late registration | Through level 4 |
 
 ### Standard Championship
 | Parameter | Value |
@@ -193,7 +178,6 @@ These tournaments are provisioned from `tournaments.config.js`. The operator may
 | Min players | 9 |
 | Max players | 90 |
 | Rebuys | Yes |
-| Late registration | Through level 4 |
 
 ### High Roller Invitational
 | Parameter | Value |
@@ -203,7 +187,6 @@ These tournaments are provisioned from `tournaments.config.js`. The operator may
 | Min players | 6 |
 | Max players | 45 |
 | Rebuys | No (Freezeout) |
-| Late registration | Through level 3 |
 
 ---
 

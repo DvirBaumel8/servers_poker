@@ -1,217 +1,59 @@
-import type { ReactElement } from "react";
-import { useEffect, lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import { Layout } from "./components/layout/Layout";
-import { MarketingLayout } from "./components/layout/MarketingLayout";
-import { AuthLayout } from "./components/layout/AuthLayout";
-import { GameLayout } from "./components/layout/GameLayout";
-import { PublicGate } from "./components/auth/PublicGate";
-import { LoadingBlock } from "./components/ui/primitives";
-import { useAuthStore } from "./stores/authStore";
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { useAuthStore } from './store/authStore'
+import SignIn from './pages/SignIn'
+import SignUp from './pages/SignUp'
+import Home from './pages/Home'
+import MyBots from './pages/MyBots'
+import BotBuilder from './pages/BotBuilder'
+import GameSpectator from './pages/GameSpectator'
+import TournamentsPage from './pages/TournamentsPage'
+import TournamentDetailPage from './pages/TournamentDetailPage'
+import TournamentLobbyPage from './pages/TournamentLobbyPage'
+import TournamentLivePage from './pages/TournamentLivePage'
+import TournamentResultsPage from './pages/TournamentResultsPage'
+import SimulationsPage from './pages/SimulationsPage'
+import LeaderboardPage from './pages/LeaderboardPage'
+import TournamentAnalyticsPage from './pages/TournamentAnalyticsPage'
+import SupportPage from './pages/SupportPage'
 
-const Home = lazy(() =>
-  import("./pages/Home").then((m) => ({ default: m.Home })),
-);
-const Tournaments = lazy(() =>
-  import("./pages/Tournaments").then((m) => ({ default: m.Tournaments })),
-);
-const TournamentDetail = lazy(() =>
-  import("./pages/TournamentDetail").then((m) => ({
-    default: m.TournamentDetail,
-  })),
-);
-const GameView = lazy(() =>
-  import("./pages/GameView").then((m) => ({ default: m.GameView })),
-);
-const Bots = lazy(() =>
-  import("./pages/Bots").then((m) => ({ default: m.Bots })),
-);
-const BotProfile = lazy(() =>
-  import("./pages/BotProfile").then((m) => ({ default: m.BotProfile })),
-);
-const Leaderboard = lazy(() =>
-  import("./pages/Leaderboard").then((m) => ({ default: m.Leaderboard })),
-);
-const Login = lazy(() =>
-  import("./pages/Login").then((m) => ({ default: m.Login })),
-);
-const Register = lazy(() =>
-  import("./pages/Register").then((m) => ({ default: m.Register })),
-);
-const VerifyEmail = lazy(() =>
-  import("./pages/VerifyEmail").then((m) => ({ default: m.VerifyEmail })),
-);
-const ForgotPassword = lazy(() =>
-  import("./pages/ForgotPassword").then((m) => ({ default: m.ForgotPassword })),
-);
-const ResetPassword = lazy(() =>
-  import("./pages/ResetPassword").then((m) => ({ default: m.ResetPassword })),
-);
-const Tables = lazy(() =>
-  import("./pages/Tables").then((m) => ({ default: m.Tables })),
-);
-const Profile = lazy(() =>
-  import("./pages/Profile").then((m) => ({ default: m.Profile })),
-);
-const AdminAnalytics = lazy(() =>
-  import("./pages/AdminAnalytics").then((m) => ({ default: m.AdminAnalytics })),
-);
-const AdminTournaments = lazy(() =>
-  import("./pages/AdminTournaments").then((m) => ({
-    default: m.AdminTournaments,
-  })),
-);
-const NotFound = lazy(() =>
-  import("./pages/NotFound").then((m) => ({ default: m.NotFound })),
-);
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const token = useAuthStore((s) => s.token)
 
-function PageLoader() {
+  // Redirect if not authenticated or no token exists
+  if (!isAuthenticated || !token) return <Navigate to="/signin" replace />
+  return <>{children}</>
+}
+
+function Stub({ name }: { name: string }) {
   return (
-    <div className="min-h-[400px] flex items-center justify-center">
-      <LoadingBlock label="Loading..." />
+    <div style={{ minHeight: '100vh', background: '#0a0a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontFamily: 'Trebuchet MS, sans-serif' }}>
+      {name} — coming soon
     </div>
-  );
+  )
 }
 
-function RequireAuth({ children }: { children: ReactElement }) {
-  const token = useAuthStore((state) => state.token);
-  return token ? children : <Navigate to="/login" replace />;
-}
-
-function RequireAdmin({ children }: { children: ReactElement }) {
-  const token = useAuthStore((state) => state.token);
-  const user = useAuthStore((state) => state.user);
-
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return user?.role === "admin" ? children : <Navigate to="/" replace />;
-}
-
-function App() {
-  const token = useAuthStore((state) => state.token);
-  const user = useAuthStore((state) => state.user);
-  const fetchUser = useAuthStore((state) => state.fetchUser);
-
-  useEffect(() => {
-    if (token && !user) {
-      fetchUser();
-    }
-  }, [token, user, fetchUser]);
-
+export default function App() {
   return (
-    <Suspense fallback={<PageLoader />}>
+    <BrowserRouter>
       <Routes>
-        <Route path="/" element={<MarketingLayout />}>
-          <Route index element={<Home />} />
-        </Route>
-
-        <Route path="/" element={<AuthLayout />}>
-          <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
-          <Route path="verify-email" element={<VerifyEmail />} />
-          <Route path="forgot-password" element={<ForgotPassword />} />
-          <Route path="reset-password" element={<ResetPassword />} />
-        </Route>
-
-        <Route path="/" element={<Layout />}>
-          {/* Public pages - viewable without login, with gentle sign-in banner */}
-          <Route
-            path="tables"
-            element={
-              <PublicGate>
-                <Tables />
-              </PublicGate>
-            }
-          />
-          <Route
-            path="tournaments"
-            element={
-              <PublicGate>
-                <Tournaments />
-              </PublicGate>
-            }
-          />
-          <Route
-            path="tournaments/:id"
-            element={
-              <PublicGate>
-                <TournamentDetail />
-              </PublicGate>
-            }
-          />
-          <Route
-            path="bots"
-            element={
-              <PublicGate>
-                <Bots />
-              </PublicGate>
-            }
-          />
-          <Route
-            path="bots/:id"
-            element={
-              <PublicGate>
-                <BotProfile />
-              </PublicGate>
-            }
-          />
-          <Route
-            path="leaderboard"
-            element={
-              <PublicGate>
-                <Leaderboard />
-              </PublicGate>
-            }
-          />
-          {/* Private pages - require authentication */}
-          <Route
-            path="profile"
-            element={
-              <RequireAuth>
-                <Profile />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="admin/analytics"
-            element={
-              <RequireAdmin>
-                <AdminAnalytics />
-              </RequireAdmin>
-            }
-          />
-          <Route
-            path="admin/tournaments"
-            element={
-              <RequireAdmin>
-                <AdminTournaments />
-              </RequireAdmin>
-            }
-          />
-        </Route>
-
-        {/* Game view - public spectating allowed */}
-        <Route path="/" element={<GameLayout />}>
-          <Route
-            path="game/:tableId"
-            element={
-              <PublicGate>
-                <GameView />
-              </PublicGate>
-            }
-          />
-        </Route>
-
-        {/* 404 - catch all unmatched routes */}
-        <Route path="/" element={<Layout />}>
-          <Route path="*" element={<NotFound />} />
-        </Route>
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/bots" element={<ProtectedRoute><MyBots /></ProtectedRoute>} />
+        <Route path="/bots/build" element={<ProtectedRoute><BotBuilder /></ProtectedRoute>} />
+        <Route path="/tournaments" element={<ProtectedRoute><TournamentsPage /></ProtectedRoute>} />
+        <Route path="/tournaments/:id" element={<ProtectedRoute><TournamentDetailPage /></ProtectedRoute>} />
+        <Route path="/tournaments/:id/lobby" element={<ProtectedRoute><TournamentLobbyPage /></ProtectedRoute>} />
+        <Route path="/tournaments/:id/live" element={<ProtectedRoute><TournamentLivePage /></ProtectedRoute>} />
+        <Route path="/tournaments/:id/results" element={<ProtectedRoute><TournamentResultsPage /></ProtectedRoute>} />
+        <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+        <Route path="/games" element={<ProtectedRoute><TournamentAnalyticsPage /></ProtectedRoute>} />
+        <Route path="/simulations" element={<ProtectedRoute><SimulationsPage /></ProtectedRoute>} />
+        <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
+        <Route path="/games/:gameId" element={<GameSpectator />} />
+        <Route path="*" element={<Navigate to="/signin" replace />} />
       </Routes>
-    </Suspense>
-  );
+    </BrowserRouter>
+  )
 }
-
-export default App;
-// test

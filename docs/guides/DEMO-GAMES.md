@@ -1,94 +1,128 @@
 # Demo Games Guide
 
-## Quick Start - Live Cash Game
-
-**One command to start a live multi-player poker game:**
+## Fastest Way to See the Game
 
 ```bash
-npm run demo        # 4 players (default)
-npm run demo:6      # 6 players
+npm run game:watch
 ```
 
-This will:
-1. Start mock bot servers
-2. Register demo players with bots
-3. Join them to an available table
-4. Output the watch URL
+This single command:
+1. ✅ Starts backend (port 3000)
+2. ✅ Starts frontend (port 5173)
+3. ✅ Creates a live game with 5 bots
+4. ✅ Opens browser to `http://localhost:5173/games/{gameId}`
 
-**Watch at:** The command prints a link like:
-```
-http://localhost:3001/game/<table-id>
-```
+Watch bots play in real-time! No setup needed.
 
-## Prerequisites
+---
 
-Before running the demo:
+## Manual Setup (for Development)
+
+### Step 1: Start Services
 
 ```bash
-# Terminal 1: Start PostgreSQL
+# Terminal 1: PostgreSQL
 docker compose up -d postgres
 
-# Terminal 2: Start backend
-npm run dev  # or: npx nest build && node dist/src/main.js
+# Terminal 2: Backend
+npm run dev
 
-# Terminal 3: Start frontend
+# Terminal 3: Frontend
 cd frontend && npm run dev
 ```
 
-## What the Demo Does
+### Step 2: Create a Game
 
-1. **Starts mock bot servers** - Simple HTTP servers that respond to poker action requests
-2. **Registers demo players** - Uses the `register-developer` endpoint to create users with bots
-3. **Joins bots to table** - Each bot joins the first available table
-4. **Game auto-starts** - When 2+ bots join, the game begins automatically
+Via the UI:
+- Go to `http://localhost:5173/bots/build` to create a bot
+- Register if needed (email auto-verifies in dev)
+- Choose personality preset or customize sliders
+- Save your bot, then create a live game via API (see below)
 
-## Manual Alternative
-
-If you need more control:
-
+Or via API:
 ```bash
-# 1. Start a mock bot server
-PORT=4000 npx ts-node scripts/mock-bot-server.ts
-
-# 2. Register via API
-curl -X POST http://localhost:3000/api/v1/auth/register-developer \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "TestPass123",
-    "name": "TestPlayer",
-    "botName": "TestBot",
-    "botEndpoint": "http://localhost:4000/action"
-  }'
-
-# 3. Join a table (use the token from step 2)
-curl -X POST http://localhost:3000/api/v1/games/<table-id>/join \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"bot_id": "<bot-id>"}'
+curl -X POST http://localhost:3000/api/v1/testing/live-game
 ```
 
-## Monitoring
+Returns `{ gameId, gameUrl }` — navigate to the URL.
 
-Watch the game state via API:
+### Step 3: Watch Live
+
+The game state updates via WebSocket in real-time:
+- Player actions (bet, fold, call, check, raise)
+- Community cards dealt progressively
+- Pot and chip updates
+- Hand results
+
+---
+
+## How It Works
+
+**Live Game Flow:**
+1. Test user is created via `AuthService.register()`
+2. 5 bots created in database (Alice, Bob, Charlie, Diana, Eve)
+3. All bots use the "quick" strategy tier
+4. GameInstance starts with `LiveGameManagerService`
+5. WebSocket broadcasts game state to `/game` namespace
+6. Frontend renders live UI with real poker table
+
+**Architecture:**
+- All strategy evaluation is **in-process** (no external servers)
+- Each bot uses a personality preset (shark, rock, maniac, etc.)
+- Chip conservation is validated after every action (see `src/testing/validators.ts`)
+- One bot per user per table (fair play enforcement)
+
+---
+
+## Monitor Game State
 
 ```bash
-# Current state
-curl http://localhost:3000/api/v1/games/<table-id>/state | jq
+# Via API
+curl http://localhost:3000/api/v1/games/<gameId>/state | jq
 
 # Quick status
-curl -s http://localhost:3000/api/v1/games/<table-id>/state | jq '{hand: .handNumber, stage, players: [.players[].name]}'
+curl -s http://localhost:3000/api/v1/games/<gameId>/state | jq '{hand: .handNumber, stage: .stage, pot: .potManager.totalChips}'
+
+# WebSocket events
+# Emitted to table:{gameId} room:
+# - gameState (full state snapshot)
+# - playerAction (action taken)
+# - handStarted (new hand)
+# - handResult (pot awarded)
 ```
+
+---
+
+## Test the Game Logic
+
+Run 50 automated poker games and validate game invariants:
+
+```bash
+npm run test:poker -- --games=50 --bots=8
+
+# Output:
+# ✅ All games pass validation
+# 📋 POKER_BUGS.md auto-generated with any issues found
+# 📊 test-coverage.json with scenario metrics
+```
+
+See [TESTING.md](../TESTING.md) for details on validators and coverage.
+
+---
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "No available tables" | An admin needs to create a table via UI or API |
-| "Backend not running" | Start with `npm run dev` |
-| Bot not responding | Check if mock bot server is running on correct port |
-| "Conflict" when joining | One user can only have one bot per table |
+| `npm run game:watch` fails | Ensure backend/frontend ports (3000, 5173) are free |
+| WebSocket connection fails | Check CORS in `.env`: `CORS_ORIGINS` must include frontend URL |
+| Game freezes mid-hand | Check backend logs; may indicate game logic bug |
+| Bots stuck in "waiting" | One bot per user per table rule — create new users |
 
-## Architecture Note
+---
 
-The system enforces **one bot per user per table** for fair play. The demo works around this by creating separate demo users for each bot.
+## References
+
+- [Testing & Invariants](../TESTING.md) — Validator suite, coverage metrics
+- [Security](../SECURITY.md) — Game integrity controls
+- [Architecture](../ARCHITECTURE.md) — System design details

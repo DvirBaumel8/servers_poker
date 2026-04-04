@@ -4,6 +4,8 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { TournamentsController } from "./tournaments.controller";
 import { TournamentsService } from "./tournaments.service";
 import { TournamentDirectorService } from "./tournament-director.service";
+import { SimulationService } from "./simulation.service";
+import { BatchTournamentPersistenceService } from "../../services/game/batch-tournament-persistence.service";
 import { TournamentStatsListener } from "./tournament-stats.listener";
 import { TournamentWebsocketListener } from "./tournament-websocket.listener";
 import { Tournament } from "../../entities/tournament.entity";
@@ -18,6 +20,7 @@ import { TournamentRepository } from "../../repositories/tournament.repository";
 import { BotRepository } from "../../repositories/bot.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
 import { GamesModule } from "../games/games.module";
+import { TournamentsGateway } from "./tournaments.gateway";
 
 @Module({
   imports: [
@@ -40,6 +43,9 @@ import { GamesModule } from "../games/games.module";
     TournamentDirectorService,
     TournamentStatsListener,
     TournamentWebsocketListener,
+    TournamentsGateway,
+    SimulationService,
+    BatchTournamentPersistenceService,
     TournamentRepository,
     BotRepository,
     AnalyticsRepository,

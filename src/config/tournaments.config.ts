@@ -5,7 +5,6 @@
  * Operator adds/removes tournaments here and restarts the server.
  *
  * Blind levels advance every HANDS_PER_LEVEL hands across all active tables.
- * Late registration closes at the end of late_reg_ends_level.
  */
 
 export interface BlindLevel {
@@ -25,7 +24,6 @@ export interface TournamentConfig {
   max_players: number;
   players_per_table: number;
   turn_timeout_ms: number;
-  late_reg_ends_level: number;
   rebuys_allowed: boolean;
   scheduled_start_at?: number;
 }
@@ -33,7 +31,7 @@ export interface TournamentConfig {
 export interface Payout {
   position: number;
   percentage: number;
-  amount: number;
+  amount: bigint;
 }
 
 export type PayoutStructure = number[];
@@ -135,18 +133,41 @@ export function getPayoutStructure(entrantCount: number): PayoutStructure {
  * Handles rounding — remainder goes to 1st place.
  */
 export function calculatePayouts(
-  prizePool: number,
+  prizePool: bigint,
   entrantCount: number,
 ): Payout[] {
   const structure = getPayoutStructure(entrantCount);
   let remaining = prizePool;
   const payouts = structure.map((pct, i) => {
-    const amount = Math.floor((prizePool * pct) / 100);
+    const amount = (prizePool * BigInt(pct)) / 100n;
     remaining -= amount;
     return { position: i + 1, percentage: pct, amount };
   });
   payouts[0].amount += remaining;
   return payouts;
+}
+
+/**
+ * Split combined prize money for tied positions equally.
+ * E.g., 3 players tied at position 5 → combine prizes for positions 5,6,7 and split.
+ * Returns per-player amounts. Remainder goes to first player.
+ */
+export function splitPayoutsForTiedPositions(
+  payoutByPosition: Map<number, bigint>,
+  position: number,
+  groupSize: number,
+): bigint[] {
+  let combined = 0n;
+  for (let p = position; p < position + groupSize; p++) {
+    combined += payoutByPosition.get(p) ?? 0n;
+  }
+  const gs = BigInt(groupSize);
+  const perPlayer = combined / gs;
+  const remainder = combined - perPlayer * gs;
+  return Array.from(
+    { length: groupSize },
+    (_, i) => perPlayer + (i === 0 ? remainder : 0n),
+  );
 }
 
 /**
@@ -171,7 +192,6 @@ export const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     max_players: 18,
     players_per_table: 9,
     turn_timeout_ms: 10000,
-    late_reg_ends_level: 4,
     rebuys_allowed: true,
   },
   {
@@ -184,7 +204,6 @@ export const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     max_players: 90,
     players_per_table: 9,
     turn_timeout_ms: 10000,
-    late_reg_ends_level: 4,
     rebuys_allowed: true,
   },
   {
@@ -197,7 +216,6 @@ export const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     max_players: 45,
     players_per_table: 9,
     turn_timeout_ms: 8000,
-    late_reg_ends_level: 3,
     rebuys_allowed: false,
   },
 ];

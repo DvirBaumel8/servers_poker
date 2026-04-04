@@ -18,8 +18,7 @@ Add to `vitest.config.ts` coverage.exclude if the file is:
 | Config/Infrastructure | `src/config/**`, `src/migrations/**` | Static configuration |
 | Data access | `src/repositories/**`, `src/common/redis/**` | Requires DB/Redis, use integration tests |
 | Framework integrations | `src/**/strategies/**`, `src/common/pipes/**` | Framework glue code |
-| External system services | Bot callers, Redis services, persistence services | Better for integration/E2E tests |
-| Scripts | `src/simulation/**`, `src/workers/**` | Not production code |
+| External system services | Redis services, persistence services | Better for integration/E2E tests |
 
 ## Files to INCLUDE in coverage
 

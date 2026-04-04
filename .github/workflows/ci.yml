@@ -203,7 +203,6 @@ jobs:
       - name: Run Monster Army (Full validation - 17s)
         id: monsters
         run: npm run monsters:all 2>&1 | tee monster-report.txt
-        continue-on-error: true
         env:
           API_URL: http://localhost:3000/api/v1
           FRONTEND_URL: http://localhost:3001
@@ -212,7 +211,6 @@ jobs:
       - name: Run Simulation Monster (Live game validation - 28s)
         id: simulation
         run: npm run monsters:simulation 2>&1 | tee simulation-report.txt
-        continue-on-error: true
         env:
           DB_HOST: localhost
           DB_PORT: 5432
@@ -229,7 +227,7 @@ jobs:
           name: monster-army-report
           path: |
             docs/MONSTERS_ISSUES.md
-            docs/monster_stats.md
+            docs/MONSTER_STATS.md
             monster-report.txt
             simulation-report.txt
           retention-days: 14
@@ -248,8 +246,8 @@ jobs:
             }
             
             // Add stats
-            if (fs.existsSync('docs/monster_stats.md')) {
-              report += '\n\n---\n\n' + fs.readFileSync('docs/monster_stats.md', 'utf8');
+            if (fs.existsSync('docs/MONSTER_STATS.md')) {
+              report += '\n\n---\n\n' + fs.readFileSync('docs/MONSTER_STATS.md', 'utf8');
             }
             
             if (report.length > 60000) {

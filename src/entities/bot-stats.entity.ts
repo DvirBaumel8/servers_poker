@@ -8,6 +8,7 @@ import {
   Check,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { bigIntTransformer } from "../common/transformers/bigint.transformer";
 import { Bot } from "./bot.entity";
 
 @Entity("bot_stats")
@@ -33,8 +34,8 @@ export class BotStats extends BaseEntity {
   @Column({ type: "integer", default: 0 })
   tournament_wins: number;
 
-  @Column({ type: "bigint", default: 0 })
-  total_net: number;
+  @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
+  total_net: bigint;
 
   @Column({ type: "integer", default: 0 })
   vpip_hands: number;

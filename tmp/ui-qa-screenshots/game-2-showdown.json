@@ -1,0 +1,106 @@
+{
+  "tableId": "table-8d690b5b",
+  "gameId": "ui-qa-game-2-cc9ff238",
+  "handNumber": 1,
+  "status": "running",
+  "stage": "showdown",
+  "communityCards": [],
+  "pot": 0,
+  "currentBet": 0,
+  "activePlayerId": null,
+  "smallBlind": 10,
+  "bigBlind": 20,
+  "ante": 0,
+  "players": [
+    {
+      "id": "bot-0-1edd3b",
+      "name": "Shark",
+      "chips": 1000,
+      "folded": true,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "BTN",
+      "bet": 0,
+      "holeCards": [
+        "2♦",
+        "6♦"
+      ]
+    },
+    {
+      "id": "bot-1-002bc1",
+      "name": "Rock",
+      "chips": 990,
+      "folded": true,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "SB",
+      "bet": 0,
+      "holeCards": [
+        "10♠",
+        "2♠"
+      ]
+    },
+    {
+      "id": "bot-2-6ad4ac",
+      "name": "Maniac",
+      "chips": 1010,
+      "folded": false,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "BB",
+      "bet": 0,
+      "holeCards": [
+        "4♣",
+        "4♠"
+      ]
+    },
+    {
+      "id": "bot-3-1cb275",
+      "name": "Station",
+      "chips": 1000,
+      "folded": true,
+      "allIn": false,
+      "disconnected": false,
+      "strikes": 0,
+      "position": "UTG",
+      "bet": 0,
+      "holeCards": [
+        "K♣",
+        "9♥"
+      ]
+    }
+  ],
+  "log": [
+    {
+      "message": "Hand #1 started. Dealer: Shark",
+      "timestamp": 1774703767912
+    },
+    {
+      "message": "Rock posts small blind: 10",
+      "timestamp": 1774703767912
+    },
+    {
+      "message": "Maniac posts big blind: 20",
+      "timestamp": 1774703767912
+    },
+    {
+      "message": "Station folds",
+      "timestamp": 1774703767912
+    },
+    {
+      "message": "Shark folds",
+      "timestamp": 1774703767912
+    },
+    {
+      "message": "Rock folds",
+      "timestamp": 1774703767912
+    },
+    {
+      "message": "Maniac wins 30 (everyone else folded)",
+      "timestamp": 1774703767912
+    }
+  ]
+}

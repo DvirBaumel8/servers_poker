@@ -37,24 +37,6 @@ async processAction(gameId: string, action: Action): Promise<void> {
 }
 ```
 
-### External Service Calls (Bots)
-
-Wrap with timeout and specific error handling:
-
-```typescript
-try {
-  const response = await this.httpService.axiosRef.post(bot.endpoint, payload, {
-    timeout: this.config.botTimeoutMs,
-  });
-  return response.data;
-} catch (error) {
-  if (error.code === "ECONNABORTED") {
-    throw new GatewayTimeoutException(`Bot ${bot.id} timed out`);
-  }
-  throw new ServiceUnavailableException(`Bot ${bot.id} unreachable`);
-}
-```
-
 ## Frontend (React)
 
 ### API Calls in Stores

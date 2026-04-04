@@ -3,7 +3,7 @@ import { PotManager, BettingRound } from "../../src/domain/betting";
 
 interface TestPlayer {
   id: string;
-  chips: number;
+  chips: bigint;
   folded: boolean;
   allIn: boolean;
 }
@@ -12,32 +12,32 @@ describe("BettingRound - Advanced Scenarios", () => {
   describe("pre-flop betting sequence", () => {
     it("should handle standard pre-flop: post blinds, call, check", () => {
       const players: TestPlayer[] = [
-        { id: "btn", chips: 1000, folded: false, allIn: false },
-        { id: "sb", chips: 1000, folded: false, allIn: false },
-        { id: "bb", chips: 1000, folded: false, allIn: false },
+        { id: "btn", chips: 1000n, folded: false, allIn: false },
+        { id: "sb", chips: 1000n, folded: false, allIn: false },
+        { id: "bb", chips: 1000n, folded: false, allIn: false },
       ];
 
       const round = new BettingRound({
         players,
-        smallBlind: 10,
-        bigBlind: 20,
+        smallBlind: 10n,
+        bigBlind: 20n,
         isPreFlop: true,
         dealerIndex: 0,
       });
 
-      round.betsThisRound["sb"] = 10;
-      players[1].chips -= 10;
-      round.betsThisRound["bb"] = 20;
-      players[2].chips -= 20;
-      round.currentBet = 20;
+      round.betsThisRound["sb"] = 10n;
+      players[1].chips -= 10n;
+      round.betsThisRound["bb"] = 20n;
+      players[2].chips -= 20n;
+      round.currentMaxBet = 20n;
 
       const btnCall = round.applyAction(players[0], { type: "call" });
       expect(btnCall.valid).toBe(true);
-      expect(btnCall.amountAdded).toBe(20);
+      expect(btnCall.amountAdded).toBe(20n);
 
       const sbCall = round.applyAction(players[1], { type: "call" });
       expect(sbCall.valid).toBe(true);
-      expect(sbCall.amountAdded).toBe(10);
+      expect(sbCall.amountAdded).toBe(10n);
 
       const bbCheck = round.applyAction(players[2], { type: "check" });
       expect(bbCheck.valid).toBe(true);
@@ -49,15 +49,15 @@ describe("BettingRound - Advanced Scenarios", () => {
   describe("3-bet scenario", () => {
     it("should handle raise → re-raise → call", () => {
       const players: TestPlayer[] = [
-        { id: "p1", chips: 1000, folded: false, allIn: false },
-        { id: "p2", chips: 1000, folded: false, allIn: false },
-        { id: "p3", chips: 1000, folded: false, allIn: false },
+        { id: "p1", chips: 1000n, folded: false, allIn: false },
+        { id: "p2", chips: 1000n, folded: false, allIn: false },
+        { id: "p3", chips: 1000n, folded: false, allIn: false },
       ];
 
       const round = new BettingRound({
         players,
-        smallBlind: 10,
-        bigBlind: 20,
+        smallBlind: 10n,
+        bigBlind: 20n,
         isPreFlop: false,
         dealerIndex: 0,
       });
@@ -67,14 +67,14 @@ describe("BettingRound - Advanced Scenarios", () => {
         amount: 50,
       });
       expect(raise1.valid).toBe(true);
-      expect(round.currentBet).toBe(50);
+      expect(round.currentMaxBet).toBe(50n);
 
       const reRaise = round.applyAction(players[1], {
         type: "raise",
         amount: 100,
       });
       expect(reRaise.valid).toBe(true);
-      expect(round.currentBet).toBeGreaterThan(50);
+      expect(round.currentMaxBet > 50n).toBe(true);
 
       const call = round.applyAction(players[2], { type: "call" });
       expect(call.valid).toBe(true);
@@ -89,14 +89,14 @@ describe("BettingRound - Advanced Scenarios", () => {
   describe("all-in scenarios", () => {
     it("should handle short stack all-in correctly", () => {
       const players: TestPlayer[] = [
-        { id: "short", chips: 50, folded: false, allIn: false },
-        { id: "big", chips: 1000, folded: false, allIn: false },
+        { id: "short", chips: 50n, folded: false, allIn: false },
+        { id: "big", chips: 1000n, folded: false, allIn: false },
       ];
 
       const round = new BettingRound({
         players,
-        smallBlind: 10,
-        bigBlind: 20,
+        smallBlind: 10n,
+        bigBlind: 20n,
         isPreFlop: false,
         dealerIndex: 0,
       });
@@ -110,21 +110,21 @@ describe("BettingRound - Advanced Scenarios", () => {
       const allIn = round.applyAction(players[0], { type: "call" });
       expect(allIn.valid).toBe(true);
       expect(players[0].allIn).toBe(true);
-      expect(players[0].chips).toBe(0);
+      expect(players[0].chips).toBe(0n);
 
       expect(round.isBettingComplete()).toBe(true);
     });
 
     it("should handle both players all-in", () => {
       const players: TestPlayer[] = [
-        { id: "p1", chips: 500, folded: false, allIn: false },
-        { id: "p2", chips: 300, folded: false, allIn: false },
+        { id: "p1", chips: 500n, folded: false, allIn: false },
+        { id: "p2", chips: 300n, folded: false, allIn: false },
       ];
 
       const round = new BettingRound({
         players,
-        smallBlind: 10,
-        bigBlind: 20,
+        smallBlind: 10n,
+        bigBlind: 20n,
         isPreFlop: false,
         dealerIndex: 0,
       });
@@ -147,15 +147,15 @@ describe("BettingRound - Advanced Scenarios", () => {
   describe("fold scenarios", () => {
     it("should complete betting when all but one folds", () => {
       const players: TestPlayer[] = [
-        { id: "p1", chips: 1000, folded: false, allIn: false },
-        { id: "p2", chips: 1000, folded: false, allIn: false },
-        { id: "p3", chips: 1000, folded: false, allIn: false },
+        { id: "p1", chips: 1000n, folded: false, allIn: false },
+        { id: "p2", chips: 1000n, folded: false, allIn: false },
+        { id: "p3", chips: 1000n, folded: false, allIn: false },
       ];
 
       const round = new BettingRound({
         players,
-        smallBlind: 10,
-        bigBlind: 20,
+        smallBlind: 10n,
+        bigBlind: 20n,
         isPreFlop: false,
         dealerIndex: 0,
       });
@@ -171,22 +171,22 @@ describe("BettingRound - Advanced Scenarios", () => {
   describe("chip conservation in betting", () => {
     it("should conserve total chips across all actions", () => {
       const players: TestPlayer[] = [
-        { id: "p1", chips: 1000, folded: false, allIn: false },
-        { id: "p2", chips: 1000, folded: false, allIn: false },
-        { id: "p3", chips: 500, folded: false, allIn: false },
+        { id: "p1", chips: 1000n, folded: false, allIn: false },
+        { id: "p2", chips: 1000n, folded: false, allIn: false },
+        { id: "p3", chips: 500n, folded: false, allIn: false },
       ];
 
-      const startingTotal = players.reduce((s, p) => s + p.chips, 0);
+      const startingTotal = players.reduce((s, p) => s + p.chips, 0n);
 
       const round = new BettingRound({
         players,
-        smallBlind: 10,
-        bigBlind: 20,
+        smallBlind: 10n,
+        bigBlind: 20n,
         isPreFlop: false,
         dealerIndex: 0,
       });
 
-      let totalBet = 0;
+      let totalBet = 0n;
       const r1 = round.applyAction(players[0], {
         type: "raise",
         amount: 200,
@@ -199,7 +199,7 @@ describe("BettingRound - Advanced Scenarios", () => {
       const r3 = round.applyAction(players[2], { type: "call" });
       totalBet += r3.amountAdded;
 
-      const remainingChips = players.reduce((s, p) => s + p.chips, 0);
+      const remainingChips = players.reduce((s, p) => s + p.chips, 0n);
       expect(remainingChips + totalBet).toBe(startingTotal);
     });
   });
@@ -210,38 +210,38 @@ describe("PotManager - Advanced Scenarios", () => {
     it("should handle 4-player all-in with different stacks", () => {
       const potManager = new PotManager();
       const players: TestPlayer[] = [
-        { id: "p1", chips: 0, folded: false, allIn: true },
-        { id: "p2", chips: 0, folded: false, allIn: true },
-        { id: "p3", chips: 0, folded: false, allIn: true },
-        { id: "p4", chips: 0, folded: false, allIn: true },
+        { id: "p1", chips: 0n, folded: false, allIn: true },
+        { id: "p2", chips: 0n, folded: false, allIn: true },
+        { id: "p3", chips: 0n, folded: false, allIn: true },
+        { id: "p4", chips: 0n, folded: false, allIn: true },
       ];
 
-      potManager.addBet("p1", 100);
-      potManager.addBet("p2", 200);
-      potManager.addBet("p3", 300);
-      potManager.addBet("p4", 400);
+      potManager.addBet("p1", 100n);
+      potManager.addBet("p2", 200n);
+      potManager.addBet("p3", 300n);
+      potManager.addBet("p4", 400n);
       potManager.calculatePots(players);
 
       expect(potManager.pots).toHaveLength(4);
-      expect(potManager.getTotalPot()).toBe(1000);
+      expect(potManager.getTotalPot()).toBe(1000n);
 
-      expect(potManager.pots[0].amount).toBe(400);
+      expect(potManager.pots[0].amount).toBe(400n);
       expect(potManager.pots[0].eligiblePlayerIds).toHaveLength(4);
 
-      expect(potManager.pots[1].amount).toBe(300);
+      expect(potManager.pots[1].amount).toBe(300n);
       expect(potManager.pots[1].eligiblePlayerIds).toHaveLength(3);
 
-      expect(potManager.pots[2].amount).toBe(200);
+      expect(potManager.pots[2].amount).toBe(200n);
       expect(potManager.pots[2].eligiblePlayerIds).toHaveLength(2);
 
-      expect(potManager.pots[3].amount).toBe(100);
+      expect(potManager.pots[3].amount).toBe(100n);
       expect(potManager.pots[3].eligiblePlayerIds).toHaveLength(1);
     });
 
     it("should handle pot distribution with odd chips across 3 winners", () => {
       const potManager = new PotManager();
       const distribution = potManager.distributePot(
-        100,
+        100n,
         [
           { id: "p1", handRank: 1 },
           { id: "p2", handRank: 1 },
@@ -253,19 +253,19 @@ describe("PotManager - Advanced Scenarios", () => {
 
       const totalDistributed = Object.values(distribution).reduce(
         (s, v) => s + v,
-        0,
+        0n,
       );
-      expect(totalDistributed).toBe(100);
+      expect(totalDistributed).toBe(100n);
 
-      expect(distribution["p1"]).toBe(33);
-      expect(distribution["p2"]).toBe(34);
-      expect(distribution["p3"]).toBe(33);
+      expect(distribution["p1"]).toBe(33n);
+      expect(distribution["p2"]).toBe(34n);
+      expect(distribution["p3"]).toBe(33n);
     });
 
     it("should give odd chip to player closest to dealer+1", () => {
       const potManager = new PotManager();
       const distribution = potManager.distributePot(
-        101,
+        101n,
         [
           { id: "p1", handRank: 1 },
           { id: "p2", handRank: 1 },
@@ -274,8 +274,8 @@ describe("PotManager - Advanced Scenarios", () => {
         2,
       );
 
-      expect(distribution["p1"]).toBe(51);
-      expect(distribution["p2"]).toBe(50);
+      expect(distribution["p1"]).toBe(51n);
+      expect(distribution["p2"]).toBe(50n);
     });
   });
 
@@ -283,16 +283,16 @@ describe("PotManager - Advanced Scenarios", () => {
     it("should track bets across multiple betting rounds", () => {
       const potManager = new PotManager();
 
-      potManager.addBet("p1", 10);
-      potManager.addBet("p2", 10);
+      potManager.addBet("p1", 10n);
+      potManager.addBet("p2", 10n);
       potManager.resetRound();
 
-      potManager.addBet("p1", 20);
-      potManager.addBet("p2", 20);
+      potManager.addBet("p1", 20n);
+      potManager.addBet("p2", 20n);
 
-      expect(potManager.getPlayerBetThisRound("p1")).toBe(20);
-      expect(potManager.getPlayerTotalBet("p1")).toBe(30);
-      expect(potManager.getPlayerTotalBet("p2")).toBe(30);
+      expect(potManager.getPlayerBetThisRound("p1")).toBe(20n);
+      expect(potManager.getPlayerTotalBet("p1")).toBe(30n);
+      expect(potManager.getPlayerTotalBet("p2")).toBe(30n);
     });
   });
 });

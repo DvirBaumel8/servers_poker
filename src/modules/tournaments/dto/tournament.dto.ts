@@ -15,6 +15,7 @@ import {
   ValidatorConstraintInterface,
   ValidationArguments,
 } from "class-validator";
+import { Type } from "class-transformer";
 import { TournamentType } from "../../../entities/tournament.entity";
 import { SafeNameConstraint } from "../../../common/validators/input-sanitization.validator";
 
@@ -96,11 +97,6 @@ export class CreateTournamentDto {
   turn_timeout_ms?: number;
 
   @IsOptional()
-  @IsNumber()
-  @Min(1)
-  late_reg_ends_level?: number;
-
-  @IsOptional()
   @IsBoolean()
   rebuys_allowed?: boolean;
 
@@ -137,12 +133,18 @@ export class TournamentResponseDto {
   max_players: number;
   players_per_table: number;
   turn_timeout_ms: number;
-  late_reg_ends_level: number;
   rebuys_allowed: boolean;
   scheduled_start_at: Date | null;
   started_at: Date | null;
   finished_at: Date | null;
   entries_count: number;
+  entries?: Array<{
+    id: string;
+    user_id: string;
+    bot_id: string;
+    user?: { name: string };
+    bot?: { name: string };
+  }>;
   created_at: Date;
 }
 
@@ -209,4 +211,11 @@ export class TournamentQueryDto {
     "cancelled",
   ])
   status?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(200)
+  @Type(() => Number)
+  limit?: number;
 }

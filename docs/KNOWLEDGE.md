@@ -25,7 +25,7 @@ Fully migrated from custom HTTP server to NestJS. Old server code has been remov
 **Migration Benefits**:
 - Single entry point (`src/main.ts`)
 - Dependency injection for clean service composition
-- Guards for JWT, API Key, and Role-based auth
+- Guards for JWT and Role-based auth
 - Interceptors for logging, audit, timeout handling
 - Exception filters for standardized error responses
 - WebSocket Gateway with Socket.IO for real-time game updates
@@ -80,7 +80,7 @@ React SPA in `/frontend` connects to NestJS backend:
 
 ### API-Only Developer Registration
 
-Developers can register and create a bot without using the UI:
+Developers can register and create an internal bot without using the UI:
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/register-developer \
@@ -90,7 +90,6 @@ curl -X POST http://localhost:3000/api/v1/auth/register-developer \
     "name": "Bot Developer",
     "password": "SecurePass123",
     "botName": "MyPokerBot",
-    "botEndpoint": "http://localhost:3001/action",
     "botDescription": "My first poker bot"
   }'
 ```
@@ -102,18 +101,17 @@ curl -X POST http://localhost:3000/api/v1/auth/register-developer \
   "expiresIn": 86400,
   "apiKey": "pk_...",
   "user": { "id": "...", "email": "...", "name": "..." },
-  "bot": { "id": "...", "name": "MyPokerBot", "endpoint": "..." },
-  "warnings": ["Using HTTP - HTTPS will be required in production"]
+  "bot": { "id": "...", "name": "MyPokerBot", "strategy": {} }
 }
 ```
 
+The bot is created with a default strategy and can be customized later via the BotBuilder UI at `/bots/build`.
+
 **Security Features:**
 - Rate limited: 3 requests per IP per hour
-- Health check required: Bot endpoint must respond before registration succeeds
 - Input validation: Strict validation on all fields (email, password complexity, bot name format)
 - Max 10 bots per account
 - Email verification skipped (tracked in TECH_DEBT.md)
-- Localhost/HTTP allowed in development only (tracked in TECH_DEBT.md)
 
 **Development:**
 - `npm run dev:all` — Runs both backend (3000) and frontend (3001) concurrently
@@ -269,127 +267,13 @@ A user can only have one bot in any given table or tournament:
 
 ---
 
-## Bot Protocol Decisions
-
-### Raise amount = additional chips, not total bet
-`{ type:"raise", amount:100 }` means raise 100 on top of the call. Bot puts in `toCall + 100` total. `maxRaise` = `player.chips - toCall` (max additional raise before all-in).
-
-**Why:** More intuitive. Bot developers think "I want to raise by X", not "my total bet should be Y".
-
-### `you.bestHand` only on flop onwards
-Absent pre-flop (no community cards to evaluate). Present on flop, turn, river. Contains `{ name, cards }` — the hand name and 5 specific cards making it.
-
-### Opponent hole cards never sent
-`players[]` never includes opponent cards. Only revealed at showdown via `handResult` WebSocket event.
-
-### Action validation is strict
-Invalid actions result in automatic fold with a strike. Bots sending actions out of turn are rejected immediately.
-
-### Response format
-```json
-{ "type": "fold" }
-{ "type": "check" }
-{ "type": "call" }
-{ "type": "raise", "amount": 300 }
-{ "type": "all_in" }
-```
-
----
-
-## Bot Connectivity & Resilience
-
-### Timeout Mechanism
-Every bot call has a configurable timeout (`BOT_TIMEOUT_MS`, default 10s):
-- Game engine uses `Promise.race` to enforce timeout
-- On timeout: automatic fold + strike
-- 3 consecutive timeouts = disconnection
-
-### Retry Logic (BotCallerService)
-Transient failures are retried automatically:
-- `BOT_MAX_RETRIES=1` (default) — one retry attempt
-- Retryable errors: `ECONNRESET`, `ETIMEDOUT`, `socket hang up`, HTTP 502/503/504
-- Non-retryable errors: invalid JSON, response too large, circuit breaker open
-- Exponential backoff: `BOT_RETRY_DELAY_MS * attempt`
-
-### Circuit Breaker Pattern
-Prevents cascading failures when a bot is unhealthy:
-- Opens after `BOT_CIRCUIT_BREAKER_THRESHOLD` consecutive failures (default 5)
-- Half-opens after `BOT_CIRCUIT_BREAKER_RESET_MS` (default 30s) for retry
-- Successful call resets the breaker
-- Events emitted: `bot.circuitOpened`, `bot.callFailed`
-
-### Health Check
-Bots should expose `GET /health` returning HTTP 200:
-- Called before game registration validation
-- Pre-game health check runs on all bots before starting
-- Unhealthy bots can be excluded from game start
-
-### HTTP Keep-Alive (BotCallerService)
-Connection pooling for reduced overhead:
-- `http.Agent` and `https.Agent` with `keepAlive: true`
-- `maxSockets: 100`, `maxFreeSockets: 20`
-- Eliminates TCP handshake overhead for repeated calls to same bot
-- Agents shared across all bot calls
-
-### Periodic Health Checks (BotHealthSchedulerService)
-Background monitoring of all registered bots:
-- `BOT_HEALTH_CHECK_INTERVAL_MS=30000` for idle bots
-- `BOT_ACTIVE_GAME_CHECK_INTERVAL_MS=10000` for in-game bots
-- Events emitted: `bot.healthStateChanged`, `bot.healthCheckRoundCompleted`
-- Pre-game registration via `registerBot(botId, endpoint)`
-
-### Graceful Degradation (BotResilienceService)
-Fallback strategies when bots fail:
-- **conservative:** Check if possible, call small bets (<25% pot), else fold
-- **aggressive:** May raise when can check, call medium bets (<50% pot)
-- **random:** Random valid action (for testing)
-- **check_fold:** Always check or fold (safest)
-
-Configurable via `BOT_FALLBACK_STRATEGY` env var.
-
-### Bot Metrics Gateway
-Real-time WebSocket monitoring at `/metrics`:
-- `getSnapshot` — current health/latency of all bots
-- `getHealthHistory` — last health check round results
-- `triggerHealthCheck` — manual health check
-- Events: `snapshot`, `botStateChanged`, `circuitBreaker`, `activeGameAlert`
-
-### Latency Tracking
-Rolling window of last 100 response times per bot:
-- Average latency available via `getAverageLatency(botId)`
-- High latency bots (>3s average) flagged in validation reports
-- Helps identify bots at risk of timeout
-
-### Response Validation
-Bot responses are validated before processing:
-- Must be JSON object
-- Must have `type` field (`fold`, `check`, `call`, `raise`, `bet`, `all_in`)
-- `raise`/`bet` must include numeric positive `amount`
-- Amount must be within `minRaise` and `maxRaise` bounds
-- Invalid responses trigger automatic fold + strike
-
-### Bot Validation Suite (BotValidatorService)
-Comprehensive pre-registration validation with 13 scenarios:
-- **Connectivity:** Health check endpoint
-- **Basic:** Pre-flop, flop, river actions
-- **Edge cases:** Short stack, all-in facing, heads-up, multi-way
-- **Stress:** Response time, large numbers
-
-Validation produces a weighted score (0-100):
-- Connectivity: 30%
-- Basic scenarios: 40%
-- Edge cases: 20%
-- Stress tests: 10%
-
----
-
 ## Game Engine Decisions
 
 ### Antes posted before blinds
 All active players post ante first, then SB and BB. Matches standard tournament ante structure.
 
 ### 3-strike disconnection, not immediate
-A bot failure (timeout, error, bad JSON) gets a strike and a penalty fold. After 3 **consecutive** failures it's disconnected. Strikes reset on any successful response.
+A bot failure (timeout, error, invalid action) gets a strike and a penalty fold. After 3 **consecutive** failures it's disconnected. Strikes reset on any successful action.
 
 ### Penalty fold is recorded differently from intentional fold
 `actions.is_penalty = true` when the server folded on the bot's behalf. Critical for detecting unstable bots vs conservative strategy.
@@ -399,32 +283,6 @@ A bot failure (timeout, error, bad JSON) gets a strike and a penalty fold. After
 
 ### 4000ms sleep between hands
 After each hand, the loop sleeps 4000ms. Gives the UI time to render the final state and prevents hands blurring in the log. Configurable via `sleepMs` in `GameInstance`.
-
----
-
-## Security Services
-
-### HMAC Bot Payload Signing (HmacSigningService)
-Optional protection against fake game state injection:
-- **Enable:** `ENABLE_BOT_HMAC_SIGNING=true`
-- **Headers:** `X-Poker-Signature`, `X-Poker-Timestamp`, `X-Poker-Nonce`
-- **Replay protection:** Signature includes timestamp, rejected if >5min old
-- **Nonce tracking:** Prevents exact replay attacks
-
-Bot servers should verify the signature using their shared secret.
-
-### API Key Rotation (ApiKeyRotationService)
-Secure key management with zero-downtime rotation:
-- **Rotate:** `POST /users/:id/rotate-api-key` generates new key
-- **Grace period:** Old key valid for 24h (configurable via `API_KEY_GRACE_PERIOD_MS`)
-- **Status:** `GET /users/:id/api-key-status` shows legacy key expiration
-- **Revoke:** `POST /users/:id/revoke-api-keys` (admin) immediately invalidates all keys
-
-### Webhook Signing (WebhookSigningService)
-Outgoing webhook authentication (for future event notifications):
-- **Format:** Stripe-style `v1=<signature>` in `X-Poker-Webhook-Signature`
-- **Includes:** Webhook ID and timestamp for client verification
-- **Protection:** Timestamp validation prevents replay attacks
 
 ---
 
@@ -497,11 +355,6 @@ Multiple tables complete hands near-simultaneously. `_handLock` prevents concurr
 - Token validation on every authenticated request
 - User context injected into request via decorator
 
-### API Key Authentication
-- Keys stored as SHA-256 hashes
-- Raw key returned once at registration, never stored
-- Used for bot-to-server communication
-
 ### Rate Limiting
 - Global rate limiting via @nestjs/throttler
 - Configurable limits per endpoint
@@ -509,7 +362,6 @@ Multiple tables complete hands near-simultaneously. `_handLock` prevents concurr
 
 ### Input Validation
 - Strict DTO validation with class-validator
-- Bot endpoints validated (no internal IPs)
 - Body size limit enforced
 - SQL injection prevention via TypeORM parameters
 
@@ -587,59 +439,6 @@ Stored as `TIMESTAMP WITH TIME ZONE` in PostgreSQL. Converted to ISO strings for
 
 ---
 
-## Developer Experience
-
-### Philosophy: 5 Minutes to First Bot
-The complexity of getting started directly impacts adoption. Goal: anyone can build and deploy a working bot in under 5 minutes.
-
-### Documentation for AI Assistants
-`docs/AI_CONTEXT.md` is specifically designed to be pasted into ChatGPT/Claude/etc. Contains complete request/response format, field explanations, working templates in both Node.js and Python, and common prompts.
-
-**Why:** In 2026, most developers use AI to write code. Optimizing for AI-assisted development is critical.
-
-### Zero-Config SDKs
-Both JavaScript and Python SDKs (`bots/sdk/`) require zero setup:
-- No npm install needed for Node.js
-- No pip install needed for Python
-- Single function to implement: `decide(state) -> action`
-- Built-in logging, error handling, health endpoint
-
-### Progressive Complexity
-Examples (`bots/examples/`) are ordered by complexity:
-
-**Beginner (4-15 lines):**
-1. `01-check-fold.js` — 4 lines, never risks chips
-2. `02-calling-station.js` — 4 lines, calls everything
-3. `03-tight-passive.js` — 15 lines, premium hands only
-
-**Intermediate (30-45 lines):**
-4. `04-tight-aggressive.js` — 40 lines, classic TAG
-5. `05-pot-odds-calculator.js` — 30 lines, math-based
-6. `06-position-aware.js` — 45 lines, position exploits
-
-**Advanced (100+ lines):**
-7. `07-data-driven.js` — SQLite persistence, opponent tracking, player classification (LAG/TAG/LP/TP)
-8. `08-monte-carlo.js` — Hand equity via 1000+ simulations, EV calculations
-9. `09-adaptive-exploiter.js` — Real-time pattern detection, exploit strategies
-10. `10-tournament-icm.js` — ICM calculations, bubble factor, push/fold ranges
-
-### Testing Playground
-`bots/playground/test-bot.js` lets developers test locally:
-- 11 pre-built scenarios (preflop, flop, river, edge cases)
-- Response validation
-- Timing measurement
-- Colored pass/fail output
-
-### Strategy Helpers in SDK
-Built-in functions reduce implementation complexity:
-- `Strategy.preFlopStrength(holeCards, position)` — 0 to 1
-- `Strategy.postFlopStrength(bestHand, opponentCount)` — 0 to 1
-- `Strategy.shouldValueBet(state)` — boolean
-- `Strategy.shouldCall(state, buffer)` — pot odds comparison
-- `Action.potSized(pot, action)` — standard bet sizing
-
----
-
 ## Testing Strategy
 
 ### Simulation Test Framework
@@ -681,7 +480,6 @@ npm run sim:ci       # CI mode (basic only, fail fast)
 
 **Integration Tests** (`tests/integration/`):
 - Multiple components together with mocked services
-- Mock HTTP servers for bot communication testing
 - Service layer testing without database
 - Run: `npm run test:integration`
 
@@ -693,10 +491,8 @@ npm run sim:ci       # CI mode (basic only, fail fast)
 
 ### Test Utilities
 
-- `MockBotServer` — Configurable HTTP server for simulating bots
-- `createCallingBot/createFoldingBot/createAggressiveBot` — Pre-built bot behaviors
-- `createSlowBot` — For timeout testing
-- `createUnreliableBot` — For resilience testing
+- `createStrategyBot()` — Factory for creating bots with specific strategies in tests
+- `registerUserWithBot()` — Helper to register a user and create an internal bot in one step
 
 ### Running Tests
 
@@ -801,7 +597,7 @@ Bots can be configured to automatically register for tournaments:
 
 **Entity: `BotSubscription`**
 ```typescript
-{
+interface BotSubscription {
   bot_id: string;              // Bot to auto-register
   tournament_id?: string;      // Specific tournament (or null for filters)
   tournament_type_filter?: "rolling" | "scheduled";
@@ -846,6 +642,67 @@ Bots can be configured to automatically register for tournaments:
 - Subscription management UI in bot profile
 - "Active Now" panel on Bots page shows currently playing bots
 - Navbar badge shows count of active bots
+
+---
+
+## Bot Builder (Primary Bot Creation)
+
+### Overview
+All bots on the platform are created through the BotBuilder UI at `/bots/build` or via the `register-developer` API (which creates a bot with a default strategy). There are no external bot servers — all bot strategy evaluation happens in-process via `StrategyEngineService`.
+
+### Bot Entity
+Bots are stored with the following key fields:
+- `name` — Bot display name
+- `description` — Optional description
+- `active` — Whether the bot is active
+- `strategy` — JSONB column (NOT NULL) containing the strategy definition
+- `user_id` — Owner of the bot
+
+### Tiers
+- **Quick Bot** — Personality sliders (aggression, bluff frequency, risk tolerance) + presets
+- **Strategy Builder** — Visual IF/THEN rule builder with conditional blocks
+- **Pro Builder** — Full range chart editor with per-position control
+
+### Architecture
+- **Frontend**: `BotBuilder.tsx` page with step-based wizard (tier → personality → rules → review)
+- **Components**: `TierSelector`, `PersonalitySliders`, `PersonalityPresets`, `RuleBuilder`, `RangeChart`, `PositionOverrides`, `WhatIfSimulator`
+- **Store**: `botBuilderStore.ts` (Zustand) manages wizard state
+- **Backend**: `StrategyEngineService` evaluates the strategy JSON at game-time in-process
+- **Route**: `/bots/build` (requires authentication, lazy-loaded)
+
+### Strategy Evaluation
+During gameplay, the game loop calls `StrategyEngineService.evaluateStrategy(strategy, gameState)` to determine each bot's action. This runs in the same process (or worker thread) as the game engine — no HTTP calls are made.
+
+### Design Decisions
+- Route placed before `/bots/:id` in router to avoid param conflict
+- Requires authentication (no guest access) since created bots are tied to user accounts
+- Strategy JSON validated by `strategy.validator.ts` before persistence
+- `register-developer` API creates bots with a default strategy (no endpoint parameter)
+
+---
+
+## Frontend UX Features
+
+### Skeleton Loading Screens
+All data-fetching pages (Tables, Tournaments, Bots, Leaderboard) use skeleton placeholders instead of spinner-only loading states. Reusable components: `Skeleton`, `SkeletonMetricCards`, `SkeletonPageHeader`, `SkeletonCard`, `SkeletonTable` in `primitives.tsx`.
+
+### Page Transitions
+`Layout` wraps `<Outlet>` with framer-motion `AnimatePresence` for smooth fade+slide transitions between pages (200ms ease-in-out).
+
+### Breadcrumbs
+`PageHeader` accepts an optional `breadcrumbs` prop (`BreadcrumbItem[]`). When provided, it renders a navigation breadcrumb trail instead of the back button. Used on BotProfile, TournamentDetail, and BotBuilder pages.
+
+### Toast Notifications
+Global toast system via `toastStore.ts` (Zustand). Import `toast("message", "success")` anywhere. `ToastContainer` renders in Layout. Supports success/error/warning/info tones with auto-dismiss.
+
+### Keyboard Navigation
+`useKeyboardNav` hook in Layout: Cmd/Ctrl+1 = Tables, Cmd/Ctrl+2 = Tournaments, Cmd/Ctrl+3 = Bots, Cmd/Ctrl+4 = Leaderboard.
+
+### Game View Animations
+- Hole cards: spring-based scale-in with staggered delay per card
+- Community cards: drop-in from above with spring physics and 150ms stagger
+- Win celebration: confetti burst (24 particles) + flying chips + winner banner with glow
+- Player actions: animated action badges with position-aware placement
 
 ---
 
@@ -959,13 +816,6 @@ ANALYTICS_RETENTION_DAYS=90             # Days to keep analytics events
 ---
 
 ## Tournament Director Improvements (2026-03)
-
-### Late Registration Support
-Tournament registration now works during running tournaments if within `late_reg_ends_level`:
-- `TournamentsService.register()` accepts optional `currentLevel` parameter
-- Controller fetches current level from `TournamentDirectorService.getTournamentState()`
-- Registration allowed if `currentLevel <= tournament.late_reg_ends_level`
-- Returns `lateRegistration: true` in response when late reg used
 
 ### Proper Table Creation
 Tables are now correctly created in the database before seating players:

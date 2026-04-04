@@ -8,6 +8,10 @@ import { BotsModule } from "../../src/modules/bots/bots.module";
 import { ServicesModule } from "../../src/services/services.module";
 import { createTestApp, closeTestApp, TestAppContext } from "./shared/test-app";
 import { createTestUser, authHeader } from "./shared/test-factories";
+import {
+  createCallerStrategy,
+  createDefaultStrategy,
+} from "../utils/strategy-bot-factory";
 
 describe("Bots E2E Tests", () => {
   let ctx: TestAppContext;
@@ -29,23 +33,21 @@ describe("Bots E2E Tests", () => {
   });
 
   describe("Bot CRUD Operations", () => {
-    it("should create a new bot", async () => {
+    it("should create a new internal bot", async () => {
       const user = await createTestUser(dataSource, jwtService);
       const botName = `MyPokerBot-${user.id.slice(0, 8)}`;
-      const endpoint = `http://localhost:8080/action-${user.id.slice(0, 8)}`;
 
       const response = await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
           name: botName,
-          endpoint,
+          strategy: createCallerStrategy(),
           description: "My first poker bot",
         })
         .expect(201);
 
       expect(response.body.name).toBe(botName);
-      expect(response.body.endpoint).toBe(endpoint);
       expect(response.body.active).toBe(true);
 
       const bots = await dataSource.query(
@@ -60,20 +62,20 @@ describe("Bots E2E Tests", () => {
       const id = user.id.slice(0, 8);
 
       await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
           name: `Bot1-${id}`,
-          endpoint: `http://localhost:8081/bot1-${id}`,
+          strategy: createCallerStrategy(),
         })
         .expect(201);
 
       await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
           name: `Bot2-${id}`,
-          endpoint: `http://localhost:8082/bot2-${id}`,
+          strategy: createDefaultStrategy(),
         })
         .expect(201);
 
@@ -92,11 +94,11 @@ describe("Bots E2E Tests", () => {
       const botName = `GetBot-${id}`;
 
       const createResponse = await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
           name: botName,
-          endpoint: `http://localhost:8083/getbot-${id}`,
+          strategy: createDefaultStrategy(),
         })
         .expect(201);
 
@@ -116,27 +118,24 @@ describe("Bots E2E Tests", () => {
       const id = user.id.slice(0, 8);
 
       const createResponse = await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
           name: `UpdBot-${id}`,
-          endpoint: `http://localhost:8084/updatebot-${id}`,
+          strategy: createDefaultStrategy(),
         })
         .expect(201);
 
       const botId = createResponse.body.id;
-      const newEndpoint = `http://localhost:9999/updated-${id}`;
 
       const response = await request(app.getHttpServer())
         .put(`/api/v1/bots/${botId}`)
         .set(authHeader(user.accessToken))
         .send({
-          endpoint: newEndpoint,
           description: "Updated description",
         })
         .expect(200);
 
-      expect(response.body.endpoint).toBe(newEndpoint);
       expect(response.body.description).toBe("Updated description");
     });
 
@@ -145,11 +144,11 @@ describe("Bots E2E Tests", () => {
       const id = user.id.slice(0, 8);
 
       const createResponse = await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
           name: `DeactBot-${id}`,
-          endpoint: `http://localhost:8085/deactivate-${id}`,
+          strategy: createDefaultStrategy(),
         })
         .expect(201);
 
@@ -170,29 +169,27 @@ describe("Bots E2E Tests", () => {
   });
 
   describe("Bot Validation", () => {
-    it("should reject bot with invalid endpoint URL", async () => {
+    it("should reject bot with missing name", async () => {
       const user = await createTestUser(dataSource, jwtService);
-      const id = user.id.slice(0, 8);
 
       await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
-          name: `InvBot-${id}`,
-          endpoint: "not-a-valid-url",
+          strategy: createDefaultStrategy(),
         })
         .expect(400);
     });
 
-    it("should reject bot with missing name", async () => {
+    it("should reject bot without strategy", async () => {
       const user = await createTestUser(dataSource, jwtService);
       const id = user.id.slice(0, 8);
 
       await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
-          endpoint: `http://localhost:8080/missing-name-${id}`,
+          name: `NoStrat-${id}`,
         })
         .expect(400);
     });
@@ -203,20 +200,20 @@ describe("Bots E2E Tests", () => {
       const botName = `DupBot-${id}`;
 
       await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
           name: botName,
-          endpoint: `http://localhost:8087/dup1-${id}`,
+          strategy: createCallerStrategy(),
         })
         .expect(201);
 
       await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
           name: botName,
-          endpoint: `http://localhost:8088/dup2-${id}`,
+          strategy: createDefaultStrategy(),
         })
         .expect(409);
     });
@@ -229,11 +226,11 @@ describe("Bots E2E Tests", () => {
       const ownerId = owner.id.slice(0, 8);
 
       const createResponse = await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(owner.accessToken))
         .send({
           name: `ProtBot-${ownerId}`,
-          endpoint: `http://localhost:8089/protected-${ownerId}`,
+          strategy: createDefaultStrategy(),
         })
         .expect(201);
 
@@ -243,7 +240,7 @@ describe("Bots E2E Tests", () => {
         .put(`/api/v1/bots/${botId}`)
         .set(authHeader(otherUser.accessToken))
         .send({
-          endpoint: "http://localhost:9999",
+          description: "hacked",
         });
 
       expect([403, 404]).toContain(response.status);
@@ -255,11 +252,11 @@ describe("Bots E2E Tests", () => {
       const ownerId = owner.id.slice(0, 8);
 
       const createResponse = await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(owner.accessToken))
         .send({
           name: `ProtBot2-${ownerId}`,
-          endpoint: `http://localhost:8090/protected2-${ownerId}`,
+          strategy: createDefaultStrategy(),
         })
         .expect(201);
 
@@ -282,20 +279,20 @@ describe("Bots E2E Tests", () => {
       const bot2Name = `U2Bot-${id2}`;
 
       await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user1.accessToken))
         .send({
           name: bot1Name,
-          endpoint: `http://localhost:8091/user1-${id1}`,
+          strategy: createCallerStrategy(),
         })
         .expect(201);
 
       await request(app.getHttpServer())
-        .post("/api/v1/bots")
+        .post("/api/v1/bots/internal")
         .set(authHeader(user2.accessToken))
         .send({
           name: bot2Name,
-          endpoint: `http://localhost:8092/user2-${id2}`,
+          strategy: createDefaultStrategy(),
         })
         .expect(201);
 

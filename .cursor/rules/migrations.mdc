@@ -10,7 +10,7 @@ alwaysApply: false
 
 Migration timestamps MUST be sequential and greater than all existing ones.
 
-Current highest: `1710864004000` (AddPlatformAnalytics)
+Current highest: `1711000004000` (FixTournamentTypeCheckConstraint)
 
 ```typescript
 // Next migration should be:
