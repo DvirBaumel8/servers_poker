@@ -10,9 +10,7 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 60000,
     pool: "threads",
-    singleThread: false,
-    minThreads: 1,
-    maxThreads: 4,
+    maxWorkers: 4,
     fileParallelism: false,
     sequence: {
       shuffle: false,
