@@ -76,7 +76,6 @@ For complete schema with TypeORM entities, see `DATA_DICTIONARY.md`.
 | min_players / max_players | INTEGER | |
 | players_per_table | INTEGER | Default 9 |
 | turn_timeout_ms | INTEGER | Default 30000 |
-| late_reg_ends_level | INTEGER | |
 | rebuys_allowed | BOOLEAN | |
 | scheduled_start_at | TIMESTAMP | For scheduled tournaments |
 | started_at / finished_at | TIMESTAMP | |

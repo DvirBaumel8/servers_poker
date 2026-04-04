@@ -89,14 +89,12 @@ export function useTournamentSocket({
 
     // Connection events
     socket.on('connect', () => {
-      console.log('🔗 Connected to tournament updates')
       setConnectionStatus('connected')
       // Subscribe to this tournament
       socket.emit('subscribe_tournament', { tournamentId })
     })
 
     socket.on('disconnect', () => {
-      console.log('🔌 Disconnected from tournament updates')
       setConnectionStatus('disconnected')
     })
 
@@ -107,19 +105,16 @@ export function useTournamentSocket({
 
     // Tournament state updates (real-time)
     socket.on('tournament_state_updated', (update: TournamentStateUpdate) => {
-      console.log('📊 Tournament state update:', update)
       setLatestUpdate(update)
     })
 
     // Player activity updates
     socket.on('tournament_player_action', (update: TournamentPlayerUpdate) => {
-      console.log('👤 Player action:', update)
       setPlayerUpdates((prev) => [update, ...prev.slice(0, 9)]) // Keep last 10
     })
 
     // Tournament notifications (blind increases, milestones, etc.)
     socket.on('tournament_notification', (notification: TournamentNotification) => {
-      console.log('📢 Tournament notification:', notification)
       setNotifications((prev) => [notification, ...prev.slice(0, 4)]) // Keep last 5
       // Auto-remove after 5 seconds
       setTimeout(() => {

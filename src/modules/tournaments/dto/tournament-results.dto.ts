@@ -7,6 +7,7 @@ export class TournamentResultEntryDto {
   finishPosition: number;
   payout: number;
   bustLevel?: number;
+  isTied: boolean;
 }
 
 export class TournamentResultsDto {

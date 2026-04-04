@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
+import { Sidebar } from '../components/Sidebar'
 import { useTournamentLobby } from '../hooks/useTournamentLobby'
 import CountdownTimer from '../components/tournaments/CountdownTimer'
 
@@ -20,7 +22,6 @@ interface Tournament {
   max_participants?: number
   current_participants?: number
   registered_count?: number
-  late_registration?: boolean
   rebuys_allowed?: boolean
 }
 
@@ -41,225 +42,6 @@ const C = {
   font: "'Trebuchet MS', sans-serif",
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
-function Sidebar({ collapsed = false, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
-  const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-
-  const NAV = [
-    { label: 'Home', path: '/' },
-    { label: 'My Bots', path: '/bots' },
-    { label: 'Tournaments', path: '/tournaments' },
-    { label: 'Live Games', path: '/games' },
-  ]
-
-  const NAV_ICONS = {
-    Home: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-      </svg>
-    ),
-    'My Bots': (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-      </svg>
-    ),
-    Tournaments: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <line x1="8" y1="6" x2="21" y2="6" />
-        <line x1="8" y1="12" x2="21" y2="12" />
-        <line x1="8" y1="18" x2="21" y2="18" />
-        <circle cx="3" cy="6" r="1" fill="currentColor" />
-        <circle cx="3" cy="12" r="1" fill="currentColor" />
-        <circle cx="3" cy="18" r="1" fill="currentColor" />
-      </svg>
-    ),
-    'Live Games': (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  }
-
-  return (
-    <div
-      style={{
-        width: collapsed ? 60 : 210,
-        minHeight: '100vh',
-        background: '#0d0d22',
-        borderRight: `1px solid ${C.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        fontFamily: C.font,
-        transition: 'width 0.2s',
-        overflow: 'visible',
-      }}
-    >
-      <div style={{ padding: collapsed ? '12px 12px 8px' : '28px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {!collapsed && (
-          <>
-            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }}>
-              <span style={{ color: C.text }}>Bot</span>
-              <span style={{ color: C.accent }}>Royale</span>
-            </div>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginTop: 4 }}>
-              Automate. Compete. Win.
-            </div>
-          </>
-        )}
-        {collapsed && (
-          <div style={{ fontSize: 16, color: C.accent }}>◆</div>
-        )}
-      </div>
-
-      <nav style={{ flex: 1, padding: '20px 0', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleCollapse() }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = C.accent
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = 'rgba(0, 229, 255, 0.5)'
-          }}
-          style={{
-            position: 'absolute', right: '-17px', top: '50%', transform: 'translateY(-50%)',
-            width: 34, height: 34,
-            background: 'transparent', border: 'none',
-            color: 'rgba(0, 229, 255, 0.5)', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, fontWeight: 'bold', transition: 'color 0.2s', zIndex: 10, padding: 0,
-            pointerEvents: 'auto',
-          }}
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          {collapsed ? '»' : '«'}
-        </button>
-        {NAV.map(({ label, path }, idx) => {
-          const active = path === '/tournaments'
-          return (
-            <div key={path}>
-              <button
-                onClick={() => navigate(path)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                  gap: collapsed ? 0 : 10,
-                  width: '100%',
-                  padding: collapsed ? '10px 0' : '10px 20px',
-                  background: active ? C.accentDim : 'transparent',
-                  border: 'none',
-                  borderLeft: collapsed ? 'none' : `3px solid ${active ? C.accent : 'transparent'}`,
-                  color: active ? C.text : C.muted,
-                  fontSize: 14,
-                  fontFamily: C.font,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {NAV_ICONS[label as keyof typeof NAV_ICONS]}
-                </span>
-                {!collapsed && label}
-              </button>
-            </div>
-          )
-        })}
-      </nav>
-
-      <div style={{ padding: collapsed ? '20px 4px' : '16px 20px', borderTop: `1px solid ${C.border}`, position: 'relative' }}>
-        <button
-          onClick={() => setDropdownOpen((o) => !o)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            gap: 10,
-            width: '100%',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #00e5ff, #0070ff)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 13,
-              fontWeight: 700,
-              color: '#000',
-              flexShrink: 0,
-            }}
-          >
-            {(user?.name?.[0] ?? '?').toUpperCase()}
-          </div>
-          {!collapsed && (
-            <>
-              <div style={{ overflow: 'hidden', flex: 1, textAlign: 'left' }}>
-                <div style={{ fontSize: 13, color: C.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user?.name ?? 'Player'}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted }}>{user?.role ?? 'user'}</div>
-              </div>
-            </>
-          )}
-        </button>
-        {dropdownOpen && !collapsed && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 12,
-              right: 12,
-              marginBottom: 6,
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              overflow: 'hidden',
-            }}
-          >
-            <button
-              onClick={() => {
-                setDropdownOpen(false)
-                logout()
-              }}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'transparent',
-                border: 'none',
-                color: C.danger,
-                fontSize: 13,
-                fontFamily: C.font,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              Sign out
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TournamentLobbyPage() {
@@ -271,23 +53,10 @@ export default function TournamentLobbyPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [leaving, setLeaving] = useState(false)
-
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('tournament_lobby_sidebar_collapsed')
-    return saved !== null ? JSON.parse(saved) : false
-  })
-
-  const toggleSidebarCollapse = () => {
-    setSidebarCollapsed((prev) => {
-      const newVal = !prev
-      localStorage.setItem('tournament_lobby_sidebar_collapsed', JSON.stringify(newVal))
-      return newVal
-    })
-  }
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
   // Memoize the callback to prevent effect re-runs
   const handleTournamentStarted = useCallback(() => {
-    console.log('🎮 Tournament started, redirecting to live game...')
     if (id) {
       navigate(`/tournaments/${id}/live`)
     }
@@ -310,7 +79,6 @@ export default function TournamentLobbyPage() {
   // Fallback: also watch tournament status directly
   useEffect(() => {
     if (tournament?.status === 'running' && !loading) {
-      console.log('📺 Tournament status changed to running, redirecting to live game...')
       handleTournamentStarted()
     }
   }, [tournament?.status, loading, handleTournamentStarted])
@@ -377,7 +145,7 @@ export default function TournamentLobbyPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+        <Sidebar />
         <div
           style={{
             flex: 1,
@@ -397,7 +165,7 @@ export default function TournamentLobbyPage() {
   if (isCancelled) {
     return (
       <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+        <Sidebar />
         <div
           style={{
             flex: 1,
@@ -441,7 +209,7 @@ export default function TournamentLobbyPage() {
   if (error) {
     return (
       <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+        <Sidebar />
         <div
           style={{
             flex: 1,
@@ -479,7 +247,7 @@ export default function TournamentLobbyPage() {
   if (!tournament) {
     return (
       <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+        <Sidebar />
         <div
           style={{
             flex: 1,
@@ -519,7 +287,7 @@ export default function TournamentLobbyPage() {
         @keyframes slideIn { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.7 } }
       `}</style>
-      <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+      <Sidebar />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* Header */}
@@ -745,7 +513,7 @@ export default function TournamentLobbyPage() {
                 {/* Leave button (only during registration) */}
                 {canLeave && (
                   <button
-                    onClick={handleLeaveTournament}
+                    onClick={() => setShowLeaveConfirm(true)}
                     disabled={leaving}
                     style={{
                       width: '100%',
@@ -765,6 +533,56 @@ export default function TournamentLobbyPage() {
                     {leaving ? 'Leaving...' : 'Leave Tournament'}
                   </button>
                 )}
+
+                {/* Leave confirmation modal */}
+                <AnimatePresence>
+                  {showLeaveConfirm && (
+                    <div style={{
+                      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: C.font,
+                    }} onClick={() => setShowLeaveConfirm(false)}>
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        style={{
+                          background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
+                          padding: 28, width: 360, maxWidth: '90vw',
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 12 }}>Leave Tournament?</div>
+                        <div style={{ fontSize: 14, color: C.muted, marginBottom: 24 }}>
+                          You will lose your spot and cannot rejoin. Are you sure?
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button
+                            onClick={() => setShowLeaveConfirm(false)}
+                            style={{
+                              flex: 1, padding: '10px', background: 'transparent',
+                              border: `1px solid ${C.border}`, borderRadius: 8,
+                              color: C.muted, fontFamily: C.font, cursor: 'pointer', fontSize: 14,
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => { setShowLeaveConfirm(false); handleLeaveTournament() }}
+                            disabled={leaving}
+                            style={{
+                              flex: 1, padding: '10px', background: C.danger, border: 'none', borderRadius: 8,
+                              color: '#fff', fontWeight: 700, fontFamily: C.font, fontSize: 14,
+                              cursor: leaving ? 'not-allowed' : 'pointer', opacity: leaving ? 0.6 : 1,
+                            }}
+                          >
+                            Leave
+                          </button>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
 
                 {!canLeave && (
                   <div

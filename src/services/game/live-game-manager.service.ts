@@ -7,7 +7,13 @@
  * Replaces the `liveGames` object from the old server.ts
  */
 
-import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
+import { createHash } from "crypto";
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ProvablyFairService, HandSeedData } from "../provably-fair.service";
 import {
@@ -17,13 +23,23 @@ import {
   cardToString,
   parseCard,
 } from "../../domain/deck";
-import { determineWinners, bestHand } from "../../domain/handEvaluator";
+import {
+  determineWinners,
+  bestHand,
+  compareHands,
+} from "../../domain/handEvaluator";
 import { PotManager, BettingRound } from "../../domain/betting";
 import {
-  evaluateStrategy,
+  getOrHydrateStrategy,
+  evaluateHydrated,
+  clearEvalCache,
+  clearStreetMemos,
   type BotPayload,
 } from "../../modules/bot-strategy/strategy-engine.service";
-import type { BotStrategy } from "../../domain/bot-strategy/strategy.types";
+import type {
+  BotStrategy,
+  HydratedStrategy,
+} from "../../domain/bot-strategy/strategy.types";
 
 export interface LiveGame {
   game: GameInstance;
@@ -41,23 +57,23 @@ export interface GameStateSnapshot {
   status: "waiting" | "running" | "finished" | "error";
   handNumber: number;
   stage: string;
-  pot: number;
-  currentBet: number;
+  pot: bigint;
+  currentBet: bigint;
   communityCards: string[];
   activePlayerId: string | null;
-  smallBlind: number;
-  bigBlind: number;
-  ante: number;
+  smallBlind: bigint;
+  bigBlind: bigint;
+  ante: bigint;
   players: Array<{
     id: string;
     name: string;
-    chips: number;
+    chips: bigint;
     folded: boolean;
     allIn: boolean;
     disconnected: boolean;
     strikes: number;
     position: string | null;
-    bet: number;
+    bet: bigint;
     holeCards?: string[];
   }>;
   log: Array<{ message: string; timestamp: number }>;
@@ -68,15 +84,20 @@ export interface GameStateSnapshot {
   };
 }
 
+export type SeatStatus = "active" | "sitting_out" | "eliminated";
+
 interface GamePlayer {
   id: string;
   name: string;
   strategy: BotStrategy;
-  chips: number;
+  hydratedStrategy: HydratedStrategy;
+  chips: bigint;
   holeCards: any[];
   folded: boolean;
   allIn: boolean;
   strikes: number;
+  seatStatus: SeatStatus;
+  /** Derived from seatStatus: true only when eliminated. Kept for backward compatibility. */
   disconnected: boolean;
 }
 
@@ -91,24 +112,34 @@ const POSITION_NAMES: Record<number, string[]> = {
   9: ["BTN", "SB", "BB", "UTG", "UTG+1", "MP", "MP+1", "HJ", "CO"],
 };
 
-interface RecoverySnapshot {
+export interface RecoverySnapshot {
   game_id: string;
   table_id: string;
   tournament_id?: string;
   hand_number: number;
   game_stage: string;
   dealer_index: number;
-  small_blind: number;
-  big_blind: number;
-  ante: number;
-  starting_chips: number;
+  small_blind: string | number;
+  big_blind: string | number;
+  ante: string | number;
+  starting_chips: string | number;
   turn_timeout_ms: number;
   community_cards: Array<{ rank: string; suit: string }>;
+  /** Present on hot-state (Redis) snapshots; absent on DB snapshots. */
+  action_seq?: number;
+  /** ISO timestamp of last action; present on hot-state snapshots. */
+  last_action_at?: string;
+  /** Pot & betting state for mid-hand recovery (hot-state only). */
+  pot_state?: {
+    playerTotalBets: Record<string, string>;
+    playerBetsThisRound: Record<string, string>;
+    pots: Array<{ amount: string; eligiblePlayerIds: string[] }>;
+  };
   players: Array<{
     id: string;
     name: string;
     strategy: BotStrategy | Record<string, any> | null;
-    chips: number;
+    chips: string;
     holeCards?: Array<{ rank: string; suit: string }>;
     folded: boolean;
     allIn: boolean;
@@ -128,14 +159,15 @@ export class GameInstance {
   readonly tournamentId?: string;
 
   players: GamePlayer[] = [];
-  smallBlind: number;
-  bigBlind: number;
-  ante: number;
-  startingChips: number;
+  smallBlind: bigint;
+  bigBlind: bigint;
+  ante: bigint;
+  startingChips: bigint;
   turnTimeoutMs: number;
 
   dealerIndex = 0;
   handNumber = 0;
+  actionSeq = 0;
   stage: string = "pre-flop";
   communityCards: any[] = [];
   potManager: PotManager | null = null;
@@ -143,12 +175,22 @@ export class GameInstance {
   activePlayer: GamePlayer | null = null;
   running = false;
   status: "waiting" | "running" | "finished" | "error" = "waiting";
+  lastActivityAt: number = Date.now();
+  /** Players currently being moved between tables — auto-fold if reached in betting loop. */
+  movingPlayers = new Set<string>();
   log: Array<{ message: string; timestamp: number }> = [];
 
-  private expectedTotalChips?: number;
+  private expectedTotalChips?: bigint;
   private sleepMs: number = 4000;
+  private readonly simulationMode: boolean = false;
   private handInProgress = false;
   private pendingMutations: Array<() => void> = [];
+  private lastAggressorId: string | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private readonly HEARTBEAT_INTERVAL_MS = 4000;
+
+  /** Optional hook called between hands. Used by TournamentDirector for hand-for-hand synchronization. */
+  interHandHook?: () => Promise<void>;
 
   // Provably Fair fields
   private provablyFairService: ProvablyFairService | null = null;
@@ -168,18 +210,28 @@ export class GameInstance {
       startingChips?: number;
       turnTimeoutMs?: number;
       sleepMs?: number;
+      /** turboMode skips all animation/between-hand delays (equivalent to sleepMs=0). */
+      turboMode?: boolean;
+      /**
+       * simulationMode disables all Socket.io/Redis emissions, heartbeat timers, and
+       * animation delays. Use this for headless sandbox simulations that must not
+       * interfere with live game data or incur unnecessary overhead.
+       */
+      simulationMode?: boolean;
     },
     provablyFairService?: ProvablyFairService,
   ) {
     this.tableId = config.tableId;
     this.gameId = config.gameId;
     this.tournamentId = config.tournamentId;
-    this.smallBlind = config.smallBlind ?? 10;
-    this.bigBlind = config.bigBlind ?? 20;
-    this.ante = config.ante ?? 0;
-    this.startingChips = config.startingChips ?? 1000;
+    this.smallBlind = BigInt(config.smallBlind ?? 10);
+    this.bigBlind = BigInt(config.bigBlind ?? 20);
+    this.ante = BigInt(config.ante ?? 0);
+    this.startingChips = BigInt(config.startingChips ?? 1000);
     this.turnTimeoutMs = config.turnTimeoutMs ?? 10000;
-    this.sleepMs = config.sleepMs ?? 4000;
+    this.simulationMode = config.simulationMode ?? false;
+    this.sleepMs =
+      config.turboMode || config.simulationMode ? 0 : (config.sleepMs ?? 4000);
     this.provablyFairService = provablyFairService || null;
   }
 
@@ -211,24 +263,29 @@ export class GameInstance {
       if (!existing.disconnected) {
         throw new Error(`${player.name} is already seated at this table`);
       }
+      existing.seatStatus = "active";
       existing.disconnected = false;
       existing.strikes = 0;
       existing.strategy = player.strategy;
+      existing.hydratedStrategy = getOrHydrateStrategy(player.strategy);
       this.logEvent({ message: `${player.name} reconnected to the table` });
       this.emitStateUpdate();
       return;
     }
 
-    const chips = player.chips ?? this.startingChips;
+    const chips =
+      player.chips !== undefined ? BigInt(player.chips) : this.startingChips;
     const newPlayer: GamePlayer = {
       id: player.id,
       name: player.name,
       strategy: player.strategy,
+      hydratedStrategy: getOrHydrateStrategy(player.strategy),
       chips,
       holeCards: [],
       folded: true,
       allIn: false,
       strikes: 0,
+      seatStatus: "active",
       disconnected: false,
     };
 
@@ -237,15 +294,17 @@ export class GameInstance {
     if (this.expectedTotalChips === undefined) {
       this.expectedTotalChips = chips;
     } else {
-      this.expectedTotalChips += chips;
+      this.expectedTotalChips = this.expectedTotalChips + chips;
     }
 
     this.logEvent({ message: `${player.name} joined the table` });
-    this.eventEmitter.emit("game.playerJoined", {
-      tableId: this.tableId,
-      gameId: this.gameId,
-      player: newPlayer,
-    });
+    if (!this.simulationMode) {
+      this.eventEmitter.emit("game.playerJoined", {
+        tableId: this.tableId,
+        gameId: this.gameId,
+        player: newPlayer,
+      });
+    }
     this.emitStateUpdate();
 
     if (
@@ -267,9 +326,10 @@ export class GameInstance {
     if (this.handInProgress) {
       const player = this.players.find((p) => p.id === playerId);
       if (player) {
+        player.seatStatus = "eliminated";
         player.disconnected = true;
         this.logEvent({
-          message: `${player.name} marked disconnected — chips reconciled after hand`,
+          message: `${player.name} marked eliminated — chips reconciled after hand`,
         });
       }
       this.pendingMutations.push(() => this.removePlayerImmediate(playerId));
@@ -282,20 +342,41 @@ export class GameInstance {
     const player = this.players.find((p) => p.id === playerId);
     if (!player) return;
 
+    player.seatStatus = "eliminated";
     player.disconnected = true;
 
     if (this.expectedTotalChips !== undefined) {
-      const chipsInPot = this.potManager?.getPlayerTotalBet(playerId) || 0;
-      this.expectedTotalChips -= player.chips + chipsInPot;
+      const chipsInPot = this.potManager?.getPlayerTotalBet(playerId) ?? 0n;
+      this.expectedTotalChips =
+        this.expectedTotalChips - player.chips - chipsInPot;
     }
-    player.chips = 0;
+    player.chips = 0n;
 
     this.logEvent({ message: `${player.name} removed from table` });
-    this.eventEmitter.emit("game.playerRemoved", {
-      tableId: this.tableId,
-      gameId: this.gameId,
-      playerId,
-    });
+    if (!this.simulationMode) {
+      this.eventEmitter.emit("game.playerRemoved", {
+        tableId: this.tableId,
+        gameId: this.gameId,
+        playerId,
+      });
+    }
+  }
+
+  /** Transition a sitting_out player back to active. Returns true if successful. */
+  reactivatePlayer(playerId: string): boolean {
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player || player.seatStatus !== "sitting_out") return false;
+    player.seatStatus = "active";
+    player.strikes = 0;
+    this.logEvent({ message: `${player.name} reactivated (back to ACTIVE)` });
+    if (!this.simulationMode) {
+      this.eventEmitter.emit("game.playerReactivated", {
+        tableId: this.tableId,
+        gameId: this.gameId,
+        playerId,
+      });
+    }
+    return true;
   }
 
   async startGame(): Promise<void> {
@@ -303,7 +384,18 @@ export class GameInstance {
     this.status = "running";
     this.logger.log(`[game:${this.gameId.slice(0, 8)}] started`);
 
+    if (!this.simulationMode) {
+      this.heartbeatTimer = setInterval(() => {
+        this.eventEmitter.emit("game.heartbeat", {
+          tableId: this.tableId,
+          gameId: this.gameId,
+          handNumber: this.handNumber,
+        });
+      }, this.HEARTBEAT_INTERVAL_MS);
+    }
+
     while (this.running) {
+      this.lastActivityAt = Date.now();
       const playable = this.playablePlayers();
 
       if (playable.length < 2) {
@@ -334,6 +426,10 @@ export class GameInstance {
         this.handInProgress = false;
         this.drainPendingMutations();
         this.assertChipConservation();
+        // Synchronization barrier for hand-for-hand play (no-op when not set)
+        if (this.interHandHook) {
+          await this.interHandHook();
+        }
       } catch (e: any) {
         this.handInProgress = false;
         this.drainPendingMutations();
@@ -351,7 +447,7 @@ export class GameInstance {
       let nextDealer = (this.dealerIndex + 1) % this.players.length;
       for (let i = 0; i < this.players.length; i++) {
         if (
-          this.players[nextDealer].chips > 0 &&
+          this.players[nextDealer].chips > 0n &&
           !this.players[nextDealer].disconnected
         )
           break;
@@ -363,7 +459,7 @@ export class GameInstance {
   }
 
   async playHand(): Promise<void> {
-    this.logger.log(
+    this.logger.debug(
       `[playHand] ========== STARTING HAND ${this.handNumber + 1} ==========`,
     );
     this.handNumber++;
@@ -371,13 +467,18 @@ export class GameInstance {
     this.communityCards = [];
     this.potManager = new PotManager();
     this.log = [];
+    this.lastAggressorId = null;
+
+    // Clear per-hand strategy caches to prevent memory bloat
+    clearEvalCache();
+    clearStreetMemos();
 
     for (const p of this.players) {
       p.holeCards = [];
-      p.folded = p.chips === 0 || p.disconnected;
+      p.folded = p.chips === 0n || p.seatStatus === "eliminated";
       p.allIn = false;
     }
-    this.logger.log(`[playHand] Reset players for hand ${this.handNumber}`);
+    this.logger.debug(`[playHand] Reset players for hand ${this.handNumber}`);
 
     // Generate provably fair seed for this hand
     let deck;
@@ -410,6 +511,7 @@ export class GameInstance {
     this.eventEmitter.emit("game.handStarted", {
       tableId: this.tableId,
       gameId: this.gameId,
+      tournamentId: this.tournamentId,
       handNumber: this.handNumber,
       dealerBotId: this.players[this.dealerIndex].id,
       smallBlind: this.smallBlind,
@@ -427,11 +529,11 @@ export class GameInstance {
         : undefined,
     });
 
-    if (this.ante > 0) {
+    if (this.ante > 0n) {
       for (const p of this.players.filter((p) => !p.folded)) {
-        const anteAmt = Math.min(this.ante, p.chips);
+        const anteAmt = p.chips < this.ante ? p.chips : this.ante;
         p.chips -= anteAmt;
-        if (p.chips === 0) p.allIn = true;
+        if (p.chips === 0n) p.allIn = true;
         this.potManager.addBet(p.id, anteAmt);
       }
       this.logEvent({ message: `Antes posted: ${this.ante} each` });
@@ -446,13 +548,13 @@ export class GameInstance {
     const bbIndex = this.nextActiveIndex(sbIndex);
     const sb = this.players[sbIndex];
     const bb = this.players[bbIndex];
-    const sbAmt = Math.min(this.smallBlind, sb.chips);
-    const bbAmt = Math.min(this.bigBlind, bb.chips);
+    const sbAmt = sb.chips < this.smallBlind ? sb.chips : this.smallBlind;
+    const bbAmt = bb.chips < this.bigBlind ? bb.chips : this.bigBlind;
 
     sb.chips -= sbAmt;
-    if (sb.chips === 0) sb.allIn = true;
+    if (sb.chips === 0n) sb.allIn = true;
     bb.chips -= bbAmt;
-    if (bb.chips === 0) bb.allIn = true;
+    if (bb.chips === 0n) bb.allIn = true;
     this.potManager.addBet(sb.id, sbAmt);
     this.potManager.addBet(bb.id, bbAmt);
 
@@ -461,18 +563,18 @@ export class GameInstance {
     // Emit state after blinds posted so frontend sees pot value
     this.emitStateUpdate();
 
-    this.logger.log(`[playHand] Pre-flop betting starting...`);
+    this.logger.debug(`[playHand] Pre-flop betting starting...`);
     await this.bettingRoundLoop("pre-flop", this.nextActiveIndex(bbIndex), {
       initialBet: this.bigBlind,
-      betsThisRound: { [sb.id]: sbAmt, [bb.id]: bbAmt },
+      betsThisRound: { [sb.id]: sbAmt, [bb.id]: bbAmt } as Record<
+        string,
+        bigint
+      >,
     });
-    this.logger.log(
+    this.logger.debug(
       `[playHand] Pre-flop betting done. Active players: ${this.activePlayers().length}`,
     );
     if (this.activePlayers().length <= 1) {
-      this.logger.log(
-        `[playHand] Only 1 player left after pre-flop, calling awardPot()`,
-      );
       return await this.awardPot();
     }
 
@@ -483,15 +585,12 @@ export class GameInstance {
     });
     this.emitStateUpdate();
     await this.animSleep(400);
-    this.logger.log(`[playHand] Flop betting starting...`);
+    this.logger.debug(`[playHand] Flop betting starting...`);
     await this.bettingRoundLoop("flop", this.nextActiveIndex(this.dealerIndex));
-    this.logger.log(
+    this.logger.debug(
       `[playHand] Flop betting done. Active players: ${this.activePlayers().length}`,
     );
     if (this.activePlayers().length <= 1) {
-      this.logger.log(
-        `[playHand] Only 1 player left after flop, calling awardPot()`,
-      );
       return await this.awardPot();
     }
 
@@ -502,15 +601,12 @@ export class GameInstance {
     });
     this.emitStateUpdate();
     await this.animSleep(400);
-    this.logger.log(`[playHand] Turn betting starting...`);
+    this.logger.debug(`[playHand] Turn betting starting...`);
     await this.bettingRoundLoop("turn", this.nextActiveIndex(this.dealerIndex));
-    this.logger.log(
+    this.logger.debug(
       `[playHand] Turn betting done. Active players: ${this.activePlayers().length}`,
     );
     if (this.activePlayers().length <= 1) {
-      this.logger.log(
-        `[playHand] Only 1 player left after turn, calling awardPot()`,
-      );
       return await this.awardPot();
     }
 
@@ -521,22 +617,17 @@ export class GameInstance {
     });
     this.emitStateUpdate();
     await this.animSleep(400);
-    this.logger.log(`[playHand] River betting starting...`);
+    this.logger.debug(`[playHand] River betting starting...`);
     await this.bettingRoundLoop(
       "river",
       this.nextActiveIndex(this.dealerIndex),
     );
-    this.logger.log(
+    this.logger.debug(
       `[playHand] River betting done. Active players: ${this.activePlayers().length}`,
     );
     if (this.activePlayers().length <= 1) {
-      this.logger.log(
-        `[playHand] Only 1 player left after river, calling awardPot()`,
-      );
       return await this.awardPot();
     }
-
-    this.logger.log(`[playHand] All streets complete, calling showdown()`);
     return await this.showdown();
   }
 
@@ -544,11 +635,11 @@ export class GameInstance {
     stageName: string,
     startIndex: number,
     options: {
-      initialBet?: number;
-      betsThisRound?: Record<string, number>;
+      initialBet?: bigint;
+      betsThisRound?: Record<string, bigint>;
     } = {},
   ): Promise<void> {
-    this.logger.log(
+    this.logger.debug(
       `[bettingRoundLoop] Starting ${stageName} - ${this.activePlayers().length} active players`,
     );
     this.stage = stageName;
@@ -564,7 +655,7 @@ export class GameInstance {
       for (const [pid, amt] of Object.entries(options.betsThisRound)) {
         this.bettingRound.betsThisRound[pid] = amt;
       }
-      this.bettingRound.currentBet = options.initialBet || 0;
+      this.bettingRound.currentMaxBet = options.initialBet ?? 0n;
     }
 
     // Set active player to the first to act this round
@@ -586,25 +677,59 @@ export class GameInstance {
         continue;
       }
 
+      // Player being moved between tables — auto-fold instantly
+      if (this.movingPlayers.has(player.id)) {
+        this.bettingRound.applyAction(player, { type: "fold" } as any);
+        this.emitPlayerAction(player, { type: "fold" }, 0 as any);
+        currentIndex = this.nextActiveIndex(currentIndex);
+        actionCount++;
+        continue;
+      }
+
+      // Ghost player: instant auto-check/fold, no strategy eval, no delay
+      if (player.seatStatus === "sitting_out") {
+        const canCheck =
+          this.bettingRound.getPlayerBet(player.id) >=
+          this.bettingRound.currentMaxBet;
+        const autoAction: { type: string } = canCheck
+          ? { type: "check" }
+          : { type: "fold" };
+        const autoResult = this.bettingRound.applyAction(
+          player,
+          autoAction as any,
+        );
+        this.emitPlayerAction(
+          player,
+          autoAction,
+          autoResult.amountAdded as bigint,
+        );
+        currentIndex = this.nextActiveIndex(currentIndex);
+        actionCount++;
+        continue;
+      }
+
       this.activePlayer = player;
       this.emitStateUpdate();
 
       const botPayload = this.buildBotPayload(player);
-      const action = this.getPlayerActionSafe(player, botPayload);
+      const action = await this.getPlayerActionSafe(player, botPayload);
 
       const result = this.bettingRound.applyAction(player, action as any);
       if (!result.valid) {
-        this.logger.log(
+        this.logger.warn(
           `[bettingRoundLoop] Invalid action from ${player.name}: ${result.error}`,
         );
         this.logEvent({
           message: `Invalid action from ${player.name}: ${result.error} — folding`,
         });
         this.bettingRound.applyAction(player, { type: "fold" });
-        this.emitPlayerAction(player, { type: "fold" }, 0);
+        this.emitPlayerAction(player, { type: "fold" }, 0n);
       } else {
         if (result.amountAdded > 0) {
           this.potManager!.addBet(player.id, result.amountAdded);
+        }
+        if (action.type === "bet" || action.type === "raise") {
+          this.lastAggressorId = player.id;
         }
         this.logEvent({
           message: this.describeAction(player, action, result),
@@ -620,43 +745,70 @@ export class GameInstance {
       actionCount++;
     }
 
-    this.logger.log(
-      `[bettingRoundLoop] ${stageName} complete after ${actionCount} actions. Calculating pots...`,
+    this.logger.debug(
+      `[bettingRoundLoop] ${stageName} complete after ${actionCount} actions`,
     );
     this.activePlayer = null;
     this.bettingRound = null;
     this.potManager!.calculatePots(this.players);
-    this.logger.log(`[bettingRoundLoop] ${stageName} done`);
   }
 
-  private getPlayerActionSafe(
+  private async getPlayerActionSafe(
     player: GamePlayer,
     botPayload: BotPayload,
-  ): { type: string; amount?: number } {
+  ): Promise<{ type: string; amount?: number }> {
+    const TIMEOUT_MS = 200;
+
+    // evaluateHydrated is synchronous; Promise.race establishes the 200ms SLA
+    // and guards against future async strategy paths.
+    // Synchronous infinite-loop protection is enforced by MAX_CONDITION_DEPTH
+    // and MAX_CONDITION_NODES limits in the rule evaluator.
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(
+        () => reject(new Error("Strategy timeout (200ms)")),
+        TIMEOUT_MS,
+      );
+    });
+
+    const decidePromise = Promise.resolve().then(
+      (): { type: string; amount?: number } => {
+        const result = evaluateHydrated(player.hydratedStrategy, botPayload);
+        player.strikes = 0;
+        const action = result.action;
+        if (action.type === "all_in") {
+          return { type: "raise", amount: botPayload.action.maxRaise };
+        }
+        return action;
+      },
+    );
+
     try {
-      const result = evaluateStrategy(player.strategy, botPayload);
-      player.strikes = 0;
-      const action = result.action;
-      if (action.type === "all_in") {
-        return { type: "raise", amount: botPayload.action.maxRaise };
-      }
+      const action = await Promise.race([decidePromise, timeoutPromise]);
+      clearTimeout(timeoutHandle);
       return action;
     } catch (e: any) {
+      clearTimeout(timeoutHandle);
       player.strikes++;
+      this.logger.debug(
+        `[getPlayerActionSafe] ${player.name} strategy error: ${e.message} (strike ${player.strikes}/${MAX_STRIKES})`,
+      );
       this.logEvent({
         message: `${player.name} strategy error (${e.message}) — strike ${player.strikes}/${MAX_STRIKES}`,
       });
 
-      if (player.strikes >= MAX_STRIKES) {
-        player.disconnected = true;
+      if (player.strikes >= MAX_STRIKES && player.seatStatus === "active") {
+        player.seatStatus = "sitting_out";
         this.logEvent({
-          message: `${player.name} disconnected after ${player.strikes} strikes`,
+          message: `${player.name} sitting out after ${player.strikes} strikes`,
         });
-        this.eventEmitter.emit("game.playerRemoved", {
-          tableId: this.tableId,
-          gameId: this.gameId,
-          playerId: player.id,
-        });
+        if (!this.simulationMode) {
+          this.eventEmitter.emit("game.playerSittingOut", {
+            tableId: this.tableId,
+            gameId: this.gameId,
+            playerId: player.id,
+          });
+        }
       }
 
       if (botPayload.action.canCheck) {
@@ -668,19 +820,16 @@ export class GameInstance {
 
   private async awardPot(): Promise<void> {
     // Don't set stage to showdown - everyone folded, no cards to reveal
-    this.logger.log(`[awardPot] Starting for hand ${this.handNumber}`);
     const winner = this.activePlayers()[0];
     const total = this.potManager!.getTotalPot();
     winner.chips += total;
     this.logEvent({
       message: `${winner.name} wins ${total} (everyone else folded)`,
     });
-    this.potManager!.pots = [{ amount: 0, eligiblePlayerIds: [] }];
+    this.potManager!.pots = [{ amount: 0n, eligiblePlayerIds: [] }];
     this.potManager!.playerTotalBets = {};
     this.emitStateUpdate();
-    this.logger.log(`[awardPot] Emitted state, now sleeping for 1.5s...`);
     await this.animSleep(1500);
-    this.logger.log(`[awardPot] Sleep done, emitting handComplete`);
     this.eventEmitter.emit("game.handComplete", {
       tableId: this.tableId,
       gameId: this.gameId,
@@ -694,7 +843,7 @@ export class GameInstance {
         chips: p.chips,
         folded: p.folded,
         allIn: p.allIn,
-        totalBet: this.potManager?.getPlayerTotalBet(p.id) || 0,
+        totalBet: this.potManager?.getPlayerTotalBet(p.id) ?? 0n,
         holeCards: p.holeCards || [],
       })),
       provablyFair: this.currentHandSeed
@@ -704,55 +853,176 @@ export class GameInstance {
   }
 
   private async showdown(): Promise<void> {
-    this.logger.log(`[showdown] Starting showdown for hand ${this.handNumber}`);
     this.stage = "showdown";
     const active = this.activePlayers();
-    this.logger.log(`[showdown] Active players in showdown: ${active.length}`);
     this.potManager!.calculatePots(this.players);
-    this.logger.log(
-      `[showdown] Calculated pots: ${this.potManager!.pots.length} pot(s)`,
-    );
-    const results: any[] = [];
+
+    // ── 1. Determine all pot winners and best hand per player ──────────
+    const winnerIds = new Set<string>();
+    const potResults: Array<{
+      potAmount: bigint;
+      winners: Array<{ playerId: string; amount: bigint; hand: any }>;
+    }> = [];
 
     for (const pot of this.potManager!.pots) {
       const eligible = active.filter((p) =>
         pot.eligiblePlayerIds.includes(p.id),
       );
-      if (eligible.length === 0) continue;
-      this.logger.log(
-        `[showdown] Determining winners for pot of ${pot.amount} with ${eligible.length} eligible players`,
+      // Safety fallback: dead-money pot that calculatePots couldn't merge
+      // (no lower pot existed). Award to best hand among all active players.
+      const eligibleForPot = eligible.length > 0 ? eligible : active;
+      if (eligibleForPot.length === 0) continue;
+      this.logger.debug(
+        `[showdown] Determining winners for pot of ${pot.amount} with ${eligibleForPot.length} eligible players`,
       );
-      const { winners } = determineWinners(eligible, this.communityCards);
-      const share = Math.floor(pot.amount / winners.length);
-      const remainder = pot.amount - share * winners.length;
+      const { winners } = determineWinners(eligibleForPot, this.communityCards);
+      const share = pot.amount / BigInt(winners.length);
+      const remainder = pot.amount - share * BigInt(winners.length);
+      const potWinners: (typeof potResults)[0]["winners"] = [];
       winners.forEach((w: any, i: number) => {
-        const player = this.players.find((p) => p.id === w.playerId);
-        if (!player) return;
-        const amount = share + (i === 0 ? remainder : 0);
-        player.chips += amount;
-        results.push({
-          playerId: w.playerId,
-          playerName: player.name,
-          amount,
-          hand: w.hand,
-        });
-        this.logger.log(
-          `[showdown] ${player.name} wins ${amount} with ${w.hand.name}`,
-        );
-        this.logEvent({
-          message: `${player.name} wins ${amount} with ${w.hand.name}`,
-        });
+        const amount = share + (i === 0 ? remainder : 0n);
+        winnerIds.add(w.playerId);
+        potWinners.push({ playerId: w.playerId, amount, hand: w.hand });
       });
+      potResults.push({ potAmount: pot.amount, winners: potWinners });
     }
 
-    const totalPot = results.reduce((sum, r) => sum + r.amount, 0);
-    this.potManager!.pots = [{ amount: 0, eligiblePlayerIds: [] }];
+    // Pre-compute best hand for every active player
+    const playerBestHands = new Map<string, any>();
+    for (const p of active) {
+      playerBestHands.set(p.id, bestHand(p.holeCards, this.communityCards));
+    }
+
+    // ── 2. Build showdown reveal order ──────────────────────────────────
+    // Scenario A: Last aggressor shows first
+    // Scenario B: No aggression → first active player clockwise from dealer
+    let firstToShowIndex: number;
+    const aggressorIdx = this.lastAggressorId
+      ? active.findIndex((p) => p.id === this.lastAggressorId)
+      : -1;
+
+    if (aggressorIdx >= 0) {
+      firstToShowIndex = aggressorIdx;
+    } else {
+      // First active player clockwise from dealer (typically SB)
+      const dealerIdxInAll = this.dealerIndex;
+      const nextIdx = this.nextActiveIndex(dealerIdxInAll);
+      firstToShowIndex = active.findIndex(
+        (p) => p.id === this.players[nextIdx].id,
+      );
+      if (firstToShowIndex < 0) firstToShowIndex = 0;
+    }
+
+    // Build clockwise order starting from firstToShow
+    const showdownOrder: GamePlayer[] = [];
+    for (let i = 0; i < active.length; i++) {
+      showdownOrder.push(active[(firstToShowIndex + i) % active.length]);
+    }
+
+    // ── 3. Step-by-step reveal with muck logic ──────────────────────────
+    const showdownSequence: Array<{
+      playerId: string;
+      cardStatus: "shown" | "mucked";
+      hand?: any;
+      order: number;
+    }> = [];
+    const cardStatusMap = new Map<string, "shown" | "mucked">();
+    let currentBestHand: any = null;
+
+    for (let order = 0; order < showdownOrder.length; order++) {
+      const player = showdownOrder[order];
+      const hand = playerBestHands.get(player.id);
+      const isWinner = winnerIds.has(player.id);
+
+      let cardStatus: "shown" | "mucked";
+
+      if (order === 0) {
+        // First to show — always shows
+        cardStatus = "shown";
+        currentBestHand = hand;
+      } else if (isWinner) {
+        // Winners must always show to claim the pot
+        cardStatus = "shown";
+        if (compareHands(hand, currentBestHand) >= 0) {
+          currentBestHand = hand;
+        }
+      } else if (compareHands(hand, currentBestHand) >= 0) {
+        // Beats or ties current best — must show
+        cardStatus = "shown";
+        currentBestHand = hand;
+      } else {
+        // Weaker hand — can muck
+        cardStatus = "mucked";
+      }
+
+      cardStatusMap.set(player.id, cardStatus);
+      showdownSequence.push({
+        playerId: player.id,
+        cardStatus,
+        hand: cardStatus === "shown" ? hand : undefined,
+        order,
+      });
+
+      this.logger.debug(
+        `[showdown] ${player.name}: ${cardStatus}${cardStatus === "shown" ? ` (${hand.name})` : ""}`,
+      );
+
+      // Emit per-reveal event for step-by-step UI (skipped in simulation mode)
+      if (!this.simulationMode) {
+        this.eventEmitter.emit("game.showdownReveal", {
+          tableId: this.tableId,
+          gameId: this.gameId,
+          handNumber: this.handNumber,
+          playerId: player.id,
+          playerName: player.name,
+          cardStatus,
+          holeCards: cardStatus === "shown" ? player.holeCards : undefined,
+          hand: cardStatus === "shown" ? hand : undefined,
+          isWinner,
+        });
+      }
+
+      await this.animSleep(800);
+    }
+
+    // ── 4. Distribute winnings ──────────────────────────────────────────
+    const results: Array<{
+      playerId: string;
+      playerName: string;
+      amount: bigint;
+      hand: any;
+    }> = [];
+    for (const potResult of potResults) {
+      for (const w of potResult.winners) {
+        const player = this.players.find((p) => p.id === w.playerId);
+        if (!player) continue;
+        player.chips += w.amount;
+        // Merge amounts if same player won multiple pots
+        const existing = results.find((r) => r.playerId === w.playerId);
+        if (existing) {
+          existing.amount += w.amount;
+        } else {
+          results.push({
+            playerId: w.playerId,
+            playerName: player.name,
+            amount: w.amount,
+            hand: w.hand,
+          });
+        }
+        this.logger.debug(
+          `[showdown] ${player.name} wins ${w.amount} with ${w.hand.name}`,
+        );
+        this.logEvent({
+          message: `${player.name} wins ${w.amount} with ${w.hand.name}`,
+        });
+      }
+    }
+
+    // ── 5. Emit final hand complete ─────────────────────────────────────
+    const totalPot = results.reduce((sum, r) => sum + r.amount, 0n);
+    this.potManager!.pots = [{ amount: 0n, eligiblePlayerIds: [] }];
     this.potManager!.playerTotalBets = {};
-    this.logger.log(`[showdown] Emitting state update before sleep...`);
     this.emitStateUpdate();
-    this.logger.log(`[showdown] Sleeping to show cards...`);
-    await this.animSleep(3000);
-    this.logger.log(`[showdown] Sleep done, emitting handComplete event...`);
     this.eventEmitter.emit("game.handComplete", {
       tableId: this.tableId,
       gameId: this.gameId,
@@ -761,35 +1031,47 @@ export class GameInstance {
       atShowdown: true,
       pot: totalPot,
       communityCards: this.communityCards,
-      players: this.players.map((p) => ({
-        id: p.id,
-        chips: p.chips,
-        folded: p.folded,
-        allIn: p.allIn,
-        totalBet: this.potManager?.getPlayerTotalBet(p.id) || 0,
-        holeCards: p.holeCards || [],
-      })),
+      showdownSequence,
+      players: this.players.map((p) => {
+        const status = cardStatusMap.get(p.id);
+        return {
+          id: p.id,
+          chips: p.chips,
+          folded: p.folded,
+          allIn: p.allIn,
+          totalBet: this.potManager?.getPlayerTotalBet(p.id) ?? 0n,
+          holeCards: status === "mucked" ? [] : p.holeCards || [],
+          cardStatus: status ?? (p.folded ? "hidden" : "shown"),
+        };
+      }),
       provablyFair: this.currentHandSeed
         ? this.provablyFairService?.getVerificationData(this.currentHandSeed)
         : undefined,
     });
-    this.logger.log(`[showdown] Showdown complete`);
+    this.logger.debug(`[showdown] Showdown complete`);
   }
 
   private buildBotPayload(player: GamePlayer): BotPayload {
     const positions = this.computePositions();
     const toCall = this.bettingRound!.getCallAmount(player);
 
+    // Derive deterministic seed from provably fair chain + botId + actionSeq
+    const baseSeed = this.currentHandSeed?.combinedHash ?? this.gameId;
+    const decisionSeed = createHash("sha256")
+      .update(`${baseSeed}:${player.id}:${this.actionSeq}`)
+      .digest("hex");
+
     return {
       gameId: this.gameId,
       handNumber: this.handNumber,
       stage: this.stage,
+      decisionSeed,
 
       you: {
         name: player.name,
-        chips: player.chips,
+        chips: Number(player.chips),
         holeCards: player.holeCards.map(cardToString),
-        bet: this.bettingRound!.getPlayerBet(player.id),
+        bet: Number(this.bettingRound!.getPlayerBet(player.id)),
         position: positions[player.id] || "Unknown",
         ...(this.communityCards.length > 0 && {
           bestHand: (() => {
@@ -804,26 +1086,27 @@ export class GameInstance {
 
       action: {
         canCheck: this.bettingRound!.canCheck(player),
-        toCall,
-        minRaise: this.bettingRound!.minRaise,
-        maxRaise: player.chips - toCall,
+        toCall: Number(toCall),
+        minRaise: Number(this.bettingRound!.lastRaiseDelta),
+        maxRaise: Number(player.chips - toCall),
       },
 
       table: {
-        pot: this.potManager!.getTotalPot(),
-        currentBet: this.bettingRound!.currentBet,
+        pot: Number(this.potManager!.getTotalPot()),
+        currentBet: Number(this.bettingRound!.currentMaxBet),
         communityCards: this.communityCards.map(cardToString),
-        smallBlind: this.smallBlind,
-        bigBlind: this.bigBlind,
-        ante: this.ante,
+        smallBlind: Number(this.smallBlind),
+        bigBlind: Number(this.bigBlind),
+        ante: Number(this.ante),
       },
 
       players: this.players.map((p) => ({
         name: p.name,
-        chips: p.chips,
-        bet: this.bettingRound!.getPlayerBet(p.id),
+        chips: Number(p.chips),
+        bet: Number(this.bettingRound!.getPlayerBet(p.id)),
         folded: p.folded,
         allIn: p.allIn,
+        seatStatus: p.seatStatus,
         disconnected: p.disconnected,
         position: positions[p.id] || "Unknown",
       })),
@@ -840,8 +1123,8 @@ export class GameInstance {
       status: this.status,
       stage: this.stage,
       communityCards: (this.communityCards || []).map(cardToString),
-      pot: this.potManager ? this.potManager.getTotalPot() : 0,
-      currentBet: this.bettingRound ? this.bettingRound.currentBet : 0,
+      pot: this.potManager ? this.potManager.getTotalPot() : 0n,
+      currentBet: this.bettingRound ? this.bettingRound.currentMaxBet : 0n,
       activePlayerId: this.activePlayer ? this.activePlayer.id : null,
       smallBlind: this.smallBlind,
       bigBlind: this.bigBlind,
@@ -852,10 +1135,11 @@ export class GameInstance {
         chips: p.chips,
         folded: p.folded,
         allIn: p.allIn,
+        seatStatus: p.seatStatus,
         disconnected: p.disconnected,
         strikes: p.strikes,
         position: positions[p.id] || null,
-        bet: this.bettingRound ? this.bettingRound.getPlayerBet(p.id) : 0,
+        bet: this.bettingRound ? this.bettingRound.getPlayerBet(p.id) : 0n,
         holeCards:
           forPlayerId === p.id || this.stage === "showdown"
             ? p.holeCards.map(cardToString)
@@ -901,7 +1185,7 @@ export class GameInstance {
   }
 
   private computePositions(): Record<string, string> {
-    const active = this.players.filter((p) => p.chips > 0 && !p.disconnected);
+    const active = this.players.filter((p) => p.chips > 0n && !p.disconnected);
     const n = active.length;
     const names = POSITION_NAMES[Math.min(n, 9)] || POSITION_NAMES[9];
     const positions: Record<string, string> = {};
@@ -915,7 +1199,7 @@ export class GameInstance {
   }
 
   private playablePlayers(): GamePlayer[] {
-    return this.players.filter((p) => p.chips > 0 && !p.disconnected);
+    return this.players.filter((p) => p.chips > 0n && !p.disconnected);
   }
 
   private activePlayers(): GamePlayer[] {
@@ -931,7 +1215,7 @@ export class GameInstance {
     let tries = 0;
     while (
       (this.players[idx].folded ||
-        this.players[idx].chips === 0 ||
+        this.players[idx].chips === 0n ||
         this.players[idx].disconnected) &&
       tries < this.players.length
     ) {
@@ -957,6 +1241,7 @@ export class GameInstance {
   }
 
   private emitStateUpdate(): void {
+    if (this.simulationMode) return;
     const state = this.getPublicState();
     this.logger.debug(
       `📡 Emitting state update: hand=${this.handNumber}, stage=${this.stage}, players=${state.players?.length}`,
@@ -971,22 +1256,89 @@ export class GameInstance {
   private emitPlayerAction(
     player: GamePlayer,
     action: { type: string; amount?: number },
-    amountAdded: number,
+    amountAdded: bigint,
   ): void {
+    this.actionSeq++;
+    this.lastActivityAt = Date.now();
     this.eventEmitter.emit("game.playerAction", {
       tableId: this.tableId,
       gameId: this.gameId,
       handNumber: this.handNumber,
       botId: player.id,
       action: action.type,
-      amount: action.amount ?? amountAdded,
-      pot: this.potManager?.getTotalPot?.() ?? 0,
+      amount:
+        action.amount !== undefined
+          ? BigInt(Math.round(action.amount))
+          : amountAdded,
+      pot: this.potManager?.getTotalPot?.() ?? 0n,
       stage: this.stage,
       chipsAfter: player.chips,
+      actionSeq: this.actionSeq,
     });
+    // Fire-and-forget hot-state sync to Redis (per-action, includes strategy) — skipped in simulation mode
+    if (!this.simulationMode) {
+      this.eventEmitter.emit("game.hotState", {
+        gameId: this.gameId,
+        snapshot: this.buildHotStateSnapshot(),
+      });
+    }
   }
 
-  setExpectedTotalChips(total: number): void {
+  private buildHotStateSnapshot(): RecoverySnapshot {
+    const snapshot: RecoverySnapshot = {
+      game_id: this.gameId,
+      table_id: this.tableId,
+      tournament_id: this.tournamentId,
+      hand_number: this.handNumber,
+      game_stage: this.stage,
+      dealer_index: this.dealerIndex,
+      small_blind: this.smallBlind.toString(),
+      big_blind: this.bigBlind.toString(),
+      ante: this.ante.toString(),
+      starting_chips: this.startingChips.toString(),
+      turn_timeout_ms: this.turnTimeoutMs,
+      community_cards: this.communityCards,
+      action_seq: this.actionSeq,
+      last_action_at: new Date().toISOString(),
+      players: this.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        strategy: p.strategy,
+        chips: p.chips.toString(),
+        holeCards: p.holeCards,
+        folded: p.folded,
+        allIn: p.allIn,
+        strikes: p.strikes,
+        seatStatus: p.seatStatus,
+        disconnected: p.disconnected,
+      })),
+    };
+
+    if (this.potManager) {
+      snapshot.pot_state = {
+        playerTotalBets: Object.fromEntries(
+          Object.entries(this.potManager.playerTotalBets).map(([k, v]) => [
+            k,
+            v.toString(),
+          ]),
+        ),
+        playerBetsThisRound: Object.fromEntries(
+          Object.entries(this.potManager.playerBetsThisRound).map(([k, v]) => [
+            k,
+            v.toString(),
+          ]),
+        ),
+        pots: this.potManager.pots.map((p) => ({
+          amount: p.amount.toString(),
+          eligiblePlayerIds: [...p.eligiblePlayerIds],
+        })),
+      };
+    }
+
+    return snapshot;
+  }
+
+  setExpectedTotalChips(total: bigint): void {
     this.expectedTotalChips = total;
   }
 
@@ -1003,8 +1355,8 @@ export class GameInstance {
 
   private assertChipConservation(): void {
     if (this.expectedTotalChips === undefined) return;
-    const inStacks = this.players.reduce((s, p) => s + p.chips, 0);
-    const inPot = this.potManager?.getTotalPot?.() ?? 0;
+    const inStacks = this.players.reduce((s, p) => s + p.chips, 0n);
+    const inPot = this.potManager?.getTotalPot?.() ?? 0n;
     const total = inStacks + inPot;
     if (total !== this.expectedTotalChips) {
       const detail = this.players.map((p) => `${p.name}:${p.chips}`).join(", ");
@@ -1029,24 +1381,22 @@ export class GameInstance {
 
   stop(): void {
     this.running = false;
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 }
 
 @Injectable()
-export class LiveGameManagerService implements OnModuleDestroy {
+export class LiveGameManagerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(LiveGameManagerService.name);
   private readonly liveGames = new Map<string, LiveGame>();
   private readonly gameStates = new Map<string, GameStateSnapshot>();
 
-  private redisGameStateService:
-    | import("../redis/redis-game-state.service").RedisGameStateService
-    | null = null;
-  private gameOwnershipService:
-    | import("./game-ownership.service").GameOwnershipService
-    | null = null;
-  private redisEventBusService:
-    | import("../redis/redis-event-bus.service").RedisEventBusService
-    | null = null;
+  private heartbeatMonitor?: ReturnType<typeof setInterval>;
+  private readonly GAME_HEARTBEAT_TIMEOUT_MS = 120_000; // 2 minutes
+  private readonly GAME_HEARTBEAT_CHECK_MS = 30_000; // 30 seconds
 
   constructor(
     private readonly eventEmitter: EventEmitter2,
@@ -1075,101 +1425,48 @@ export class LiveGameManagerService implements OnModuleDestroy {
         );
       },
     );
-
-    this.setupRedisEventForwarding();
   }
 
-  setRedisServices(
-    redisGameStateService: import("../redis/redis-game-state.service").RedisGameStateService,
-    gameOwnershipService: import("./game-ownership.service").GameOwnershipService,
-    redisEventBusService: import("../redis/redis-event-bus.service").RedisEventBusService,
-  ): void {
-    this.redisGameStateService = redisGameStateService;
-    this.gameOwnershipService = gameOwnershipService;
-    this.redisEventBusService = redisEventBusService;
-    this.logger.log("Redis services injected for distributed state sync");
+  onModuleInit(): void {
+    this.heartbeatMonitor = setInterval(() => {
+      this.checkGameHeartbeats();
+    }, this.GAME_HEARTBEAT_CHECK_MS);
   }
 
-  private isRedisEnabled(): boolean {
-    return (
-      this.redisGameStateService !== null &&
-      this.gameOwnershipService !== null &&
-      this.redisEventBusService !== null
-    );
+  private checkGameHeartbeats(): void {
+    const now = Date.now();
+    for (const [tableId, liveGame] of this.liveGames) {
+      if (!liveGame.game.running) continue;
+      const silenceMs = now - liveGame.game.lastActivityAt;
+      if (silenceMs > this.GAME_HEARTBEAT_TIMEOUT_MS) {
+        this.logger.error(
+          `Game loop stuck for table ${tableId}: no activity for ${Math.floor(silenceMs / 1000)}s — triggering recovery`,
+        );
+        liveGame.game.stop();
+        this.liveGames.delete(tableId);
+        this.eventEmitter.emit("game.stuck", {
+          tableId,
+          gameId: liveGame.gameDbId,
+          tournamentId: liveGame.tournamentId,
+          silenceMs,
+        });
+      }
+    }
   }
 
   private handleStateUpdate(tableId: string, state: GameStateSnapshot): void {
     this.gameStates.set(tableId, state);
-
-    if (this.isRedisEnabled() && this.liveGames.has(tableId)) {
-      const liveGame = this.liveGames.get(tableId)!;
-      this.redisGameStateService!.saveGameState(tableId, state, {
-        gameDbId: liveGame.gameDbId,
-        tournamentId: liveGame.tournamentId || null,
-        botIdMap: liveGame.botIdMap,
-        startedAt: liveGame.startedAt.toISOString(),
-        ownerInstanceId: this.gameOwnershipService!.getInstanceId(),
-      }).catch((err) =>
-        this.logger.error(
-          `Failed to save state to Redis: ${err.message}`,
-          err instanceof Error ? err.stack : undefined,
-        ),
-      );
-
-      this.redisEventBusService!.publish(
-        "game.stateUpdated",
-        tableId,
-        state,
-      ).catch((err) =>
-        this.logger.error(
-          `Failed to publish state event: ${err.message}`,
-          err instanceof Error ? err.stack : undefined,
-        ),
-      );
-    }
-  }
-
-  private setupRedisEventForwarding(): void {
-    const eventsToForward = [
-      "game.handStarted",
-      "game.handComplete",
-      "game.playerAction",
-      "game.finished",
-      "game.playerRemoved",
-      "game.playerJoined",
-    ] as const;
-
-    for (const eventType of eventsToForward) {
-      this.eventEmitter.on(
-        eventType,
-        (event: { tableId: string; [key: string]: unknown }) => {
-          if (this.isRedisEnabled() && this.liveGames.has(event.tableId)) {
-            this.redisEventBusService!.publish(
-              eventType,
-              event.tableId,
-              event,
-            ).catch((err) =>
-              this.logger.error(
-                `Failed to publish ${eventType} event: ${err.message}`,
-                err instanceof Error ? err.stack : undefined,
-              ),
-            );
-          }
-        },
-      );
-    }
   }
 
   async onModuleDestroy(): Promise<void> {
+    if (this.heartbeatMonitor) {
+      clearInterval(this.heartbeatMonitor);
+    }
     for (const [tableId, entry] of this.liveGames) {
       this.logger.log(
         `Stopping game at table ${tableId} due to module shutdown`,
       );
       entry.game.stop();
-
-      if (this.isRedisEnabled()) {
-        await this.gameOwnershipService!.releaseGameOwnership(tableId);
-      }
     }
     this.liveGames.clear();
     this.gameStates.clear();
@@ -1211,21 +1508,28 @@ export class LiveGameManagerService implements OnModuleDestroy {
         this.provablyFairService,
       );
 
-      let recoveredTotalChips = 0;
+      let recoveredTotalChips = 0n;
       for (const player of snapshot.players) {
+        const strategy = player.strategy as BotStrategy;
+        const seatStatus: SeatStatus =
+          (player as any).seatStatus ??
+          (player.disconnected ? "eliminated" : "active");
+        const chips = BigInt(player.chips);
         game.players.push({
           id: player.id,
           name: player.name,
-          strategy: player.strategy as BotStrategy,
-          chips: player.chips,
+          strategy,
+          hydratedStrategy: getOrHydrateStrategy(strategy),
+          chips,
           holeCards: (player.holeCards || []).map(parseCard),
           folded: player.folded,
           allIn: player.allIn,
           strikes: player.strikes,
-          disconnected: player.disconnected,
+          seatStatus,
+          disconnected: seatStatus === "eliminated",
         });
         if (!player.disconnected) {
-          recoveredTotalChips += player.chips;
+          recoveredTotalChips += chips;
         }
       }
 
@@ -1233,7 +1537,40 @@ export class LiveGameManagerService implements OnModuleDestroy {
       game.stage = snapshot.game_stage;
       game.dealerIndex = snapshot.dealer_index;
       game.communityCards = (snapshot.community_cards || []).map(parseCard);
-      game.setExpectedTotalChips(recoveredTotalChips);
+      game.actionSeq = snapshot.action_seq ?? 0;
+
+      // Refund pot chips back to players so recovery starts a fresh hand.
+      // This avoids fragile mid-betting-round reconstruction.
+      if (snapshot.pot_state?.playerTotalBets) {
+        let refundTotal = 0n;
+        for (const [playerId, rawAmount] of Object.entries(
+          snapshot.pot_state.playerTotalBets,
+        )) {
+          const amount = BigInt(rawAmount);
+          const player = game.players.find((p) => p.id === playerId);
+          if (player) {
+            player.chips += amount;
+            recoveredTotalChips += amount;
+            refundTotal += amount;
+          }
+        }
+        this.logger.debug(
+          `Refunded pot (${refundTotal} chips) to players for clean recovery`,
+        );
+      }
+
+      // Reset mid-hand state so startGame() begins the next hand cleanly
+      for (const p of game.players) {
+        p.folded = false;
+        p.allIn = false;
+        p.holeCards = [];
+      }
+      game.communityCards = [];
+      game.potManager = null;
+      game.bettingRound = null;
+      game.stage = "pre-flop";
+
+      game.setExpectedTotalChips(recoveredTotalChips as bigint);
 
       const liveGame: LiveGame = {
         game,
@@ -1259,6 +1596,14 @@ export class LiveGameManagerService implements OnModuleDestroy {
         handNumber: snapshot.hand_number,
       });
 
+      // Restart the game loop after recovery
+      game.startGame().catch((e) => {
+        this.logger.error(
+          `Recovered game loop failed for table ${snapshot.table_id}: ${e.message}`,
+          e.stack,
+        );
+      });
+
       return game;
     } catch (error) {
       this.logger.error(
@@ -1281,26 +1626,6 @@ export class LiveGameManagerService implements OnModuleDestroy {
   }): Promise<GameInstance> {
     if (this.liveGames.has(config.tableId)) {
       return this.liveGames.get(config.tableId)!.game;
-    }
-
-    if (this.isRedisEnabled()) {
-      const acquired = await this.gameOwnershipService!.acquireGameOwnership(
-        config.tableId,
-      );
-      if (!acquired) {
-        const existingState = await this.redisGameStateService!.getGameState(
-          config.tableId,
-        );
-        if (existingState) {
-          this.logger.log(
-            `Game ${config.tableId} owned by another instance, returning cached state`,
-          );
-          this.gameStates.set(config.tableId, existingState.snapshot);
-        }
-        throw new Error(
-          `Cannot create game: table ${config.tableId} is owned by another instance`,
-        );
-      }
     }
 
     const game = new GameInstance(
@@ -1332,20 +1657,6 @@ export class LiveGameManagerService implements OnModuleDestroy {
     this.logger.log(
       `[createGame] table=${config.tableId.slice(0, 8)} game=${config.gameDbId.slice(0, 8)} (${this.liveGames.size} active)`,
     );
-
-    if (this.isRedisEnabled()) {
-      await this.redisGameStateService!.saveGameState(
-        config.tableId,
-        game.getPublicState(),
-        {
-          gameDbId: config.gameDbId,
-          tournamentId: config.tournamentId || null,
-          botIdMap: {},
-          startedAt: liveGame.startedAt.toISOString(),
-          ownerInstanceId: this.gameOwnershipService!.getInstanceId(),
-        },
-      );
-    }
 
     return game;
   }
@@ -1441,21 +1752,7 @@ export class LiveGameManagerService implements OnModuleDestroy {
       return liveGame.game.getPublicState();
     }
 
-    const localState = this.gameStates.get(tableId);
-    if (localState) {
-      return localState;
-    }
-
-    if (this.isRedisEnabled()) {
-      const redisState =
-        await this.redisGameStateService!.getGameState(tableId);
-      if (redisState) {
-        this.gameStates.set(tableId, redisState.snapshot);
-        return redisState.snapshot;
-      }
-    }
-
-    return undefined;
+    return this.gameStates.get(tableId);
   }
 
   getAllGames(): LiveGame[] {
@@ -1468,11 +1765,6 @@ export class LiveGameManagerService implements OnModuleDestroy {
       liveGame.game.stop();
       this.liveGames.delete(tableId);
       this.logger.log(`Removed live game for table ${tableId}`);
-
-      if (this.isRedisEnabled()) {
-        await this.gameOwnershipService!.releaseGameOwnership(tableId);
-        await this.redisGameStateService!.deleteGameState(tableId);
-      }
     }
   }
 
@@ -1510,21 +1802,11 @@ export class LiveGameManagerService implements OnModuleDestroy {
     return this.liveGames.has(tableId);
   }
 
-  async isGameOwner(tableId: string): Promise<boolean> {
-    if (!this.isRedisEnabled()) {
-      return this.liveGames.has(tableId);
-    }
-    return this.gameOwnershipService!.isGameOwner(tableId);
+  isGameOwner(tableId: string): boolean {
+    return this.liveGames.has(tableId);
   }
 
-  async getAllActiveGamesFromRedis(): Promise<string[]> {
-    if (!this.isRedisEnabled()) {
-      return Array.from(this.liveGames.keys());
-    }
-    return this.redisGameStateService!.getAllActiveGames();
-  }
-
-  getInstanceId(): string | null {
-    return this.gameOwnershipService?.getInstanceId() || null;
+  getAllActiveGames(): string[] {
+    return Array.from(this.liveGames.keys());
   }
 }

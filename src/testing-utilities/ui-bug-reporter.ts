@@ -41,9 +41,6 @@ export async function runBugDetection(
     // Directory might be empty, that's fine
   }
 
-  console.log(`📸 Starting UI bug detection for game ${config.gameId}`);
-  console.log(`🎮 Loading game: ${config.gameUrl}`);
-
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
@@ -69,10 +66,6 @@ export async function runBugDetection(
 
         await page.screenshot({ path: screenshotPath, fullPage: false });
         screenshots.push(screenshotPath);
-
-        console.log(
-          `📸 Screenshot ${screenshotCount}: ${(timestamp / 1000).toFixed(1)}s`,
-        );
       } catch (error) {
         console.error("Failed to take screenshot:", error);
       }
@@ -81,54 +74,16 @@ export async function runBugDetection(
       await page.waitForTimeout(interval);
     }
 
-    console.log(`✅ Captured ${screenshotCount} screenshots`);
-
     const gameState = {
       gameId: config.gameId,
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`🔍 Analyzing ${screenshots.length} screenshots for bugs...`);
-
     // Detect bugs
     const bugs = await detectUIBugs(screenshots, gameState);
 
     // Generate report
-    const report = generateBugReport(config.gameId, bugs);
-
-    // Print summary
-    console.log("");
-    console.log("═══════════════════════════════════════");
-    console.log("📋 BUG DETECTION REPORT");
-    console.log("═══════════════════════════════════════");
-    console.log(`Game ID: ${report.gameId}`);
-    console.log(`Screenshots: ${report.screenshotCount}`);
-    console.log(`Total Bugs: ${report.bugsFound.length}`);
-    console.log("");
-
-    const critical = report.bugsFound.filter((b) => b.severity === "critical");
-    const high = report.bugsFound.filter((b) => b.severity === "high");
-    const medium = report.bugsFound.filter((b) => b.severity === "medium");
-    const low = report.bugsFound.filter((b) => b.severity === "low");
-
-    if (critical.length > 0) {
-      console.log(`🔴 CRITICAL: ${critical.length}`);
-      critical.forEach((b) => console.log(`   - ${b.title}`));
-    }
-    if (high.length > 0) {
-      console.log(`🟠 HIGH: ${high.length}`);
-      high.forEach((b) => console.log(`   - ${b.title}`));
-    }
-    if (medium.length > 0) {
-      console.log(`🟡 MEDIUM: ${medium.length}`);
-    }
-    if (low.length > 0) {
-      console.log(`🟢 LOW: ${low.length}`);
-    }
-
-    console.log("");
-    console.log(`📁 Full report saved to: ui-bug-reports/`);
-    console.log("═══════════════════════════════════════");
+    const _report = generateBugReport(config.gameId, bugs);
   } finally {
     await browser.close();
   }
@@ -150,16 +105,12 @@ if (require.main === module) {
     }).catch(console.error);
   } else {
     // Create a live game first
-    console.log("📸 Creating live game for UI bug detection...");
     fetch("http://localhost:3000/api/v1/testing/live-game", { method: "POST" })
       .then((res) => res.json())
       .then((data: { gameId?: string }) => {
         if (!data.gameId) {
           throw new Error("Failed to create game: " + JSON.stringify(data));
         }
-        console.log(`✅ Game created: ${data.gameId}`);
-        console.log(`🌐 URL: http://localhost:5173/games/${data.gameId}`);
-        console.log("⏳ Waiting 5s for game to start playing...");
 
         // Wait for game to start, then run detection
         setTimeout(() => {

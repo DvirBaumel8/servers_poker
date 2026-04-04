@@ -1,5 +1,6 @@
 import { Entity, Column, OneToMany, Index, Check } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { bigIntTransformer } from "../common/transformers/bigint.transformer";
 import { TournamentEntry } from "./tournament-entry.entity";
 import { TournamentTable } from "./tournament-table.entity";
 import { TournamentBlindLevel } from "./tournament-blind-level.entity";
@@ -32,11 +33,11 @@ export class Tournament extends BaseEntity {
   @Column({ type: "varchar", length: 20, default: "registering" })
   status: TournamentStatus;
 
-  @Column({ type: "bigint" })
-  buy_in: number;
+  @Column({ type: "bigint", transformer: bigIntTransformer })
+  buy_in: bigint;
 
-  @Column({ type: "bigint" })
-  starting_chips: number;
+  @Column({ type: "bigint", transformer: bigIntTransformer })
+  starting_chips: bigint;
 
   @Column({ type: "integer" })
   min_players: number;
@@ -50,9 +51,6 @@ export class Tournament extends BaseEntity {
   @Column({ type: "integer", default: 10000 })
   turn_timeout_ms: number;
 
-  @Column({ type: "integer", default: 4 })
-  late_reg_ends_level: number;
-
   @Column({ type: "boolean", default: true })
   rebuys_allowed: boolean;
 
@@ -64,6 +62,12 @@ export class Tournament extends BaseEntity {
 
   @Column({ type: "timestamp with time zone", nullable: true })
   finished_at: Date | null;
+
+  @Column({ type: "boolean", default: false })
+  is_archived: boolean;
+
+  @Column({ type: "varchar", length: 512, nullable: true })
+  archive_url: string | null;
 
   @OneToMany(() => TournamentEntry, (entry) => entry.tournament)
   entries: TournamentEntry[];

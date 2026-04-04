@@ -12,6 +12,7 @@ import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { GameExceptionFilter } from "./common/filters/game-exception.filter";
 import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 import { TimeoutInterceptor } from "./common/interceptors/timeout.interceptor";
+import { DistributedLockInterceptor } from "./common/interceptors/distributed-lock.interceptor";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { CustomThrottlerGuard } from "./common/guards/custom-throttler.guard";
@@ -28,6 +29,12 @@ import { SecurityModule } from "./common/security";
 import { JwtConfigModule } from "./common/jwt";
 import { HealthModule } from "./modules/health/health.module";
 import { TestingModule } from "./modules/testing/testing.module";
+import { FinanceModule } from "./modules/finance/finance.module";
+import { MatchmakingModule } from "./modules/matchmaking/matchmaking.module";
+import { ArchiveModule } from "./modules/archive/archive.module";
+import { SupportModule } from "./modules/support/support.module";
+import { LeaderboardModule } from "./modules/leaderboard/leaderboard.module";
+import { SimulationsModule } from "./modules/simulations/simulations.module";
 
 @Module({
   imports: [
@@ -118,6 +125,12 @@ import { TestingModule } from "./modules/testing/testing.module";
     AnalyticsModule,
     PreviewModule,
     TestingModule,
+    FinanceModule,
+    MatchmakingModule,
+    ArchiveModule,
+    SupportModule,
+    LeaderboardModule,
+    SimulationsModule,
   ],
   providers: [
     {
@@ -135,6 +148,10 @@ import { TestingModule } from "./modules/testing/testing.module";
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: DistributedLockInterceptor,
     },
     {
       provide: APP_GUARD,

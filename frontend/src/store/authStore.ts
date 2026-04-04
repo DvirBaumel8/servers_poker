@@ -6,6 +6,7 @@ interface User {
   email: string
   name: string
   role: string
+  subscription_status: 'free' | 'active' | 'cancelled' | 'expired'
 }
 
 interface AuthState {

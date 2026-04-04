@@ -8,6 +8,7 @@ import {
   Check,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { bigIntTransformer } from "../common/transformers/bigint.transformer";
 import { Tournament } from "./tournament.entity";
 import { TournamentTable } from "./tournament-table.entity";
 import { Bot } from "./bot.entity";
@@ -31,8 +32,8 @@ export class TournamentSeat extends BaseEntity {
   @Column({ type: "integer" })
   seat_number: number;
 
-  @Column({ type: "bigint" })
-  chips: number;
+  @Column({ type: "bigint", transformer: bigIntTransformer })
+  chips: bigint;
 
   @Column({ type: "boolean", default: false })
   busted: boolean;

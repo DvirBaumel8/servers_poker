@@ -103,7 +103,9 @@ describe("Conflict Detector", () => {
     expect(result.hasConflicts).toBe(true);
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0].severity).toBe("error");
-    expect(result.conflicts[0].description).toContain("will never execute");
+    expect(result.conflicts[0].description).toContain(
+      "identical conditions but different actions",
+    );
   });
 
   it("should detect identical conditions with same actions (redundant)", () => {
@@ -136,7 +138,9 @@ describe("Conflict Detector", () => {
     expect(result.hasConflicts).toBe(false);
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0].severity).toBe("warning");
-    expect(result.conflicts[0].description).toContain("redundant");
+    expect(result.conflicts[0].description).toContain(
+      "identical conditions and actions",
+    );
   });
 
   it("should detect shadowed rule (broader conditions in higher priority)", () => {

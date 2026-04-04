@@ -1,5 +1,20 @@
 import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import RuleCard from './RuleCard'
 
 type Street = 'preflop' | 'flop' | 'turn' | 'river'
@@ -70,10 +85,66 @@ interface RulesEditorProps {
   onChange: (rules: StreetRules) => void
 }
 
+// ─── Sortable rule card wrapper ───────────────────────────────────────────────
+
+interface SortableRuleCardProps {
+  rule: Rule
+  index: number
+  fields: ConditionFieldDef[]
+  onChange: (rule: Rule) => void
+  onDelete: () => void
+}
+
+function SortableRuleCard({ rule, index, fields, onChange, onDelete }: SortableRuleCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: rule.id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        position: 'relative',
+      }}
+    >
+      {/* Priority badge + drag handle row */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem', gap: '0.5rem' }}>
+        <span
+          {...attributes}
+          {...listeners}
+          style={{
+            cursor: 'grab',
+            color: C.muted,
+            fontSize: '1.1rem',
+            lineHeight: 1,
+            padding: '0.25rem',
+            userSelect: 'none',
+          }}
+          title="Drag to reorder"
+        >
+          ⠿
+        </span>
+        <span style={{ fontSize: '0.7rem', color: C.muted, fontFamily: C.font }}>
+          #{index + 1}
+        </span>
+      </div>
+      <RuleCard
+        rule={rule}
+        fields={fields}
+        onChange={onChange}
+        onDelete={onDelete}
+      />
+    </div>
+  )
+}
+
 // ─── Main component ────────────────────────────────────────────────────────
 
 export default function RulesEditor({ rules = {}, fields, onChange }: RulesEditorProps) {
   const [activeStreet, setActiveStreet] = useState<Street>('preflop')
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const currentRules = rules[activeStreet] || []
 
@@ -83,6 +154,15 @@ export default function RulesEditor({ rules = {}, fields, onChange }: RulesEdito
       [activeStreet]: newRules.length > 0 ? newRules : undefined,
     }
     onChange(updated)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = currentRules.findIndex((r) => r.id === active.id)
+    const newIndex = currentRules.findIndex((r) => r.id === over.id)
+    const reordered = arrayMove(currentRules, oldIndex, newIndex).map((r, i) => ({ ...r, priority: i }))
+    handleUpdateRules(reordered)
   }
 
   const handleUpdateRule = (index: number, rule: Rule) => {
@@ -148,32 +228,43 @@ export default function RulesEditor({ rules = {}, fields, onChange }: RulesEdito
         {currentRules.length === 0 ? (
           <div
             style={{
-              padding: '2rem',
-              background: 'rgba(0, 229, 255, 0.04)',
-              borderRadius: '0.5rem',
+              border: `2px dashed ${C.border}`,
+              borderRadius: '0.75rem',
+              padding: '2.5rem',
               textAlign: 'center',
-              color: C.muted,
               marginBottom: '1rem',
             }}
           >
-            <div style={{ fontSize: '0.875rem' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📜</div>
+            <div style={{ fontSize: '0.875rem', color: C.text, fontWeight: 600, marginBottom: '0.25rem' }}>
               No rules yet for {activeStreet}
             </div>
-            <div style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: '0.75rem', color: C.muted }}>
+              Add your first strategic rule to override the base persona.
+            </div>
+            <div style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.25rem', opacity: 0.7 }}>
               Rules are evaluated top-to-bottom; first match wins.
             </div>
           </div>
         ) : (
           <div style={{ marginBottom: '1.5rem' }}>
-            {currentRules.map((rule, index) => (
-              <RuleCard
-                key={rule.id}
-                rule={rule}
-                fields={fields}
-                onChange={(updatedRule) => handleUpdateRule(index, updatedRule)}
-                onDelete={() => handleDeleteRule(index)}
-              />
-            ))}
+            <div style={{ fontSize: '0.7rem', color: C.muted, marginBottom: '0.5rem', fontFamily: C.font }}>
+              ↕ Drag to reorder — top rule wins on first match
+            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={currentRules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+                {currentRules.map((rule, index) => (
+                  <SortableRuleCard
+                    key={rule.id}
+                    rule={rule}
+                    index={index}
+                    fields={fields}
+                    onChange={(updatedRule) => handleUpdateRule(index, updatedRule)}
+                    onDelete={() => handleDeleteRule(index)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           </div>
         )}
 

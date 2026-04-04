@@ -44,6 +44,7 @@ export class Game extends BaseEntity {
   @Column({ type: "timestamp with time zone", nullable: true })
   started_at: Date | null;
 
+  @Index()
   @Column({ type: "timestamp with time zone", nullable: true })
   finished_at: Date | null;
 

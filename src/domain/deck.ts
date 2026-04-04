@@ -1,3 +1,5 @@
+import { randomBytes } from "crypto";
+
 const SUITS: string[] = ["♠", "♥", "♦", "♣"];
 const RANKS: string[] = [
   "2",
@@ -50,12 +52,14 @@ function createDeck(): Card[] {
 }
 
 /**
- * Standard shuffle using Math.random() - not provably fair
+ * Cryptographic shuffle using crypto.randomBytes — no Math.random().
+ * Used when provably fair service is not available (tests, fallback).
  */
 function shuffle(deck: Card[]): Card[] {
   const d: Card[] = [...deck];
+  const bytes = randomBytes(d.length * 4);
   for (let i = d.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = bytes.readUInt32BE(i * 4) % (i + 1);
     [d[i], d[j]] = [d[j], d[i]];
   }
   return d;

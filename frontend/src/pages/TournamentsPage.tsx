@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useEffect, useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
+import { Sidebar } from '../components/Sidebar'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,13 +23,18 @@ interface Tournament {
   buy_in: number
   starting_chips: number
   scheduled_start_at?: string
+  finished_at?: string
   players_per_table: number
   max_participants?: number
   current_participants?: number
   registered_count?: number
-  late_registration?: boolean
   rebuys_allowed?: boolean
   entries?: TournamentEntry[]
+}
+
+interface WinnerInfo {
+  botName: string
+  totalEntries: number
 }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -45,31 +51,275 @@ const C = {
   danger: '#e24b4a',
   success: '#1d9e75',
   warning: '#f59e0b',
+  gold: '#ffd700',
   font: "'Trebuchet MS', sans-serif",
 }
 
-// ─── Skeleton loader ──────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function Skeleton({ width = '100%', height = 20, radius = 6 }: { width?: number | string; height?: number; radius?: number }) {
+function getCountdown(scheduledAt?: string): string {
+  if (!scheduledAt) return 'Starting soon'
+  const startTime = new Date(scheduledAt)
+  if (isNaN(startTime.getTime())) return 'Starting soon'
+  const now = new Date()
+  const diff = startTime.getTime() - now.getTime()
+  if (diff < 0) return 'Starting soon'
+  const totalSeconds = Math.floor(diff / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const days = Math.floor(hours / 24)
+  if (days > 0) return `${days}d ${hours % 24}h`
+  const mins = Math.floor((totalSeconds % 3600) / 60)
+  if (hours > 0) return `${hours}h ${mins}m`
+  const secs = totalSeconds % 60
+  return `${mins}m ${secs}s`
+}
+
+function getStatusBadge(status: Tournament['status']) {
+  switch (status) {
+    case 'registering':
+      return { text: 'Registration Open', color: C.success, bg: 'rgba(29,158,117,0.1)' }
+    case 'running':
+      return { text: 'In Progress', color: C.warning, bg: 'rgba(245,158,11,0.1)' }
+    case 'final_table':
+      return { text: 'Final Table', color: C.accent, bg: C.accentDim }
+    case 'finished':
+      return { text: 'Finished', color: C.muted, bg: 'rgba(156,163,175,0.1)' }
+    default:
+      return { text: 'Cancelled', color: C.danger, bg: 'rgba(226,75,74,0.1)' }
+  }
+}
+
+function formatDate(iso?: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function Skeleton({ width = '100%', height = 14, radius = 4 }: { width?: number | string; height?: number; radius?: number }) {
   return (
     <div
       className="animate-pulse"
-      style={{ width, height, borderRadius: radius, background: '#1e1e3f' }}
+      style={{ width, height, borderRadius: radius, background: '#1e1e3f', display: 'inline-block' }}
     />
   )
 }
 
-function SkeletonCard() {
+// ─── Section header ───────────────────────────────────────────────────────────
+
+function SectionHeader({ icon, label, count }: { icon: string; label: string; count?: number }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <Skeleton width="70%" height={18} />
-      <Skeleton width="100%" height={14} />
-      <Skeleton width="60%" height={14} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+      <div
+        style={{
+          width: 3,
+          height: 20,
+          borderRadius: 2,
+          background: `linear-gradient(180deg, ${C.accent}, #0070ff)`,
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ fontSize: 11, marginRight: -4 }}>{icon}</span>
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: C.muted,
+          textTransform: 'uppercase',
+          letterSpacing: '0.12em',
+          fontFamily: C.font,
+        }}
+      >
+        {label}
+      </span>
+      {count !== undefined && (
+        <span
+          style={{
+            fontSize: 11,
+            color: C.muted,
+            background: C.border,
+            padding: '1px 7px',
+            borderRadius: 10,
+            fontFamily: C.font,
+          }}
+        >
+          {count}
+        </span>
+      )}
     </div>
   )
 }
 
-// ─── Tournament card ──────────────────────────────────────────────────────────
+// ─── Featured tournament card ─────────────────────────────────────────────────
+
+function FeaturedCard({
+  tournament,
+  isRegistered,
+  onClick,
+}: {
+  tournament: Tournament
+  isRegistered: boolean
+  onClick: () => void
+}) {
+  const [hovered, setHovered] = useState(false)
+  const [tick, setTick] = useState(0)
+
+  // Tick every second to keep countdown live
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const status = getStatusBadge(tournament.status)
+  const countdown = getCountdown(tournament.scheduled_start_at)
+  const startTime = tournament.scheduled_start_at ? new Date(tournament.scheduled_start_at) : null
+  const canRegister = tournament.status === 'registering' && !isRegistered
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: hovered
+          ? 'linear-gradient(135deg, #161630 0%, #0f0f2a 100%)'
+          : 'linear-gradient(135deg, #13132a 0%, #0d0d22 100%)',
+        border: `1px solid ${C.accent}`,
+        borderRadius: 16,
+        padding: '28px 32px',
+        cursor: 'pointer',
+        transition: 'all 0.25s',
+        fontFamily: C.font,
+        boxShadow: hovered
+          ? `0 0 0 1px ${C.accent}, 0 0 40px rgba(0,229,255,0.2)`
+          : `0 0 0 1px ${C.accent}, 0 0 20px rgba(0,229,255,0.1)`,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Subtle glow overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: 300,
+          height: 300,
+          background: 'radial-gradient(circle at 80% 20%, rgba(0,229,255,0.06) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+        {/* Left: info */}
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <span style={{ fontSize: 22 }}>🏆</span>
+            <span
+              style={{
+                padding: '3px 10px',
+                borderRadius: 6,
+                background: status.bg,
+                color: status.color,
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              {status.text}
+            </span>
+          </div>
+
+          <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 6, letterSpacing: '-0.02em' }}>
+            {tournament.name}
+          </div>
+          {tournament.description && (
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 16, maxWidth: 420 }}>
+              {tournament.description}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
+                Starting Chips
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                {tournament.starting_chips.toLocaleString()}
+              </div>
+            </div>
+            {(tournament.registered_count !== undefined || tournament.current_participants !== undefined) && (
+              <div>
+                <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
+                  Registered
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                  {tournament.registered_count ?? tournament.current_participants ?? 0}
+                  {tournament.max_participants ? ` / ${tournament.max_participants}` : ''}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: countdown + CTA */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, minWidth: 160 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+              {tournament.status === 'registering' ? 'Starts in' : 'Status'}
+            </div>
+            <div
+              style={{
+                fontSize: 38,
+                fontWeight: 800,
+                color: C.accent,
+                letterSpacing: '-0.03em',
+                lineHeight: 1,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {countdown}
+            </div>
+            {startTime && !isNaN(startTime.getTime()) && (
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                {startTime.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
+          </div>
+
+          <button
+            style={{
+              padding: '10px 22px',
+              borderRadius: 8,
+              background: canRegister || isRegistered
+                ? 'linear-gradient(90deg, #00e5ff, #0070ff)'
+                : C.border,
+              border: 'none',
+              color: canRegister || isRegistered ? '#000' : C.muted,
+              fontWeight: 700,
+              fontSize: 13,
+              fontFamily: C.font,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap',
+            }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onClick()
+            }}
+          >
+            {isRegistered
+              ? (tournament.status === 'running' || tournament.status === 'final_table' ? 'Watch Live' : 'Enter Lobby')
+              : 'View Details'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Regular tournament card (secondary) ─────────────────────────────────────
 
 function TournamentCard({
   tournament,
@@ -80,40 +330,15 @@ function TournamentCard({
   onClick: () => void
   isRegistered?: boolean
 }) {
-  const startTime = tournament.scheduled_start_at
-    ? new Date(tournament.scheduled_start_at)
-    : null
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
 
-  // Calculate time until start
-  const getCountdown = () => {
-    if (!startTime) return 'Open'
-    const now = new Date()
-    const diff = startTime.getTime() - now.getTime()
-    if (diff < 0) return 'Started'
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    const days = Math.floor(hours / 24)
-    if (days > 0) return `${days}d ${hours % 24}h`
-    return `${hours}h`
-  }
-
-  // Status badge
-  const getStatusBadge = () => {
-    switch (tournament.status) {
-      case 'registering':
-        return { text: 'Registration Open', color: C.success, bg: 'rgba(29,158,117,0.1)' }
-      case 'running':
-        return { text: 'In Progress', color: C.warning, bg: 'rgba(245,158,11,0.1)' }
-      case 'final_table':
-        return { text: 'Final Table', color: C.accent, bg: C.accentDim }
-      case 'finished':
-        return { text: 'Finished', color: C.muted, bg: 'rgba(156,163,175,0.1)' }
-      default:
-        return { text: 'Cancelled', color: C.danger, bg: 'rgba(226,75,74,0.1)' }
-    }
-  }
-
-  const status = getStatusBadge()
+  const status = getStatusBadge(tournament.status)
   const canRegister = tournament.status === 'registering' && !isRegistered
+  const startTime = tournament.scheduled_start_at ? new Date(tournament.scheduled_start_at) : null
 
   return (
     <div
@@ -131,30 +356,30 @@ function TournamentCard({
         height: '100%',
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.background = C.cardHover
+        ;(e.currentTarget as HTMLElement).style.background = C.cardHover
         ;(e.currentTarget as HTMLElement).style.borderColor = C.accent
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.background = C.card
+        ;(e.currentTarget as HTMLElement).style.background = C.card
         ;(e.currentTarget as HTMLElement).style.borderColor = C.border
       }}
     >
       <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{tournament.name}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{tournament.name}</div>
           {tournament.description && (
-            <div style={{ fontSize: 13, color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.4 }}>
               {tournament.description}
             </div>
           )}
         </div>
         <div
           style={{
-            padding: '4px 10px',
+            padding: '3px 9px',
             borderRadius: 6,
             background: status.bg,
             color: status.color,
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 600,
             whiteSpace: 'nowrap',
             flexShrink: 0,
@@ -164,34 +389,25 @@ function TournamentCard({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-            Status
-          </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
-            {isRegistered ? '✓ Registered' : 'Available'}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+          <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
             Starts in
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.accent }}>{getCountdown()}</div>
-          {startTime && (
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.accent, fontVariantNumeric: 'tabular-nums' }}>
+            {getCountdown(tournament.scheduled_start_at)}
+          </div>
+          {startTime && !isNaN(startTime.getTime()) && (
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
               {startTime.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </div>
           )}
         </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
         <div>
-          <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-            Starting Chips
+          <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
+            Chips
           </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
             {tournament.starting_chips.toLocaleString()}
           </div>
         </div>
@@ -201,15 +417,15 @@ function TournamentCard({
         <button
           style={{
             width: '100%',
-            padding: '10px',
+            padding: '9px',
             borderRadius: 8,
-            background: canRegister ? 'linear-gradient(90deg, #00e5ff, #0070ff)' : C.border,
+            background: canRegister || isRegistered ? 'linear-gradient(90deg, #00e5ff, #0070ff)' : C.border,
             border: 'none',
-            color: canRegister ? '#000' : C.muted,
+            color: canRegister || isRegistered ? '#000' : C.muted,
             fontWeight: 700,
-            fontSize: 13,
+            fontSize: 12,
             fontFamily: C.font,
-            cursor: canRegister ? 'pointer' : 'not-allowed',
+            cursor: 'pointer',
             transition: 'all 0.2s',
           }}
           onClick={(e) => {
@@ -217,221 +433,134 @@ function TournamentCard({
             onClick()
           }}
         >
-          {canRegister ? 'View Details' : isRegistered ? 'View Details' : 'View Details'}
+          {isRegistered ? (
+            tournament.status === 'running' || tournament.status === 'final_table' ? 'Watch Live' : 'Enter Lobby'
+          ) : 'View Details'}
         </button>
       </div>
     </div>
   )
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
+// ─── Past result row ──────────────────────────────────────────────────────────
 
-function Sidebar({ collapsed = false, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-
-  const NAV_ICONS = {
-    Home: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-      </svg>
-    ),
-    'My Bots': (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-      </svg>
-    ),
-    Tournaments: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="8" y1="6" x2="21" y2="6" />
-        <line x1="8" y1="12" x2="21" y2="12" />
-        <line x1="8" y1="18" x2="21" y2="18" />
-        <circle cx="3" cy="6" r="1" fill="currentColor" />
-        <circle cx="3" cy="12" r="1" fill="currentColor" />
-        <circle cx="3" cy="18" r="1" fill="currentColor" />
-      </svg>
-    ),
-    'Live Games': (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  }
-
-  const NAV = [
-    { label: 'Home', path: '/' },
-    { label: 'My Bots', path: '/bots' },
-    { label: 'Tournaments', path: '/tournaments' },
-    { label: 'Live Games', path: '/games' },
-  ]
+function PastResultRow({
+  tournament,
+  winner,
+  loadingWinner,
+  onViewAnalytics,
+}: {
+  tournament: Tournament
+  winner?: WinnerInfo
+  loadingWinner: boolean
+  onViewAnalytics: () => void
+}) {
+  const [hovered, setHovered] = useState(false)
 
   return (
     <div
       style={{
-        width: collapsed ? 60 : 210,
-        minHeight: '100vh',
-        background: '#0d0d22',
-        borderRight: `1px solid ${C.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        transition: 'width 0.2s',
+        display: 'grid',
+        gridTemplateColumns: '140px 1fr 180px 80px 140px',
+        alignItems: 'center',
+        gap: 16,
+        padding: '14px 20px',
+        borderBottom: `1px solid ${C.border}`,
+        background: hovered ? C.cardHover : 'transparent',
+        transition: 'background 0.15s',
         fontFamily: C.font,
-        overflow: 'visible',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Date */}
+      <div style={{ fontSize: 13, color: C.muted }}>
+        {formatDate(tournament.finished_at)}
+      </div>
+
+      {/* Name */}
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {tournament.name}
+      </div>
+
+      {/* Winner */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 13 }}>🥇</span>
+        {loadingWinner ? (
+          <Skeleton width={100} height={13} />
+        ) : winner?.botName ? (
+          <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{winner.botName}</span>
+        ) : (
+          <span style={{ fontSize: 13, color: C.muted }}>—</span>
+        )}
+      </div>
+
+      {/* Entries */}
+      <div style={{ fontSize: 13, color: C.muted, textAlign: 'right' }}>
+        {loadingWinner ? (
+          <Skeleton width={30} height={13} />
+        ) : (
+          `${winner?.totalEntries ?? tournament.registered_count ?? '—'}`
+        )}
+      </div>
+
+      {/* Action */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          style={{
+            padding: '6px 14px',
+            borderRadius: 6,
+            background: 'transparent',
+            border: `1px solid ${hovered ? C.accent : C.border}`,
+            color: hovered ? C.accent : C.muted,
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: C.font,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            whiteSpace: 'nowrap',
+          }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onViewAnalytics()
+          }}
+        >
+          View Analytics
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Past results table header ────────────────────────────────────────────────
+
+function PastResultsHeader() {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '140px 1fr 180px 80px 140px',
+        gap: 16,
+        padding: '10px 20px',
+        borderBottom: `1px solid ${C.border}`,
+        fontFamily: C.font,
       }}
     >
-      <div style={{ padding: collapsed ? '12px 12px 8px' : '28px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-        {!collapsed && (
-          <>
-            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', lineHeight: 1.1 }}>
-              <span style={{ color: C.text }}>Bot</span>
-              <span style={{ color: C.accent }}>Royale</span>
-            </div>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginTop: 6, whiteSpace: 'nowrap' }}>
-              Automate. Compete. Win.
-            </div>
-          </>
-        )}
-        {collapsed && (
-          <div style={{ fontSize: 16, color: C.accent }}>◆</div>
-        )}
-      </div>
-
-      <nav style={{ flex: 1, padding: '20px 0', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleCollapse() }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = C.accent
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = 'rgba(0, 229, 255, 0.5)'
-          }}
+      {['Date', 'Tournament', 'Winner', 'Entries', ''].map((label, i) => (
+        <div
+          key={i}
           style={{
-            position: 'absolute', right: '-17px', top: '50%', transform: 'translateY(-50%)',
-            width: 34, height: 34,
-            background: 'transparent', border: 'none',
-            color: 'rgba(0, 229, 255, 0.5)', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, fontWeight: 'bold', transition: 'color 0.2s', zIndex: 10, padding: 0,
-            pointerEvents: 'auto',
-          }}
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          {collapsed ? '»' : '«'}
-        </button>
-        {NAV.map(({ label, path }, idx) => {
-          const active = location.pathname === path
-          return (
-            <div key={path}>
-              <button
-                onClick={() => navigate(path)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: collapsed ? 0 : 10,
-                  width: '100%', padding: collapsed ? '10px 0' : '10px 20px',
-                  background: active ? C.accentDim : 'transparent',
-                  border: 'none', borderLeft: collapsed ? 'none' : `3px solid ${active ? C.accent : 'transparent'}`,
-                  color: active ? C.text : C.muted,
-                  fontSize: 14, fontFamily: C.font, cursor: 'pointer',
-                  textAlign: 'left', transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {NAV_ICONS[label as keyof typeof NAV_ICONS]}
-                </span>
-                {!collapsed && label}
-              </button>
-            </div>
-          )
-        })}
-      </nav>
-
-      <div style={{ padding: collapsed ? '20px 4px' : '16px 20px', borderTop: `1px solid ${C.border}`, position: 'relative' }}>
-        <button
-          onClick={() => setDropdownOpen((o) => !o)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            gap: 10,
-            width: '100%',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
+            fontSize: 10,
+            fontWeight: 700,
+            color: C.muted,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            textAlign: i === 3 ? 'right' : 'left',
           }}
         >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #00e5ff, #0070ff)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 13,
-              fontWeight: 700,
-              color: '#000',
-              flexShrink: 0,
-            }}
-          >
-            {(user?.name?.[0] ?? '?').toUpperCase()}
-          </div>
-            <div style={{ overflow: 'hidden', flex: 1, textAlign: 'left' }}>
-              <div style={{ fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {user?.name ?? 'Player'}
-              </div>
-              <div style={{ fontSize: 11, color: C.muted }}>{user?.role ?? 'user'}</div>
-            </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-        </button>
-        {dropdownOpen && !collapsed && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 12,
-              right: 12,
-              marginBottom: 6,
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              overflow: 'hidden',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-            }}
-          >
-            <button
-              onClick={() => {
-                setDropdownOpen(false)
-                logout()
-              }}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'transparent',
-                border: 'none',
-                color: C.danger,
-                fontSize: 13,
-                fontFamily: C.font,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              Sign out
-            </button>
-          </div>
-        )}
-      </div>
+          {label}
+        </div>
+      ))}
     </div>
   )
 }
@@ -441,77 +570,129 @@ function Sidebar({ collapsed = false, onToggleCollapse }: { collapsed: boolean; 
 export default function TournamentsPage() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const [tournaments, setTournaments] = useState<Tournament[]>([])
-  const [loading, setLoading] = useState(true)
+
+  const [upcoming, setUpcoming] = useState<Tournament[]>([])
+  const [loadingUpcoming, setLoadingUpcoming] = useState(true)
+
+  const [pastList, setPastList] = useState<Tournament[]>([])
+  const [loadingPast, setLoadingPast] = useState(true)
+  const [winnerMap, setWinnerMap] = useState<Map<string, WinnerInfo>>(new Map())
+  const [loadingWinners, setLoadingWinners] = useState(false)
+
   const [error, setError] = useState('')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('tournaments_sidebar_collapsed')
-    return saved !== null ? JSON.parse(saved) : false
-  })
-  // Always sort by start time
-  const sortBy = 'start'
 
-  useEffect(() => {
-    fetchTournaments()
-    // Poll for new tournaments every 10 seconds
-    const pollInterval = setInterval(() => {
-      fetchTournaments()
-    }, 10000)
-    return () => clearInterval(pollInterval)
-  }, [])
-
-  async function fetchTournaments() {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await api.get('/tournaments/scheduled/upcoming')
-      const data = res.data
-      const list = Array.isArray(data) ? data : data.data ?? data.tournaments ?? []
-      setTournaments(list)
-    } catch (err: unknown) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to load tournaments'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const toggleSidebarCollapse = () => {
-    setSidebarCollapsed((prev) => {
-      const newVal = !prev
-      localStorage.setItem('tournaments_sidebar_collapsed', JSON.stringify(newVal))
-      return newVal
-    })
-  }
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isUserRegistered = (tournament: Tournament) => {
     if (!user) return false
     return tournament.entries?.some((e) => e.user_id === user.id) ?? false
   }
 
-  const sortedTournaments = [...tournaments].sort((a, b) => {
-    const aTime = a.scheduled_start_at ? new Date(a.scheduled_start_at).getTime() : Infinity
-    const bTime = b.scheduled_start_at ? new Date(b.scheduled_start_at).getTime() : Infinity
-    return aTime - bTime
-  })
+  const handleTournamentClick = (tournament: Tournament) => {
+    const isRegistered = isUserRegistered(tournament)
+    if (isRegistered) {
+      if (tournament.status === 'running' || tournament.status === 'final_table') {
+        navigate(`/tournaments/${tournament.id}/live`)
+      } else {
+        navigate(`/tournaments/${tournament.id}/lobby`)
+      }
+    } else {
+      navigate(`/tournaments/${tournament.id}`)
+    }
+  }
+
+  async function fetchUpcoming() {
+    try {
+      const res = await api.get('/tournaments/scheduled/upcoming')
+      const data = res.data
+      const list: Tournament[] = Array.isArray(data) ? data : data.data ?? data.tournaments ?? []
+      list.sort((a, b) => {
+        const aTime = a.scheduled_start_at ? new Date(a.scheduled_start_at).getTime() : Infinity
+        const bTime = b.scheduled_start_at ? new Date(b.scheduled_start_at).getTime() : Infinity
+        return aTime - bTime
+      })
+      setUpcoming(list)
+    } catch {
+      setError('Failed to load upcoming tournaments')
+    } finally {
+      setLoadingUpcoming(false)
+    }
+  }
+
+  async function fetchPast() {
+    try {
+      const res = await api.get('/tournaments', { params: { status: 'finished', limit: 20 } })
+      const data = res.data
+      const list: Tournament[] = Array.isArray(data) ? data : data.data ?? data.tournaments ?? []
+      // Sort newest first
+      list.sort((a, b) => {
+        const aTime = a.finished_at ? new Date(a.finished_at).getTime() : 0
+        const bTime = b.finished_at ? new Date(b.finished_at).getTime() : 0
+        return bTime - aTime
+      })
+      setPastList(list)
+
+      // Fetch winner info for each past tournament
+      if (list.length > 0) {
+        setLoadingWinners(true)
+        const results = await Promise.allSettled(
+          list.map((t) => api.get(`/tournaments/${t.id}/results`))
+        )
+        const map = new Map<string, WinnerInfo>()
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled') {
+            const d = r.value.data
+            const winner = d.results?.find((e: { rank: number }) => e.rank === 1)
+            map.set(list[i].id, {
+              botName: winner?.botName ?? '—',
+              totalEntries: d.totalEntries ?? 0,
+            })
+          }
+        })
+        setWinnerMap(map)
+        setLoadingWinners(false)
+      }
+    } catch {
+      // Past results section silently fails
+    } finally {
+      setLoadingPast(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchUpcoming()
+    fetchPast()
+
+    pollRef.current = setInterval(() => {
+      fetchUpcoming()
+    }, 10_000)
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [])
+
+  const featured = upcoming[0] ?? null
+  const secondary = upcoming.slice(1)
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: C.bg, fontFamily: C.font }}>
-      <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+      <Sidebar />
+
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* Header */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            gap: 10,
             padding: '16px 28px',
             borderBottom: `1px solid ${C.border}`,
             background: '#0d0d22',
-            fontFamily: C.font,
           }}
         >
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>Tournaments</div>
+          <span style={{ fontSize: 18 }}>🏆</span>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>Tournament Hub</div>
         </div>
 
         {/* Main content */}
@@ -526,72 +707,147 @@ export default function TournamentsPage() {
                 color: C.danger,
                 fontSize: 13,
                 marginBottom: 20,
-                fontFamily: C.font,
               }}
             >
               {error}
             </div>
           )}
 
-          {/* Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-            <div style={{ fontSize: 14, color: C.muted }}>
-              {sortedTournaments.length} tournament{sortedTournaments.length !== 1 ? 's' : ''} available
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <span style={{ fontSize: 12, color: C.muted, display: 'flex', alignItems: 'center' }}>
-                Sorted by start time
-              </span>
-            </div>
+          {/* ── Upcoming ── */}
+          <div style={{ marginBottom: 48 }}>
+            <SectionHeader icon="📅" label="Upcoming" count={upcoming.length} />
+
+            {loadingUpcoming ? (
+              <div
+                style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 16,
+                  padding: '28px 32px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                }}
+                className="animate-pulse"
+              >
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 4, background: '#1e1e3f' }} />
+                  <div style={{ width: 100, height: 16, borderRadius: 4, background: '#1e1e3f' }} />
+                </div>
+                <div style={{ width: '60%', height: 24, borderRadius: 6, background: '#1e1e3f' }} />
+                <div style={{ width: '40%', height: 14, borderRadius: 4, background: '#1e1e3f' }} />
+              </div>
+            ) : featured ? (
+              <>
+                <FeaturedCard
+                  tournament={featured}
+                  isRegistered={isUserRegistered(featured)}
+                  onClick={() => handleTournamentClick(featured)}
+                />
+
+                {secondary.length > 0 && (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                      gap: 16,
+                      marginTop: 16,
+                    }}
+                  >
+                    {secondary.map((t) => (
+                      <TournamentCard
+                        key={t.id}
+                        tournament={t}
+                        isRegistered={isUserRegistered(t)}
+                        onClick={() => handleTournamentClick(t)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '48px 20px',
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 16,
+                }}
+              >
+                <div style={{ fontSize: 40, marginBottom: 12 }}>🏆</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 6 }}>
+                  No tournaments scheduled
+                </div>
+                <div style={{ fontSize: 13, color: C.muted }}>
+                  Check back soon — the next Daily Master is on its way.
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Tournaments grid */}
-          {loading ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16, alignItems: 'stretch' }}>
-              {[1, 2, 3, 4].map((i) => (
-                <SkeletonCard key={i} />
-              ))}
-            </div>
-          ) : sortedTournaments.length === 0 ? (
+          {/* ── Past Results ── */}
+          <div>
+            <SectionHeader icon="📋" label="Past Results" count={pastList.length} />
+
             <div
               style={{
-                textAlign: 'center',
-                padding: '60px 20px',
-                color: C.muted,
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 12,
+                overflow: 'hidden',
               }}
             >
-              <div style={{ fontSize: 48, marginBottom: 16 }}>📭</div>
-              <div style={{ fontSize: 16, marginBottom: 8 }}>No tournaments available right now</div>
-              <div style={{ fontSize: 13, color: C.muted }}>Check back soon for new tournaments!</div>
+              {loadingPast ? (
+                <div style={{ padding: '20px' }}>
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="animate-pulse"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '140px 1fr 180px 80px 140px',
+                        gap: 16,
+                        padding: '16px 20px',
+                        borderBottom: i < 3 ? `1px solid ${C.border}` : 'none',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div style={{ height: 13, borderRadius: 4, background: '#1e1e3f' }} />
+                      <div style={{ height: 13, borderRadius: 4, background: '#1e1e3f', width: '70%' }} />
+                      <div style={{ height: 13, borderRadius: 4, background: '#1e1e3f', width: '60%' }} />
+                      <div style={{ height: 13, borderRadius: 4, background: '#1e1e3f' }} />
+                      <div style={{ height: 28, borderRadius: 6, background: '#1e1e3f' }} />
+                    </div>
+                  ))}
+                </div>
+              ) : pastList.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '48px 20px',
+                    color: C.muted,
+                  }}
+                >
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+                  <div style={{ fontSize: 14, color: C.muted }}>No completed tournaments yet.</div>
+                </div>
+              ) : (
+                <>
+                  <PastResultsHeader />
+                  {pastList.map((t) => (
+                    <PastResultRow
+                      key={t.id}
+                      tournament={t}
+                      winner={winnerMap.get(t.id)}
+                      loadingWinner={loadingWinners && !winnerMap.has(t.id)}
+                      onViewAnalytics={() => navigate('/games')}
+                    />
+                  ))}
+                </>
+              )}
             </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16, alignItems: 'stretch' }}>
-              {sortedTournaments.map((tournament) => {
-                const isRegistered = isUserRegistered(tournament)
-                return (
-                  <TournamentCard
-                    key={tournament.id}
-                    tournament={tournament}
-                    onClick={() => {
-                      if (isRegistered) {
-                        // If tournament is already running, go to live game view
-                        if (tournament.status === 'running' || tournament.status === 'final_table') {
-                          navigate(`/tournaments/${tournament.id}/live`)
-                        } else {
-                          // Otherwise go to lobby with countdown timer
-                          navigate(`/tournaments/${tournament.id}/lobby`)
-                        }
-                      } else {
-                        // Not registered, go to detail page
-                        navigate(`/tournaments/${tournament.id}`)
-                      }
-                    }}
-                    isRegistered={isRegistered}
-                  />
-                )
-              })}
-            </div>
-          )}
+          </div>
         </main>
       </div>
     </div>

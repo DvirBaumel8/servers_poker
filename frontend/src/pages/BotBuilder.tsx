@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
+import { useSidebarStore } from '../store/sidebarStore'
 import PersonalityEditor from '../components/builder/PersonalityEditor'
 import RulesEditor from '../components/builder/RulesEditor'
 import RangeChartComponent from '../components/builder/RangeChart'
@@ -113,6 +114,8 @@ export default function BotBuilder() {
     }
   }, [isAuthenticated, navigate])
 
+  const [tierWarning, setTierWarning] = useState('')
+
   const [state, setState] = useState<BotState>({
     name: 'My Bot',
     description: '',
@@ -131,10 +134,12 @@ export default function BotBuilder() {
     },
     isDirty: false,
     isSaving: false,
-    isLoading: false,
+    isLoading: !!searchParams.get('id'),
     error: null,
   })
 
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedJustNow, setSavedJustNow] = useState(false)
   const [conditionFields, setConditionFields] = useState<ConditionFieldDef[]>([])
   const [presets, setPresets] = useState<PersonalityPreset[]>([])
   const [conflicts, setConflicts] = useState<Record<string, unknown>[]>([])
@@ -142,24 +147,80 @@ export default function BotBuilder() {
     const saved = localStorage.getItem('botbuilder_sidebar_visible')
     return saved !== null ? JSON.parse(saved) : true
   })
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('botbuilder_sidebar_collapsed')
-    return saved !== null ? JSON.parse(saved) : false
-  })
+  const sidebarCollapsed = useSidebarStore((s) => s.collapsed)
   const [simulatorOpen, setSimulatorOpen] = useState(false)
   const personalityRef = useRef<HTMLDivElement>(null)
   const rulesRef = useRef<HTMLDivElement>(null)
 
-  // Auto-save on name/description/strategy changes
-  useEffect(() => {
-    console.log('🔄 Auto-save effect triggered:', { isDirty: state.isDirty, botId: state.botId, name: state.name, originalName: state.originalName })
+  // Always holds the latest state so the unmount cleanup can access it
+  const stateRef = useRef(state)
+  useEffect(() => { stateRef.current = state }, [state])
 
-    if (!state.isDirty) {
-      console.log('⏸️ isDirty is false, skipping auto-save')
+  // Flush unsaved changes immediately when navigating away
+  useEffect(() => {
+    return () => {
+      const s = stateRef.current
+      if (!s.isDirty || !s.botId) return
+      api.put(`/bots/${s.botId}`, {
+        name: s.name,
+        description: s.description,
+        strategy: {
+          version: 1,
+          tier: s.tier,
+          personality: s.strategy.personality,
+          ...(s.tier !== 'quick' && {
+            rules: s.strategy.rules,
+            rangeChart: s.strategy.rangeChart,
+          }),
+        },
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Create bot immediately on mount for new bots (no ?id= param)
+  useEffect(() => {
+    if (searchParams.get('id') || !isAuthenticated) return
+
+    api.get('/bots/my?limit=100&offset=0')
+      .then((res) => {
+        const existingNames = new Set<string>(
+          (res.data.data ?? [])
+            .filter((b: { name: string; active?: boolean }) => b.active !== false)
+            .map((b: { name: string }) => b.name)
+        )
+        let name = 'My Bot'
+        let counter = 2
+        while (existingNames.has(name)) {
+          name = `My Bot ${counter++}`
+        }
+
+        return api.post('/bots/internal', {
+          name,
+          description: '',
+          strategy: {
+            version: 1,
+            tier: 'quick' as const,
+            personality: { aggression: 50, bluffFrequency: 30, riskTolerance: 50, tightness: 50 },
+          },
+        })
+      })
+      .then((res) => {
+        const bot = res.data
+        setState((prev) => ({ ...prev, botId: bot.id, name: bot.name, originalName: bot.name, isDirty: false }))
+        setSearchParams({ id: bot.id }, { replace: true })
+      })
+      .catch((err) => {
+        console.error('❌ Failed to create bot draft:', err)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated])
+
+  // Auto-save on name/description/strategy changes (updates only — bot already exists)
+  useEffect(() => {
+    if (!state.isDirty || !state.botId) {
       return
     }
-
-    console.log('⏰ Auto-save timer started for:', state.name)
 
     const timer = setTimeout(() => {
       const payload = {
@@ -176,17 +237,12 @@ export default function BotBuilder() {
         },
       }
 
-      console.log('💾 Auto-saving bot:', payload.name)
+      setState((prev) => ({ ...prev, isSaving: true }))
 
-      // Create new bot if it doesn't exist, otherwise update
-      const request = state.botId
-        ? api.put(`/bots/${state.botId}`, payload)
-        : api.post('/bots/internal', payload)
-
-      request
+      api.put(`/bots/${state.botId}`, payload)
         .then((res) => {
-          console.log('✅ Auto-save succeeded:', res.data)
           const newBotId = res.data.id
+          setSaveError(null)
 
           setState((prev) => ({
             ...prev,
@@ -194,32 +250,31 @@ export default function BotBuilder() {
             originalName: payload.name,
             originalDescription: payload.description,
             isDirty: false,
+            isSaving: false,
           }))
 
-          // Update URL if this is a new bot
-          if (!state.botId) {
-            setSearchParams({ id: newBotId })
-          }
+          setSavedJustNow(true)
+          setTimeout(() => setSavedJustNow(false), 2500)
 
           // Check for conflicts
           api
             .post('/bots/internal/check-conflicts', { strategy: payload.strategy })
             .then((res) => {
-              console.log('🔍 Conflicts check response:', res.data)
               setConflicts(res.data.conflicts || [])
-              console.log('⚠️ Conflicts found:', res.data.conflicts || [])
             })
             .catch((err) => {
               console.error('❌ Conflicts check failed:', err)
             })
         })
         .catch((err) => {
-          console.error('❌ Auto-save failed:', err)
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          setSaveError(msg ?? 'Failed to save — please try a different name.')
+          setState((prev) => ({ ...prev, isSaving: false }))
         })
-    }, 2000)
+    }, 500)
 
     return () => clearTimeout(timer)
-  }, [state.isDirty, state.name, state.description, state.tier, state.strategy, state.botId, setSearchParams, state.originalName])
+  }, [state.isDirty, state.name, state.description, state.tier, state.strategy, state.botId, state.originalName])
 
   // Load bot if ?id= param present
   useEffect(() => {
@@ -228,7 +283,6 @@ export default function BotBuilder() {
       api.get(`/bots/${botId}`)
         .then((res) => {
           const bot = res.data
-          console.log('📥 Bot loaded:', { id: bot.id, name: bot.name, description: bot.description })
           setState((prev) => ({
             ...prev,
             botId: bot.id,
@@ -291,6 +345,10 @@ export default function BotBuilder() {
 
   // Handle tier change
   const handleTierChange = (newTier: StrategyTier) => {
+    if (state.isDirty && newTier !== state.tier) {
+      setTierWarning('Switching modes will auto-save your current settings. Some settings may not carry over to the new mode.')
+      setTimeout(() => setTierWarning(''), 4000)
+    }
     setState((prev) => ({
       ...prev,
       tier: newTier,
@@ -320,13 +378,7 @@ export default function BotBuilder() {
     })
   }
 
-  const toggleSidebarCollapse = () => {
-    setSidebarCollapsed((prev) => {
-      const newVal = !prev
-      localStorage.setItem('botbuilder_sidebar_collapsed', JSON.stringify(newVal))
-      return newVal
-    })
-  }
+  const toggleSidebarCollapse = useSidebarStore((s) => s.toggle)
 
   if (!isAuthenticated) {
     return (
@@ -382,7 +434,7 @@ export default function BotBuilder() {
       {sidebarVisible && (
         <div
           style={{
-            width: sidebarCollapsed ? '60px' : '210px',
+            width: sidebarCollapsed ? 60 : 210,
             height: '100vh',
             background: '#0d0d22',
             borderRight: `1px solid ${C.border}`,
@@ -392,138 +444,104 @@ export default function BotBuilder() {
             left: 0,
             top: 0,
             zIndex: 40,
-            transition: 'width 0.3s ease',
-            overflowY: 'auto',
+            transition: 'width 0.2s',
+            overflow: 'visible',
             flexShrink: 0,
+            fontFamily: C.font,
           }}
         >
-          {/* Collapse button */}
-          <button
-            onClick={toggleSidebarCollapse}
-            style={{
-              position: 'absolute',
-              right: '-12px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: '24px',
-              height: '48px',
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: '0 8px 8px 0',
-              color: C.accent,
-              cursor: 'pointer',
-              zIndex: 50,
-            }}
-            title={sidebarCollapsed ? 'Expand' : 'Collapse'}
-          >
-            {sidebarCollapsed ? '▶' : '◀'}
-          </button>
-
           {/* Logo */}
-          {!sidebarCollapsed && (
-            <div style={{ padding: '20px' }}>
-              <div style={{ fontSize: '16px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase' }}>
-                <span style={{ color: C.text }}>Bot</span>
-                <span style={{ color: C.accent }}>Royale</span>
-              </div>
-            </div>
-          )}
+          <div style={{ padding: sidebarCollapsed ? '12px 12px 8px' : '28px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+            {!sidebarCollapsed && (
+              <>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', lineHeight: 1.1 }}>
+                  <span style={{ color: C.text }}>Bot</span>
+                  <span style={{ color: C.accent }}>Royale</span>
+                </div>
+                <div style={{ fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginTop: 6, whiteSpace: 'nowrap' }}>
+                  Automate. Compete. Win.
+                </div>
+              </>
+            )}
+            {sidebarCollapsed && <div style={{ fontSize: 16, color: C.accent }}>&#9670;</div>}
+          </div>
 
           {/* Navigation */}
-          <nav style={{ flex: 1, padding: '20px 0' }}>
+          <nav style={{ flex: 1, padding: '20px 0', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSidebarCollapse() }}
+              style={{
+                position: 'absolute', right: '-17px', top: '50%', transform: 'translateY(-50%)',
+                width: 34, height: 34, background: 'transparent', border: 'none',
+                color: 'rgba(0,229,255,0.5)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, fontWeight: 'bold', transition: 'color 0.2s', zIndex: 10, padding: 0,
+              }}
+              title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+            >
+              {sidebarCollapsed ? '\u00BB' : '\u00AB'}
+            </button>
             {[
               { label: 'Home', path: '/' },
               { label: 'My Bots', path: '/bots' },
               { label: 'Tournaments', path: '/tournaments' },
-              { label: 'Live Games', path: '/games' },
-            ].map(({ label, path }) => (
-              <button
-                key={path}
-                onClick={() => navigate(path)}
-                style={{
-                  width: '100%',
-                  padding: '10px 20px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: C.muted,
-                  fontSize: '14px',
-                  fontFamily: C.font,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s',
-                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                }}
-              >
-                {!sidebarCollapsed && label}
-              </button>
-            ))}
-
-            {/* Simulator button */}
-            <button
-              onClick={() => setSimulatorOpen(true)}
-              style={{
-                width: '100%',
-                padding: '10px 20px',
-                background: 'transparent',
-                border: 'none',
-                color: C.muted,
-                fontSize: '14px',
-                fontFamily: C.font,
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s',
-              }}
-            >
-              {!sidebarCollapsed && '🎮 Bot Simulator'}
-            </button>
+              { label: 'Leaderboard', path: '/leaderboard' },
+              { label: 'Tournament Analytics', path: '/games' },
+              { label: 'Simulations', path: '/simulations' },
+            ].map(({ label, path }) => {
+              const active = location.pathname === path
+              const icons: Record<string, React.ReactNode> = {
+                Home: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+                'My Bots': <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>,
+                Tournaments: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>,
+                Leaderboard: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="14" width="4" height="8"/><rect x="10" y="6" width="4" height="16"/><rect x="16" y="10" width="4" height="12"/></svg>,
+                'Tournament Analytics': <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg>,
+                Simulations: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+              }
+              return (
+                <button
+                  key={path}
+                  onClick={() => navigate(path)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', gap: sidebarCollapsed ? 0 : 10,
+                    width: '100%', padding: sidebarCollapsed ? '10px 0' : '10px 20px',
+                    background: active ? C.accentDim : 'transparent',
+                    border: 'none', borderLeft: sidebarCollapsed ? 'none' : `3px solid ${active ? C.accent : 'transparent'}`,
+                    color: active ? C.text : C.muted,
+                    fontSize: 14, fontFamily: C.font, cursor: 'pointer',
+                    textAlign: 'left', transition: 'all 0.15s',
+                  }}
+                >
+                  <span style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {icons[label]}
+                  </span>
+                  {!sidebarCollapsed && label}
+                </button>
+              )
+            })}
           </nav>
 
           {/* User section */}
-          {!sidebarCollapsed && (
-            <div style={{ padding: '16px 20px', borderTop: `1px solid ${C.border}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #00e5ff, #0070ff)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    color: '#000',
-                    flexShrink: 0,
-                  }}
-                >
-                  {(user?.name?.[0] ?? '?').toUpperCase()}
-                </div>
+          <div style={{ padding: sidebarCollapsed ? '20px 4px' : '16px 20px', borderTop: `1px solid ${C.border}`, position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', gap: 10 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #00e5ff, #0070ff)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 13, fontWeight: 700, color: '#000', flexShrink: 0,
+              }}>
+                {(user?.name?.[0] ?? '?').toUpperCase()}
+              </div>
+              {!sidebarCollapsed && (
                 <div style={{ overflow: 'hidden', flex: 1 }}>
-                  <div style={{ fontSize: '13px', color: C.text, fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {user?.name ?? 'Player'}
                   </div>
-                  <button
-                    onClick={() => {
-                      logout()
-                      navigate('/signin')
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: C.danger,
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      fontFamily: C.font,
-                      padding: 0,
-                    }}
-                  >
-                    Sign out
-                  </button>
+                  <div style={{ fontSize: 11, color: C.muted }}>{user?.role ?? 'user'}</div>
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -538,6 +556,12 @@ export default function BotBuilder() {
         }}
       >
         {/* Header */}
+        <style>{`
+          @keyframes savePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.45; }
+          }
+        `}</style>
         <div
           style={{
             padding: '2rem',
@@ -576,7 +600,7 @@ export default function BotBuilder() {
               onChange={(e) => {
                 const newName = e.target.value
                 const isDirty = newName !== state.originalName || state.description !== state.originalDescription
-                console.log('📝 Name changed:', { newName, originalName: state.originalName, isDirty })
+                setSaveError(null)
                 setState((prev) => ({
                   ...prev,
                   name: newName,
@@ -586,7 +610,7 @@ export default function BotBuilder() {
               placeholder="e.g., Aggressive Bot"
               style={{
                 background: C.bg,
-                border: `1.5px solid ${C.border}`,
+                border: `1.5px solid ${saveError ? '#e24b4a' : C.border}`,
                 color: C.text,
                 padding: '0.875rem 1rem',
                 borderRadius: '0.5rem',
@@ -598,6 +622,37 @@ export default function BotBuilder() {
                 boxSizing: 'border-box',
               }}
             />
+            {saveError && (
+              <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: '#e24b4a' }}>
+                {saveError}
+              </div>
+            )}
+          </div>
+
+          {/* Auto-save status indicator */}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', alignSelf: 'center' }}>
+            {state.isSaving && (
+              <span style={{
+                fontSize: '0.8rem',
+                color: C.muted,
+                fontFamily: C.font,
+                animation: 'savePulse 1s ease-in-out infinite',
+              }}>
+                Saving...
+              </span>
+            )}
+            {savedJustNow && !state.isSaving && (
+              <span style={{
+                fontSize: '0.8rem',
+                color: C.success,
+                fontFamily: C.font,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+              }}>
+                ✓ Saved
+              </span>
+            )}
           </div>
         </div>
 
@@ -619,8 +674,8 @@ export default function BotBuilder() {
               onClick={() => handleTierChange(tier)}
               style={{
                 padding: '0.625rem 1.25rem',
-                background: state.tier === tier ? C.accent : C.card,
-                color: state.tier === tier ? '#000000' : C.text,
+                background: state.tier === tier ? 'rgba(0, 229, 255, 0.12)' : C.card,
+                color: state.tier === tier ? C.accent : C.text,
                 border: `2px solid ${state.tier === tier ? C.accent : C.border}`,
                 borderRadius: '0.375rem',
                 fontFamily: C.font,
@@ -637,6 +692,21 @@ export default function BotBuilder() {
             </button>
           ))}
         </div>
+        {tierWarning && (
+          <div style={{
+            padding: '10px 24px',
+            background: 'rgba(245,158,11,0.1)',
+            borderBottom: '1px solid rgba(245,158,11,0.3)',
+            color: '#f59e0b',
+            fontSize: 12,
+            fontFamily: C.font,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            ⚠️ {tierWarning}
+          </div>
+        )}
 
         {/* Editor */}
         <div

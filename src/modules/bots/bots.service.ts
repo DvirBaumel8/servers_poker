@@ -34,14 +34,17 @@ export class BotsService {
     userId: string,
     dto: CreateInternalBotDto,
   ): Promise<BotResponseDto> {
-    const userBots = await this.botRepository.findByUserId(userId);
+    const userBots = await this.botRepository.findActiveByUserId(userId);
     if (userBots.length >= MAX_BOTS_PER_ACCOUNT) {
       throw new BadRequestException(
         `Maximum ${MAX_BOTS_PER_ACCOUNT} bots per account. Please deactivate or delete an existing bot.`,
       );
     }
 
-    const existing = await this.botRepository.findByName(dto.name);
+    const existing = await this.botRepository.findActiveByUserAndName(
+      userId,
+      dto.name,
+    );
     if (existing) {
       throw new ConflictException(`Bot name '${dto.name}' already exists`);
     }
@@ -143,7 +146,7 @@ export class BotsService {
       throw new ForbiddenException("You can only duplicate your own bots");
     }
 
-    const userBots = await this.botRepository.findByUserId(userId);
+    const userBots = await this.botRepository.findActiveByUserId(userId);
     if (userBots.length >= MAX_BOTS_PER_ACCOUNT) {
       throw new BadRequestException(
         `Maximum ${MAX_BOTS_PER_ACCOUNT} bots per account. Please deactivate or delete an existing bot.`,

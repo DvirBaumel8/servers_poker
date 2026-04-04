@@ -1,7 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
+import { Trophy } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
+import { Sidebar } from '../components/Sidebar'
+import Toast from '../components/Toast'
+import BotSelectionModal from '../components/tournaments/BotSelectionModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,6 +42,26 @@ interface Tournament {
   prize_pool?: number
 }
 
+interface ActivityItem {
+  id: string
+  botName: string
+  tournamentName: string
+  finishPosition: number | null
+  maxPlayers: number
+  payout: number
+  createdAt: string
+}
+
+interface LeaderboardEntry {
+  botId: string
+  botName: string
+  tierBadge: string
+  totalHands: number
+  totalTournaments: number
+  bb100: number
+  roiPct: number
+  itmPct: number
+}
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -52,172 +76,10 @@ const C = {
   muted: '#9ca3af',
   danger: '#e24b4a',
   success: '#1d9e75',
+  gold: '#ffd700',
+  silver: '#c0c0c0',
+  bronze: '#cd7f32',
   font: "'Trebuchet MS', sans-serif",
-}
-
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
-const NAV_ICONS = {
-  Home: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-    </svg>
-  ),
-  'My Bots': (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-    </svg>
-  ),
-  Tournaments: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/>
-    </svg>
-  ),
-  'Live Games': (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/>
-    </svg>
-  ),
-}
-
-const NAV = [
-  { label: 'Home', path: '/' },
-  { label: 'My Bots', path: '/bots' },
-  { label: 'Tournaments', path: '/tournaments' },
-  { label: 'Live Games', path: '/games' },
-]
-
-function Sidebar({ collapsed = false, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-
-  return (
-    <div style={{
-      width: collapsed ? 60 : 210, minHeight: '100vh', background: '#0d0d22', borderRight: `1px solid ${C.border}`,
-      display: 'flex', flexDirection: 'column', flexShrink: 0, fontFamily: C.font, transition: 'width 0.2s', overflow: 'visible',
-    }}>
-      {/* Logo */}
-      <div style={{ padding: collapsed ? '12px 12px 8px' : '28px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {!collapsed && (
-          <>
-            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }}>
-              <span style={{ color: C.text }}>Bot</span>
-              <span style={{ color: C.accent }}>Royale</span>
-            </div>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginTop: 4, whiteSpace: 'nowrap' }}>
-              Automate. Compete. Win.
-            </div>
-          </>
-        )}
-        {collapsed && (
-          <div style={{ fontSize: 16, color: C.accent }}>◆</div>
-        )}
-      </div>
-
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: '20px 0', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleCollapse() }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = C.accent
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = 'rgba(0, 229, 255, 0.5)'
-          }}
-          style={{
-            position: 'absolute', right: '-17px', top: '50%', transform: 'translateY(-50%)',
-            width: 34, height: 34,
-            background: 'transparent', border: 'none',
-            color: 'rgba(0, 229, 255, 0.5)', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, fontWeight: 'bold', transition: 'color 0.2s', zIndex: 10, padding: 0,
-            pointerEvents: 'auto',
-          }}
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          {collapsed ? '»' : '«'}
-        </button>
-        {NAV.map(({ label, path }, idx) => {
-          const active = location.pathname === path
-          return (
-            <div key={path}>
-              <button
-                onClick={() => navigate(path)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: collapsed ? 0 : 10,
-                  width: '100%', padding: collapsed ? '10px 0' : '10px 20px',
-                  background: active ? C.accentDim : 'transparent',
-                  border: 'none', borderLeft: collapsed ? 'none' : `3px solid ${active ? C.accent : 'transparent'}`,
-                  color: active ? C.text : C.muted,
-                  fontSize: 14, fontFamily: C.font, cursor: 'pointer',
-                  textAlign: 'left', transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {NAV_ICONS[label as keyof typeof NAV_ICONS]}
-                </span>
-                {!collapsed && label}
-              </button>
-            </div>
-          )
-        })}
-      </nav>
-
-      {/* User */}
-      <div style={{ padding: collapsed ? '20px 4px' : '16px 20px', borderTop: `1px solid ${C.border}`, position: 'relative' }}>
-        <button
-          onClick={() => setDropdownOpen(o => !o)}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 10, width: '100%',
-            background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
-          }}
-        >
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #00e5ff, #0070ff)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 700, color: '#000', flexShrink: 0,
-          }}>
-            {(user?.name?.[0] ?? '?').toUpperCase()}
-          </div>
-          {!collapsed && (
-            <>
-              <div style={{ overflow: 'hidden', flex: 1, textAlign: 'left' }}>
-                <div style={{ fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user?.name ?? 'Player'}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted }}>{user?.role ?? 'user'}</div>
-              </div>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </>
-          )}
-        </button>
-        {dropdownOpen && !collapsed && (
-          <div style={{
-            position: 'absolute', bottom: '100%', left: 12, right: 12, marginBottom: 6,
-            background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
-            overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-          }}>
-            <button
-              onClick={() => { setDropdownOpen(false); logout() }}
-              style={{
-                width: '100%', padding: '10px 14px', background: 'transparent',
-                border: 'none', color: C.danger, fontSize: 13, fontFamily: C.font,
-                cursor: 'pointer', textAlign: 'left',
-              }}
-            >
-              Sign out
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
 }
 
 // ─── Top bar ──────────────────────────────────────────────────────────────────
@@ -267,6 +129,18 @@ function SkeletonCard({ lines = 3 }: { lines?: number }) {
   )
 }
 
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyState({ icon, title, hint }: { icon: string; title: string; hint: string }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '32px 16px', color: C.muted, fontFamily: C.font }}>
+      <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.25 }}>{icon}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 12, color: C.muted, opacity: 0.7 }}>{hint}</div>
+    </div>
+  )
+}
+
 // ─── Slider bar (bot personality) ─────────────────────────────────────────────
 
 function SliderBar({ label, value }: { label: string; value: number }) {
@@ -277,6 +151,192 @@ function SliderBar({ label, value }: { label: string; value: number }) {
         <div style={{ width: `${value}%`, height: '100%', background: C.accent, borderRadius: 2 }} />
       </div>
       <span style={{ color: C.muted, width: 28, textAlign: 'right' }}>{value}</span>
+    </div>
+  )
+}
+
+// ─── Countdown timer ──────────────────────────────────────────────────────────
+
+function CountdownTimer({ targetIso }: { targetIso: string }) {
+  const [timeLeft, setTimeLeft] = useState('')
+
+  useEffect(() => {
+    function compute() {
+      const diff = new Date(targetIso).getTime() - Date.now()
+      if (diff <= 0) { setTimeLeft('Starting now'); return }
+      const h = Math.floor(diff / 3600000)
+      const m = Math.floor((diff % 3600000) / 60000)
+      const s = Math.floor((diff % 60000) / 1000)
+      setTimeLeft(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`)
+    }
+    compute()
+    const id = setInterval(compute, 1000)
+    return () => clearInterval(id)
+  }, [targetIso])
+
+  return <span>{timeLeft}</span>
+}
+
+// ─── Daily Tournament Hero ────────────────────────────────────────────────────
+
+function DailyTournamentHero({
+  tournament,
+  bots,
+  isRegistered,
+  onEnter,
+}: {
+  tournament: Tournament | null
+  bots: Bot[]
+  isRegistered: boolean
+  onEnter: (t: Tournament) => void
+}) {
+  const navigate = useNavigate()
+
+  if (!tournament) {
+    // Compute countdown to next 8 PM local
+    const next8pm = (() => {
+      const now = new Date()
+      const target = new Date(now)
+      target.setHours(20, 0, 0, 0)
+      if (now >= target) target.setDate(target.getDate() + 1)
+      return target.toISOString()
+    })()
+
+    return (
+      <div style={{
+        position: 'relative', overflow: 'hidden',
+        background: 'linear-gradient(135deg, #0d1b2a 0%, #13132a 60%, #0a1628 100%)',
+        border: `1px solid rgba(0,229,255,0.15)`,
+        borderRadius: 14, padding: '24px 28px', marginBottom: 28,
+        fontFamily: C.font, display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
+      }}>
+        <div style={{ position: 'absolute', right: -20, top: -30, fontSize: 180, color: '#ffffff03', userSelect: 'none', lineHeight: 1, pointerEvents: 'none' }}>♠</div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 11, color: C.accent, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 6, opacity: 0.7 }}>
+            Next Tournament
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+            Daily Master
+          </div>
+          <div style={{ fontSize: 12, color: C.muted }}>
+            The next daily session opens at 8 PM. Prepare your bot now.
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', flexShrink: 0 }}>
+          <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>Opens in</div>
+          <div style={{ fontSize: 42, fontWeight: 700, color: C.accent, fontVariantNumeric: 'tabular-nums', letterSpacing: 2 }}>
+            <CountdownTimer targetIso={next8pm} />
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Daily at 8:00 PM</div>
+        </div>
+        <div style={{ flexShrink: 0 }}>
+          <button
+            onClick={() => navigate(bots.length > 0 ? '/tournaments' : '/bots')}
+            style={{
+              padding: '9px 20px', borderRadius: 8,
+              background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
+              border: 'none', color: '#000',
+              fontWeight: 700, fontSize: 13, fontFamily: C.font,
+              cursor: 'pointer',
+            }}
+          >
+            {bots.length > 0 ? 'View Tournaments →' : 'Create Bot →'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const prize = tournament.prize_pool ?? tournament.buy_in
+  const registered = tournament.registered_count ?? tournament.players_count ?? 0
+  const hasBots = bots.length > 0
+
+  return (
+    <div style={{
+      position: 'relative', overflow: 'hidden',
+      background: 'linear-gradient(135deg, #0d1b2a 0%, #13132a 60%, #0a1628 100%)',
+      border: `1px solid rgba(0,229,255,0.25)`,
+      boxShadow: '0 0 40px rgba(0,229,255,0.06)',
+      borderRadius: 14, padding: '32px 36px', marginBottom: 28,
+      fontFamily: C.font, display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
+    }}>
+      {/* Background watermark */}
+      <div style={{ position: 'absolute', right: -20, top: -30, fontSize: 180, color: '#ffffff04', userSelect: 'none', lineHeight: 1, pointerEvents: 'none' }}>♠</div>
+
+      {/* Left: name + meta */}
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ fontSize: 11, color: C.accent, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 6, opacity: 0.8 }}>
+          Tonight's Tournament
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+          The Nightly Royale
+        </div>
+        <div style={{ fontSize: 12, color: C.muted }}>
+          {registered}/{tournament.max_players} bots registered
+        </div>
+      </div>
+
+      {/* Center: countdown + prize */}
+      <div style={{ textAlign: 'center', flexShrink: 0 }}>
+        <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>Starts in</div>
+        {tournament.scheduled_start_at ? (
+          <div style={{ fontSize: 42, fontWeight: 700, color: C.accent, fontVariantNumeric: 'tabular-nums', letterSpacing: 2 }}>
+            <CountdownTimer targetIso={tournament.scheduled_start_at} />
+          </div>
+        ) : (
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.muted }}>Open</div>
+        )}
+        {prize > 0 ? (
+          <div style={{ fontSize: 13, color: C.gold, fontWeight: 700, marginTop: 4 }}>
+            ${prize.toLocaleString()} prize pool
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: C.muted, fontWeight: 600, marginTop: 4 }}>
+            Community Glory
+          </div>
+        )}
+      </div>
+
+      {/* Right: actions */}
+      <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+        <button
+          onClick={() => navigate(`/tournaments/${tournament.id}`)}
+          style={{
+            padding: '9px 16px', borderRadius: 8,
+            background: 'transparent', border: `1px solid ${C.border}`,
+            color: C.muted, fontFamily: C.font, fontSize: 13,
+            cursor: 'pointer', fontWeight: 600,
+          }}
+        >
+          View Details
+        </button>
+        {isRegistered ? (
+          <button
+            disabled
+            style={{
+              padding: '9px 20px', borderRadius: 8,
+              background: 'transparent', border: `1px solid ${C.border}`,
+              color: C.muted, fontWeight: 700, fontSize: 13, fontFamily: C.font,
+              cursor: 'default', opacity: 0.8,
+            }}
+          >
+            Registered ✅
+          </button>
+        ) : (
+          <button
+            onClick={hasBots ? () => onEnter(tournament) : () => navigate('/bots')}
+            style={{
+              padding: '9px 20px', borderRadius: 8,
+              background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
+              border: 'none', color: '#000',
+              fontWeight: 700, fontSize: 13, fontFamily: C.font,
+              cursor: 'pointer',
+            }}
+          >
+            {hasBots ? 'Register Now' : 'Create Bot'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -427,13 +487,190 @@ function TournamentRow({
   )
 }
 
+// ─── Mini Leaderboard ─────────────────────────────────────────────────────────
+
+const RANK_COLORS = [C.gold, C.silver, C.bronze]
+const TIER_LABEL: Record<string, string> = {
+  TIER_1_QUICK: 'Quick',
+  TIER_2_MATRIX: 'Matrix',
+  TIER_3_ELITE: 'Elite',
+  QUICK: 'Quick',
+  MATRIX: 'Matrix',
+  ELITE: 'Elite',
+}
+
+function MiniLeaderboard({ entries, loading }: { entries: LeaderboardEntry[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {[1, 2, 3].map(i => <SkeletonCard key={i} lines={2} />)}
+      </div>
+    )
+  }
+
+  if (entries.length === 0) {
+    return <EmptyState icon="🥇" title="No ranked bots yet" hint="Stats update every 15 minutes after tournaments finish" />
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {entries.map((entry, i) => {
+        const totalGames = entry.totalTournaments ?? entry.totalHands ?? 0
+        return (
+          <div key={entry.botId} style={{
+            display: 'flex', alignItems: 'center', gap: 14,
+            background: C.card, border: `1px solid ${C.border}`,
+            borderRadius: 10, padding: '16px 16px', fontFamily: C.font,
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+              background: `rgba(${i === 0 ? '255,215,0' : i === 1 ? '192,192,192' : '205,127,50'},0.12)`,
+              border: `1px solid ${RANK_COLORS[i]}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, fontWeight: 700, color: RANK_COLORS[i],
+            }}>#{i + 1}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {entry.botName}
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                {TIER_LABEL[entry.tierBadge] ?? entry.tierBadge} · {totalGames} games
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: (entry.bb100 ?? 0) >= 0 ? C.success : C.danger }}>
+                {totalGames === 0 || entry.bb100 == null || isNaN(entry.bb100)
+                  ? <span style={{ color: C.muted }}>-- BB/100</span>
+                  : <>{entry.bb100 >= 0 ? '+' : ''}{entry.bb100.toFixed(1)}<span style={{ fontSize: 12, marginLeft: 3 }}>BB/100</span></>
+                }
+              </div>
+              <div style={{ fontSize: 11, color: C.muted }}>
+                {totalGames === 0 || entry.itmPct == null || isNaN(entry.itmPct) ? '-- ITM' : `${entry.itmPct.toFixed(0)}% ITM`}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Activity Feed ────────────────────────────────────────────────────────────
+
+function relativeTime(isoStr: string): string {
+  const diff = Date.now() - new Date(isoStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
+const EXAMPLE_ACTIVITIES = [
+  { icon: '🏆', text: 'Your bot will appear here after the first tournament', sub: 'Register a bot to get started', faded: true },
+  { icon: '♠', text: 'ExampleBot finished #3 of 45 in The Nightly Royale', sub: 'Earned $12.50 · 2 hours ago', faded: true },
+  { icon: '♣', text: 'AnotherBot placed #1 in Daily Master', sub: 'Earned $45.00 · yesterday', faded: true },
+]
+
+function ActivityFeed({ items, loading }: { items: ActivityItem[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {[1, 2, 3].map(i => <SkeletonCard key={i} lines={2} />)}
+      </div>
+    )
+  }
+
+  const SUIT_ICONS = ['♣', '♠', '♥', '♦']
+
+  function ActivityIconChip({ pos, index }: { pos: number | null; index: number }) {
+    const isTop3 = pos !== null && pos <= 3
+    const chipBg = isTop3 ? 'rgba(255,215,0,0.12)' : 'rgba(156,163,175,0.08)'
+    const chipBorder = isTop3 ? 'rgba(255,215,0,0.35)' : C.border
+    return (
+      <div style={{
+        width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+        background: chipBg, border: `1px solid ${chipBorder}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {isTop3
+          ? <Trophy size={19} color={pos === 1 ? C.gold : pos === 2 ? C.silver : C.bronze} />
+          : <span style={{ fontSize: 18, color: C.muted }}>{SUIT_ICONS[index % SUIT_ICONS.length]}</span>
+        }
+      </div>
+    )
+  }
+
+  if (items.length > 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.map((item, index) => {
+          const pos = item.finishPosition
+          const isWin = pos === 1
+          const isTop3 = pos !== null && pos <= 3
+          const isITM = pos !== null && pos <= Math.max(1, Math.floor(item.maxPlayers * 0.15))
+          const payoutLabel = item.payout > 0 ? ` · earned $${item.payout.toFixed(2)}` : ''
+
+          return (
+            <div key={item.id} style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              background: C.card, border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: '18px 16px', fontFamily: C.font,
+            }}>
+              <ActivityIconChip pos={pos} index={index} />
+              <div style={{ flex: 1, minWidth: 0, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 14, color: C.text, fontWeight: 600 }}>
+                  {item.botName} finished{' '}
+                  {pos !== null
+                    ? <><span style={{ fontWeight: 800 }}>#{pos}</span> of {item.maxPlayers}</>
+                    : 'participated'
+                  }{' '}in {item.tournamentName}
+                </div>
+                <div style={{ fontSize: 12, color: isWin ? C.gold : isTop3 ? C.silver : isITM ? C.success : C.muted, marginTop: 2 }}>
+                  {isWin ? 'Winner!' : isTop3 ? `Top 3 finish` : isITM ? 'In the money' : 'Played'}{payoutLabel} · {relativeTime(item.createdAt)}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // No real data — show example items with faded style
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{
+        fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 1,
+        marginBottom: 4, opacity: 0.6, fontFamily: C.font,
+      }}>
+        Example — your activity will appear here after tournaments
+      </div>
+      {EXAMPLE_ACTIVITIES.map((ex, i) => (
+        <div key={i} style={{
+          display: 'flex', alignItems: 'center', gap: 14,
+          background: C.card, border: `1px solid ${C.border}`,
+          borderRadius: 10, padding: '18px 16px', fontFamily: C.font, opacity: 0.4,
+        }}>
+          <ActivityIconChip pos={i === 0 ? null : i} index={i} />
+          <div style={{ flex: 1, minWidth: 0, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 14, color: C.text, fontWeight: 600 }}>{ex.text}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{ex.sub}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
 function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 32, fontFamily: C.font }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: 1, fontFamily: C.font }}>{title}</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: C.text, letterSpacing: 1, fontFamily: C.font }}>{title}</div>
         {action}
       </div>
       {children}
@@ -441,9 +678,10 @@ function Section({ title, action, children }: { title: string; action?: React.Re
   )
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
+// ─── Empty state (new user) ───────────────────────────────────────────────────
 
-function EmptyDashboard({ tournaments, loadingTournaments }: { tournaments: Tournament[]; loadingTournaments: boolean }) {
+function EmptyDashboard({ tournaments, loadingTournaments, bots, onEnter }: { tournaments: Tournament[]; loadingTournaments: boolean; bots: Bot[]; onEnter: (t: Tournament) => void }) {
+  const navigate = useNavigate()
   return (
     <>
       {/* Welcome banner */}
@@ -457,7 +695,18 @@ function EmptyDashboard({ tournaments, loadingTournaments }: { tournaments: Tour
           fontSize: 160, color: '#ffffff08', lineHeight: 1, userSelect: 'none',
         }}>♠</div>
         <div style={{ fontSize: 26, fontWeight: 700, color: C.text, marginBottom: 8 }}>Welcome to BotRoyale</div>
-        <div style={{ fontSize: 15, color: C.muted }}>Build your first bot in 30 seconds and start competing in tournaments automatically.</div>
+        <div style={{ fontSize: 15, color: C.muted, marginBottom: 20 }}>Build your first bot in 30 seconds and start competing in tournaments automatically.</div>
+        <button
+          onClick={() => navigate('/bots/build')}
+          style={{
+            padding: '10px 22px', borderRadius: 8,
+            background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
+            border: 'none', color: '#000',
+            fontWeight: 700, fontSize: 14, fontFamily: C.font, cursor: 'pointer', letterSpacing: 0.5,
+          }}
+        >
+          Create Your First Bot →
+        </button>
       </div>
 
       {/* 3-step cards */}
@@ -480,20 +729,24 @@ function EmptyDashboard({ tournaments, loadingTournaments }: { tournaments: Tour
         ))}
       </div>
 
-      {/* Upcoming tournaments */}
-      <Section title="Upcoming Tournaments">
-        {loadingTournaments ? (
+      {/* Daily Tournament Hero — always visible even with no bots */}
+      {!loadingTournaments && (
+        <DailyTournamentHero
+          tournament={tournaments.find(t => /daily master/i.test(t.name)) ?? (tournaments[0] ?? null)}
+          bots={bots}
+          isRegistered={false}
+          onEnter={onEnter}
+        />
+      )}
+
+      {/* Other upcoming tournaments */}
+      {!loadingTournaments && tournaments.length > 1 && (
+        <Section title="More Tournaments">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2, 3].map(i => <SkeletonCard key={i} lines={2} />)}
+            {tournaments.slice(1).map(t => <TournamentRow key={t.id} tournament={t} canEnter={false} />)}
           </div>
-        ) : tournaments.length === 0 ? (
-          <div style={{ color: C.muted, fontSize: 14, padding: '20px 0' }}>No upcoming tournaments right now.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {tournaments.map(t => <TournamentRow key={t.id} tournament={t} canEnter={false} />)}
-          </div>
-        )}
-      </Section>
+        </Section>
+      )}
     </>
   )
 }
@@ -503,37 +756,70 @@ function EmptyDashboard({ tournaments, loadingTournaments }: { tournaments: Tour
 function ReturningDashboard({
   bots,
   tournaments,
+  walletBalance,
+  activity,
+  leaderboard,
   loadingBots,
   loadingTournaments,
+  loadingActivity,
+  loadingLeaderboard,
   onTournamentsRefresh,
 }: {
   bots: Bot[]
   tournaments: Tournament[]
+  walletBalance: string | null
+  activity: ActivityItem[]
+  leaderboard: LeaderboardEntry[]
   loadingBots: boolean
   loadingTournaments: boolean
+  loadingActivity: boolean
+  loadingLeaderboard: boolean
   onTournamentsRefresh: () => void
 }) {
   const navigate = useNavigate()
   const activeBots = bots.filter(b => b.active).length
   const [enterTarget, setEnterTarget] = useState<Tournament | null>(null)
+  const [registeredBotId, setRegisteredBotId] = useState<string | null>(null)
+  const [hoverBotId, setHoverBotId] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const isRegistered = registeredBotId !== null
+
+  function handleRegister(tournament: Tournament) {
+    setEnterTarget(tournament)
+  }
 
   const totalWins = bots.reduce((s, b) => s + (b.wins ?? 0), 0)
   const totalEntered = bots.reduce((s, b) => s + (b.tournaments_count ?? 0), 0)
   const winRate = totalEntered > 0 ? Math.round((totalWins / totalEntered) * 100) : 0
 
+  // Detect daily tournament
+  const dailyTournament = tournaments.find(t => /daily master/i.test(t.name)) ?? null
+
   return (
     <>
+      {/* Daily Tournament Hero */}
+      <DailyTournamentHero
+        tournament={dailyTournament ?? (tournaments[0] ?? null)}
+        bots={bots}
+        isRegistered={isRegistered}
+        onEnter={handleRegister}
+      />
+
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
         {[
-          { label: 'Balance', value: '$0.00', sub: 'hardcoded' },
+          { label: 'Balance', value: walletBalance !== null ? `$${Number(walletBalance).toLocaleString()}` : '…', sub: 'available' },
           { label: 'My Bots', value: bots.length.toString(), sub: `${activeBots} active` },
           { label: 'Win Rate', value: `${winRate}%`, sub: `${totalWins}/${totalEntered} tournaments` },
         ].map(({ label, value, sub }) => (
           <div key={label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 24px', fontFamily: C.font }}>
-            <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>{label}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: C.text }}>{value}</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{sub}</div>
+            <div style={{ fontSize: 13, color: C.muted, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>{label}</div>
+            <div style={{ fontSize: 34, fontWeight: 700, color: C.text }}>
+              {label === 'Balance' && walletBalance === null
+                ? <span style={{ opacity: 0.4 }}>…</span>
+                : value}
+            </div>
+            <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{sub}</div>
           </div>
         ))}
       </div>
@@ -551,13 +837,29 @@ function ReturningDashboard({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
             {[1, 2].map(i => <SkeletonCard key={i} lines={4} />)}
           </div>
+        ) : bots.length === 0 ? (
+          <EmptyState icon="♠" title="No bots yet" hint="Create your first bot to get started" />
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
             {bots.slice(0, 4).map((bot, i) => {
               const p = bot.strategy?.personality ?? {}
               const wr = bot.win_rate ?? 0
               return (
-                <div key={bot.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, fontFamily: C.font }}>
+                <div
+                  key={bot.id}
+                  onClick={() => navigate(`/bots/build?id=${bot.id}`)}
+                  onMouseEnter={() => setHoverBotId(bot.id)}
+                  onMouseLeave={() => setHoverBotId(null)}
+                  style={{
+                    background: C.card,
+                    border: `1px solid ${hoverBotId === bot.id ? C.accent : C.border}`,
+                    borderRadius: 12, padding: 18, fontFamily: C.font,
+                    cursor: 'pointer',
+                    transform: hoverBotId === bot.id ? 'translateY(-2px)' : 'none',
+                    boxShadow: hoverBotId === bot.id ? '0 4px 20px rgba(0,229,255,0.12)' : 'none',
+                    transition: 'border-color 0.15s, transform 0.15s, box-shadow 0.15s',
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: '50%',
@@ -571,9 +873,9 @@ function ReturningDashboard({
                         {wr > 0 ? `${wr}% win rate` : 'No games yet'}
                       </div>
                     </div>
-                    {bot.active && (
+                    {bot.id === registeredBotId && (
                       <div style={{ marginLeft: 'auto', fontSize: 10, color: C.success, background: 'rgba(29,158,117,0.1)', padding: '2px 8px', borderRadius: 20, border: '1px solid rgba(29,158,117,0.3)' }}>
-                        Active
+                        Registered
                       </div>
                     )}
                   </div>
@@ -595,38 +897,39 @@ function ReturningDashboard({
         )}
       </Section>
 
-      {/* Upcoming Tournaments */}
-      <Section
-        title="Upcoming Tournaments"
-        action={
-          <button onClick={() => navigate('/tournaments')} style={{ background: 'none', border: 'none', color: C.accent, fontSize: 13, cursor: 'pointer', fontFamily: C.font }}>
-            Browse all →
-          </button>
-        }
-      >
-        {loadingTournaments ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2, 3].map(i => <SkeletonCard key={i} lines={2} />)}
-          </div>
-        ) : tournaments.length === 0 ? (
-          <div style={{ color: C.muted, fontSize: 14, padding: '20px 0' }}>No upcoming tournaments right now.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {tournaments.map(t => (
-              <TournamentRow key={t.id} tournament={t} canEnter={true} onEnter={() => setEnterTarget(t)} />
-            ))}
-          </div>
-        )}
-      </Section>
+      {/* Two-column: Activity Feed (60%) + Top Bots (40%) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, marginBottom: 32, alignItems: 'start' }}>
+        <Section title="Recent Activity">
+          <ActivityFeed items={activity} loading={loadingActivity} />
+        </Section>
+
+        <Section
+          title="Top Bots"
+          action={
+            <button onClick={() => navigate('/leaderboard')} style={{ background: 'none', border: 'none', color: C.accent, fontSize: 13, cursor: 'pointer', fontFamily: C.font }}>
+              Full board →
+            </button>
+          }
+        >
+          <MiniLeaderboard entries={leaderboard} loading={loadingLeaderboard} />
+        </Section>
+      </div>
 
       {enterTarget && (
-        <EnterModal
-          tournament={enterTarget}
-          bots={bots}
+        <BotSelectionModal
+          tournamentId={enterTarget.id}
           onClose={() => setEnterTarget(null)}
-          onSuccess={onTournamentsRefresh}
+          onJoining={() => {}}
+          onSuccess={(botId) => {
+            setEnterTarget(null)
+            setRegisteredBotId(botId)
+            setToast("Good luck! Your bot is in for tonight's Royale")
+            onTournamentsRefresh()
+          }}
+          onError={() => setEnterTarget(null)}
         />
       )}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </>
   )
 }
@@ -640,15 +943,15 @@ export default function Home() {
 
   const [bots, setBots] = useState<Bot[]>([])
   const [tournaments, setTournaments] = useState<Tournament[]>([])
+  const [walletBalance, setWalletBalance] = useState<string | null>(null)
+  const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
 
   const [loadingBots, setLoadingBots] = useState(true)
   const [loadingTournaments, setLoadingTournaments] = useState(true)
+  const [loadingActivity, setLoadingActivity] = useState(true)
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(true)
   const [error, setError] = useState('')
-
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('home_sidebar_collapsed')
-    return saved !== null ? JSON.parse(saved) : false
-  })
 
   async function fetchBots() {
     try {
@@ -660,6 +963,15 @@ export default function Home() {
       setError('Failed to load bots.')
     } finally {
       setLoadingBots(false)
+    }
+  }
+
+  async function fetchWallet() {
+    try {
+      const res = await api.get('/finance/wallet')
+      setWalletBalance(res.data.balance ?? '0')
+    } catch {
+      setWalletBalance('0')
     }
   }
 
@@ -675,11 +987,37 @@ export default function Home() {
     }
   }
 
+  async function fetchActivity() {
+    try {
+      const res = await api.get('/tournaments/my-activity')
+      setActivity(Array.isArray(res.data) ? res.data : [])
+    } catch {
+      setActivity([])
+    } finally {
+      setLoadingActivity(false)
+    }
+  }
+
+  async function fetchLeaderboard() {
+    try {
+      const res = await api.get('/leaderboard?limit=3&sortBy=bb100')
+      const data = res.data
+      const entries: LeaderboardEntry[] = (data.data ?? data.bots ?? (Array.isArray(data) ? data : [])).slice(0, 3)
+      setLeaderboard(entries)
+    } catch {
+      setLeaderboard([])
+    } finally {
+      setLoadingLeaderboard(false)
+    }
+  }
+
   useEffect(() => {
     if (initialLoadRef.current) {
-      // First load: fetch all data
       fetchBots()
       fetchTournaments()
+      fetchWallet()
+      fetchActivity()
+      fetchLeaderboard()
       initialLoadRef.current = false
     }
   }, [])
@@ -691,21 +1029,13 @@ export default function Home() {
     }
   }, [location.pathname])
 
-  const toggleSidebarCollapse = () => {
-    setSidebarCollapsed((prev) => {
-      const newVal = !prev
-      localStorage.setItem('home_sidebar_collapsed', JSON.stringify(newVal))
-      return newVal
-    })
-  }
-
   const isLoading = loadingBots
   const hasBots = !loadingBots && bots.length > 0
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: C.bg, fontFamily: C.font }}>
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
-      <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+      <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <TopBar onCreateBot={() => navigate('/bots/build')} />
         <main style={{ flex: 1, overflowY: 'auto', padding: '28px' }}>
@@ -732,14 +1062,21 @@ export default function Home() {
             <ReturningDashboard
               bots={bots}
               tournaments={tournaments}
+              walletBalance={walletBalance}
+              activity={activity}
+              leaderboard={leaderboard}
               loadingBots={loadingBots}
               loadingTournaments={loadingTournaments}
+              loadingActivity={loadingActivity}
+              loadingLeaderboard={loadingLeaderboard}
               onTournamentsRefresh={fetchTournaments}
             />
           ) : (
             <EmptyDashboard
               tournaments={tournaments}
               loadingTournaments={loadingTournaments}
+              bots={bots}
+              onEnter={(t) => {/* new users have no bots; hero's CTA navigates to /bots/build instead */void t}}
             />
           )}
 

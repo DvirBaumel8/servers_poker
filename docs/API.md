@@ -805,3 +805,136 @@ All errors follow this format:
 | 404 | Not Found - Resource doesn't exist |
 | 429 | Too Many Requests - Rate limited |
 | 500 | Internal Server Error |
+
+---
+
+## Support
+
+### POST /contact
+
+Submit a support ticket. No authentication required.
+
+**Rate limit:** 3 requests per IP per hour.
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "subject": "Issue with hand history",
+  "message": "Detailed description of the issue (min 10 chars).",
+  "handId": "optional-hand-uuid",
+  "tournamentId": "optional-tournament-uuid"
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "open"
+}
+```
+
+**Behavior:**
+- Ticket is persisted to `support_tickets` table with `status = open`.
+- Metadata (userAgent, referer URL, handId, tournamentId) is stored in a JSONB column for debugging.
+- An admin notification email is sent to `SUPPORT_ADMIN_EMAIL` asynchronously (fire-and-forget). If the email fails with a 5xx SMTP error it retries up to 3 times with exponential backoff (1s/2s/4s). 4xx errors are logged without retry. Email failure never affects the HTTP response.
+- If `handId` is provided, the admin email includes a link to `/api/v1/hands/{handId}`.
+
+---
+
+### Leaderboard
+
+#### GET /leaderboard
+
+Get the bot leaderboard with advanced poker metrics, filterable by strategy tier, time period, and sort order. **Public — no auth required.**
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tier` | `QUICK \| MATRIX \| ELITE` | — | Filter by strategy tier |
+| `period` | `daily \| weekly \| monthly \| all_time` | `all_time` | Time period for stats |
+| `sortBy` | `bb100 \| roi` | `bb100` | Sort by BB/100 or ROI |
+| `minGames` | number | `10` | Minimum hands played to appear |
+| `limit` | number | `50` | Page size (max 100) |
+| `offset` | number | `0` | Pagination offset |
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "botId": "uuid",
+      "botName": "SharkBot",
+      "userId": "uuid",
+      "tierBadge": "TIER_3_ELITE",
+      "bb100": 12.5,
+      "itmPct": 22.3,
+      "roiPct": 45.0,
+      "totalHands": 5000,
+      "totalTournaments": 50,
+      "tournamentWins": 8,
+      "totalNet": "150000",
+      "totalPayout": "300000",
+      "rank": 1
+    }
+  ],
+  "total": 142,
+  "limit": 50,
+  "offset": 0,
+  "lastRefreshedAt": "2026-04-04T12:00:00.000Z"
+}
+```
+
+**Tier Badge Mapping:**
+- `TIER_1_QUICK` — Quick tier (personality sliders only)
+- `TIER_2_MATRIX` — Strategy tier (rules + range chart)
+- `TIER_3_ELITE` — Pro tier (position overrides)
+
+**Behavior:**
+- `all_time` period reads from a materialized view (sub-millisecond). Other periods compute aggregates at query time filtered by `finished_at`.
+- The materialized view refreshes every 15 minutes via a cron job.
+- BB/100 = `SUM(net_chips) / SUM(big_blind) * 100` (standard poker win rate metric).
+- ITM% = percentage of finished tournaments where finish position was in the top 15%.
+- ROI% = `(total_payout - total_buy_in) / total_buy_in * 100`.
+
+---
+
+#### GET /leaderboard/:botId
+
+Get detailed performance metrics for a specific bot, including hot streak and consistency index. **Public — no auth required.**
+
+**Response (200):**
+```json
+{
+  "botId": "uuid",
+  "botName": "SharkBot",
+  "tierBadge": "TIER_3_ELITE",
+  "bb100": 12.5,
+  "itmPct": 22.3,
+  "roiPct": 45.0,
+  "totalHands": 5000,
+  "totalTournaments": 50,
+  "tournamentWins": 8,
+  "totalNet": "150000",
+  "totalPayout": "300000",
+  "hotStreak": [
+    {
+      "tournamentId": "uuid",
+      "tournamentName": "Daily Master 2026-04-03",
+      "finishPosition": 2,
+      "maxPlayers": 45,
+      "isItm": true,
+      "finishedAt": "2026-04-03T22:30:00.000Z"
+    }
+  ],
+  "consistencyIndex": 3.2
+}
+```
+
+**Response (404):** Bot not found on leaderboard.
+
+**Behavior:**
+- `hotStreak` returns the last 5 finished tournament results with ITM status.
+- `consistencyIndex` is the standard deviation of finish positions across all finished tournaments. Lower values indicate more consistent performance. Returns `null` if fewer than 2 tournaments played.

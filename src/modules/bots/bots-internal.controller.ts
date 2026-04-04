@@ -92,6 +92,7 @@ export class BotsInternalController {
         ante: 0,
       },
       players: this.buildSimPlayers(scenario),
+      decisionSeed: "0000000000000000",
     };
 
     const result = evaluateStrategy(strategy as BotStrategy, payload);

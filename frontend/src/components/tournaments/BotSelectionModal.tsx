@@ -32,7 +32,7 @@ interface BotSelectionModalProps {
   tournamentId: string
   onClose: () => void
   onJoining: () => void
-  onSuccess: () => void
+  onSuccess: (botId: string) => void
   onError: (message: string) => void
 }
 
@@ -59,7 +59,8 @@ export default function BotSelectionModal({
     try {
       const res = await api.get('/bots/my')
       const data = res.data
-      const botList = Array.isArray(data) ? data : data.data ?? []
+      const allBots = Array.isArray(data) ? data : data.data ?? []
+      const botList = allBots.filter((b: Bot) => b.active !== false)
       setBots(botList)
       if (botList.length > 0) {
         setSelectedBotId(botList[0].id)
@@ -79,7 +80,7 @@ export default function BotSelectionModal({
     onJoining()
     try {
       await api.post(`/tournaments/${tournamentId}/register`, { bot_id: selectedBotId })
-      onSuccess()
+      onSuccess(selectedBotId)
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to join tournament'
       onError(message)

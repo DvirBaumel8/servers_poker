@@ -143,10 +143,6 @@ export class TablesService {
     return this.tableRepository.updateStatus(id, status);
   }
 
-  async getSeatCount(tableId: string): Promise<number> {
-    return this.tableRepository.getSeatCount(tableId);
-  }
-
   async joinTable(
     tableId: string,
     dto: JoinTableDto,
@@ -168,32 +164,46 @@ export class TablesService {
       throw new ConflictException("Bot is deactivated");
     }
 
-    return this.joinTableInProcess(tableId, table, bot);
+    return this.joinTableInProcess(tableId, table, bot, userId);
   }
 
   private async joinTableInProcess(
     tableId: string,
     table: Table,
     bot: { id: string; name: string; strategy: Record<string, any> | null },
+    userId?: string,
   ): Promise<JoinTableResponseDto> {
+    let liveGame = this.liveGameManager.getGame(tableId);
+
+    if (liveGame) {
+      const players = liveGame.game.players;
+      if (players.length >= table.max_players) {
+        throw new ConflictException(
+          `Table is full (max ${table.max_players} players)`,
+        );
+      }
+      if (players.some((p) => p.id === bot.id)) {
+        throw new ConflictException("This bot is already seated at this table");
+      }
+      if (userId && players.length > 0) {
+        const playerBots = await this.botRepository.findByIds(
+          players.map((p) => p.id),
+        );
+        if (playerBots.some((b) => b.user_id === userId)) {
+          throw new ConflictException(
+            "You already have a bot at this table. Only one bot per player allowed.",
+          );
+        }
+      }
+    }
+
     const result = await this.dataSource.transaction(
       "SERIALIZABLE",
       async (manager) => {
-        const joinResult = await this.tableRepository.atomicJoinTable(
-          tableId,
-          bot.id,
-          table.max_players,
-          manager,
-        );
-
-        if (!joinResult.ok) {
-          throw new ConflictException(joinResult.error);
-        }
-
-        let liveGame = this.liveGameManager.getGame(tableId);
+        let currentLiveGame = this.liveGameManager.getGame(tableId);
         let gameDbId: string;
 
-        if (!liveGame) {
+        if (!currentLiveGame) {
           const gameRow = await this.gameRepository.createGame(
             tableId,
             undefined,
@@ -208,23 +218,32 @@ export class TablesService {
             startingChips: Number(table.starting_chips),
             turnTimeoutMs: table.turn_timeout_ms,
           });
-          liveGame = this.liveGameManager.getGame(tableId)!;
+          currentLiveGame = this.liveGameManager.getGame(tableId)!;
         } else {
-          gameDbId = liveGame.gameDbId;
+          gameDbId = currentLiveGame.gameDbId;
+        }
+
+        // Authoritative max-players check via DB (in-memory count may lag due to queued mutations)
+        const playerCount = await manager.count("game_players", {
+          where: { game_id: gameDbId },
+        });
+        if (playerCount >= table.max_players) {
+          throw new ConflictException(
+            `Table is full (max ${table.max_players} players)`,
+          );
         }
 
         await this.gameRepository.addGamePlayer(
           gameDbId,
           bot.id,
-          Number(table.starting_chips),
+          BigInt(table.starting_chips),
           manager,
         );
 
-        return { liveGame, gameDbId };
+        return { liveGame: currentLiveGame, gameDbId };
       },
     );
-
-    const liveGame = result.liveGame;
+    liveGame = result.liveGame;
     liveGame.game.addPlayer({
       id: bot.id,
       name: bot.name,

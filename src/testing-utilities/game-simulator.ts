@@ -182,7 +182,7 @@ export async function runSimulatedGame(config: {
   const playerRemovedHandler = (data: { playerId: string }) => {
     // Check if any player was eliminated
     const player = game.players.find((p) => p.id === data.playerId);
-    if (player && player.chips === 0) {
+    if (player && Number(player.chips) === 0) {
       coverage.playerElimination++;
     }
   };

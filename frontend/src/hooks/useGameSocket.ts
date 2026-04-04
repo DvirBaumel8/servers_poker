@@ -225,8 +225,7 @@ export function useGameSocket(gameId: string): {
       }
       tournamentInfoRef.current = info
       setTournamentInfo(info)
-    } catch (error) {
-      console.warn(`Failed to fetch tournament ${tournamentId}:`, error)
+    } catch {
       // Keep default/existing tournament info on error
     }
   }
@@ -239,8 +238,8 @@ export function useGameSocket(gameId: string): {
         const response = await api.get('/bots')
         const bots = Array.isArray(response.data) ? response.data : (response.data?.data || [])
         setMyBotIds(bots.map((b: any) => b.id))
-      } catch (error) {
-        console.warn('Failed to fetch user bots:', error)
+      } catch {
+        // ignore — myBotIds stays empty if fetch fails
       }
     }
     fetchMyBots()
@@ -252,7 +251,6 @@ export function useGameSocket(gameId: string): {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
     const wsUrl = apiUrl.replace(/^https?:/, 'ws:').replace(/\/$/, '')
 
-    console.log('[useGameSocket] Connecting to:', `${wsUrl}/game`, 'for gameId:', gameId)
     const socket = io(`${wsUrl}/game`, {
       auth: token
         ? { token: `Bearer ${token}` }
@@ -267,13 +265,11 @@ export function useGameSocket(gameId: string): {
 
     // Connection events
     socket.on('connect', () => {
-      console.log('✅ [useGameSocket] WebSocket connected, subscribing to game:', gameId)
       setConnectionStatus('connected')
       socket.emit('subscribe', { tableId: gameId })
     })
 
-    socket.on('disconnect', (reason: string) => {
-      console.log('❌ [useGameSocket] WebSocket disconnected. Reason:', reason)
+    socket.on('disconnect', (_reason: string) => {
       setConnectionStatus('disconnected')
     })
 
@@ -288,22 +284,13 @@ export function useGameSocket(gameId: string): {
 
     // Game events
     socket.on('gameState', (payload: BackendGameState) => {
-      console.log('📨 [useGameSocket] Received gameState:', {
-        players: payload.players?.length,
-        pot: payload.pot,
-        stage: payload.stage,
-        handNumber: payload.handNumber,
-        status: payload.status
-      })
       // Fetch tournament info if we have a tournamentId and haven't fetched yet
       if (payload.tournamentId && !tournamentIdRef.current) {
-        console.log('[useGameSocket] Fetching tournament info for:', payload.tournamentId)
         tournamentIdRef.current = payload.tournamentId
         fetchTournamentInfo(payload.tournamentId)
       }
       lastSnapshotRef.current = payload
       const mapped = mapBackendToGameState(payload, gameId, lastActionsRef.current, tournamentInfoRef.current)
-      console.log('[useGameSocket] Setting game state with stage:', mapped.stage)
       setGameState({
         ...mapped,
         handResult: handResultRef.current,

@@ -1,5 +1,10 @@
 import { beforeAll, afterAll, vi } from "vitest";
 
+// BigInt → string for JSON.stringify (matches main.ts monkey-patch)
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
+
 beforeAll(() => {
   process.env.NODE_ENV = "test";
   process.env.JWT_SECRET = "test-secret-key-for-testing";

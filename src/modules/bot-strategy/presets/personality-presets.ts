@@ -4,11 +4,12 @@ export const PERSONALITY_PRESETS: PersonalityPreset[] = [
   {
     id: "shark",
     name: "The Shark",
-    description: "Tight-aggressive. Plays few hands but plays them hard.",
+    description:
+      "Tight-aggressive. Plays premium hands with disciplined aggression.",
     personality: {
       aggression: 75,
-      bluffFrequency: 35,
-      riskTolerance: 65,
+      bluffFrequency: 20,
+      riskTolerance: 50,
       tightness: 70,
     },
     styleDescription:

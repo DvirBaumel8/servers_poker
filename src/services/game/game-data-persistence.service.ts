@@ -7,7 +7,6 @@ import { Hand } from "../../entities/hand.entity";
 import { HandPlayer } from "../../entities/hand-player.entity";
 import { Action, ActionType, ActionStage } from "../../entities/action.entity";
 import { GamePlayer } from "../../entities/game-player.entity";
-import { BotStats } from "../../entities/bot-stats.entity";
 import { BotEvent } from "../../entities/bot-event.entity";
 import { isPostgresError, PG_ERROR_CODES } from "../../common/utils";
 
@@ -16,27 +15,29 @@ interface PlayerActionEvent {
   gameId: string;
   botId: string;
   action: string;
-  amount: number;
-  pot: number;
+  amount: bigint;
+  pot: bigint;
   handNumber?: number;
   stage?: string;
-  chipsAfter?: number;
+  chipsAfter?: bigint;
   responseTimeMs?: number;
+  actionSeq?: number;
 }
 
 interface HandStartedEvent {
   tableId: string;
   gameId: string;
+  tournamentId?: string;
   handNumber: number;
   players?: Array<{
     id: string;
-    chips: number;
+    chips: bigint;
     position: number;
   }>;
   dealerBotId?: string;
-  smallBlind?: number;
-  bigBlind?: number;
-  ante?: number;
+  smallBlind?: bigint;
+  bigBlind?: bigint;
+  ante?: bigint;
 }
 
 interface HandCompleteEvent {
@@ -45,7 +46,7 @@ interface HandCompleteEvent {
   handNumber: number;
   winners: Array<{
     playerId: string;
-    amount: number;
+    amount: bigint;
     hand?: {
       name: string;
       rank: number;
@@ -54,14 +55,21 @@ interface HandCompleteEvent {
   }>;
   atShowdown: boolean;
   communityCards?: Array<{ rank: string; suit: string }>;
-  pot?: number;
+  pot?: bigint;
   players?: Array<{
     id: string;
-    chips: number;
+    chips: bigint;
     folded: boolean;
     allIn: boolean;
-    totalBet?: number;
+    totalBet?: bigint;
     holeCards?: Array<{ rank: string; suit: string }>;
+    cardStatus?: "shown" | "mucked" | "hidden";
+  }>;
+  showdownSequence?: Array<{
+    playerId: string;
+    cardStatus: "shown" | "mucked";
+    hand?: any;
+    order: number;
   }>;
 }
 
@@ -74,7 +82,7 @@ interface GameFinishedEvent {
   handNumber?: number;
   players?: Array<{
     id: string;
-    chips: number;
+    chips: bigint;
     position?: number;
   }>;
 }
@@ -86,6 +94,8 @@ export class GameDataPersistenceService implements OnModuleInit {
   private handIdCache: Map<string, string> = new Map();
   private actionSeqCache: Map<string, number> = new Map();
   private gameStatusCache: Map<string, "running" | "finished"> = new Map();
+  /** Per-hand action buffer: flushed as a single bulk INSERT on handComplete. */
+  private actionBuffer: Map<string, any[]> = new Map();
 
   private async withRetry<T>(
     label: string,
@@ -126,8 +136,6 @@ export class GameDataPersistenceService implements OnModuleInit {
     private readonly actionRepository: Repository<Action>,
     @InjectRepository(GamePlayer)
     private readonly gamePlayerRepository: Repository<GamePlayer>,
-    @InjectRepository(BotStats)
-    private readonly botStatsRepository: Repository<BotStats>,
     @InjectRepository(BotEvent)
     private readonly botEventRepository: Repository<BotEvent>,
   ) {}
@@ -140,10 +148,6 @@ export class GameDataPersistenceService implements OnModuleInit {
     this.eventEmitter.on("game.handComplete", this.onHandComplete.bind(this));
     this.eventEmitter.on("game.finished", this.onGameFinished.bind(this));
     this.eventEmitter.on("game.penaltyFold", this.onPenaltyFold.bind(this));
-    this.eventEmitter.on(
-      "tournament.finished",
-      this.onTournamentFinished.bind(this),
-    );
 
     await this.cleanupOrphanedGames();
   }
@@ -201,12 +205,13 @@ export class GameDataPersistenceService implements OnModuleInit {
       const savedHand = await this.dataSource.transaction(async (manager) => {
         const hand = manager.getRepository(Hand).create({
           game_id: event.gameId,
+          tournament_id: event.tournamentId ?? null,
           hand_number: event.handNumber,
           dealer_bot_id: event.dealerBotId || null,
-          small_blind: event.smallBlind || 10,
-          big_blind: event.bigBlind || 20,
+          small_blind: event.smallBlind ?? 10n,
+          big_blind: event.bigBlind ?? 20n,
           stage: "preflop",
-          pot: 0,
+          pot: 0n,
           community_cards: [],
           started_at: new Date(),
         });
@@ -230,6 +235,7 @@ export class GameDataPersistenceService implements OnModuleInit {
 
       this.handIdCache.set(cacheKey, savedHand.id);
       this.actionSeqCache.set(cacheKey, 0);
+      this.actionBuffer.delete(cacheKey); // safety: discard any stale buffer
 
       this.logger.debug(
         `Hand ${event.handNumber} created for game ${event.gameId} (ID: ${savedHand.id})`,
@@ -253,8 +259,10 @@ export class GameDataPersistenceService implements OnModuleInit {
       const recorded = await this.recordHandActionRow(event);
       if (!recorded) return;
 
-      this.recordPlayerActionEvent(event).catch((e: Error) => {
-        this.logger.error(`Action stats failed: ${e.message}`, e.stack);
+      this.eventEmitter.emit("action.stats.ready", {
+        botId: event.botId,
+        action: event.action,
+        stage: event.stage || "preflop",
       });
     } catch (error) {
       this.logger.error(
@@ -290,7 +298,10 @@ export class GameDataPersistenceService implements OnModuleInit {
       this.handIdCache.set(cacheKey, handId);
     }
 
-    const seq = (this.actionSeqCache.get(cacheKey) || 0) + 1;
+    // Prefer the authoritative actionSeq from the GameInstance over the local cache counter.
+    // The local cache drifts when actions arrive concurrently or after recovery; the game's
+    // own counter is the single source of truth for ordering.
+    const seq = event.actionSeq ?? (this.actionSeqCache.get(cacheKey) || 0) + 1;
     this.actionSeqCache.set(cacheKey, seq);
 
     const actionType = this.mapActionType(event.action);
@@ -302,16 +313,19 @@ export class GameDataPersistenceService implements OnModuleInit {
       action_seq: seq,
       action_type: actionType,
       stage: stage,
-      amount: event.amount || 0,
+      amount: event.amount ?? 0n,
       pot_after: event.pot ?? null,
       chips_after: event.chipsAfter ?? null,
       response_time_ms: event.responseTimeMs ?? null,
     });
 
-    await this.actionRepository.save(row);
+    // Buffer the action in memory — flushed as bulk INSERT on handComplete
+    const buffer = this.actionBuffer.get(cacheKey) || [];
+    buffer.push(row);
+    this.actionBuffer.set(cacheKey, buffer);
 
     this.logger.debug(
-      `Action ${seq} (${actionType}) recorded for hand ${event.handNumber}`,
+      `Action ${seq} (${actionType}) buffered for hand ${event.handNumber}`,
     );
     return true;
   }
@@ -336,13 +350,36 @@ export class GameDataPersistenceService implements OnModuleInit {
 
       const capturedHandId = handId;
 
+      // Idempotency guard: skip if hand was already finalized (e.g. after crash recovery)
+      const existingHand = await this.handRepository.findOne({
+        where: { id: capturedHandId },
+        select: ["id", "finished_at"],
+      });
+      if (existingHand?.finished_at) {
+        this.logger.debug(
+          `Hand ${event.handNumber} already finalized, skipping duplicate completion`,
+        );
+        this.handIdCache.delete(cacheKey);
+        this.actionSeqCache.delete(cacheKey);
+        this.actionBuffer.delete(cacheKey);
+        return;
+      }
+
       await this.dataSource.transaction(async (manager) => {
+        // Flush buffered actions as a single bulk INSERT
+        const bufferedActions = this.actionBuffer.get(cacheKey) || [];
+        if (bufferedActions.length > 0) {
+          await manager.getRepository(Action).insert(bufferedActions);
+        }
+
         await manager.getRepository(Hand).update(capturedHandId, {
           stage: "showdown",
-          pot: event.pot || 0,
+          pot: event.pot ?? 0n,
           community_cards: event.communityCards || [],
           finished_at: new Date(),
         });
+
+        const winnerIds = new Set(event.winners.map((w) => w.playerId));
 
         for (const winner of event.winners) {
           await manager.getRepository(HandPlayer).update(
@@ -366,6 +403,14 @@ export class GameDataPersistenceService implements OnModuleInit {
 
         if (event.players) {
           for (const player of event.players) {
+            const cardStatus =
+              player.cardStatus ??
+              (player.folded
+                ? "hidden"
+                : event.atShowdown
+                  ? "shown"
+                  : "hidden");
+            const isWinner = winnerIds.has(player.id);
             await manager.getRepository(HandPlayer).update(
               { hand_id: capturedHandId, bot_id: player.id },
               {
@@ -373,8 +418,12 @@ export class GameDataPersistenceService implements OnModuleInit {
                 folded: player.folded,
                 all_in: player.allIn,
                 saw_showdown: event.atShowdown && !player.folded,
-                amount_bet: player.totalBet ?? 0,
+                amount_bet: player.totalBet ?? 0n,
                 hole_cards: player.holeCards || [],
+                card_status: cardStatus,
+                // Explicitly clear winner fields for non-winners so that stale data from
+                // a previous (buggy or partial) run of this hand cannot survive.
+                ...(isWinner ? {} : { won: false, amount_won: 0n }),
               },
             );
 
@@ -393,13 +442,24 @@ export class GameDataPersistenceService implements OnModuleInit {
           .increment({ id: event.gameId }, "total_hands", 1);
       });
 
-      await this.withRetry(
-        `Bot stats update for hand ${event.handNumber}`,
-        () => this.updateBotStats(event),
-      );
+      this.eventEmitter.emit("hand.stats.ready", {
+        gameId: event.gameId,
+        handNumber: event.handNumber,
+        atShowdown: event.atShowdown,
+        winners: event.winners.map((w) => ({
+          playerId: w.playerId,
+          amount: w.amount,
+        })),
+        players: (event.players || []).map((p) => ({
+          id: p.id,
+          folded: p.folded,
+          totalBet: p.totalBet ?? 0n,
+        })),
+      });
 
       this.handIdCache.delete(cacheKey);
       this.actionSeqCache.delete(cacheKey);
+      this.actionBuffer.delete(cacheKey);
 
       this.logger.debug(
         `Hand ${event.handNumber} completed for game ${event.gameId}`,
@@ -421,8 +481,8 @@ export class GameDataPersistenceService implements OnModuleInit {
       });
 
       if (event.players) {
-        const sortedPlayers = [...event.players].sort(
-          (a, b) => (b.chips || 0) - (a.chips || 0),
+        const sortedPlayers = [...event.players].sort((a, b) =>
+          a.chips > b.chips ? -1 : a.chips < b.chips ? 1 : 0,
         );
 
         for (let i = 0; i < sortedPlayers.length; i++) {
@@ -484,8 +544,8 @@ export class GameDataPersistenceService implements OnModuleInit {
     strikes: number;
     handNumber?: number;
     stage?: string;
-    pot?: number;
-    chipsAfter?: number;
+    pot?: bigint;
+    chipsAfter?: bigint;
   }): Promise<void> {
     try {
       const botEvent = this.botEventRepository.create({
@@ -514,8 +574,8 @@ export class GameDataPersistenceService implements OnModuleInit {
         handNumber: event.handNumber,
         botId: event.playerId,
         action: "fold",
-        amount: 0,
-        pot: event.pot ?? 0,
+        amount: 0n,
+        pot: event.pot ?? 0n,
         stage: event.stage,
         chipsAfter: event.chipsAfter,
       });
@@ -523,150 +583,6 @@ export class GameDataPersistenceService implements OnModuleInit {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
         `Failed to persist penalty fold action: ${message}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
-  }
-
-  private async updateBotStats(event: HandCompleteEvent): Promise<void> {
-    for (const player of event.players || []) {
-      try {
-        await this.ensureBotStatsExists(player.id);
-
-        const isWinner = event.winners.some((w) => w.playerId === player.id);
-        const winAmount = event.winners
-          .filter((w) => w.playerId === player.id)
-          .reduce((sum, w) => sum + w.amount, 0);
-        const betAmount = player.totalBet ?? 0;
-        const netChange = winAmount - betAmount;
-
-        await this.dataSource.transaction(async (manager) => {
-          const statsRepo = manager.getRepository(BotStats);
-
-          await statsRepo.increment({ bot_id: player.id }, "total_hands", 1);
-
-          if (netChange !== 0) {
-            await manager.query(
-              `UPDATE bot_stats SET total_net = total_net + $1, updated_at = NOW() WHERE bot_id = $2`,
-              [netChange, player.id],
-            );
-          }
-
-          if (event.atShowdown && !player.folded) {
-            await statsRepo.increment({ bot_id: player.id }, "wtsd_hands", 1);
-            if (isWinner) {
-              await statsRepo.increment({ bot_id: player.id }, "wmsd_hands", 1);
-            }
-          }
-        });
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        this.logger.error(
-          `Failed to update bot stats for ${player.id}: ${errorMessage}`,
-          error instanceof Error ? error.stack : undefined,
-        );
-      }
-    }
-  }
-
-  private async recordPlayerActionEvent(
-    event: PlayerActionEvent,
-  ): Promise<void> {
-    try {
-      const action = event.action?.toLowerCase();
-      if (action === "raise" || action === "bet") {
-        await this.incrementBotStatField(event.botId, "aggressive_actions");
-      } else if (action === "call" || action === "check") {
-        await this.incrementBotStatField(event.botId, "passive_actions");
-      }
-
-      if (
-        event.stage?.toLowerCase() === "preflop" ||
-        event.stage?.toLowerCase() === "pre-flop"
-      ) {
-        if (action === "call" || action === "raise" || action === "bet") {
-          await this.incrementBotStatField(event.botId, "vpip_hands");
-        }
-        if (action === "raise" || action === "bet") {
-          await this.incrementBotStatField(event.botId, "pfr_hands");
-        }
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to record player action stats: ${message}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
-  }
-
-  private async ensureBotStatsExists(botId: string): Promise<void> {
-    const exists = await this.botStatsRepository.findOne({
-      where: { bot_id: botId },
-    });
-    if (!exists) {
-      try {
-        const stats = this.botStatsRepository.create({
-          bot_id: botId,
-          total_hands: 0,
-          total_tournaments: 0,
-          tournament_wins: 0,
-          total_net: 0,
-          vpip_hands: 0,
-          pfr_hands: 0,
-          wtsd_hands: 0,
-          wmsd_hands: 0,
-          aggressive_actions: 0,
-          passive_actions: 0,
-        });
-        await this.botStatsRepository.save(stats);
-      } catch {
-        // Ignore unique constraint violation (another call created it)
-      }
-    }
-  }
-
-  private async incrementBotStatField(
-    botId: string,
-    field: string,
-  ): Promise<void> {
-    await this.ensureBotStatsExists(botId);
-    await this.botStatsRepository.increment({ bot_id: botId }, field, 1);
-  }
-
-  private async onTournamentFinished(event: {
-    tournamentId: string;
-    winnerId?: string;
-    winnerName?: string;
-    payouts: Array<{ position: number; amount: number; botId?: string }>;
-  }): Promise<void> {
-    try {
-      if (event.winnerId) {
-        await this.ensureBotStatsExists(event.winnerId);
-        await this.dataSource.transaction(async (manager) => {
-          const statsRepo = manager.getRepository(BotStats);
-          await statsRepo.increment(
-            { bot_id: event.winnerId! },
-            "tournament_wins",
-            1,
-          );
-        });
-      }
-
-      for (const payout of event.payouts || []) {
-        if (!payout.botId) continue;
-        await this.ensureBotStatsExists(payout.botId);
-        await this.botStatsRepository.increment(
-          { bot_id: payout.botId },
-          "total_tournaments",
-          1,
-        );
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to record tournament chip movements: ${message}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

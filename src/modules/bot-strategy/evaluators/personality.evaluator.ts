@@ -1,14 +1,15 @@
 /**
- * PersonalityEvaluator: Translates personality sliders into probabilistic actions.
+ * PersonalityEvaluator: Weight-based action distribution from personality sliders.
  *
- * This is the fallback evaluator — it fires when no rule or range chart matches.
- * Uses a seeded PRNG for deterministic-but-varied behavior across hands.
+ * Core flow:
+ *   1. Classify hand → pick base distribution { fold, call, raise }
+ *   2. Sigmoid-map tightness → shift fold vs play weights
+ *   3. Sigmoid-map aggression → shift call vs raise (gated by equity threshold)
+ *   4. BluffFrequency → inject raise weight for weak hands
+ *   5. RiskTolerance → reduce fold when facing bets
+ *   6. Normalize to sum=1, roll seeded PRNG, pick action
  *
- * Slider semantics:
- * - tightness (0-100): Preflop hand selection. Higher = fewer hands played.
- * - aggression (0-100): Bet/raise frequency. Higher = more aggressive.
- * - bluffFrequency (0-100): Bet with weak hands. Higher = more bluffs.
- * - riskTolerance (0-100): Willingness to risk stack. Higher = more calls/raises.
+ * All base distributions and thresholds live in STRATEGY_TUNABLES.
  */
 
 import type {
@@ -24,6 +25,8 @@ export interface PersonalityEvalResult {
   explanation: string;
 }
 
+// ─── Hand strength helpers ────────────────────────────────────────────────────
+
 const HAND_STRENGTH_ORDER: HandStrength[] = [
   "high_card",
   "pair",
@@ -37,22 +40,193 @@ const HAND_STRENGTH_ORDER: HandStrength[] = [
   "royal_flush",
 ];
 
-/**
- * Simple seeded PRNG (same as SimulationEngine uses).
- * Deterministic for same seed — allows reproducible bot behavior.
- */
+function normalizedStrength(ctx: GameContext): number {
+  const idx = HAND_STRENGTH_ORDER.indexOf(ctx.handStrength);
+  return idx / (HAND_STRENGTH_ORDER.length - 1);
+}
+
+function handCategory(ctx: GameContext): string {
+  if (ctx.street === "preflop") return ctx.holeCardRank;
+  if (ctx.hasFlushDraw || ctx.hasStraightDraw) return "draw";
+  const s = normalizedStrength(ctx);
+  if (s >= 0.7) return "premium";
+  if (s >= 0.4) return "strong";
+  if (s >= 0.15) return "playable";
+  return "weak";
+}
+
+function getHandQualityScore(rank: string): number {
+  switch (rank) {
+    case "premium":
+      return STRATEGY_TUNABLES.handQuality.premium;
+    case "strong":
+      return STRATEGY_TUNABLES.handQuality.strong;
+    case "playable":
+      return STRATEGY_TUNABLES.handQuality.playable;
+    default:
+      return STRATEGY_TUNABLES.handQuality.weak;
+  }
+}
+
+// ─── Seeded PRNG ──────────────────────────────────────────────────────────────
+
 class SeededRandom {
   private seed: number;
-
   constructor(seed: number) {
     this.seed = seed;
   }
-
   next(): number {
     this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
     return this.seed / 0x7fffffff;
   }
 }
+
+// ─── Sigmoid ──────────────────────────────────────────────────────────────────
+
+function sigmoid(
+  value: number,
+  k: number = STRATEGY_TUNABLES.distributions.sigmoidK,
+): number {
+  const x = (value - 50) / 50;
+  return 1 / (1 + Math.exp(-k * x));
+}
+
+// ─── Weight computation ───────────────────────────────────────────────────────
+
+interface ActionWeights {
+  fold: number;
+  call: number;
+  raise: number;
+}
+
+function getBaseDistribution(category: string): ActionWeights {
+  const base = STRATEGY_TUNABLES.distributions.base[category];
+  return base ? { ...base } : { fold: 40, call: 40, raise: 20 };
+}
+
+function computeActionWeights(
+  p: Personality,
+  ctx: GameContext,
+  category: string,
+  positionAware: boolean,
+): ActionWeights {
+  const w = getBaseDistribution(category);
+  const sigAgg = sigmoid(p.aggression);
+  const sigTight = sigmoid(p.tightness);
+  const sigBluff = sigmoid(p.bluffFrequency);
+  const sigRisk = sigmoid(p.riskTolerance);
+
+  const handQuality =
+    ctx.equity > 0
+      ? ctx.equity
+      : ctx.street === "preflop"
+        ? getHandQualityScore(ctx.holeCardRank)
+        : normalizedStrength(ctx);
+
+  // 1. Tightness → shift fold vs (call + raise)
+  // posMultiplier: late position (BTN/CO) → lower multiplier → less tightness penalty → wider range.
+  // Only applied for Quick/Strategy tiers (positionAware=true); Pro tier uses explicit per-position overrides.
+  const posMultiplier =
+    positionAware && ctx.myPosition
+      ? (STRATEGY_TUNABLES.positionMultiplier[ctx.myPosition] ?? 1.0)
+      : 1.0;
+  const tightnessFactor = sigTight * (1 - handQuality) * posMultiplier;
+  const foldShift = tightnessFactor * 40;
+  w.fold += foldShift;
+  const playTotal = w.call + w.raise;
+  if (playTotal > 0) {
+    w.call -= foldShift * (w.call / playTotal);
+    w.raise -= foldShift * (w.raise / playTotal);
+  }
+
+  // 2. Aggression → shift call → raise (equity-gated)
+  if (
+    handQuality >= STRATEGY_TUNABLES.distributions.equityGateThreshold &&
+    w.call > 0
+  ) {
+    const transfer = sigAgg * w.call * 0.7;
+    w.raise += transfer;
+    w.call -= transfer;
+  }
+
+  // 3. Bluff frequency → inject raise weight for weak/draw hands
+  if (category === "weak" || category === "draw") {
+    const bluffBoost = sigBluff * 15;
+    w.raise += bluffBoost;
+    w.fold -= bluffBoost * 0.7;
+    w.call -= bluffBoost * 0.3;
+  }
+
+  // 4. Risk tolerance → reduce fold when facing bets
+  if (ctx.facingBet || ctx.facingRaise) {
+    const riskReduction = sigRisk * w.fold * 0.5;
+    w.fold -= riskReduction;
+    w.call += riskReduction * 0.7;
+    w.raise += riskReduction * 0.3;
+
+    if (ctx.facingAllIn) {
+      const penalty = (1 - sigRisk) * 30;
+      w.fold += penalty;
+      w.raise -= penalty * 0.6;
+      w.call -= penalty * 0.4;
+    }
+  }
+
+  // 5. Negative-EV guard: fold more aggressively when the call is clearly losing money.
+  // Triggered when equity is less than 50% of the break-even pot-odds threshold —
+  // i.e., the bot would need at least 2× its actual equity to make the call profitable.
+  // Overrides the risk-tolerance reduction so even aggressive bots avoid these spots.
+  if (ctx.facingBet && ctx.potOdds > 0 && ctx.equity > 0) {
+    const evRatio = ctx.equity / ctx.potOdds;
+    if (evRatio < 0.5) {
+      const evPenalty =
+        (1 - evRatio) * STRATEGY_TUNABLES.distributions.negativeEvFoldBoost;
+      w.fold += evPenalty;
+      w.call = Math.max(0, w.call - evPenalty * 0.7);
+      w.raise = Math.max(0, w.raise - evPenalty * 0.3);
+    }
+  }
+
+  // Clamp negatives
+  w.fold = Math.max(0, w.fold);
+  w.call = Math.max(0, w.call);
+  w.raise = Math.max(0, w.raise);
+  return w;
+}
+
+function rollAction(
+  w: ActionWeights,
+  rng: SeededRandom,
+): "fold" | "call" | "raise" {
+  const total = w.fold + w.call + w.raise;
+  if (total <= 0) return "fold";
+  const nFold = w.fold / total;
+  const nCall = w.call / total;
+  const roll = rng.next();
+  if (roll < nFold) return "fold";
+  if (roll < nFold + nCall) return "call";
+  return "raise";
+}
+
+// ─── Sizing ───────────────────────────────────────────────────────────────────
+
+function computeRaiseSizing(
+  p: Personality,
+  ctx: GameContext,
+): { mode: "pot_fraction" | "bb_multiple"; value: number } {
+  if (ctx.street === "preflop") {
+    const base = STRATEGY_TUNABLES.sizing.preflopBaseOpenBB;
+    const bonus =
+      (p.aggression / 100) * STRATEGY_TUNABLES.sizing.preflopAggressionBonus;
+    return { mode: "bb_multiple", value: base + bonus };
+  }
+  const base = STRATEGY_TUNABLES.sizing.postflopBasePotFraction;
+  const bonus =
+    (p.aggression / 100) * STRATEGY_TUNABLES.sizing.postflopAggressionBonus;
+  return { mode: "pot_fraction", value: base + bonus };
+}
+
+// ─── Main entry point ─────────────────────────────────────────────────────────
 
 const DEFAULT_PERSONALITY: Personality = {
   tightness: 50,
@@ -65,339 +239,65 @@ export function evaluatePersonality(
   personality: Personality | undefined | null,
   context: GameContext,
   handSeed: number,
+  positionAware: boolean = false,
 ): PersonalityEvalResult {
   const p = personality ?? DEFAULT_PERSONALITY;
   const rng = new SeededRandom(handSeed);
+  const category = handCategory(context);
+  const w = computeActionWeights(p, context, category, positionAware);
+  const action = rollAction(w, rng);
 
-  if (context.street === "preflop") {
-    return evaluatePreflop(p, context, rng);
-  }
+  const total = w.fold + w.call + w.raise;
+  const pF = total > 0 ? ((w.fold / total) * 100).toFixed(0) : "0";
+  const pC = total > 0 ? ((w.call / total) * 100).toFixed(0) : "0";
+  const pR = total > 0 ? ((w.raise / total) * 100).toFixed(0) : "0";
+  const dist = `F:${pF}% C:${pC}% R:${pR}%`;
 
-  return evaluatePostflop(p, context, rng);
-}
-
-function evaluatePreflop(
-  p: Personality,
-  ctx: GameContext,
-  rng: SeededRandom,
-): PersonalityEvalResult {
-  const handQuality = getHandQualityScore(ctx.holeCardRank);
-
-  // tightness determines minimum hand quality to play
-  // tightness 0 = play everything, tightness 100 = only premium
-  const playThreshold = p.tightness / 100;
-
-  if (handQuality < playThreshold) {
-    if (ctx.canCheck) {
-      return {
-        action: { type: "check" },
-        explanation: "Hand below play threshold, checking",
-      };
-    }
-    // Sometimes bluff even with bad hands
-    if (
-      rng.next() <
-      p.bluffFrequency / STRATEGY_TUNABLES.personality.preflopBluffDivisor
-    ) {
-      return {
-        action: {
-          type: "raise",
-          sizing: {
-            mode: "bb_multiple",
-            value: STRATEGY_TUNABLES.personality.preflopBluffRaiseBB,
-          },
-        },
-        explanation: `Bluffing with weak hand (bluff frequency: ${p.bluffFrequency}%)`,
-      };
-    }
-    return {
-      action: { type: "fold" },
-      explanation: "Hand below play threshold, folding",
-    };
-  }
-
-  if (ctx.facingBet || ctx.facingRaise) {
-    return handleFacingAction(p, ctx, rng, handQuality);
-  }
-
-  // Unopened pot — decide to raise or limp
-  const raiseProb =
-    (p.aggression / 100) * STRATEGY_TUNABLES.personality.raiseWeightAggression +
-    handQuality * STRATEGY_TUNABLES.personality.raiseWeightHandQuality;
-  if (rng.next() < raiseProb) {
-    const sizing = computeRaiseSizing(p, ctx);
-    return {
-      action: { type: "raise", sizing },
-      explanation: `Opening raise (aggression: ${p.aggression}%, hand quality: ${(handQuality * 100).toFixed(0)}%)`,
-    };
-  }
-
-  if (ctx.canCheck) {
-    return { action: { type: "check" }, explanation: "Limping behind" };
-  }
-
-  return { action: { type: "call" }, explanation: "Calling to see a flop" };
-}
-
-function evaluatePostflop(
-  p: Personality,
-  ctx: GameContext,
-  rng: SeededRandom,
-): PersonalityEvalResult {
-  const strengthIndex = HAND_STRENGTH_ORDER.indexOf(ctx.handStrength);
-  const normalizedStrength = strengthIndex / (HAND_STRENGTH_ORDER.length - 1);
-
-  // Strong hand (pair+)
-  if (normalizedStrength >= STRATEGY_TUNABLES.personality.strongHandThreshold) {
-    return handleStrongHand(p, ctx, rng, normalizedStrength);
-  }
-
-  // Weak hand — consider draws
-  if (ctx.hasFlushDraw || ctx.hasStraightDraw) {
-    return handleDrawingHand(p, ctx, rng);
-  }
-
-  return handleWeakHand(p, ctx, rng);
-}
-
-function handleStrongHand(
-  p: Personality,
-  ctx: GameContext,
-  rng: SeededRandom,
-  strength: number,
-): PersonalityEvalResult {
-  if (ctx.facingBet || ctx.facingRaise) {
-    // Facing action with strong hand
-    const callRaiseThreshold =
-      (p.aggression / 100) *
-        STRATEGY_TUNABLES.personality.strongHandFacingActionAggressionWeight +
-      strength *
-        STRATEGY_TUNABLES.personality.strongHandFacingActionStrengthWeight;
-
-    if (rng.next() < callRaiseThreshold && ctx.maxRaise > 0) {
-      const sizing = computeRaiseSizing(p, ctx);
-      return {
-        action: { type: "raise", sizing },
-        explanation: `Raising strong hand (strength: ${(strength * 100).toFixed(0)}%, aggression: ${p.aggression}%)`,
-      };
-    }
-    return {
-      action: { type: "call" },
-      explanation: `Calling with strong hand (strength: ${(strength * 100).toFixed(0)}%)`,
-    };
-  }
-
-  // Not facing action
-  const betProb =
-    (p.aggression / 100) *
-      STRATEGY_TUNABLES.personality.strongHandNoActionAggressionWeight +
-    strength * STRATEGY_TUNABLES.personality.strongHandNoActionStrengthWeight;
-  if (rng.next() < betProb && ctx.maxRaise > 0) {
-    const sizing = computeRaiseSizing(p, ctx);
-    return {
-      action: { type: "raise", sizing },
-      explanation: `Betting strong hand for value (aggression: ${p.aggression}%)`,
-    };
-  }
-
-  return {
-    action: { type: "check" },
-    explanation: "Trapping with strong hand",
-  };
-}
-
-function handleDrawingHand(
-  p: Personality,
-  ctx: GameContext,
-  rng: SeededRandom,
-): PersonalityEvalResult {
-  const drawAggression =
-    (p.aggression / 100) * STRATEGY_TUNABLES.personality.drawAggressionWeight +
-    (p.bluffFrequency / 100) * STRATEGY_TUNABLES.personality.drawBluffWeight;
-  const drawType = ctx.hasFlushDraw ? "flush draw" : "straight draw";
-
-  if (ctx.facingBet) {
-    // Calling with a draw depends on pot odds and risk tolerance
-    const callProb =
-      (p.riskTolerance / 100) *
-        STRATEGY_TUNABLES.personality.drawCallRiskWeight +
-      STRATEGY_TUNABLES.personality.drawCallBase;
-    if (rng.next() < callProb) {
-      return {
-        action: { type: "call" },
-        explanation: `Calling with ${drawType} (risk tolerance: ${p.riskTolerance}%)`,
-      };
-    }
-    // Semi-bluff raise with draw
-    if (rng.next() < drawAggression && ctx.maxRaise > 0) {
-      const sizing = computeRaiseSizing(p, ctx);
-      return {
-        action: { type: "raise", sizing },
-        explanation: `Semi-bluff raising with ${drawType} (aggression: ${p.aggression}%)`,
-      };
-    }
-    return {
-      action: { type: "fold" },
-      explanation: `Folding ${drawType}, odds not favorable`,
-    };
-  }
-
-  // Not facing bet — bet as semi-bluff or check
-  if (rng.next() < drawAggression && ctx.maxRaise > 0) {
-    const sizing = computeRaiseSizing(p, ctx);
-    return {
-      action: { type: "raise", sizing },
-      explanation: `Betting ${drawType} as semi-bluff`,
-    };
-  }
-
-  return {
-    action: { type: "check" },
-    explanation: `Checking ${drawType}, hoping to improve`,
-  };
-}
-
-function handleWeakHand(
-  p: Personality,
-  ctx: GameContext,
-  rng: SeededRandom,
-): PersonalityEvalResult {
-  if (ctx.facingBet || ctx.facingRaise) {
-    if (ctx.facingAllIn) {
-      // Rarely call all-in with weak hand
-      if (
-        rng.next() <
-        p.riskTolerance / STRATEGY_TUNABLES.personality.weakAllInCallDivisor
-      ) {
+  switch (action) {
+    case "fold":
+      if (context.canCheck) {
         return {
-          action: { type: "call" },
-          explanation: "Hero-calling all-in with weak hand",
+          action: { type: "check" },
+          explanation: `Checking (${category}, ${dist})`,
         };
       }
       return {
         action: { type: "fold" },
-        explanation: "Folding to all-in with weak hand",
+        explanation: `Folding (${category}, ${dist})`,
       };
-    }
 
-    // Bluff raise sometimes
-    if (
-      rng.next() <
-        p.bluffFrequency /
-          STRATEGY_TUNABLES.personality.weakBluffRaiseDivisor &&
-      ctx.maxRaise > 0
-    ) {
-      const sizing = computeRaiseSizing(p, ctx);
-      return {
-        action: { type: "raise", sizing },
-        explanation: `Bluff raising with weak hand (bluff frequency: ${p.bluffFrequency}%)`,
-      };
-    }
-
-    return {
-      action: { type: "fold" },
-      explanation: "Folding weak hand to bet",
-    };
-  }
-
-  // No bet facing — check or bluff
-  if (
-    rng.next() <
-      p.bluffFrequency / STRATEGY_TUNABLES.personality.weakBluffBetDivisor &&
-    ctx.maxRaise > 0
-  ) {
-    const sizing = computeRaiseSizing(p, ctx);
-    return {
-      action: { type: "raise", sizing },
-      explanation: `Betting as bluff (bluff frequency: ${p.bluffFrequency}%)`,
-    };
-  }
-
-  return { action: { type: "check" }, explanation: "Checking weak hand" };
-}
-
-function handleFacingAction(
-  p: Personality,
-  ctx: GameContext,
-  rng: SeededRandom,
-  handQuality: number,
-): PersonalityEvalResult {
-  const callThreshold =
-    (p.riskTolerance / 100) *
-      STRATEGY_TUNABLES.personality.facingActionCallRiskWeight +
-    handQuality * STRATEGY_TUNABLES.personality.facingActionCallHandWeight;
-
-  if (ctx.facingAllIn) {
-    // All-in decision: need high risk tolerance and good hand
-    const allinCallProb =
-      (p.riskTolerance / 100) *
-        STRATEGY_TUNABLES.personality.facingAllInRiskWeight +
-      handQuality * STRATEGY_TUNABLES.personality.facingAllInHandWeight;
-    if (rng.next() < allinCallProb) {
+    case "call":
+      if (context.toCall <= 0 && context.canCheck) {
+        return {
+          action: { type: "check" },
+          explanation: `Checking (${category}, ${dist})`,
+        };
+      }
       return {
         action: { type: "call" },
-        explanation: `Calling all-in (risk tolerance: ${p.riskTolerance}%, hand quality: ${(handQuality * 100).toFixed(0)}%)`,
+        explanation: `Calling (${category}, ${dist})`,
+      };
+
+    case "raise": {
+      if (context.maxRaise <= 0) {
+        if (context.toCall > 0) {
+          return {
+            action: { type: "call" },
+            explanation: `Calling (wanted raise, ${category}, ${dist})`,
+          };
+        }
+        return {
+          action: { type: "check" },
+          explanation: `Checking (wanted raise, ${category}, ${dist})`,
+        };
+      }
+      return {
+        action: { type: "raise", sizing: computeRaiseSizing(p, context) },
+        explanation: `Raising (${category}, ${dist})`,
       };
     }
-    return { action: { type: "fold" }, explanation: "Folding to all-in" };
-  }
 
-  // 3-bet/raise back
-  const reraiseProb =
-    (p.aggression / 100) *
-      STRATEGY_TUNABLES.personality.facingActionReraiseAggressionWeight +
-    handQuality * STRATEGY_TUNABLES.personality.facingActionReraiseHandWeight;
-  if (rng.next() < reraiseProb && ctx.maxRaise > 0) {
-    const sizing = computeRaiseSizing(p, ctx);
-    return {
-      action: { type: "raise", sizing },
-      explanation: `Re-raising (aggression: ${p.aggression}%, hand quality: ${(handQuality * 100).toFixed(0)}%)`,
-    };
-  }
-
-  if (rng.next() < callThreshold) {
-    return {
-      action: { type: "call" },
-      explanation: `Calling (risk tolerance: ${p.riskTolerance}%)`,
-    };
-  }
-
-  return { action: { type: "fold" }, explanation: "Folding to aggression" };
-}
-
-function computeRaiseSizing(
-  p: Personality,
-  ctx: GameContext,
-): {
-  mode: "pot_fraction" | "bb_multiple";
-  value: number;
-} {
-  if (ctx.street === "preflop") {
-    // Preflop: use BB multiples. More aggressive = bigger opens.
-    const baseOpen = STRATEGY_TUNABLES.sizing.preflopBaseOpenBB;
-    const aggressionBonus =
-      (p.aggression / 100) * STRATEGY_TUNABLES.sizing.preflopAggressionBonus;
-    return { mode: "bb_multiple", value: baseOpen + aggressionBonus };
-  }
-
-  // Postflop: use pot fractions. More aggressive = bigger bets.
-  const baseFraction = STRATEGY_TUNABLES.sizing.postflopBasePotFraction;
-  const aggressionBonus =
-    (p.aggression / 100) * STRATEGY_TUNABLES.sizing.postflopAggressionBonus;
-  return { mode: "pot_fraction", value: baseFraction + aggressionBonus };
-}
-
-function getHandQualityScore(rank: string): number {
-  switch (rank) {
-    case "premium":
-      return STRATEGY_TUNABLES.handQuality.premium;
-    case "strong":
-      return STRATEGY_TUNABLES.handQuality.strong;
-    case "playable":
-      return STRATEGY_TUNABLES.handQuality.playable;
-    case "weak":
-      return STRATEGY_TUNABLES.handQuality.weak;
     default:
-      return STRATEGY_TUNABLES.handQuality.weak;
+      return { action: { type: "fold" }, explanation: "Fallback fold" };
   }
 }

@@ -15,6 +15,9 @@ import {
   generateAllHandNotations,
 } from "./strategy.types";
 
+const MAX_CONDITION_DEPTH = 10;
+const MAX_CONDITION_NODES = 100;
+
 const VALID_TIERS: StrategyTier[] = ["quick", "strategy", "pro"];
 const VALID_ACTION_TYPES: ActionType[] = [
   "fold",
@@ -49,7 +52,6 @@ const VALID_CATEGORIES: ConditionCategory[] = [
 ];
 const ALL_HAND_NOTATIONS = new Set(generateAllHandNotations());
 const MAX_RULES_PER_STREET = 50;
-const MAX_CONDITIONS_PER_RULE = 10;
 const MAX_STRATEGY_JSON_SIZE = 100_000; // ~100KB
 
 export function validateStrategy(strategy: unknown): ValidationResult {
@@ -350,23 +352,23 @@ function validateRule(
         severity: "warning",
       });
     }
-    if (r.conditions.length > MAX_CONDITIONS_PER_RULE) {
-      errors.push({
-        path: `${path}.conditions`,
-        message: `Too many conditions (${r.conditions.length} > ${MAX_CONDITIONS_PER_RULE})`,
-        severity: "error",
-      });
-    }
-    for (
-      let i = 0;
-      i < Math.min(r.conditions.length, MAX_CONDITIONS_PER_RULE);
-      i++
-    ) {
-      validateCondition(
+    let totalNodes = 0;
+    for (let i = 0; i < r.conditions.length; i++) {
+      if (totalNodes > MAX_CONDITION_NODES) {
+        errors.push({
+          path: `${path}.conditions`,
+          message: `Rule exceeds maximum condition node count (${MAX_CONDITION_NODES})`,
+          severity: "error",
+        });
+        break;
+      }
+      totalNodes += validateConditionNode(
         r.conditions[i],
         `${path}.conditions[${i}]`,
         street,
         errors,
+        0,
+        totalNodes,
       );
     }
   }
@@ -384,6 +386,81 @@ function validateRule(
       errors,
     );
   }
+}
+
+/**
+ * Validate a ConditionNode (leaf Condition or ConditionGroup).
+ * Returns the number of nodes consumed (for total-count tracking).
+ */
+function validateConditionNode(
+  node: unknown,
+  path: string,
+  street: Street,
+  errors: ValidationError[],
+  depth: number,
+  countSoFar: number,
+): number {
+  if (!node || typeof node !== "object") {
+    errors.push({
+      path,
+      message: "Condition node must be a non-null object",
+      severity: "error",
+    });
+    return 1;
+  }
+
+  const n = node as Record<string, unknown>;
+
+  // Discriminant: ConditionGroup has a "rules" array; Condition has "category"+"field"
+  if ("rules" in n) {
+    if (depth >= MAX_CONDITION_DEPTH) {
+      errors.push({
+        path,
+        message: `Condition tree exceeds maximum nesting depth (${MAX_CONDITION_DEPTH})`,
+        severity: "error",
+      });
+      return 1;
+    }
+    if (n.operator !== "AND" && n.operator !== "OR") {
+      errors.push({
+        path: `${path}.operator`,
+        message: `ConditionGroup operator must be "AND" or "OR", got "${String(n.operator)}"`,
+        severity: "error",
+      });
+    }
+    if (!Array.isArray(n.rules)) {
+      errors.push({
+        path: `${path}.rules`,
+        message: "ConditionGroup rules must be an array",
+        severity: "error",
+      });
+      return 1;
+    }
+    if (n.rules.length === 0) {
+      errors.push({
+        path: `${path}.rules`,
+        message: "ConditionGroup has no rules",
+        severity: "warning",
+      });
+    }
+    let count = 1;
+    for (let i = 0; i < n.rules.length; i++) {
+      if (countSoFar + count > MAX_CONDITION_NODES) break;
+      count += validateConditionNode(
+        n.rules[i],
+        `${path}.rules[${i}]`,
+        street,
+        errors,
+        depth + 1,
+        countSoFar + count,
+      );
+    }
+    return count;
+  }
+
+  // Leaf Condition — delegate to existing validator
+  validateCondition(node, path, street, errors);
+  return 1;
 }
 
 function validateCondition(

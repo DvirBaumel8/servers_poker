@@ -14,9 +14,9 @@ import { GamePlayer } from "./game-player.entity";
 import { BotStats } from "./bot-stats.entity";
 
 @Entity("bots")
+@Index(["user_id", "active"])
 @Check(`"active" IN (true, false)`)
 export class Bot extends BaseEntity {
-  @Index({ unique: true })
   @Column({ type: "varchar", length: 100 })
   name: string;
 
@@ -29,6 +29,7 @@ export class Bot extends BaseEntity {
   @Column({ type: "jsonb" })
   strategy: Record<string, any>;
 
+  @Index()
   @Column({ type: "varchar", length: 36 })
   user_id: string;
 
@@ -41,6 +42,9 @@ export class Bot extends BaseEntity {
 
   @OneToMany(() => GamePlayer, (gp) => gp.bot)
   game_players: GamePlayer[];
+
+  @Column({ name: "is_system", type: "boolean", default: false })
+  isSystem: boolean;
 
   @OneToMany(() => BotStats, (stats) => stats.bot)
   stats: BotStats[];

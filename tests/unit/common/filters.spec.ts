@@ -73,7 +73,7 @@ describe("HttpExceptionFilter", () => {
     );
   });
 
-  it("should use generic message for validation BadRequestException", () => {
+  it("should join array messages for validation BadRequestException", () => {
     const exception = new BadRequestException(["field must not be empty"]);
 
     filter.catch(exception, mockHost as never);
@@ -82,7 +82,7 @@ describe("HttpExceptionFilter", () => {
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: HttpStatus.BAD_REQUEST,
-        message: "Invalid request. Please check your input.",
+        message: "field must not be empty",
         error: "Bad Request",
       }),
     );

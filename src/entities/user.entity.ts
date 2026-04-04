@@ -1,6 +1,7 @@
 import { Entity, Column, OneToMany, Index } from "typeorm";
 import { BaseEntity } from "./base.entity";
 import { Bot } from "./bot.entity";
+import { bigIntTransformer } from "../common/transformers/bigint.transformer";
 
 @Entity("users")
 export class User extends BaseEntity {
@@ -48,11 +49,24 @@ export class User extends BaseEntity {
   @Column({ type: "timestamp with time zone", nullable: true })
   last_failed_login_at: Date | null;
 
+  @Index()
   @Column({ type: "varchar", length: 64, nullable: true })
   refresh_token_hash: string | null;
 
   @Column({ type: "timestamp with time zone", nullable: true })
   refresh_token_expires_at: Date | null;
+
+  @Column({ type: "varchar", length: 20, default: "free" })
+  subscription_status: "free" | "active" | "cancelled" | "expired";
+
+  @Column({ type: "timestamp with time zone", nullable: true })
+  subscription_start: Date | null;
+
+  @Column({ type: "timestamp with time zone", nullable: true })
+  subscription_end: Date | null;
+
+  @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
+  monthly_fee: bigint;
 
   @OneToMany(() => Bot, (bot) => bot.user)
   bots: Bot[];

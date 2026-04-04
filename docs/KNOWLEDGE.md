@@ -101,7 +101,7 @@ curl -X POST http://localhost:3000/api/v1/auth/register-developer \
   "expiresIn": 86400,
   "apiKey": "pk_...",
   "user": { "id": "...", "email": "...", "name": "..." },
-  "bot": { "id": "...", "name": "MyPokerBot", "strategy": {...} }
+  "bot": { "id": "...", "name": "MyPokerBot", "strategy": {} }
 }
 ```
 
@@ -597,7 +597,7 @@ Bots can be configured to automatically register for tournaments:
 
 **Entity: `BotSubscription`**
 ```typescript
-{
+interface BotSubscription {
   bot_id: string;              // Bot to auto-register
   tournament_id?: string;      // Specific tournament (or null for filters)
   tournament_type_filter?: "rolling" | "scheduled";
@@ -816,13 +816,6 @@ ANALYTICS_RETENTION_DAYS=90             # Days to keep analytics events
 ---
 
 ## Tournament Director Improvements (2026-03)
-
-### Late Registration Support
-Tournament registration now works during running tournaments if within `late_reg_ends_level`:
-- `TournamentsService.register()` accepts optional `currentLevel` parameter
-- Controller fetches current level from `TournamentDirectorService.getTournamentState()`
-- Registration allowed if `currentLevel <= tournament.late_reg_ends_level`
-- Returns `lateRegistration: true` in response when late reg used
 
 ### Proper Table Creation
 Tables are now correctly created in the database before seating players:

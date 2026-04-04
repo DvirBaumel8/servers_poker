@@ -18,9 +18,6 @@ import { BotRepository } from "../../repositories/bot.repository";
 import { BotSubscriptionRepository } from "../../repositories/bot-subscription.repository";
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
-import { StrategyDecision } from "../../entities/strategy-decision.entity";
-import { DecisionLoggerService } from "../bot-strategy/decision-logger.service";
-import { DecisionAnalyzerService } from "../bot-strategy/decision-analyzer.service";
 
 @Module({
   imports: [
@@ -34,7 +31,6 @@ import { DecisionAnalyzerService } from "../bot-strategy/decision-analyzer.servi
       TournamentTable,
       TournamentSeat,
       TournamentBlindLevel,
-      StrategyDecision,
     ]),
   ],
   controllers: [
@@ -49,16 +45,12 @@ import { DecisionAnalyzerService } from "../bot-strategy/decision-analyzer.servi
     BotSubscriptionRepository,
     TournamentRepository,
     AnalyticsRepository,
-    DecisionLoggerService,
-    DecisionAnalyzerService,
   ],
   exports: [
     BotsService,
     BotOwnershipService,
     BotRepository,
     BotSubscriptionRepository,
-    DecisionLoggerService,
-    DecisionAnalyzerService,
   ],
 })
 export class BotsModule {}

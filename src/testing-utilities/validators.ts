@@ -69,14 +69,19 @@ export class ValidatorSuite {
     if (!game.potManager) return [];
 
     try {
-      const sumOfStacks = game.players.reduce((sum, p) => sum + p.chips, 0);
-      const pot = game.potManager.getTotalPot();
+      const sumOfStacks = game.players.reduce(
+        (sum, p) => sum + Number(p.chips),
+        0,
+      );
+      const pot = Number(game.potManager.getTotalPot());
       const total = sumOfStacks + pot;
 
       // Assume expectedTotal was set at game start
-      const expectedTotal =
+      const expectedTotal = Number(
         (game as any).expectedTotalChips ||
-        game.players.length * ((game as any).startingChips || 1000);
+          BigInt(game.players.length) *
+            BigInt((game as any).startingChips || 1000),
+      );
 
       if (total !== expectedTotal) {
         return [
@@ -140,7 +145,7 @@ export class ValidatorSuite {
       if (totalBet === 0) return []; // No bets yet
 
       const sumOfBets = game.players.reduce(
-        (sum, p) => sum + game.potManager!.getPlayerBetThisRound(p.id),
+        (sum, p) => sum + Number(game.potManager!.getPlayerBetThisRound(p.id)),
         0,
       );
 
@@ -379,7 +384,7 @@ export class ValidatorSuite {
 
     try {
       const sumOfPots = game.potManager.pots.reduce(
-        (sum, pot) => sum + pot.amount,
+        (sum, pot) => sum + Number(pot.amount),
         0,
       );
 

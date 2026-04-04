@@ -1,7 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   evaluateStrategy,
   buildGameContext,
+  clearEvalCache,
+  clearHydrationCache,
   type BotPayload,
 } from "../../../src/modules/bot-strategy/strategy-engine.service";
 import type { BotStrategy } from "../../../src/domain/bot-strategy/strategy.types";
@@ -62,6 +64,9 @@ function basePayload(overrides: Partial<BotPayload> = {}): BotPayload {
         position: "BB",
       },
     ],
+    decisionSeed:
+      overrides.decisionSeed ??
+      "0000000000000000000000000000000000000000000000000000000000000000",
   };
 }
 
@@ -80,6 +85,11 @@ function quickStrategy(overrides: Partial<BotStrategy> = {}): BotStrategy {
 }
 
 describe("StrategyEngine", () => {
+  beforeEach(() => {
+    clearEvalCache();
+    clearHydrationCache();
+  });
+
   describe("buildGameContext", () => {
     it("should compute basic fields from payload", () => {
       const ctx = buildGameContext(basePayload());

@@ -18,6 +18,7 @@ describe("AuthService", () => {
   let service: AuthService;
   let mockUserRepository: {
     findByEmail: ReturnType<typeof vi.fn>;
+    findByName: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
@@ -58,6 +59,7 @@ describe("AuthService", () => {
 
     mockUserRepository = {
       findByEmail: vi.fn(),
+      findByName: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
     };
@@ -114,6 +116,7 @@ describe("AuthService", () => {
   describe("register", () => {
     it("should register new user successfully", async () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
+      mockUserRepository.findByName.mockResolvedValue(null);
       mockUserRepository.create.mockResolvedValue({
         ...mockUser,
         email: "new@example.com",
@@ -158,6 +161,7 @@ describe("AuthService", () => {
 
     it("should use transaction for atomic check and insert (race condition fix)", async () => {
       mockUserRepository.findByEmail.mockResolvedValue(null);
+      mockUserRepository.findByName.mockResolvedValue(null);
       mockUserRepository.create.mockResolvedValue({
         ...mockUser,
         email: "new@example.com",

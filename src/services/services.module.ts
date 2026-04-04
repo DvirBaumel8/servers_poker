@@ -1,18 +1,17 @@
-import { Module, Global, OnModuleInit } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
+import { Module, Global } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { EventEmitterModule } from "@nestjs/event-emitter";
 import { LiveGameManagerService } from "./game/live-game-manager.service";
 import { GameStatePersistenceService } from "./game/game-state-persistence.service";
 import { GameRecoveryService } from "./game/game-recovery.service";
+import { GameHotStateService } from "./game/game-hot-state.service";
+import { GameMonitorService } from "./game/game-monitor.service";
 import { ProvablyFairService } from "./provably-fair.service";
 import { HandSeedPersistenceService } from "./hand-seed-persistence.service";
 import { GameDataPersistenceService } from "./game/game-data-persistence.service";
-import { GameOwnershipService } from "./game/game-ownership.service";
-import { RedisGameStateService } from "./redis/redis-game-state.service";
-import { RedisEventBusService } from "./redis/redis-event-bus.service";
+import { HandStatsProcessorService } from "./game/hand-stats-processor.service";
 import { RedisHealthService } from "./redis/redis-health.service";
-import { RedisSocketStateService } from "./redis/redis-socket-state.service";
 import { BotActivityService } from "./bot/bot-activity.service";
 import { BotAutoRegistrationService } from "./bot/bot-auto-registration.service";
 import { EmailService } from "./email.service";
@@ -73,14 +72,13 @@ import { JwtConfigModule } from "../common/jwt";
     LiveGameManagerService,
     GameStatePersistenceService,
     GameRecoveryService,
+    GameHotStateService,
+    GameMonitorService,
     ProvablyFairService,
     HandSeedPersistenceService,
     GameDataPersistenceService,
-    GameOwnershipService,
-    RedisGameStateService,
-    RedisEventBusService,
+    HandStatsProcessorService,
     RedisHealthService,
-    RedisSocketStateService,
     BotActivityService,
     BotAutoRegistrationService,
     EmailService,
@@ -93,38 +91,15 @@ import { JwtConfigModule } from "../common/jwt";
     LiveGameManagerService,
     GameStatePersistenceService,
     GameRecoveryService,
+    GameHotStateService,
+    GameMonitorService,
     ProvablyFairService,
     HandSeedRepository,
-    GameOwnershipService,
-    RedisGameStateService,
-    RedisEventBusService,
     RedisHealthService,
-    RedisSocketStateService,
     BotActivityService,
     BotAutoRegistrationService,
     EmailService,
     BotSubscriptionRepository,
   ],
 })
-export class ServicesModule implements OnModuleInit {
-  constructor(
-    private readonly liveGameManager: LiveGameManagerService,
-    private readonly redisGameStateService: RedisGameStateService,
-    private readonly gameOwnershipService: GameOwnershipService,
-    private readonly redisEventBusService: RedisEventBusService,
-    private readonly configService: ConfigService,
-  ) {}
-
-  onModuleInit(): void {
-    const redisEnabled =
-      this.configService.get<string>("REDIS_HOST") !== undefined;
-
-    if (redisEnabled) {
-      this.liveGameManager.setRedisServices(
-        this.redisGameStateService,
-        this.gameOwnershipService,
-        this.redisEventBusService,
-      );
-    }
-  }
-}
+export class ServicesModule {}

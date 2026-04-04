@@ -133,7 +133,6 @@ export async function analyzeScreenshotsWithRateLimit(
   const results: GeminiAnalysis[] = [];
 
   for (let i = 0; i < screenshots.length; i++) {
-    console.log(`  [${i + 1}/${screenshots.length}] Analyzing...`);
     const analysis = await analyzeScreenshot(screenshots[i].path);
     results.push(analysis);
 

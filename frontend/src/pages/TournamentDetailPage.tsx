@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
+import { Sidebar } from '../components/Sidebar'
 import BotSelectionModal from '../components/tournaments/BotSelectionModal'
 import { useTournamentSocket, type TournamentNotification } from '../hooks/useTournamentSocket'
 
@@ -38,7 +39,6 @@ interface Tournament {
   max_participants?: number
   current_participants?: number
   registered_count?: number
-  late_registration?: boolean
   rebuys_allowed?: boolean
   entries?: TournamentEntry[]
 }
@@ -60,225 +60,6 @@ const C = {
   font: "'Trebuchet MS', sans-serif",
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
-function Sidebar({ collapsed = false, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
-  const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-
-  const NAV = [
-    { label: 'Home', path: '/' },
-    { label: 'My Bots', path: '/bots' },
-    { label: 'Tournaments', path: '/tournaments' },
-    { label: 'Live Games', path: '/games' },
-  ]
-
-  const NAV_ICONS = {
-    Home: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-      </svg>
-    ),
-    'My Bots': (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-      </svg>
-    ),
-    Tournaments: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <line x1="8" y1="6" x2="21" y2="6" />
-        <line x1="8" y1="12" x2="21" y2="12" />
-        <line x1="8" y1="18" x2="21" y2="18" />
-        <circle cx="3" cy="6" r="1" fill="currentColor" />
-        <circle cx="3" cy="12" r="1" fill="currentColor" />
-        <circle cx="3" cy="18" r="1" fill="currentColor" />
-      </svg>
-    ),
-    'Live Games': (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10" />
-        <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  }
-
-  return (
-    <div
-      style={{
-        width: collapsed ? 60 : 210,
-        minHeight: '100vh',
-        background: '#0d0d22',
-        borderRight: `1px solid ${C.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        fontFamily: C.font,
-        transition: 'width 0.2s',
-        overflow: 'visible',
-      }}
-    >
-      <div style={{ padding: collapsed ? '12px 12px 8px' : '28px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {!collapsed && (
-          <>
-            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }}>
-              <span style={{ color: C.text }}>Bot</span>
-              <span style={{ color: C.accent }}>Royale</span>
-            </div>
-            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginTop: 4 }}>
-              Automate. Compete. Win.
-            </div>
-          </>
-        )}
-        {collapsed && (
-          <div style={{ fontSize: 16, color: C.accent }}>◆</div>
-        )}
-      </div>
-
-      <nav style={{ flex: 1, padding: '20px 0', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleCollapse() }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = C.accent
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = 'rgba(0, 229, 255, 0.5)'
-          }}
-          style={{
-            position: 'absolute', right: '-17px', top: '50%', transform: 'translateY(-50%)',
-            width: 34, height: 34,
-            background: 'transparent', border: 'none',
-            color: 'rgba(0, 229, 255, 0.5)', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, fontWeight: 'bold', transition: 'color 0.2s', zIndex: 10, padding: 0,
-            pointerEvents: 'auto',
-          }}
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          {collapsed ? '»' : '«'}
-        </button>
-        {NAV.map(({ label, path }, idx) => {
-          const active = path === '/tournaments'
-          return (
-            <div key={path}>
-              <button
-                onClick={() => navigate(path)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                  gap: collapsed ? 0 : 10,
-                  width: '100%',
-                  padding: collapsed ? '10px 0' : '10px 20px',
-                  background: active ? C.accentDim : 'transparent',
-                  border: 'none',
-                  borderLeft: collapsed ? 'none' : `3px solid ${active ? C.accent : 'transparent'}`,
-                  color: active ? C.text : C.muted,
-                  fontSize: 14,
-                  fontFamily: C.font,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {NAV_ICONS[label as keyof typeof NAV_ICONS]}
-                </span>
-                {!collapsed && label}
-              </button>
-            </div>
-          )
-        })}
-      </nav>
-
-      <div style={{ padding: collapsed ? '20px 4px' : '16px 20px', borderTop: `1px solid ${C.border}`, position: 'relative' }}>
-        <button
-          onClick={() => setDropdownOpen((o) => !o)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            gap: 10,
-            width: '100%',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #00e5ff, #0070ff)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 13,
-              fontWeight: 700,
-              color: '#000',
-              flexShrink: 0,
-            }}
-          >
-            {(user?.name?.[0] ?? '?').toUpperCase()}
-          </div>
-          {!collapsed && (
-            <>
-              <div style={{ overflow: 'hidden', flex: 1, textAlign: 'left' }}>
-                <div style={{ fontSize: 13, color: C.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user?.name ?? 'Player'}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted }}>{user?.role ?? 'user'}</div>
-              </div>
-            </>
-          )}
-        </button>
-        {dropdownOpen && !collapsed && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 12,
-              right: 12,
-              marginBottom: 6,
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              overflow: 'hidden',
-            }}
-          >
-            <button
-              onClick={() => {
-                setDropdownOpen(false)
-                logout()
-              }}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'transparent',
-                border: 'none',
-                color: C.danger,
-                fontSize: 13,
-                fontFamily: C.font,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              Sign out
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TournamentDetailPage() {
@@ -291,19 +72,6 @@ export default function TournamentDetailPage() {
   const [error, setError] = useState('')
   const [showBotSelector, setShowBotSelector] = useState(false)
   const [joining, setJoining] = useState(false)
-
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('tournament_detail_sidebar_collapsed')
-    return saved !== null ? JSON.parse(saved) : false
-  })
-
-  const toggleSidebarCollapse = () => {
-    setSidebarCollapsed((prev) => {
-      const newVal = !prev
-      localStorage.setItem('tournament_detail_sidebar_collapsed', JSON.stringify(newVal))
-      return newVal
-    })
-  }
 
   // Real-time tournament updates via Socket.IO
   const { connectionStatus, latestUpdate, playerUpdates, notifications } = useTournamentSocket({
@@ -399,7 +167,7 @@ export default function TournamentDetailPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+        <Sidebar />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontFamily: C.font }}>
           Loading tournament details...
         </div>
@@ -410,7 +178,7 @@ export default function TournamentDetailPage() {
   if (!tournament) {
     return (
       <div style={{ display: 'flex', minHeight: '100vh', background: C.bg }}>
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} />
+        <Sidebar />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.muted, fontFamily: C.font }}>
           <div style={{ fontSize: 16, marginBottom: 16 }}>Tournament not found</div>
           <button
@@ -637,17 +405,6 @@ export default function TournamentDetailPage() {
                       </div>
                       <div style={{ fontSize: 14, color: C.text }}>{tournament.players_per_table}</div>
                     </div>
-
-                    {tournament.late_registration !== undefined && (
-                      <div>
-                        <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-                          Late Registration
-                        </div>
-                        <div style={{ fontSize: 14, color: C.text }}>
-                          {tournament.late_registration ? '✓ Allowed' : '✗ Not allowed'}
-                        </div>
-                      </div>
-                    )}
 
                     {tournament.rebuys_allowed !== undefined && (
                       <div>

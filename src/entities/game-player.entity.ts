@@ -8,6 +8,10 @@ import {
   Check,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import {
+  bigIntTransformer,
+  bigIntNullableTransformer,
+} from "../common/transformers/bigint.transformer";
 import { Game } from "./game.entity";
 import { Bot } from "./bot.entity";
 
@@ -25,11 +29,15 @@ export class GamePlayer extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
   bot_id: string;
 
-  @Column({ type: "bigint" })
-  start_chips: number;
+  @Column({ type: "bigint", transformer: bigIntTransformer })
+  start_chips: bigint;
 
-  @Column({ type: "bigint", nullable: true })
-  end_chips: number | null;
+  @Column({
+    type: "bigint",
+    nullable: true,
+    transformer: bigIntNullableTransformer,
+  })
+  end_chips: bigint | null;
 
   @Column({ type: "integer", default: 0 })
   hands_played: number;

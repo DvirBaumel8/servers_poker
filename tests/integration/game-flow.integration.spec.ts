@@ -247,7 +247,7 @@ describe("Game Flow Integration Tests", () => {
       });
 
       expect(game.tournamentId).toBe(tournamentId);
-      expect(game.ante).toBe(5);
+      expect(game.ante).toBe(5n);
     });
   });
 });

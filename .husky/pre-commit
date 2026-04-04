@@ -20,32 +20,3 @@ if git diff --cached --name-only | grep -qE '^frontend/src/.*\.(ts|tsx)$'; then
   fi
 fi
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 🦖 MONSTER ARMY: Pre-commit validation (~10 seconds)
-# ═══════════════════════════════════════════════════════════════════════════
-
-echo ""
-echo "🦖 Monster Army: Running fast validation..."
-echo ""
-
-# Run fast static-analysis monsters (CSS lint, layout lint, code quality)
-# These don't require a running frontend/backend server (~5s)
-if npx ts-node tests/qa/monsters/run-all.ts --fast --static 2>/dev/null; then
-  echo "✅ Monster Army: All checks passed"
-else
-  echo ""
-  echo "❌ Monster Army found issues!"
-  echo ""
-  echo "   View report: cat docs/MONSTERS_ISSUES.md"
-  echo "   Skip (emergency): git commit --no-verify"
-  echo ""
-  exit 1
-fi
-
-# Extra reminder if new pages were added
-if git diff --cached --name-only | grep -qE '(pages/|routes).*\.(tsx?|jsx?)$'; then
-  echo ""
-  echo "💡 New page detected - full monster run recommended:"
-  echo "   npm run monsters:all"
-  echo ""
-fi

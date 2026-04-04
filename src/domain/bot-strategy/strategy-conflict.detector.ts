@@ -2,10 +2,24 @@ import {
   type BotStrategy,
   type Rule,
   type Condition,
+  type ConditionNode,
   type ConflictInfo,
   type ConflictDetectionResult,
   STREETS,
 } from "./strategy.types";
+
+/** Recursively extract all leaf Condition nodes from a ConditionNode tree. */
+function flattenLeafConditions(nodes: ConditionNode[]): Condition[] {
+  const leaves: Condition[] = [];
+  for (const node of nodes) {
+    if ("rules" in node) {
+      leaves.push(...flattenLeafConditions(node.rules));
+    } else {
+      leaves.push(node);
+    }
+  }
+  return leaves;
+}
 
 /**
  * Detects logical conflicts between rules in a strategy.
@@ -125,6 +139,17 @@ type OverlapResult =
  * everything B matches and more).
  */
 function analyzeConditionOverlap(
+  conditionsA: ConditionNode[],
+  conditionsB: ConditionNode[],
+): OverlapResult {
+  // Flatten to leaf conditions for comparison — ConditionGroups are advisory-best-effort
+  return analyzeLeafOverlap(
+    flattenLeafConditions(conditionsA),
+    flattenLeafConditions(conditionsB),
+  );
+}
+
+function analyzeLeafOverlap(
   conditionsA: Condition[],
   conditionsB: Condition[],
 ): OverlapResult {

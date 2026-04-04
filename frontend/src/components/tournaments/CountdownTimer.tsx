@@ -80,12 +80,16 @@ export default function CountdownTimer({
     ? new Date(scheduledStartTime)
     : scheduledStartTime
 
+  const isInvalidDate = isNaN(targetTime.getTime())
+
   const [timeRemaining, setTimeRemaining] = useState<TimeRemaining>(
-    calculateTimeRemaining(targetTime)
+    isInvalidDate ? { days: 0, hours: 0, minutes: 0, seconds: 0, totalSeconds: 0 } : calculateTimeRemaining(targetTime)
   )
   const [hasStarted, setHasStarted] = useState(false)
 
   useEffect(() => {
+    if (isInvalidDate) return
+
     const interval = setInterval(() => {
       const time = calculateTimeRemaining(targetTime)
       setTimeRemaining(time)
@@ -97,9 +101,9 @@ export default function CountdownTimer({
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [targetTime])
+  }, [targetTime, isInvalidDate])
 
-  const displayText = formatTimeRemaining(timeRemaining)
+  const displayText = isInvalidDate ? 'Starting soon...' : formatTimeRemaining(timeRemaining)
   const isStartingSoon = timeRemaining.totalSeconds > 0 && timeRemaining.totalSeconds <= 60
   const hasTimeUp = timeRemaining.totalSeconds <= 0
 

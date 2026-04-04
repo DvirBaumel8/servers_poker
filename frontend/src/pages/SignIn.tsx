@@ -52,15 +52,16 @@ export default function SignIn() {
   const [showPassword, setShowPassword] = useState(false)
   const [emailTouched, setEmailTouched] = useState(false)
   const [emailFocused, setEmailFocused] = useState(false)
+  const [pwFocused, setPwFocused] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
   const [apiError, setApiError] = useState<'email' | 'password' | null>(null)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState('')
 
   const emailValid = EMAIL_RE.test(email)
-  const emailBorderColor = emailFocused || emailTouched
-    ? emailValid ? '#1d9e75' : (email.length > 0 ? '#e24b4a' : '#252550')
-    : '#252550'
+  const emailBorderColor = emailFocused
+    ? (emailTouched && email.length > 0 ? (emailValid ? '#1d9e75' : '#e24b4a') : '#00e5ff')
+    : (emailTouched && email.length > 0 ? (emailValid ? '#1d9e75' : '#e24b4a') : '#252550')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -135,7 +136,9 @@ export default function SignIn() {
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: '' })); setApiError(null) }}
                     placeholder="••••••••"
-                    style={{ ...inputBase, paddingRight: '44px', borderColor: (errors.password || apiError === 'password') ? '#e24b4a' : '#252550' }}
+                    onFocus={() => setPwFocused(true)}
+                    onBlur={() => setPwFocused(false)}
+                    style={{ ...inputBase, paddingRight: '44px', borderColor: (errors.password || apiError === 'password') ? '#e24b4a' : pwFocused ? '#00e5ff' : '#252550' }}
                   />
                   <button
                     type="button"

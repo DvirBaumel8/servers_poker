@@ -154,7 +154,7 @@ export class BotActivityService {
           tableName,
           status: liveGame.game.status,
           handNumber: liveGame.game.handNumber,
-          chips: player.chips,
+          chips: Number(player.chips),
           position: playerIndex >= 0 ? playerIndex + 1 : undefined,
           joinedAt: liveGame.startedAt.toISOString(),
         });

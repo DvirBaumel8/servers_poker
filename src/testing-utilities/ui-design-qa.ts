@@ -186,11 +186,6 @@ if (require.main === module) {
     duration: 30000, // 30 seconds
     screenshotInterval: 3000, // Every 3 seconds
   })
-    .then((result) => {
-      console.log("\n📊 Results:");
-      console.log(`   Average Design Score: ${result.averageScore}/10`);
-      console.log(`   Screenshots: ${result.screenshots}`);
-      console.log(`   Report: ${result.reportPath}`);
-    })
+    .then((_result) => {})
     .catch((e) => console.error("Failed:", e));
 }

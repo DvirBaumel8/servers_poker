@@ -8,9 +8,8 @@ import { Tournament } from "./tournament.entity";
 export type SnapshotStatus = "active" | "recovered" | "orphaned" | "completed";
 
 @Entity("game_state_snapshots")
-@Index(["game_id"])
-@Index(["table_id"])
-@Index(["status"])
+@Index(["game_id", "status"])
+@Index(["table_id", "status"])
 @Check(`"hand_number" >= 0`)
 export class GameStateSnapshot extends BaseEntity {
   @Column({ type: "varchar", length: 36 })

@@ -50,16 +50,23 @@ export function analyzeHand(
   holeCards: string[],
   communityCards: string[],
   bestHandName?: string,
+  street?: string,
 ): HandAnalysis {
   const hole = holeCards.map(parseCardString);
   const community = communityCards.map(parseCardString);
   const allCards = [...hole, ...community];
 
+  // On the river there are no more cards to come, so any flush or straight
+  // draw that hasn't completed is simply a missed hand (weak), not a draw.
+  // Gate on explicit street="river" OR the card count (5 community cards
+  // always means river in Texas Hold'em) as a belt-and-suspenders check.
+  const isRiver = street === "river" || communityCards.length === 5;
+
   return {
     handStrength: computeHandStrength(bestHandName, hole, community),
     pairType: computePairType(hole, community, bestHandName),
-    hasFlushDraw: detectFlushDraw(hole, allCards),
-    hasStraightDraw: detectStraightDraw(hole, allCards),
+    hasFlushDraw: isRiver ? false : detectFlushDraw(hole, allCards),
+    hasStraightDraw: isRiver ? false : detectStraightDraw(hole, allCards),
     holeCardRank: classifyHoleCards(hole),
   };
 }

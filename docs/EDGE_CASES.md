@@ -123,13 +123,7 @@ This document is the definitive reference for testing and QA.
 **Status:** ⚠️ Needs verification
 **Test needed:** Trigger final table during active hand
 
-### 16. Late Registration at High Blind Level
-**Scenario:** Player registers when blinds are 500/1000, gets starting stack of 1000
-**Expected:** Player starts with 1BB (severely disadvantaged but legal)
-**Status:** ✅ Documented in KNOWLEDGE.md
-**Test needed:** Verify play is possible at <1BB effective stack
-
-### 17. Bubble Play - Last Player Before Money
+### 16. Bubble Play - Last Player Before Money
 **Scenario:** Tournament pays top 3, 4 players remain, one busts
 **Expected:** 
 - Accurate finish position (4th = bubble)

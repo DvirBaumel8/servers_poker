@@ -115,18 +115,25 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     botId: string,
     bustLevel: number,
     finishPosition: number,
+    bustHandNumber?: number,
+    chipsAtBust?: number,
     manager?: EntityManager,
   ): Promise<void> {
     await this.getEntryRepo(manager).update(
       { tournament_id: tournamentId, bot_id: botId },
-      { bust_level: bustLevel, finish_position: finishPosition },
+      {
+        bust_level: bustLevel,
+        finish_position: finishPosition,
+        bust_hand_number: bustHandNumber ?? null,
+        chips_at_bust: chipsAtBust ?? null,
+      },
     );
   }
 
   async setEntryPayout(
     tournamentId: string,
     botId: string,
-    payout: number,
+    payout: bigint,
     finishPosition: number,
     manager?: EntityManager,
   ): Promise<void> {
@@ -193,7 +200,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
   async updateSeatChips(
     tournamentId: string,
     botId: string,
-    chips: number,
+    chips: bigint,
     manager?: EntityManager,
   ): Promise<void> {
     await this.getSeatRepo(manager).update(
@@ -209,7 +216,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
   ): Promise<void> {
     await this.getSeatRepo(manager).update(
       { tournament_id: tournamentId, bot_id: botId },
-      { busted: true, chips: 0 },
+      { busted: true, chips: 0n },
     );
   }
 

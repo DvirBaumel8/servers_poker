@@ -23,11 +23,6 @@ import {
   LiveGameManagerService,
   GameStateSnapshot,
 } from "../../services/game/live-game-manager.service";
-import {
-  RedisEventBusService,
-  RedisGameEvent,
-} from "../../services/redis/redis-event-bus.service";
-import { RedisSocketStateService } from "../../services/redis/redis-socket-state.service";
 import { BotActivityService } from "../../services/bot/bot-activity.service";
 import { BotRepository } from "../../repositories/bot.repository";
 import { DEFAULT_CORS_ORIGINS } from "../../config/app.config";
@@ -50,9 +45,9 @@ interface GameState {
   status: string;
   handNumber: number;
   stage: string;
-  pot: number;
+  pot: bigint;
   communityCards: Array<{ rank: string; suit: string }>;
-  currentBet: number;
+  currentBet: bigint;
   currentPlayerId: string | null;
   dealerPosition: number;
   players: Array<{
@@ -60,8 +55,8 @@ interface GameState {
     botId: string;
     name: string;
     position: number;
-    chips: number;
-    bet: number;
+    chips: bigint;
+    bet: bigint;
     folded: boolean;
     allIn: boolean;
     disconnected: boolean;
@@ -69,9 +64,9 @@ interface GameState {
     holeCards: Array<{ rank: string; suit: string }>;
   }>;
   blinds: {
-    small: number;
-    big: number;
-    ante: number;
+    small: bigint;
+    big: bigint;
+    ante: bigint;
   };
 }
 
@@ -108,7 +103,6 @@ export class GamesGateway
     string,
     AuthenticatedSocket
   >();
-  private readonly useRedisSocketState: boolean;
   private readonly eventHandlers: Array<{
     event: string;
     handler: (...args: unknown[]) => void;
@@ -151,21 +145,12 @@ export class GamesGateway
     private readonly liveGameManager: LiveGameManagerService,
     private readonly botRepository: BotRepository,
     @Optional()
-    @Inject(RedisEventBusService)
-    private readonly redisEventBus: RedisEventBusService | null,
-    @Optional()
-    @Inject(RedisSocketStateService)
-    private readonly redisSocketState: RedisSocketStateService | null,
-    @Optional()
     @Inject(BotActivityService)
     private readonly botActivityService: BotActivityService | null,
-  ) {
-    this.useRedisSocketState = this.redisSocketState !== null;
-  }
+  ) {}
 
   onModuleInit() {
     this.setupLocalEventListeners();
-    this.setupRedisEventListeners();
     this.logger.log("Game event listeners registered");
   }
 
@@ -227,8 +212,35 @@ export class GamesGateway
         })),
         pot: event.winners.reduce((sum: number, w: any) => sum + w.amount, 0),
         provablyFair: event.provablyFair,
+        showdownSequence: event.showdownSequence,
       });
     });
+
+    this.registerEventHandler(
+      "game.showdownReveal",
+      (event: {
+        tableId: string;
+        gameId: string;
+        handNumber: number;
+        playerId: string;
+        playerName: string;
+        cardStatus: string;
+        holeCards?: any[];
+        hand?: any;
+        isWinner: boolean;
+      }) => {
+        this.server.to(`table:${event.gameId}`).emit("showdownReveal", {
+          playerId: event.playerId,
+          playerName: event.playerName,
+          cardStatus: event.cardStatus,
+          holeCards: event.holeCards,
+          hand: event.hand
+            ? { name: event.hand.name, rank: event.hand.rank }
+            : undefined,
+          isWinner: event.isWinner,
+        });
+      },
+    );
 
     this.registerEventHandler(
       "game.playerAction",
@@ -298,125 +310,6 @@ export class GamesGateway
     );
   }
 
-  private setupRedisEventListeners(): void {
-    if (!this.redisEventBus) {
-      this.logger.debug(
-        "Redis event bus not available, skipping Redis listeners",
-      );
-      return;
-    }
-
-    this.redisEventBus.onRedisEvent(
-      "game.stateUpdated",
-      (event: RedisGameEvent) => {
-        const gameId = (event.payload as any).gameId;
-        this.broadcastGameState(gameId, event.payload as any);
-      },
-    );
-
-    this.redisEventBus.onRedisEvent(
-      "game.handStarted",
-      (event: RedisGameEvent) => {
-        const payload = event.payload as {
-          tableId: string;
-          gameId: string;
-          handNumber: number;
-          provablyFair?: {
-            serverSeedHash: string;
-            clientSeed: string;
-            nonce: number;
-          };
-        };
-        const gameId = (event.payload as any).gameId;
-        this.server.to(`table:${gameId}`).emit("handStarted", {
-          tableId: gameId,
-          handNumber: payload.handNumber,
-          provablyFair: payload.provablyFair,
-        });
-      },
-    );
-
-    this.redisEventBus.onRedisEvent(
-      "game.handComplete",
-      (event: RedisGameEvent) => {
-        const payload = event.payload as any;
-        const gameId = (event.payload as any).gameId;
-        this.broadcastHandResult(gameId, {
-          handNumber: payload.handNumber,
-          winners: payload.winners.map((w: any) => ({
-            botId: w.playerId,
-            amount: w.amount,
-            handName: w.hand?.name || "Winner",
-          })),
-          pot: payload.winners.reduce(
-            (sum: number, w: any) => sum + w.amount,
-            0,
-          ),
-          provablyFair: payload.provablyFair,
-        });
-      },
-    );
-
-    this.redisEventBus.onRedisEvent(
-      "game.playerAction",
-      (event: RedisGameEvent) => {
-        const payload = event.payload as {
-          tableId: string;
-          gameId: string;
-          botId: string;
-          action: string;
-          amount: number;
-          pot: number;
-        };
-        const gameId = (event.payload as any).gameId;
-        this.broadcastPlayerAction(gameId, {
-          botId: payload.botId,
-          action: payload.action,
-          amount: payload.amount,
-          pot: payload.pot,
-        });
-      },
-    );
-
-    this.redisEventBus.onRedisEvent(
-      "game.finished",
-      (event: RedisGameEvent) => {
-        const payload = event.payload as {
-          tableId: string;
-          gameId: string;
-          winnerId?: string;
-          winnerName?: string;
-        };
-        const gameId = (event.payload as any).gameId;
-        this.broadcastGameFinished(gameId, {
-          reason: "winner_determined",
-          winnerId: payload.winnerId,
-          winnerName: payload.winnerName,
-        });
-      },
-    );
-
-    this.redisEventBus.onRedisEvent(
-      "game.playerRemoved",
-      (event: RedisGameEvent) => {
-        const payload = event.payload as {
-          tableId: string;
-          gameId: string;
-          playerId: string;
-        };
-        const gameId = (event.payload as any).gameId;
-        this.broadcastPlayerLeft(gameId, {
-          playerId: payload.playerId,
-          playerName: "Player",
-          reason: "disconnect",
-          remainingPlayers: 0,
-        });
-      },
-    );
-
-    this.logger.log("Redis event listeners registered for cross-instance sync");
-  }
-
   private getGameState(tableId: string): GameStateSnapshot | null {
     return this.liveGameManager.getGameState(tableId) || null;
   }
@@ -431,9 +324,6 @@ export class GamesGateway
       if (!token) {
         client.userId = undefined;
         this.localConnectedClients.set(client.id, client);
-        if (this.redisSocketState) {
-          await this.redisSocketState.registerSocket(client.id);
-        }
         this.logger.log(`Spectator connected: ${client.id} (no auth)`);
         return;
       }
@@ -444,18 +334,12 @@ export class GamesGateway
       client.userId = payload.sub;
 
       this.localConnectedClients.set(client.id, client);
-      if (this.redisSocketState) {
-        await this.redisSocketState.registerSocket(client.id, client.userId);
-      }
       this.logger.log(
         `Client connected: ${client.id} (user: ${client.userId})`,
       );
     } catch {
       client.userId = undefined;
       this.localConnectedClients.set(client.id, client);
-      if (this.redisSocketState) {
-        await this.redisSocketState.registerSocket(client.id);
-      }
       this.logger.log(
         `Spectator connected: ${client.id} (invalid token, spectating)`,
       );
@@ -464,11 +348,6 @@ export class GamesGateway
 
   async handleDisconnect(client: AuthenticatedSocket) {
     this.localConnectedClients.delete(client.id);
-
-    if (this.redisSocketState) {
-      await this.redisSocketState.unregisterSocket(client.id);
-    }
-
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
@@ -483,10 +362,6 @@ export class GamesGateway
 
     const { tableId } = data;
     this.logger.log(`[subscribe] client=${client.id} table=${tableId}`);
-
-    if (this.redisSocketState) {
-      await this.redisSocketState.subscribeToTable(client.id, tableId);
-    }
 
     client.join(`table:${tableId}`);
 
@@ -536,10 +411,6 @@ export class GamesGateway
 
     const { tableId } = data;
 
-    if (this.redisSocketState) {
-      await this.redisSocketState.unsubscribeFromTable(client.id, tableId);
-    }
-
     client.leave(`table:${tableId}`);
     this.logger.debug(`Client ${client.id} unsubscribed from table ${tableId}`);
 
@@ -567,11 +438,6 @@ export class GamesGateway
     }
 
     client.botId = botId;
-
-    if (this.redisSocketState) {
-      await this.redisSocketState.registerBotSocket(client.id, botId);
-    }
-
     this.logger.log(`Bot ${botId} registered on socket ${client.id}`);
     return { success: true, botId };
   }
@@ -594,10 +460,6 @@ export class GamesGateway
     const bot = await this.botRepository.findById(botId);
     if (!bot || bot.user_id !== client.userId) {
       return { success: false, error: "Bot not found or access denied" };
-    }
-
-    if (this.redisSocketState) {
-      await this.redisSocketState.subscribeToBotActivity(client.id, botId);
     }
 
     client.join(`bot:${botId}`);
@@ -625,10 +487,6 @@ export class GamesGateway
     }
 
     const { botId } = data;
-
-    if (this.redisSocketState) {
-      await this.redisSocketState.unsubscribeFromBotActivity(client.id, botId);
-    }
 
     client.leave(`bot:${botId}`);
     this.logger.debug(
@@ -760,24 +618,11 @@ export class GamesGateway
     };
   }
 
-  async sendError(
-    botId: string,
-    error: { code: string; message: string; currentPlayerId?: string },
+  sendError(
+    _botId: string,
+    _error: { code: string; message: string; currentPlayerId?: string },
   ) {
-    let socketId: string | null = null;
-
-    if (this.redisSocketState) {
-      socketId = await this.redisSocketState.getSocketIdForBot(botId);
-    }
-
-    if (socketId) {
-      const socket = this.localConnectedClients.get(socketId);
-      if (socket) {
-        socket.emit("error", error);
-      } else {
-        this.server.to(socketId).emit("error", error);
-      }
-    }
+    // Single-instance: errors are sent directly via game events
   }
 
   broadcastGameFinished(
@@ -815,7 +660,6 @@ export class GamesGateway
       currentPlayerId: (state as any).activePlayerId || null,
       dealerPosition: this.getDealerPosition(state),
     };
-    console.log(`📤 Broadcasting gameState to room table:${tableId}`);
     this.logger.log(
       `📤 Broadcasting gameState to room table:${tableId} (${transformedState.players?.length || 0} players, pot=${transformedState.pot})`,
     );
@@ -830,21 +674,8 @@ export class GamesGateway
     return dealerIndex >= 0 ? dealerIndex : 0;
   }
 
-  async sendPrivateState(botId: string, state: PrivatePlayerState) {
-    let socketId: string | null = null;
-
-    if (this.redisSocketState) {
-      socketId = await this.redisSocketState.getSocketIdForBot(botId);
-    }
-
-    if (socketId) {
-      const socket = this.localConnectedClients.get(socketId);
-      if (socket) {
-        socket.emit("privateState", state);
-      } else {
-        this.server.to(socketId).emit("privateState", state);
-      }
-    }
+  sendPrivateState(_botId: string, _state: PrivatePlayerState) {
+    // Single-instance: private state is sent directly via game events
   }
 
   broadcastHandResult(
@@ -866,6 +697,12 @@ export class GamesGateway
         deckOrder: number[];
         verificationUrl: string;
       };
+      showdownSequence?: Array<{
+        playerId: string;
+        cardStatus: string;
+        hand?: { name: string; rank: number };
+        order: number;
+      }>;
     },
   ) {
     this.server.to(`table:${tableId}`).emit("handResult", result);
@@ -933,18 +770,13 @@ export class GamesGateway
     });
   }
 
-  async getConnectedCount(): Promise<number> {
-    if (this.redisSocketState) {
-      return this.redisSocketState.getConnectedCount();
-    }
+  getConnectedCount(): number {
     return this.localConnectedClients.size;
   }
 
   async getTableSubscriberCount(tableId: string): Promise<number> {
-    if (this.redisSocketState) {
-      return this.redisSocketState.getTableSubscriberCount(tableId);
-    }
-    return 0;
+    const room = this.server.sockets.adapter.rooms.get(`table:${tableId}`);
+    return room?.size ?? 0;
   }
 
   private snapshotToGameState(snapshot: GameStateSnapshot): GameState {
@@ -972,8 +804,8 @@ export class GamesGateway
         botId: p.id,
         name: p.name || "Unknown",
         position: typeof p.position === "number" ? p.position : index,
-        chips: p.chips || 0,
-        bet: p.bet || 0,
+        chips: p.chips ?? 0n,
+        bet: p.bet ?? 0n,
         folded: p.folded || false,
         allIn: p.allIn || false,
         disconnected: p.disconnected || false,
@@ -989,9 +821,9 @@ export class GamesGateway
         }),
       })),
       blinds: {
-        small: snapshot.smallBlind || 0,
-        big: snapshot.bigBlind || 0,
-        ante: snapshot.ante || 0,
+        small: snapshot.smallBlind ?? 0n,
+        big: snapshot.bigBlind ?? 0n,
+        ante: snapshot.ante ?? 0n,
       },
     };
   }

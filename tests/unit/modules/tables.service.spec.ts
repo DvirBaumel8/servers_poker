@@ -33,14 +33,6 @@ describe("TablesService", () => {
     getGameState: ReturnType<typeof vi.fn>;
     registerBotInGame: ReturnType<typeof vi.fn>;
   };
-  let mockGameWorkerManager: {
-    isEnabled: ReturnType<typeof vi.fn>;
-    hasGame: ReturnType<typeof vi.fn>;
-    createGame: ReturnType<typeof vi.fn>;
-    addPlayer: ReturnType<typeof vi.fn>;
-    getGameState: ReturnType<typeof vi.fn>;
-    getAllGames: ReturnType<typeof vi.fn>;
-  };
   let mockDataSource: {
     transaction: ReturnType<typeof vi.fn>;
   };
@@ -107,15 +99,6 @@ describe("TablesService", () => {
       registerBotInGame: vi.fn(),
     };
 
-    mockGameWorkerManager = {
-      isEnabled: vi.fn().mockReturnValue(false),
-      hasGame: vi.fn(),
-      createGame: vi.fn(),
-      addPlayer: vi.fn(),
-      getGameState: vi.fn(),
-      getAllGames: vi.fn(),
-    };
-
     mockDataSource = {
       transaction: vi.fn(),
     };
@@ -130,7 +113,6 @@ describe("TablesService", () => {
       mockBotRepository as never,
       mockGameRepository as never,
       mockLiveGameManager as never,
-      mockGameWorkerManager as never,
       mockDataSource as never,
       mockTournamentDirector as never,
     );
@@ -242,16 +224,6 @@ describe("TablesService", () => {
       const result = await service.updateStatus("table-123", "running");
 
       expect(result?.status).toBe("running");
-    });
-  });
-
-  describe("getSeatCount", () => {
-    it("should return seat count", async () => {
-      mockTableRepository.getSeatCount.mockResolvedValue(3);
-
-      const result = await service.getSeatCount("table-123");
-
-      expect(result).toBe(3);
     });
   });
 

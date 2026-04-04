@@ -9,13 +9,9 @@ export * from "./game/live-game-manager.service";
 export * from "./game/game-state-persistence.service";
 export * from "./game/game-recovery.service";
 export * from "./game/game-data-persistence.service";
-export * from "./game/game-ownership.service";
 
 // Redis services
-export * from "./redis/redis-game-state.service";
-export * from "./redis/redis-event-bus.service";
 export * from "./redis/redis-health.service";
-export * from "./redis/redis-socket-state.service";
 
 // Other services
 export * from "./email.service";

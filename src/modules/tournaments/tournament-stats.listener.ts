@@ -22,7 +22,7 @@ export class TournamentStatsListener {
     private readonly tournamentRepository: TournamentRepository,
   ) {}
 
-  @OnEvent("tournament.finished")
+  @OnEvent("tournament.finished", { async: true })
   async handleTournamentFinished(
     event: TournamentFinishedEvent,
   ): Promise<void> {

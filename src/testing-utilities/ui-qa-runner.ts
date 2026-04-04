@@ -163,10 +163,6 @@ export async function runUIQA(config: {
     }> = [];
     const screenshotStages = new Set<string>(); // Track stages to avoid duplicate screenshots
 
-    console.log(
-      `🎬 Running ${config.gameCount} UI QA games with ${botCount} bots each...\n`,
-    );
-
     for (let i = 1; i <= config.gameCount; i++) {
       process.stdout.write(`Game ${i}/${config.gameCount}... `);
 
@@ -189,23 +185,15 @@ export async function runUIQA(config: {
           }
         },
       );
-
-      console.log("✓");
     }
-
-    console.log(`\n📸 Took ${screenshots.length} screenshots\n`);
 
     // Convert to screenshot items for Gemini
     const screenshotItems = screenshots.map((s) => ({
       path: s.path,
       state: s.state,
     }));
-
-    console.log(`🤖 Sending to Gemini for analysis...\n`);
     const analysisResults =
       await analyzeScreenshotsWithRateLimit(screenshotItems);
-
-    console.log(`\n📊 Generating report...`);
 
     // Generate UI_QA_REPORT.md for detailed analysis
     const reportPath = path.join(process.cwd(), "UI_QA_REPORT.md");
@@ -273,8 +261,6 @@ Screenshots: ${screenshots.length}
     fs.writeFileSync(reportPath, reportContent, "utf-8");
 
     const duration = Date.now() - startTime;
-
-    console.log(`✅ Report saved to ${reportPath}`);
 
     return {
       gamesRun: config.gameCount,

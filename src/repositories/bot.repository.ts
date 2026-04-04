@@ -21,6 +21,24 @@ export class BotRepository extends BaseRepository<Bot> {
     return this.getRepo(manager).findOne({ where: { name } });
   }
 
+  async findByUserAndName(
+    userId: string,
+    name: string,
+    manager?: EntityManager,
+  ): Promise<Bot | null> {
+    return this.getRepo(manager).findOne({ where: { user_id: userId, name } });
+  }
+
+  async findActiveByUserAndName(
+    userId: string,
+    name: string,
+    manager?: EntityManager,
+  ): Promise<Bot | null> {
+    return this.getRepo(manager).findOne({
+      where: { user_id: userId, name, active: true },
+    });
+  }
+
   async findByUserId(userId: string, manager?: EntityManager): Promise<Bot[]> {
     return this.getRepo(manager).find({ where: { user_id: userId } });
   }

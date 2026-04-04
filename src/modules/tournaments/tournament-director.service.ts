@@ -13,8 +13,6 @@ import {
   Logger,
   OnModuleInit,
   OnModuleDestroy,
-  Optional,
-  Inject,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { SchedulerRegistry } from "@nestjs/schedule";
@@ -27,17 +25,17 @@ import {
   LiveGameManagerService,
   GameInstance,
 } from "../../services/game/live-game-manager.service";
-import { GameOwnershipService } from "../../services/game/game-ownership.service";
-import { RedisGameStateService } from "../../services/redis/redis-game-state.service";
-import { RedisEventBusService } from "../../services/redis/redis-event-bus.service";
 import {
   HANDS_PER_LEVEL,
   getBlindLevel,
+  getPayoutStructure,
   calculatePayouts,
 } from "../../config/tournaments.config";
 import { Game } from "../../entities/game.entity";
 import { GamePlayer } from "../../entities/game-player.entity";
 import { Table } from "../../entities/table.entity";
+import { RedisService } from "../../common/redis/redis.service";
+import { LogicBug } from "../../entities/logic-bug.entity";
 import * as crypto from "crypto";
 
 const SEATS_PER_TABLE = 9;
@@ -48,7 +46,7 @@ interface BotInfo {
   name: string;
   userName: string;
   strategy: Record<string, any> | null;
-  chips: number;
+  chips: bigint;
   tableDbId: string | null;
 }
 
@@ -58,6 +56,15 @@ interface TableEntry {
   gameDbId: string;
   tableNumber: number;
   botIdMap: Record<string, string>;
+}
+
+interface BustRecord {
+  botId: string;
+  bustLevel: number;
+  bustHandNumber: number;
+  chipsAtHandStart: number;
+  finishPosition: number;
+  isTied: boolean;
 }
 
 export interface TournamentState {
@@ -82,6 +89,7 @@ export interface TournamentState {
   }>;
   buyIn: number;
   prizePool: number;
+  handForHand: boolean;
 }
 
 @Injectable()
@@ -100,24 +108,8 @@ export class TournamentDirectorService
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
     private readonly schedulerRegistry: SchedulerRegistry,
-    @Optional()
-    @Inject(GameOwnershipService)
-    private readonly gameOwnershipService: GameOwnershipService | null,
-    @Optional()
-    @Inject(RedisGameStateService)
-    private readonly redisGameStateService: RedisGameStateService | null,
-    @Optional()
-    @Inject(RedisEventBusService)
-    private readonly redisEventBusService: RedisEventBusService | null,
+    private readonly redisService: RedisService,
   ) {}
-
-  private isRedisEnabled(): boolean {
-    return (
-      this.gameOwnershipService !== null &&
-      this.redisGameStateService !== null &&
-      this.redisEventBusService !== null
-    );
-  }
 
   onModuleInit(): void {
     const enabled = this.configService.get<boolean>(
@@ -310,51 +302,17 @@ export class TournamentDirectorService
       throw new Error("Tournament already running");
     }
 
-    if (this.isRedisEnabled()) {
-      const acquired =
-        await this.gameOwnershipService!.acquireTournamentOwnership(
-          tournamentId,
-        );
-      if (!acquired) {
-        const existingState =
-          await this.redisGameStateService!.getTournamentState(tournamentId);
-        if (existingState) {
-          this.logger.log(
-            `Tournament ${tournamentId} owned by another instance`,
-          );
-        }
-        throw new Error(
-          `Cannot start tournament: ${tournamentId} is owned by another instance`,
-        );
-      }
-    }
-
     const tournament = await this.tournamentRepository.findById(tournamentId);
     if (!tournament) {
-      if (this.isRedisEnabled()) {
-        await this.gameOwnershipService!.releaseTournamentOwnership(
-          tournamentId,
-        );
-      }
       throw new Error("Tournament not found");
     }
 
     if (tournament.status !== "registering") {
-      if (this.isRedisEnabled()) {
-        await this.gameOwnershipService!.releaseTournamentOwnership(
-          tournamentId,
-        );
-      }
       throw new Error("Tournament cannot be started");
     }
 
     const entries = await this.tournamentRepository.getEntries(tournamentId);
     if (entries.length < tournament.min_players) {
-      if (this.isRedisEnabled()) {
-        await this.gameOwnershipService!.releaseTournamentOwnership(
-          tournamentId,
-        );
-      }
       throw new Error(
         `Not enough players: ${entries.length}/${tournament.min_players}`,
       );
@@ -370,9 +328,7 @@ export class TournamentDirectorService
       this.liveGameManager,
       this.tournamentRepository,
       this.dataSource,
-      this.redisGameStateService,
-      this.redisEventBusService,
-      this.gameOwnershipService?.getInstanceId() || null,
+      this.redisService,
     );
 
     this.activeDirectors.set(tournamentId, director);
@@ -384,11 +340,6 @@ export class TournamentDirectorService
     } catch (error) {
       // If tournament startup fails, clean up and re-throw
       this.activeDirectors.delete(tournamentId);
-      if (this.isRedisEnabled()) {
-        await this.gameOwnershipService!.releaseTournamentOwnership(
-          tournamentId,
-        );
-      }
       this.logger.error(
         `Failed to start tournament ${tournamentId}:`,
         error instanceof Error ? error.message : String(error),
@@ -416,16 +367,67 @@ export class TournamentDirectorService
     if (director) {
       director.stop();
       this.activeDirectors.delete(tournamentId);
-
-      if (this.isRedisEnabled()) {
-        await this.gameOwnershipService!.releaseTournamentOwnership(
-          tournamentId,
-        );
-        await this.redisGameStateService!.deleteTournamentState(tournamentId);
-      }
     }
   }
 }
+
+// ─── Barrier Coordinator ─────────────────────────────────────────────────────
+
+/**
+ * Synchronizes multiple concurrent game tables during hand-for-hand play.
+ * Each table calls checkIn() after completing a hand; all tables block until
+ * every table has checked in (or the 30-second safety timeout fires).
+ */
+class BarrierCoordinator {
+  private checkedIn = new Set<string>();
+  private waiters: Array<() => void> = [];
+  private timeoutHandle?: ReturnType<typeof setTimeout>;
+
+  constructor(
+    private readonly logger: Logger,
+    private readonly tournamentId: string,
+    private readonly onStuckTables: (stuckIds: string[]) => Promise<void>,
+  ) {}
+
+  async checkIn(
+    tableId: string,
+    totalTables: number,
+    allTableIds: string[],
+  ): Promise<void> {
+    this.checkedIn.add(tableId);
+
+    if (this.checkedIn.size === 1) {
+      // Start deadlock protection on the first table to check in
+      this.timeoutHandle = setTimeout(async () => {
+        const stuck = allTableIds.filter((id) => !this.checkedIn.has(id));
+        this.logger.error(
+          `[H2H ${this.tournamentId}] Barrier timeout — stuck tables: [${stuck.join(", ")}]`,
+        );
+        await this.onStuckTables(stuck);
+        this.release();
+      }, 30_000);
+    }
+
+    if (this.checkedIn.size >= totalTables) {
+      this.release();
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      this.waiters.push(resolve);
+    });
+  }
+
+  release(): void {
+    clearTimeout(this.timeoutHandle);
+    this.timeoutHandle = undefined;
+    this.checkedIn.clear();
+    const resolvers = this.waiters.splice(0);
+    for (const r of resolvers) r();
+  }
+}
+
+// ─── ActiveTournament ─────────────────────────────────────────────────────────
 
 class ActiveTournament {
   private tables = new Map<string, TableEntry>();
@@ -433,11 +435,20 @@ class ActiveTournament {
   private currentLevel = 1;
   private handsThisLevel = 0;
   private activeBots = new Map<string, BotInfo>();
-  private bustOrder: string[] = [];
+  private bustOrder: BustRecord[] = [];
   private bustedBots = new Set<string>();
   private running = false;
   private handLock = false;
   private totalEntrants: number;
+  private eventHandlerRefs: Array<{
+    event: string;
+    handler: (...args: any[]) => void;
+  }> = [];
+  private safetyNetInterval?: ReturnType<typeof setInterval>;
+  private chipSnapshot = new Map<string, number>();
+  private roundCounter = 0;
+  private handForHandMode = false;
+  private readonly barrier: BarrierCoordinator;
 
   constructor(
     private readonly tournamentId: string,
@@ -449,63 +460,13 @@ class ActiveTournament {
     private readonly liveGameManager: LiveGameManagerService,
     private readonly tournamentRepository: TournamentRepository,
     private readonly dataSource: DataSource,
-    private readonly redisGameStateService: RedisGameStateService | null,
-    private readonly redisEventBusService: RedisEventBusService | null,
-    private readonly instanceId: string | null,
+    private readonly redis: RedisService,
   ) {
     this.totalEntrants = entries.length;
-  }
-
-  private isRedisEnabled(): boolean {
-    return (
-      this.redisGameStateService !== null &&
-      this.redisEventBusService !== null &&
-      this.instanceId !== null
-    );
-  }
-
-  private async saveStateToRedis(): Promise<void> {
-    if (!this.isRedisEnabled()) return;
-
-    const blindLevel = getBlindLevel(this.currentLevel);
-    await this.redisGameStateService!.saveTournamentState(this.tournamentId, {
-      name: this.name,
-      status: this.running ? "running" : "finished",
-      level: this.currentLevel,
-      handsThisLevel: this.handsThisLevel,
-      handsPerLevel: HANDS_PER_LEVEL,
-      blinds: {
-        small: blindLevel.small_blind,
-        big: blindLevel.big_blind,
-        ante: blindLevel.ante,
-      },
-      playersRemaining: this.activeBots.size,
-      totalEntrants: this.totalEntrants,
-      tables: Array.from(this.tables.values()).map((t) => ({
-        tableId: t.tableDbId,
-        tableNumber: t.tableNumber,
-      })),
-      buyIn: this.config.buy_in,
-      prizePool: this.totalEntrants * this.config.buy_in,
-      ownerInstanceId: this.instanceId!,
-    });
-  }
-
-  private async publishEvent(
-    eventType:
-      | "tournament.stateUpdated"
-      | "tournament.levelChanged"
-      | "tournament.playerBusted"
-      | "tournament.tableBreak"
-      | "tournament.finished",
-    payload: unknown,
-  ): Promise<void> {
-    if (!this.isRedisEnabled()) return;
-
-    await this.redisEventBusService!.publishTournamentEvent(
-      eventType,
+    this.barrier = new BarrierCoordinator(
+      this.logger,
       this.tournamentId,
-      payload,
+      this.onStuckTables.bind(this),
     );
   }
 
@@ -515,8 +476,7 @@ class ActiveTournament {
       `Starting tournament ${this.name} with ${this.entries.length} players`,
     );
 
-    // Ensure starting_chips is a number (bigint from DB comes as string)
-    const startingChips = Number(this.config.starting_chips);
+    const startingChips = this.config.starting_chips;
 
     for (const entry of this.entries) {
       this.activeBots.set(entry.bot_id, {
@@ -533,7 +493,8 @@ class ActiveTournament {
     await this.startBlindLevel(1);
     this.emitStateUpdate();
 
-    this.runGameLoop();
+    this.registerEventHandlers();
+    this.startSafetyNet();
   }
 
   private async createInitialTables(): Promise<void> {
@@ -578,6 +539,14 @@ class ActiveTournament {
       turnTimeoutMs: this.config.turn_timeout_ms,
     });
 
+    // Wire the inter-hand hook for hand-for-hand synchronization.
+    // The hook is a no-op when handForHandMode is false, so it's safe on all tables.
+    game.interHandHook = async () => {
+      if (!this.handForHandMode) return;
+      const allIds = [...this.tables.keys()];
+      await this.barrier.checkIn(tableDbId, this.tables.size, allIds);
+    };
+
     const tableEntry: TableEntry = {
       game,
       tableDbId,
@@ -591,7 +560,7 @@ class ActiveTournament {
         id: bot.botId,
         name: bot.userName,
         strategy: bot.strategy as any,
-        chips: bot.chips,
+        chips: Number(bot.chips),
       });
       tableEntry.botIdMap[bot.name] = bot.botId;
       bot.tableDbId = tableDbId;
@@ -615,7 +584,7 @@ class ActiveTournament {
   private async persistTournamentGame(
     tableDbId: string,
     gameDbId: string,
-    bots: Array<{ botId: string; chips: number }>,
+    bots: Array<{ botId: string; chips: bigint }>,
     options?: {
       createTable?: boolean;
       tableNumber?: number;
@@ -700,7 +669,7 @@ class ActiveTournament {
 
   private async finalizePersistedGame(
     gameDbId: string,
-    players: Array<{ botId: string; chips: number }>,
+    players: Array<{ botId: string; chips: bigint }>,
     totalHands: number,
   ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
@@ -734,9 +703,9 @@ class ActiveTournament {
     await this.tournamentRepository.startBlindLevel({
       tournament_id: this.tournamentId,
       level,
-      small_blind: blindLevel.small_blind,
-      big_blind: blindLevel.big_blind,
-      ante: blindLevel.ante,
+      small_blind: BigInt(blindLevel.small_blind),
+      big_blind: BigInt(blindLevel.big_blind),
+      ante: BigInt(blindLevel.ante),
     });
 
     this.eventEmitter.emit("tournament.levelChanged", {
@@ -754,24 +723,342 @@ class ActiveTournament {
     });
   }
 
-  private async runGameLoop(): Promise<void> {
-    while (this.running) {
-      await this.sleep(1000);
-
-      const remaining = this.activeBots.size;
-      if (remaining <= 1) {
-        await this.finishTournament();
-        break;
-      }
-
-      await this.checkForBustedPlayers();
-      await this.checkFinishedGames();
-      await this.checkTableBalancing();
-      await this.checkBlindLevelAdvance();
-      await this.checkAndRecoverErroredGames();
-      await this.syncChipsToDatabase();
-      this.emitStateUpdate();
+  /** Returns true if the given gameId belongs to a table in this tournament. */
+  private ownsGame(gameId: string): boolean {
+    for (const entry of this.tables.values()) {
+      if (entry.gameDbId === gameId) return true;
     }
+    return false;
+  }
+
+  private registerEventHandlers(): void {
+    const onHandComplete = async (event: {
+      gameId: string;
+      handNumber: number;
+      winners: any[];
+      players?: any[];
+      atShowdown?: boolean;
+      communityCards?: any[];
+      pot?: number;
+    }) => {
+      if (!this.running || !this.ownsGame(event.gameId)) return;
+      try {
+        await this.handleHandComplete(event);
+      } catch (e: any) {
+        this.logger.error(
+          `[Tournament ${this.tournamentId}] handleHandComplete error: ${e.message}`,
+          e.stack,
+        );
+      }
+    };
+
+    const onGameFinished = async (event: {
+      tableId: string;
+      gameId: string;
+      winnerId?: string;
+      reason?: string;
+      handNumber?: number;
+      players?: any[];
+    }) => {
+      if (!this.running || !this.ownsGame(event.gameId)) return;
+      try {
+        await this.handleGameFinished(event);
+      } catch (e: any) {
+        this.logger.error(
+          `[Tournament ${this.tournamentId}] handleGameFinished error: ${e.message}`,
+          e.stack,
+        );
+      }
+    };
+
+    const onGameStuck = async (event: {
+      tableId: string;
+      gameId: string;
+      tournamentId?: string;
+      silenceMs: number;
+    }) => {
+      if (!this.running || event.tournamentId !== this.tournamentId) return;
+      try {
+        await this.handleGameStuck(event);
+      } catch (e: any) {
+        this.logger.error(
+          `[Tournament ${this.tournamentId}] handleGameStuck error: ${e.message}`,
+          e.stack,
+        );
+      }
+    };
+
+    const onHandStarted = (event: {
+      gameId: string;
+      players?: Array<{ id: string; chips: number | bigint }>;
+    }) => {
+      if (!this.running || !this.ownsGame(event.gameId)) return;
+      if (event.players) {
+        for (const p of event.players) {
+          this.chipSnapshot.set(p.id, Number(p.chips));
+        }
+      }
+    };
+
+    const onMonitorStuck = async (event: {
+      tableId: string;
+      gameId: string;
+      handNumber: number;
+    }) => {
+      if (!this.running || !this.tables.has(event.tableId)) return;
+      try {
+        await this.handleMonitorStuck(event);
+      } catch (e: any) {
+        this.logger.error(
+          `[Tournament ${this.tournamentId}] handleMonitorStuck error: ${e.message}`,
+          e.stack,
+        );
+      }
+    };
+
+    this.eventEmitter.on("game.handStarted", onHandStarted);
+    this.eventEmitter.on("game.handComplete", onHandComplete);
+    this.eventEmitter.on("game.finished", onGameFinished);
+    this.eventEmitter.on("game.stuck", onGameStuck);
+    this.eventEmitter.on("game.monitor.stuck", onMonitorStuck);
+
+    this.eventHandlerRefs.push(
+      { event: "game.handStarted", handler: onHandStarted },
+      { event: "game.handComplete", handler: onHandComplete },
+      { event: "game.finished", handler: onGameFinished },
+      { event: "game.stuck", handler: onGameStuck },
+      { event: "game.monitor.stuck", handler: onMonitorStuck },
+    );
+  }
+
+  private removeEventHandlers(): void {
+    for (const { event, handler } of this.eventHandlerRefs) {
+      this.eventEmitter.removeListener(event, handler);
+    }
+    this.eventHandlerRefs = [];
+  }
+
+  /**
+   * Safety-net interval (30s) catches edge cases that events might miss,
+   * e.g. tournament completion check or orphaned tables.
+   */
+  private startSafetyNet(): void {
+    this.safetyNetInterval = setInterval(async () => {
+      if (!this.running) return;
+      try {
+        if (this.activeBots.size <= 1) {
+          await this.finishTournament();
+        }
+      } catch (e: any) {
+        this.logger.error(
+          `[Tournament ${this.tournamentId}] safety-net error: ${e.message}`,
+          e.stack,
+        );
+      }
+    }, 30_000);
+  }
+
+  /**
+   * Consolidated handler for each hand completion: bust detection, chip sync,
+   * blind advancement, table balancing, and state emission.
+   */
+  private async handleHandComplete(_event: {
+    gameId: string;
+    handNumber: number;
+    winners: any[];
+    players?: any[];
+    pot?: number;
+  }): Promise<void> {
+    this.roundCounter++;
+
+    // Detect busted players with same-hand tie-breaking
+    await this.checkForBustedPlayers();
+
+    // Sync chip counts to database
+    await this.syncChipsToDatabase();
+
+    // Advance blind level if needed
+    await this.checkBlindLevelAdvance();
+
+    // Check table balancing (only meaningful with multiple tables)
+    await this.checkTableBalancing();
+
+    // Toggle hand-for-hand mode based on bubble state
+    this.checkHandForHandTransition();
+
+    // Check tournament completion
+    if (this.activeBots.size <= 1) {
+      await this.finishTournament();
+      return;
+    }
+
+    this.emitStateUpdate();
+  }
+
+  /**
+   * Handler for game.finished — catches disconnected stragglers.
+   */
+  private async handleGameFinished(_event: {
+    tableId: string;
+    gameId: string;
+    players?: any[];
+  }): Promise<void> {
+    await this.checkFinishedGames();
+
+    if (this.activeBots.size <= 1) {
+      await this.finishTournament();
+      return;
+    }
+
+    await this.checkTableBalancing();
+    this.emitStateUpdate();
+  }
+
+  /**
+   * Handler for game.stuck — attempt error recovery for the stuck table.
+   */
+  private async handleGameStuck(_event: {
+    tableId: string;
+    gameId: string;
+  }): Promise<void> {
+    await this.checkAndRecoverErroredGames();
+    this.emitStateUpdate();
+  }
+
+  /**
+   * Handler for game.monitor.stuck — self-healing with retry limit.
+   *
+   * Recovery flow:
+   *   1. Check recovery count in Redis for this (tableId, handNumber) pair.
+   *   2. If count >= 3: terminate permanently, log Fatal Logic Error, write LogicBug.
+   *   3. Otherwise: increment count, stop old game, fetch hot state, respawn.
+   */
+  private async handleMonitorStuck(event: {
+    tableId: string;
+    gameId: string;
+    handNumber: number;
+  }): Promise<void> {
+    const tableEntry = this.tables.get(event.tableId);
+    if (!tableEntry) return;
+
+    const recoveryCountKey = `game:recovery_count:${event.tableId}:${event.handNumber}`;
+    const countRaw = await this.redis.get(recoveryCountKey);
+    const recoveryCount = countRaw ? parseInt(countRaw, 10) : 0;
+
+    if (recoveryCount >= 3) {
+      this.logger.fatal(
+        `Table ${event.tableId}: Fatal Logic Error — recovery loop detected ` +
+          `(${recoveryCount} attempts at hand ${event.handNumber}). Terminating permanently.`,
+      );
+      await this.dataSource.getRepository(LogicBug).save({
+        hand_id: null,
+        check_name: "recovery_loop_detected",
+        description: `Table ${event.tableId} stuck in recovery loop at hand ${event.handNumber}`,
+        details: {
+          tableId: event.tableId,
+          gameId: event.gameId,
+          handNumber: event.handNumber,
+          recoveryCount,
+          tournamentId: this.tournamentId,
+        },
+      });
+      tableEntry.game.stop();
+      this.liveGameManager.removeGameSync(event.tableId);
+      this.tables.delete(event.tableId);
+      this.tableHandNumbers.delete(event.tableId);
+      return;
+    }
+
+    this.logger.error(
+      `Table ${event.tableId} stuck at hand ${event.handNumber}. Initiating recovery. ` +
+        `(attempt ${recoveryCount + 1}/3)`,
+    );
+
+    // Increment recovery count — expires in 1 hour (covers a full session)
+    await this.redis.set(recoveryCountKey, String(recoveryCount + 1), 3600);
+
+    // Fetch latest hot state from Redis
+    const hotRaw = await this.redis.get(`hot:game:${event.gameId}`);
+    if (!hotRaw) {
+      this.logger.error(
+        `No hot state for table ${event.tableId} (game ${event.gameId}) — cannot recover.`,
+      );
+      return;
+    }
+    const hotState = JSON.parse(hotRaw) as {
+      hand_number: number;
+      players: Array<{
+        id: string;
+        chips: string;
+        disconnected: boolean;
+        strategy: any;
+      }>;
+    };
+
+    // Stop old game instance
+    tableEntry.game.stop();
+    this.liveGameManager.removeGameSync(event.tableId);
+
+    // Finalize old DB record before creating a new one
+    await this.finalizePersistedGame(
+      tableEntry.gameDbId,
+      hotState.players.map((p) => ({ botId: p.id, chips: BigInt(p.chips) })),
+      hotState.hand_number,
+    ).catch((e: any) =>
+      this.logger.warn(`Finalize old game failed (non-fatal): ${e.message}`),
+    );
+
+    // Respawn new game from hot state
+    const activePlayers = hotState.players.filter(
+      (p) => !p.disconnected && Number(p.chips) > 0,
+    );
+    const blindLevel = getBlindLevel(this.currentLevel);
+    const newGameDbId = crypto.randomUUID();
+
+    await this.persistTournamentGame(
+      event.tableId,
+      newGameDbId,
+      activePlayers.map((p) => ({ botId: p.id, chips: BigInt(p.chips) })),
+    );
+
+    const newGame = this.liveGameManager.createGameSync({
+      tableId: event.tableId,
+      gameDbId: newGameDbId,
+      tournamentId: this.tournamentId,
+      smallBlind: blindLevel.small_blind,
+      bigBlind: blindLevel.big_blind,
+      ante: blindLevel.ante,
+      startingChips: this.config.starting_chips,
+      turnTimeoutMs: this.config.turn_timeout_ms,
+    });
+
+    // Re-wire inter-hand hook for hand-for-hand sync
+    newGame.interHandHook = async () => {
+      if (!this.handForHandMode) return;
+      const allIds = [...this.tables.keys()];
+      await this.barrier.checkIn(event.tableId, this.tables.size, allIds);
+    };
+
+    for (const p of activePlayers) {
+      const bot = this.activeBots.get(p.id);
+      if (bot) {
+        newGame.addPlayer({
+          id: p.id,
+          name: bot.userName,
+          strategy: bot.strategy as any,
+          chips: Number(p.chips),
+        });
+      }
+    }
+
+    tableEntry.game = newGame;
+    tableEntry.gameDbId = newGameDbId;
+    this.tableHandNumbers.set(event.tableId, hotState.hand_number ?? 0);
+    this.logger.log(
+      `Table ${event.tableId} respawned with ${activePlayers.length} players ` +
+        `(hand ${hotState.hand_number ?? 0}).`,
+    );
+    this.emitStateUpdate();
   }
 
   private async syncChipsToDatabase(): Promise<void> {
@@ -806,7 +1093,7 @@ class ActiveTournament {
 
         // Get remaining active players
         const activePlayers = state.players.filter(
-          (p) => p.chips > 0 && !p.disconnected,
+          (p) => p.chips > 0n && !p.disconnected,
         );
 
         if (activePlayers.length < 2) {
@@ -863,7 +1150,7 @@ class ActiveTournament {
                 id: player.id,
                 name: bot.userName,
                 strategy: bot.strategy as any,
-                chips: player.chips,
+                chips: Number(player.chips),
               });
             }
           }
@@ -885,48 +1172,101 @@ class ActiveTournament {
   }
 
   private async checkForBustedPlayers(): Promise<void> {
+    // ── 1. Collect all busted players across all tables ────────────────
+    const bustedThisRound: Array<{
+      botId: string;
+      playerName: string;
+      chipsAtStart: number;
+      tableEntry: TableEntry;
+    }> = [];
+
     for (const [_tableId, tableEntry] of this.tables) {
       const state = tableEntry.game.getPublicState();
-
       for (const player of state.players) {
-        if (player.chips === 0 && !player.disconnected) {
-          if (this.bustedBots.has(player.id)) {
-            continue;
-          }
-
+        if (
+          player.chips === 0n &&
+          !player.disconnected &&
+          !this.bustedBots.has(player.id)
+        ) {
           const bot = this.activeBots.get(player.id);
           if (bot) {
-            this.bustedBots.add(player.id);
-            this.bustOrder.push(player.id);
-            this.activeBots.delete(player.id);
-
-            const position = this.totalEntrants - this.bustOrder.length + 1;
-            this.logger.log(`${player.name} busted in position ${position}`);
-
-            // Remove the busted player from the game
-            tableEntry.game.removePlayer(player.id);
-
-            await this.tournamentRepository.bustEntry(
-              this.tournamentId,
-              player.id,
-              this.currentLevel,
-              position,
-            );
-
-            // Update seat record to reflect bust
-            await this.tournamentRepository.bustSeat(
-              this.tournamentId,
-              player.id,
-            );
-
-            this.eventEmitter.emit("tournament.playerBusted", {
-              tournamentId: this.tournamentId,
+            bustedThisRound.push({
               botId: player.id,
-              position,
+              playerName: player.name,
+              chipsAtStart: this.chipSnapshot.get(player.id) ?? 0,
+              tableEntry,
             });
           }
         }
       }
+    }
+
+    if (bustedThisRound.length === 0) return;
+
+    // ── 2. Sort by chips at hand start descending (more chips = better rank) ──
+    bustedThisRound.sort((a, b) => b.chipsAtStart - a.chipsAtStart);
+
+    // ── 3. Assign positions with tie detection ────────────────────────
+    const baseBestPosition =
+      this.totalEntrants - this.bustOrder.length - bustedThisRound.length + 1;
+
+    let i = 0;
+    while (i < bustedThisRound.length) {
+      // Find tie group: all with same chipsAtStart
+      let j = i;
+      while (
+        j < bustedThisRound.length &&
+        bustedThisRound[j].chipsAtStart === bustedThisRound[i].chipsAtStart
+      ) {
+        j++;
+      }
+
+      const groupSize = j - i;
+      const sharedPosition = baseBestPosition + i;
+      const isTied = groupSize > 1;
+
+      for (let k = i; k < j; k++) {
+        const bust = bustedThisRound[k];
+        this.bustedBots.add(bust.botId);
+        this.bustOrder.push({
+          botId: bust.botId,
+          bustLevel: this.currentLevel,
+          bustHandNumber: this.roundCounter,
+          chipsAtHandStart: bust.chipsAtStart,
+          finishPosition: sharedPosition,
+          isTied,
+        });
+        this.activeBots.delete(bust.botId);
+        bust.tableEntry.game.removePlayer(bust.botId);
+
+        await this.tournamentRepository.bustEntry(
+          this.tournamentId,
+          bust.botId,
+          this.currentLevel,
+          sharedPosition,
+          this.roundCounter,
+          bust.chipsAtStart,
+        );
+        await this.tournamentRepository.bustSeat(this.tournamentId, bust.botId);
+
+        this.logger.log(
+          `${bust.playerName} busted in position ${sharedPosition}${isTied ? " (tied)" : ""} (chips at start: ${bust.chipsAtStart})`,
+        );
+
+        this.eventEmitter.emit("tournament.playerBusted", {
+          tournamentId: this.tournamentId,
+          botId: bust.botId,
+          position: sharedPosition,
+          isTied,
+        });
+      }
+
+      i = j;
+    }
+
+    // Clean up snapshots for busted players
+    for (const bust of bustedThisRound) {
+      this.chipSnapshot.delete(bust.botId);
     }
   }
 
@@ -942,18 +1282,28 @@ class ActiveTournament {
       if (state.status !== "finished") continue;
 
       const disconnectedWithChips = state.players.filter(
-        (p) => p.disconnected && p.chips > 0 && !this.bustedBots.has(p.id),
+        (p) => p.disconnected && p.chips > 0n && !this.bustedBots.has(p.id),
       );
 
       for (const player of disconnectedWithChips) {
         const bot = this.activeBots.get(player.id);
         if (!bot) continue;
 
+        const chipsAtStart =
+          this.chipSnapshot.get(player.id) ?? Number(player.chips);
         this.bustedBots.add(player.id);
-        this.bustOrder.push(player.id);
+        const position = this.totalEntrants - this.bustOrder.length - 1 + 1;
+        this.bustOrder.push({
+          botId: player.id,
+          bustLevel: this.currentLevel,
+          bustHandNumber: this.roundCounter,
+          chipsAtHandStart: chipsAtStart,
+          finishPosition: position,
+          isTied: false,
+        });
         this.activeBots.delete(player.id);
+        this.chipSnapshot.delete(player.id);
 
-        const position = this.totalEntrants - this.bustOrder.length + 1;
         this.logger.log(
           `${player.name} busted (disconnected, game finished) in position ${position}`,
         );
@@ -963,6 +1313,8 @@ class ActiveTournament {
           player.id,
           this.currentLevel,
           position,
+          this.roundCounter,
+          chipsAtStart,
         );
         await this.tournamentRepository.bustSeat(this.tournamentId, player.id);
 
@@ -970,12 +1322,9 @@ class ActiveTournament {
           tournamentId: this.tournamentId,
           botId: player.id,
           position,
+          isTied: false,
         });
       }
-
-      // If the game finished cleanly and has no disconnected-chip stragglers,
-      // the table will be cleaned up by checkAndRecoverErroredGames or breakTable.
-      // If every player except one is now busted, the main loop will call finishTournament.
     }
   }
 
@@ -984,7 +1333,7 @@ class ActiveTournament {
 
     const tableSizes = Array.from(this.tables.entries()).map(([id, entry]) => ({
       id,
-      size: entry.game.players.filter((p) => !p.disconnected && p.chips > 0)
+      size: entry.game.players.filter((p) => !p.disconnected && p.chips > 0n)
         .length,
     }));
 
@@ -1003,7 +1352,7 @@ class ActiveTournament {
     this.logger.log(`Breaking table ${tableEntry.tableNumber}`);
 
     const playersToMove = tableEntry.game.players.filter(
-      (p) => !p.disconnected && p.chips > 0,
+      (p) => !p.disconnected && p.chips > 0n,
     );
 
     const remainingTables = Array.from(this.tables.entries())
@@ -1015,7 +1364,7 @@ class ActiveTournament {
         Math.max(
           0,
           SEATS_PER_TABLE -
-            entry.game.players.filter((p) => !p.disconnected && p.chips > 0)
+            entry.game.players.filter((p) => !p.disconnected && p.chips > 0n)
               .length,
         ),
       0,
@@ -1047,14 +1396,14 @@ class ActiveTournament {
       const targetTable = remainingTables
         .filter(
           (entry) =>
-            entry.game.players.filter((p) => !p.disconnected && p.chips > 0)
+            entry.game.players.filter((p) => !p.disconnected && p.chips > 0n)
               .length < SEATS_PER_TABLE,
         )
         .sort(
           (left, right) =>
-            left.game.players.filter((p) => !p.disconnected && p.chips > 0)
+            left.game.players.filter((p) => !p.disconnected && p.chips > 0n)
               .length -
-            right.game.players.filter((p) => !p.disconnected && p.chips > 0)
+            right.game.players.filter((p) => !p.disconnected && p.chips > 0n)
               .length,
         )[0];
 
@@ -1065,37 +1414,80 @@ class ActiveTournament {
       }
 
       const movingBot = this.activeBots.get(player.id);
+
+      // ── 1. Atomic Redis: set move lock + seat assignment ──────────
+      const lockKey = `tournament:move:${this.tournamentId}:${player.id}`;
+      const moveData = JSON.stringify({
+        botId: player.id,
+        fromTable: tableId,
+        toTable: targetTable.tableDbId,
+        chips: Number(player.chips),
+        timestamp: Date.now(),
+      });
+      const pipeline = this.redis.multi();
+      pipeline.set(lockKey, moveData, "EX", 30);
+      pipeline.hset(
+        `tournament:seats:${this.tournamentId}`,
+        player.id,
+        JSON.stringify({
+          tableId: targetTable.tableDbId,
+          chips: Number(player.chips),
+        }),
+      );
+      await pipeline.exec();
+
+      // ── 2. In-memory move ─────────────────────────────────────────
       targetTable.game.addPlayer({
         id: player.id,
         name: movingBot?.userName || player.name,
         strategy: (movingBot?.strategy as any) || null,
-        chips: player.chips,
+        chips: Number(player.chips),
       });
-
-      const bot = movingBot;
-      if (bot) {
-        bot.tableDbId = targetTable.tableDbId;
+      if (movingBot) {
+        movingBot.tableDbId = targetTable.tableDbId;
       }
 
+      // ── 3. DB seat update ─────────────────────────────────────────
       await this.tournamentRepository.seatBot({
         tournament_id: this.tournamentId,
         tournament_table_id: targetTable.tableDbId,
         bot_id: player.id,
         seat_number: targetTable.game.players.filter(
-          (p) => p.chips > 0 && !p.disconnected,
+          (p) => p.chips > 0n && !p.disconnected,
         ).length,
         chips: player.chips,
         busted: false,
       });
+
+      // ── 4. Audit log ──────────────────────────────────────────────
+      this.logger.log(
+        JSON.stringify({
+          audit: "TABLE_MOVE",
+          tournamentId: this.tournamentId,
+          botId: player.id,
+          botName: movingBot?.name,
+          fromTableId: tableId,
+          fromTableNumber: tableEntry.tableNumber,
+          toTableId: targetTable.tableDbId,
+          toTableNumber: targetTable.tableNumber,
+          chips: Number(player.chips),
+          timestamp: new Date().toISOString(),
+        }),
+      );
+
+      // ── 5. Clear Redis move lock (move complete) ──────────────────
+      await this.redis.del(lockKey);
+
+      this.eventEmitter.emit("tournament.playerMoved", {
+        tournamentId: this.tournamentId,
+        botId: player.id,
+        fromTableId: tableId,
+        toTableId: targetTable.tableDbId,
+        chips: Number(player.chips),
+      });
     }
 
     this.eventEmitter.emit("tournament.tableBreak", {
-      tournamentId: this.tournamentId,
-      tableId,
-      playersRedistributed: playersToMove.length,
-    });
-
-    await this.publishEvent("tournament.tableBreak", {
       tournamentId: this.tournamentId,
       tableId,
       playersRedistributed: playersToMove.length,
@@ -1142,22 +1534,36 @@ class ActiveTournament {
 
       const blindLevel = getBlindLevel(this.currentLevel);
       for (const [, tableEntry] of this.tables) {
-        tableEntry.game.smallBlind = blindLevel.small_blind;
-        tableEntry.game.bigBlind = blindLevel.big_blind;
-        tableEntry.game.ante = blindLevel.ante;
+        tableEntry.game.smallBlind = BigInt(blindLevel.small_blind);
+        tableEntry.game.bigBlind = BigInt(blindLevel.big_blind);
+        tableEntry.game.ante = BigInt(blindLevel.ante);
       }
     }
   }
 
   private async finishTournament(): Promise<void> {
+    if (!this.running) return; // guard against double-finish from safety-net + event
     this.running = false;
+    this.barrier.release(); // unblock any tables waiting at barrier before stopping them
+    this.removeEventHandlers();
+    if (this.safetyNetInterval) {
+      clearInterval(this.safetyNetInterval);
+      this.safetyNetInterval = undefined;
+    }
 
     const winner = Array.from(this.activeBots.values())[0];
     if (winner) {
-      this.bustOrder.push(winner.botId);
+      this.bustOrder.push({
+        botId: winner.botId,
+        bustLevel: this.currentLevel,
+        bustHandNumber: this.roundCounter,
+        chipsAtHandStart: 0,
+        finishPosition: 1,
+        isTied: false,
+      });
     }
 
-    const prizePool = this.totalEntrants * this.config.buy_in;
+    const prizePool = BigInt(this.totalEntrants) * this.config.buy_in;
     const payouts = calculatePayouts(prizePool, this.totalEntrants);
     const payoutByPosition = new Map(
       payouts.map((payout) => [payout.position, payout.amount]),
@@ -1166,11 +1572,11 @@ class ActiveTournament {
     const finalOrder = [...this.bustOrder].reverse();
     for (let index = 0; index < finalOrder.length; index++) {
       const position = index + 1;
-      const botId = finalOrder[index];
+      const botId = finalOrder[index].botId;
       await this.tournamentRepository.setEntryPayout(
         this.tournamentId,
         botId,
-        payoutByPosition.get(position) ?? 0,
+        payoutByPosition.get(position) ?? 0n,
         position,
       );
     }
@@ -1202,19 +1608,6 @@ class ActiveTournament {
       winnerName: winner?.name,
       payouts,
     });
-
-    await this.publishEvent("tournament.finished", {
-      tournamentId: this.tournamentId,
-      winnerId: winner?.botId,
-      winnerName: winner?.name,
-      payouts,
-    });
-
-    if (this.isRedisEnabled()) {
-      await this.redisGameStateService!.deleteTournamentState(
-        this.tournamentId,
-      );
-    }
   }
 
   getState(): TournamentState {
@@ -1241,6 +1634,7 @@ class ActiveTournament {
       })),
       buyIn: this.config.buy_in,
       prizePool: this.totalEntrants * this.config.buy_in,
+      handForHand: this.handForHandMode,
     };
   }
 
@@ -1253,20 +1647,58 @@ class ActiveTournament {
       tournamentId: this.tournamentId,
       state,
     });
+  }
 
-    this.saveStateToRedis().catch((err) =>
-      this.logger.error(`Failed to save tournament state to Redis: ${err}`),
-    );
-    this.publishEvent("tournament.stateUpdated", {
-      tournamentId: this.tournamentId,
-      state,
-    }).catch((err) =>
-      this.logger.error(`Failed to publish tournament state event: ${err}`),
-    );
+  /**
+   * Activates hand-for-hand mode when the tournament reaches the bubble
+   * (remaining players = paid places + 1 across multiple tables).
+   * Deactivates once we're in the money.
+   */
+  private checkHandForHandTransition(): void {
+    const paidPlaces = getPayoutStructure(this.totalEntrants).length;
+    const remaining = this.activeBots.size;
+    const onBubble = remaining === paidPlaces + 1 && this.tables.size > 1;
+
+    if (onBubble && !this.handForHandMode) {
+      this.handForHandMode = true;
+      this.logger.log(
+        `[Tournament ${this.tournamentId}] Hand-for-hand ACTIVATED — ${remaining} players, ${paidPlaces} paid`,
+      );
+      this.eventEmitter.emit("tournament.handForHandStarted", {
+        tournamentId: this.tournamentId,
+        playersRemaining: remaining,
+      });
+    } else if (!onBubble && this.handForHandMode) {
+      this.handForHandMode = false;
+      this.barrier.release(); // unblock any tables held at the now-stale barrier
+      this.logger.log(
+        `[Tournament ${this.tournamentId}] Hand-for-hand DEACTIVATED — in the money`,
+      );
+    }
+  }
+
+  /**
+   * Called by BarrierCoordinator when the 30-second timeout fires for stuck tables.
+   * Logs each stuck table and triggers the existing error-recovery path.
+   */
+  private async onStuckTables(stuckIds: string[]): Promise<void> {
+    for (const tableId of stuckIds) {
+      const entry = this.tables.get(tableId);
+      this.logger.error(
+        `[Tournament ${this.tournamentId}] Force-recovering stuck table ${entry?.tableNumber ?? tableId} at H2H barrier`,
+      );
+    }
+    await this.checkAndRecoverErroredGames();
   }
 
   stop(): void {
     this.running = false;
+    this.barrier.release(); // unblock any tables waiting at barrier
+    this.removeEventHandlers();
+    if (this.safetyNetInterval) {
+      clearInterval(this.safetyNetInterval);
+      this.safetyNetInterval = undefined;
+    }
   }
 
   private sleep(ms: number): Promise<void> {

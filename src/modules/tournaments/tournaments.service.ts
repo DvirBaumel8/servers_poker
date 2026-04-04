@@ -4,6 +4,8 @@ import {
   ForbiddenException,
   Logger,
 } from "@nestjs/common";
+import { InjectDataSource } from "@nestjs/typeorm";
+import { DataSource } from "typeorm";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { BotRepository } from "../../repositories/bot.repository";
@@ -17,6 +19,16 @@ import {
   TournamentLeaderboardEntryDto,
 } from "./dto/tournament.dto";
 
+export interface HandManifestItem {
+  id: string;
+  hand_number: number;
+  pot: number;
+  winner_bot_id: string | null;
+  winner_name: string | null;
+  started_at: Date | null;
+  result: "win" | "loss" | "none";
+}
+
 @Injectable()
 export class TournamentsService {
   private readonly logger = new Logger(TournamentsService.name);
@@ -27,19 +39,19 @@ export class TournamentsService {
     private readonly analyticsRepository: AnalyticsRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly cacheService: RedisCacheService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async create(dto: CreateTournamentDto): Promise<TournamentResponseDto> {
     const tournament = await this.tournamentRepository.create({
       name: dto.name,
       type: dto.type,
-      buy_in: dto.buy_in,
-      starting_chips: dto.starting_chips,
+      buy_in: BigInt(dto.buy_in),
+      starting_chips: BigInt(dto.starting_chips),
       min_players: dto.min_players,
       max_players: dto.max_players,
       players_per_table: dto.players_per_table ?? 9,
       turn_timeout_ms: dto.turn_timeout_ms ?? 10000,
-      late_reg_ends_level: dto.late_reg_ends_level ?? 4,
       rebuys_allowed: dto.rebuys_allowed ?? true,
       scheduled_start_at: dto.scheduled_start_at
         ? new Date(dto.scheduled_start_at)
@@ -51,9 +63,9 @@ export class TournamentsService {
         await this.tournamentRepository.startBlindLevel({
           tournament_id: tournament.id,
           level: level.level,
-          small_blind: level.small_blind,
-          big_blind: level.big_blind,
-          ante: level.ante ?? 0,
+          small_blind: BigInt(level.small_blind),
+          big_blind: BigInt(level.big_blind),
+          ante: BigInt(level.ante ?? 0),
         });
       }
     }
@@ -78,10 +90,17 @@ export class TournamentsService {
     return this.tournamentRepository.findById(id);
   }
 
-  async findAll(status?: TournamentStatus): Promise<TournamentResponseDto[]> {
-    const tournaments = status
+  async findAll(
+    status?: TournamentStatus,
+    limit?: number,
+  ): Promise<TournamentResponseDto[]> {
+    let tournaments = status
       ? await this.tournamentRepository.findByStatus(status)
       : await this.tournamentRepository.findAll();
+
+    if (limit !== undefined) {
+      tournaments = tournaments.slice(0, limit);
+    }
 
     if (tournaments.length === 0) {
       return [];
@@ -100,25 +119,11 @@ export class TournamentsService {
     tournamentId: string,
     botId: string,
     userId: string,
-    currentLevel?: number,
   ): Promise<void> {
     const tournament =
       await this.tournamentRepository.findByIdOrThrow(tournamentId);
 
-    // Check registration eligibility
-    const isRegistering = tournament.status === "registering";
-    const isRunning = tournament.status === "running";
-    const lateRegAllowed =
-      isRunning &&
-      currentLevel !== undefined &&
-      currentLevel <= tournament.late_reg_ends_level;
-
-    if (!isRegistering && !lateRegAllowed) {
-      if (isRunning && currentLevel !== undefined) {
-        throw new BadRequestException(
-          `Late registration closed after level ${tournament.late_reg_ends_level} (current: ${currentLevel})`,
-        );
-      }
+    if (tournament.status !== "registering") {
       throw new BadRequestException(
         "Tournament is not accepting registrations",
       );
@@ -160,6 +165,7 @@ export class TournamentsService {
       tournament_id: tournamentId,
       bot_id: botId,
       entry_type: "initial",
+      payout: 0n,
     });
 
     this.eventEmitter.emit("tournament.botRegistered", {
@@ -290,6 +296,7 @@ export class TournamentsService {
       finishPosition: number;
       payout: number;
       bustLevel?: number;
+      isTied: boolean;
     }>;
   }> {
     const tournament = await this.tournamentRepository.findByIdOrThrow(id);
@@ -297,24 +304,33 @@ export class TournamentsService {
 
     const finishedEntries = entries
       .filter((e) => e.finish_position !== null)
-      .sort((a, b) => (a.finish_position || 0) - (b.finish_position || 0))
-      .map((e, index) => ({
-        rank: index + 1,
-        botId: e.bot_id,
-        botName: e.bot?.name || "Unknown",
-        userId: e.bot?.user?.id || "unknown",
-        userName: e.bot?.user?.name || "Unknown Player",
-        finishPosition: e.finish_position!,
-        payout: Number(e.payout),
-        bustLevel: e.bust_level || undefined,
-      }));
+      .sort((a, b) => (a.finish_position || 0) - (b.finish_position || 0));
+
+    // Detect ties: count how many entries share each finish_position
+    const positionCounts = new Map<number, number>();
+    for (const e of finishedEntries) {
+      const pos = e.finish_position!;
+      positionCounts.set(pos, (positionCounts.get(pos) || 0) + 1);
+    }
+
+    const results = finishedEntries.map((e) => ({
+      rank: e.finish_position!,
+      botId: e.bot_id,
+      botName: e.bot?.name || "Unknown",
+      userId: e.bot?.user?.id || "unknown",
+      userName: e.bot?.user?.name || "Unknown Player",
+      finishPosition: e.finish_position!,
+      payout: Number(e.payout),
+      bustLevel: e.bust_level || undefined,
+      isTied: (positionCounts.get(e.finish_position!) || 1) > 1,
+    }));
 
     return {
       tournamentId: id,
       tournamentName: tournament.name,
       finishedAt: tournament.finished_at,
       totalEntries: entries.length,
-      results: finishedEntries,
+      results,
     };
   }
 
@@ -466,7 +482,7 @@ export class TournamentsService {
       await this.tournamentRepository.setEntryPayout(
         tournamentId,
         sortedEntries[i].bot_id,
-        payout,
+        BigInt(payout),
         position,
       );
     }
@@ -546,7 +562,6 @@ export class TournamentsService {
       max_players: tournament.max_players,
       players_per_table: tournament.players_per_table,
       turn_timeout_ms: tournament.turn_timeout_ms,
-      late_reg_ends_level: tournament.late_reg_ends_level,
       rebuys_allowed: tournament.rebuys_allowed,
       scheduled_start_at: tournament.scheduled_start_at,
       started_at: tournament.started_at,
@@ -554,6 +569,98 @@ export class TournamentsService {
       entries_count: entriesCount,
       created_at: tournament.created_at,
     };
+  }
+
+  async getHandsManifest(
+    tournamentId: string,
+    userId: string,
+  ): Promise<HandManifestItem[]> {
+    const rows: Array<{
+      id: string;
+      hand_number: number;
+      pot: string;
+      winner_bot_id: string | null;
+      winner_name: string | null;
+      started_at: Date | null;
+      result: "win" | "loss" | "none";
+    }> = await this.dataSource.query(
+      `
+      SELECT
+        h.id,
+        h.hand_number,
+        h.pot,
+        (SELECT bot_id FROM hand_players WHERE hand_id = h.id AND won = TRUE LIMIT 1) AS winner_bot_id,
+        (SELECT b2.name FROM hand_players hp2 JOIN bots b2 ON b2.id = hp2.bot_id
+          WHERE hp2.hand_id = h.id AND hp2.won = TRUE LIMIT 1) AS winner_name,
+        h.started_at,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM hand_players WHERE hand_id = h.id AND won = TRUE
+            AND bot_id IN (SELECT id FROM bots WHERE user_id = $2)) THEN 'win'
+          WHEN EXISTS (SELECT 1 FROM hand_players WHERE hand_id = h.id
+            AND bot_id IN (SELECT id FROM bots WHERE user_id = $2)) THEN 'loss'
+          ELSE 'none'
+        END AS result
+      FROM hands h
+      WHERE h.tournament_id = $1
+      ORDER BY h.hand_number ASC
+      `,
+      [tournamentId, userId],
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      hand_number: r.hand_number,
+      pot: Number(r.pot),
+      winner_bot_id: r.winner_bot_id,
+      winner_name: r.winner_name,
+      started_at: r.started_at,
+      result: r.result,
+    }));
+  }
+
+  async getMyActivity(userId: string): Promise<
+    Array<{
+      id: string;
+      botName: string;
+      tournamentName: string;
+      finishPosition: number | null;
+      maxPlayers: number;
+      payout: number;
+      createdAt: Date;
+    }>
+  > {
+    const rows: Array<{
+      id: string;
+      bot_name: string;
+      tournament_name: string;
+      finish_position: number | null;
+      max_players: number;
+      payout: string;
+      created_at: Date;
+    }> = await this.dataSource.query(
+      `
+      SELECT te.id, b.name AS bot_name, t.name AS tournament_name,
+             te.finish_position, t.max_players, te.payout, te.created_at
+      FROM tournament_entries te
+      JOIN tournaments t ON te.tournament_id = t.id
+      JOIN bots b ON te.bot_id = b.id
+      WHERE b.user_id = $1
+        AND t.status = 'finished'
+      ORDER BY te.created_at DESC
+      LIMIT 10
+      `,
+      [userId],
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      botName: r.bot_name,
+      tournamentName: r.tournament_name,
+      finishPosition: r.finish_position,
+      maxPlayers: r.max_players,
+      payout: Number(r.payout ?? 0),
+      createdAt: r.created_at,
+    }));
   }
 
   private toResponseDtoWithEntries(
@@ -572,7 +679,6 @@ export class TournamentsService {
       max_players: tournament.max_players,
       players_per_table: tournament.players_per_table,
       turn_timeout_ms: tournament.turn_timeout_ms,
-      late_reg_ends_level: tournament.late_reg_ends_level,
       rebuys_allowed: tournament.rebuys_allowed,
       scheduled_start_at: tournament.scheduled_start_at,
       started_at: tournament.started_at,

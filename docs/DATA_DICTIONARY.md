@@ -75,7 +75,6 @@ The poker platform uses PostgreSQL as its primary database with TypeORM as the O
 | max_players | INTEGER | >= min_players | Maximum capacity |
 | players_per_table | INTEGER | 2-10, DEFAULT 9 | Table size |
 | turn_timeout_ms | INTEGER | DEFAULT 10000 | Bot timeout |
-| late_reg_ends_level | INTEGER | DEFAULT 4 | Late registration cutoff |
 | rebuys_allowed | BOOLEAN | DEFAULT true | Rebuy permission |
 | scheduled_start_at | TIMESTAMP WITH TZ | NULLABLE | Scheduled start |
 | started_at | TIMESTAMP WITH TZ | NULLABLE | Actual start |

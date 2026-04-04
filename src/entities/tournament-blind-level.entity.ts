@@ -8,6 +8,7 @@ import {
   Check,
 } from "typeorm";
 import { BaseEntity } from "./base.entity";
+import { bigIntTransformer } from "../common/transformers/bigint.transformer";
 import { Tournament } from "./tournament.entity";
 
 @Entity("tournament_blind_levels")
@@ -25,14 +26,14 @@ export class TournamentBlindLevel extends BaseEntity {
   @Column({ type: "integer" })
   level: number;
 
-  @Column({ type: "bigint" })
-  small_blind: number;
+  @Column({ type: "bigint", transformer: bigIntTransformer })
+  small_blind: bigint;
 
-  @Column({ type: "bigint" })
-  big_blind: number;
+  @Column({ type: "bigint", transformer: bigIntTransformer })
+  big_blind: bigint;
 
-  @Column({ type: "bigint", default: 0 })
-  ante: number;
+  @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
+  ante: bigint;
 
   @Column({ type: "integer", default: 0 })
   hands_played: number;

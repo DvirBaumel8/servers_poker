@@ -1,123 +1,175 @@
 # Poker Game Bugs - Auto-Generated
 
-Last updated: 2026-04-02T20:43:40.219Z
-Total bugs found: 4
+Last updated: 2026-04-03T13:03:39.724Z
+Total bugs found: 10
 
-## Bug #1 - 2026-04-02T20:43:17.857Z
+## Bug #1 - 2026-04-03T13:03:16.699Z
 **Severity**: Critical
-**Invariant Broken**: Total chips mismatch
-**Game ID**: sim-fe88bca9
-**Action #**: 107
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-6b1719be
+**Action #**: 1
 
 ### Error Details:
 ```json
 {
-  "expected": 6000,
-  "actual": 5990,
-  "delta": -10,
-  "stacks": 5990,
-  "pot": 0
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
 }
 ```
 
 ### Last 10 Actions:
-- check
-- check
-- check
-- fold
-- check
-- call 10
-- raise 20
-- call 20
-- call 56
-- call 115
 
 ---
 
-## Bug #2 - 2026-04-02T20:43:17.865Z
+## Bug #2 - 2026-04-03T13:03:18.539Z
 **Severity**: Critical
-**Invariant Broken**: Game loop threw exception
-**Game ID**: sim-fe88bca9
-**Action #**: 108
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-7f180eac
+**Action #**: 1
 
 ### Error Details:
 ```json
 {
-  "error": "Chip conservation violated on hand 3: expected 6000, got 5990 (5990 in stacks + 0 in pot). Players: [Shark:980, Rock:0, Maniac:0, Station:5010, Nit:0, ProBot:0]",
-  "stack": "Error: Chip conservation violated on hand 3: expected 6000, got 5990 (5990 in stacks + 0 in pot). Players: [Shark:980, Rock:0, Maniac:0, Station:5010, Nit:0, ProBot:0]\n    at GameInstance.assertChipConservation (/Users/dvir.baumel/servers_poker/servers_poker/src/services/game/live-game-manager.service.ts:965:19)\n    at GameInstance.startGame (/Users/dvir.baumel/servers_poker/servers_poker/src/services/game/live-game-manager.service.ts:332:14)\n    at async runSimulatedGame (/Users/dvir.baumel/servers_poker/servers_poker/src/testing-utilities/game-simulator.ts:197:5)\n    at async main (/Users/dvir.baumel/servers_poker/servers_poker/scripts/run-poker-tests.ts:48:22)"
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
 }
 ```
 
 ### Last 10 Actions:
-- check
-- check
-- check
-- fold
-- check
-- call 10
-- raise 20
-- call 20
-- call 56
-- call 115
 
 ---
 
-## Bug #3 - 2026-04-02T20:43:26.433Z
+## Bug #3 - 2026-04-03T13:03:20.532Z
 **Severity**: Critical
-**Invariant Broken**: Total chips mismatch
-**Game ID**: sim-9320a17d
-**Action #**: 1124
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-42a15821
+**Action #**: 1
 
 ### Error Details:
 ```json
 {
-  "expected": 6000,
-  "actual": 5990,
-  "delta": -10,
-  "stacks": 5990,
-  "pot": 0
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
 }
 ```
 
 ### Last 10 Actions:
-- check
-- check
-- check
-- fold
-- check
-- call 5
-- fold
-- fold
-- raise 55
-- fold
 
 ---
 
-## Bug #4 - 2026-04-02T20:43:26.435Z
+## Bug #4 - 2026-04-03T13:03:25.361Z
 **Severity**: Critical
-**Invariant Broken**: Game loop threw exception
-**Game ID**: sim-9320a17d
-**Action #**: 1125
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-c18d69c2
+**Action #**: 1
 
 ### Error Details:
 ```json
 {
-  "error": "Chip conservation violated on hand 70: expected 6000, got 5990 (5990 in stacks + 0 in pot). Players: [Shark:0, Rock:0, Maniac:735, Station:0, Nit:5255, ProBot:0]",
-  "stack": "Error: Chip conservation violated on hand 70: expected 6000, got 5990 (5990 in stacks + 0 in pot). Players: [Shark:0, Rock:0, Maniac:735, Station:0, Nit:5255, ProBot:0]\n    at GameInstance.assertChipConservation (/Users/dvir.baumel/servers_poker/servers_poker/src/services/game/live-game-manager.service.ts:965:19)\n    at GameInstance.startGame (/Users/dvir.baumel/servers_poker/servers_poker/src/services/game/live-game-manager.service.ts:332:14)\n    at async runSimulatedGame (/Users/dvir.baumel/servers_poker/servers_poker/src/testing-utilities/game-simulator.ts:197:5)\n    at async main (/Users/dvir.baumel/servers_poker/servers_poker/scripts/run-poker-tests.ts:48:22)"
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
 }
 ```
 
 ### Last 10 Actions:
-- check
-- check
-- check
-- fold
-- check
-- call 5
-- fold
-- fold
-- raise 55
-- fold
+
+---
+
+## Bug #5 - 2026-04-03T13:03:28.008Z
+**Severity**: Critical
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-9b738a92
+**Action #**: 1
+
+### Error Details:
+```json
+{
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
+}
+```
+
+### Last 10 Actions:
+
+---
+
+## Bug #6 - 2026-04-03T13:03:28.404Z
+**Severity**: Critical
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-6d6cf944
+**Action #**: 1
+
+### Error Details:
+```json
+{
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
+}
+```
+
+### Last 10 Actions:
+
+---
+
+## Bug #7 - 2026-04-03T13:03:30.604Z
+**Severity**: Critical
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-e505da62
+**Action #**: 1
+
+### Error Details:
+```json
+{
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
+}
+```
+
+### Last 10 Actions:
+
+---
+
+## Bug #8 - 2026-04-03T13:03:31.865Z
+**Severity**: Critical
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-c9ea6afe
+**Action #**: 1
+
+### Error Details:
+```json
+{
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
+}
+```
+
+### Last 10 Actions:
+
+---
+
+## Bug #9 - 2026-04-03T13:03:32.426Z
+**Severity**: Critical
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-6b62bc56
+**Action #**: 1
+
+### Error Details:
+```json
+{
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
+}
+```
+
+### Last 10 Actions:
+
+---
+
+## Bug #10 - 2026-04-03T13:03:34.026Z
+**Severity**: Critical
+**Invariant Broken**: Total chips check threw exception
+**Game ID**: sim-b28228c9
+**Action #**: 1
+
+### Error Details:
+```json
+{
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
+}
+```
+
+### Last 10 Actions:
 
 ---
 

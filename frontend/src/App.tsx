@@ -11,6 +11,10 @@ import TournamentDetailPage from './pages/TournamentDetailPage'
 import TournamentLobbyPage from './pages/TournamentLobbyPage'
 import TournamentLivePage from './pages/TournamentLivePage'
 import TournamentResultsPage from './pages/TournamentResultsPage'
+import SimulationsPage from './pages/SimulationsPage'
+import LeaderboardPage from './pages/LeaderboardPage'
+import TournamentAnalyticsPage from './pages/TournamentAnalyticsPage'
+import SupportPage from './pages/SupportPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -43,7 +47,10 @@ export default function App() {
         <Route path="/tournaments/:id/lobby" element={<ProtectedRoute><TournamentLobbyPage /></ProtectedRoute>} />
         <Route path="/tournaments/:id/live" element={<ProtectedRoute><TournamentLivePage /></ProtectedRoute>} />
         <Route path="/tournaments/:id/results" element={<ProtectedRoute><TournamentResultsPage /></ProtectedRoute>} />
-        <Route path="/games" element={<ProtectedRoute><Stub name="Live Games" /></ProtectedRoute>} />
+        <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+        <Route path="/games" element={<ProtectedRoute><TournamentAnalyticsPage /></ProtectedRoute>} />
+        <Route path="/simulations" element={<ProtectedRoute><SimulationsPage /></ProtectedRoute>} />
+        <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
         <Route path="/games/:gameId" element={<GameSpectator />} />
         <Route path="*" element={<Navigate to="/signin" replace />} />
       </Routes>

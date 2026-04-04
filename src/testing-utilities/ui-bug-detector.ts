@@ -175,8 +175,6 @@ export function generateBugReport(
   const jsonPath = join(reportDir, `bugs-${gameId}-${Date.now()}.json`);
   writeFileSync(jsonPath, JSON.stringify(result, null, 2));
 
-  console.log(`📋 Bug report saved to ${reportPath}`);
-
   // Update central POKER_BUGS.md file
   updatePokerBugsFile(result);
 
@@ -270,7 +268,6 @@ function updatePokerBugsFile(result: BugDetectionResult): void {
     );
 
     if (newBugs.length === 0) {
-      console.log("✅ No new bugs to add to POKER_BUGS.md");
       return;
     }
 
@@ -355,7 +352,6 @@ function updatePokerBugsFile(result: BugDetectionResult): void {
     );
 
     writeFileSync(bugsFilePath, lines.join("\n"));
-    console.log(`📝 Updated POKER_BUGS.md with ${newBugs.length} new bug(s)`);
   } catch (error) {
     console.error("Failed to update POKER_BUGS.md:", error);
   }

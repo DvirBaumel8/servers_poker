@@ -16,6 +16,7 @@ interface ResultEntry {
   finishPosition: number
   payout: number
   bustLevel?: number
+  isTied?: boolean
 }
 
 interface TournamentResults {
@@ -194,7 +195,7 @@ export default function TournamentResultsPage() {
               Your Result
             </div>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.accent }}>
-              #{userBot.rank} Place — {userBot.botName}
+              {userBot.isTied ? `T-${userBot.rank}` : `#${userBot.rank}`} Place — {userBot.botName}
             </div>
             {userBot.payout > 0 && (
               <div style={{ fontSize: 14, color: C.success, marginTop: 8, fontWeight: 600 }}>

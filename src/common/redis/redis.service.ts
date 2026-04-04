@@ -156,6 +156,11 @@ export class RedisService implements OnModuleDestroy {
     return keys;
   }
 
+  /** Start a Redis MULTI/EXEC atomic transaction pipeline. */
+  multi() {
+    return this.client.multi();
+  }
+
   async eval(
     script: string,
     keys: string[],

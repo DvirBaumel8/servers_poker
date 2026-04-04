@@ -2,7 +2,6 @@ export { BaseEntity } from "./base.entity";
 export { User } from "./user.entity";
 export { Bot } from "./bot.entity";
 export { Table, TableStatus as CashTableStatus } from "./table.entity";
-export { TableSeat } from "./table-seat.entity";
 export { BotStats } from "./bot-stats.entity";
 export { BotEvent, EventType } from "./bot-event.entity";
 export {
@@ -30,4 +29,18 @@ export {
 export { HandSeed } from "./hand-seed.entity";
 export { BotSubscription, SubscriptionStatus } from "./bot-subscription.entity";
 export { AnalyticsEvent, AnalyticsEventType } from "./analytics-event.entity";
-export { StrategyDecision } from "./strategy-decision.entity";
+export { Wallet } from "./wallet.entity";
+export { Transaction } from "./transaction.entity";
+export type { TransactionType } from "./transaction.entity";
+export { TournamentPod } from "./tournament-pod.entity";
+export type { PodStatus } from "./tournament-pod.entity";
+export { LogicBug } from "./logic-bug.entity";
+export { SupportTicket, TicketMetadata } from "./support-ticket.entity";
+export type { TicketStatus } from "./support-ticket.entity";
+export { Simulation } from "./simulation.entity";
+export type { SimulationStatus, OpponentProfile } from "./simulation.entity";
+export { SimulationResult } from "./simulation-result.entity";
+export type {
+  HeatmapData,
+  PositionHeatmapEntry,
+} from "./simulation-result.entity";

@@ -99,6 +99,7 @@ export class AuthResponseDto {
     email: string;
     name: string;
     role: string;
+    subscription_status: string;
   };
 }
 

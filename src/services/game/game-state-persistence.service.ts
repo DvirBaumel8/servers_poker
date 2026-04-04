@@ -74,9 +74,11 @@ export class GameStatePersistenceService
     this.persistenceEnabled =
       this.configService.get<string>("GAME_STATE_PERSISTENCE", "true") ===
       "true";
+    // Default 30s — Redis hot-state covers per-action recovery; Postgres is now
+    // the cold/historical store and doesn't need sub-5s write frequency.
     this.persistenceIntervalMs = this.configService.get<number>(
       "GAME_STATE_PERSIST_INTERVAL_MS",
-      5000,
+      30000,
     );
     this.cleanupIntervalMs = this.configService.get<number>(
       "GAME_STATE_CLEANUP_INTERVAL_MS",

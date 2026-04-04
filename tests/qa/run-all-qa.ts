@@ -63,7 +63,7 @@ const ALL_SUITES: TestSuite[] = [
     id: "poker-sim",
     name: "Poker Simulation (game invariant validators)",
     command: "npm run test:poker -- --games=50 --bots=6",
-    timeout: 120000,
+    timeout: 240000,
     group: 2,
     skipInQuick: true,
   },

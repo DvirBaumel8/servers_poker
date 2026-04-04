@@ -9,6 +9,7 @@ interface ResultEntry {
   finishPosition: number
   payout: number
   bustLevel?: number
+  isTied?: boolean
 }
 
 interface ResultsTableProps {
@@ -121,7 +122,7 @@ export default function ResultsTable({ results, userId }: ResultsTableProps) {
                 fontSize: isTopThree ? 16 : 13,
               }}
             >
-              {getMedalEmoji(entry.rank)} #{entry.rank}
+              {getMedalEmoji(entry.rank)} {entry.isTied ? `T-${entry.rank}` : `#${entry.rank}`}
             </div>
 
             {/* Bot name */}

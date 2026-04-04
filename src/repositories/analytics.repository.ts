@@ -19,7 +19,7 @@ export interface BotProfileStats {
   totalHands: number;
   totalTournaments: number;
   tournamentWins: number;
-  totalNet: number;
+  totalNet: bigint;
 }
 
 export interface BotProfile {
@@ -182,7 +182,7 @@ export class AnalyticsRepository {
             totalHands: 0,
             totalTournaments: 0,
             tournamentWins: 0,
-            totalNet: 0,
+            totalNet: 0n,
           },
       recentTournaments,
       vpip,

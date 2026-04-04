@@ -8,7 +8,6 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token
-  console.log('🔐 Request to', config.url, '- Token available:', !!token)
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -27,7 +26,6 @@ api.interceptors.response.use(
 
       // Only redirect if user was actually authenticated
       if (token) {
-        console.error('❌ 401 Unauthorized - Token may be invalid or expired')
         is401Handling = true
         logout()
 

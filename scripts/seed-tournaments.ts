@@ -29,7 +29,6 @@ const TOURNAMENTS = [
     max_players: 16,
     players_per_table: 9,
     turn_timeout_ms: 10000,
-    late_reg_ends_level: 4,
     rebuys_allowed: false,
     scheduled_start_at: new Date(now + 30 * 60 * 1000), // 30 min from now
   },
@@ -44,7 +43,6 @@ const TOURNAMENTS = [
     max_players: 32,
     players_per_table: 9,
     turn_timeout_ms: 10000,
-    late_reg_ends_level: 4,
     rebuys_allowed: false,
     scheduled_start_at: new Date(now + 2 * 60 * 60 * 1000), // 2 hours from now
   },
@@ -59,7 +57,6 @@ const TOURNAMENTS = [
     max_players: 64,
     players_per_table: 9,
     turn_timeout_ms: 10000,
-    late_reg_ends_level: 6,
     rebuys_allowed: false,
     scheduled_start_at: new Date(now + 24 * 60 * 60 * 1000), // 24 hours from now
   },
@@ -100,13 +97,13 @@ async function seed() {
       await queryRunner.query(
         `INSERT INTO tournaments
           (id, name, type, status, buy_in, starting_chips, min_players, max_players,
-           players_per_table, turn_timeout_ms, late_reg_ends_level, rebuys_allowed,
+           players_per_table, turn_timeout_ms, rebuys_allowed,
            scheduled_start_at, started_at, finished_at, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL,NULL,NOW(),NOW())`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,NULL,NOW(),NOW())`,
         [
           t.id, t.name, t.type, t.status, t.buy_in, t.starting_chips,
           t.min_players, t.max_players, t.players_per_table, t.turn_timeout_ms,
-          t.late_reg_ends_level, t.rebuys_allowed, t.scheduled_start_at,
+          t.rebuys_allowed, t.scheduled_start_at,
         ],
       );
 

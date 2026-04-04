@@ -78,14 +78,11 @@ export function useTournamentLobby({
 
     // Connection events
     socket.on('connect', () => {
-      console.log('🔗 Connected to tournament lobby')
       setConnectionStatus('connected')
-      console.log(`📨 Subscribing to tournament: ${tournamentId}`)
       socket.emit('subscribe_tournament', { tournamentId })
     })
 
     socket.on('disconnect', () => {
-      console.log('🔌 Disconnected from tournament lobby')
       setConnectionStatus('disconnected')
     })
 
@@ -97,7 +94,6 @@ export function useTournamentLobby({
 
     // Initial registered players list
     socket.on('tournament_registered_players', (data: any) => {
-      console.log('👥 Registered players:', data.players)
       setRegisteredPlayers(
         data.players.map((p: any) => ({
           id: p.id,
@@ -115,7 +111,6 @@ export function useTournamentLobby({
 
     // Tournament state updates
     socket.on('tournament_state_updated', (update: any) => {
-      console.log('📊 Tournament state update:', update)
       setTournamentStatus(update.status)
 
       if (update.registeredCount !== undefined) {
@@ -131,8 +126,6 @@ export function useTournamentLobby({
 
     // Player action updates
     socket.on('tournament_player_action', (action: any) => {
-      console.log('👤 Player action:', action)
-
       if (action.action === 'joined') {
         setRegisteredPlayers((prev) => {
           // Check if player already exists

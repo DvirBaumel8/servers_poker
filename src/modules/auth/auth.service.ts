@@ -176,6 +176,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        subscription_status: user.subscription_status,
       },
     };
   }
@@ -284,6 +285,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        subscription_status: user.subscription_status,
       },
     };
   }
@@ -566,6 +568,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        subscription_status: user.subscription_status,
       },
     };
   }

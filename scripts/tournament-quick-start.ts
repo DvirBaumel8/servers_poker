@@ -69,9 +69,9 @@ async function quickStart() {
     await queryRunner.query(
       `INSERT INTO tournaments
         (id, name, type, status, buy_in, starting_chips, min_players, max_players,
-         players_per_table, turn_timeout_ms, late_reg_ends_level, rebuys_allowed,
+         players_per_table, turn_timeout_ms, rebuys_allowed,
          scheduled_start_at, started_at, finished_at, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL,NULL,NOW(),NOW())`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,NULL,NOW(),NOW())`,
       [
         tournamentId,
         tournamentName,
@@ -83,7 +83,6 @@ async function quickStart() {
         8,           // max_players
         9,           // players_per_table
         10000,       // turn_timeout_ms
-        4,           // late_reg_ends_level
         false,       // rebuys_allowed
         startTime,
       ]

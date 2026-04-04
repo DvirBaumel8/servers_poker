@@ -132,7 +132,6 @@ export class FullSchema1742600000000 implements MigrationInterface {
         "max_players"        integer NOT NULL,
         "players_per_table"  integer NOT NULL DEFAULT 9,
         "turn_timeout_ms"    integer NOT NULL DEFAULT 10000,
-        "late_reg_ends_level" integer NOT NULL DEFAULT 4,
         "rebuys_allowed"     boolean NOT NULL DEFAULT true,
         "scheduled_start_at" TIMESTAMP WITH TIME ZONE,
         "started_at"         TIMESTAMP WITH TIME ZONE,
