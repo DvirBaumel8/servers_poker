@@ -260,6 +260,16 @@ function FeaturedCard({
                 </div>
               </div>
             )}
+            {tournament.buy_in > 0 && (
+              <div>
+                <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
+                  Est. Prize Pool
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                  ${((tournament.registered_count ?? tournament.current_participants ?? 0) * tournament.buy_in).toLocaleString()}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -292,11 +302,11 @@ function FeaturedCard({
             style={{
               padding: '10px 22px',
               borderRadius: 8,
-              background: canRegister || isRegistered
+              background: canRegister || (isRegistered && (tournament.status === 'running' || tournament.status === 'final_table'))
                 ? 'linear-gradient(90deg, #00e5ff, #0070ff)'
                 : C.border,
-              border: 'none',
-              color: canRegister || isRegistered ? '#000' : C.muted,
+              border: isRegistered && tournament.status === 'registering' ? `1px solid ${C.border}` : 'none',
+              color: canRegister || (isRegistered && (tournament.status === 'running' || tournament.status === 'final_table')) ? '#000' : C.muted,
               fontWeight: 700,
               fontSize: 13,
               fontFamily: C.font,
@@ -310,8 +320,8 @@ function FeaturedCard({
             }}
           >
             {isRegistered
-              ? (tournament.status === 'running' || tournament.status === 'final_table' ? 'Watch Live' : 'Enter Lobby')
-              : 'View Details'}
+              ? (tournament.status === 'running' || tournament.status === 'final_table' ? 'Watch Live' : 'Registered ✅')
+              : (canRegister ? 'Register Now' : 'View Details')}
           </button>
         </div>
       </div>
@@ -411,6 +421,16 @@ function TournamentCard({
             {tournament.starting_chips.toLocaleString()}
           </div>
         </div>
+        {tournament.buy_in > 0 && (
+          <div>
+            <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
+              Est. Prize Pool
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+              ${((tournament.registered_count ?? tournament.current_participants ?? 0) * tournament.buy_in).toLocaleString()}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 'auto' }}>
@@ -419,9 +439,11 @@ function TournamentCard({
             width: '100%',
             padding: '9px',
             borderRadius: 8,
-            background: canRegister || isRegistered ? 'linear-gradient(90deg, #00e5ff, #0070ff)' : C.border,
+            background: canRegister || (isRegistered && (tournament.status === 'running' || tournament.status === 'final_table'))
+              ? 'linear-gradient(90deg, #00e5ff, #0070ff)'
+              : C.border,
             border: 'none',
-            color: canRegister || isRegistered ? '#000' : C.muted,
+            color: canRegister || (isRegistered && (tournament.status === 'running' || tournament.status === 'final_table')) ? '#000' : C.muted,
             fontWeight: 700,
             fontSize: 12,
             fontFamily: C.font,
@@ -434,8 +456,8 @@ function TournamentCard({
           }}
         >
           {isRegistered ? (
-            tournament.status === 'running' || tournament.status === 'final_table' ? 'Watch Live' : 'Enter Lobby'
-          ) : 'View Details'}
+            tournament.status === 'running' || tournament.status === 'final_table' ? 'Watch Live' : 'Registered ✅'
+          ) : (canRegister ? 'Register Now' : 'View Details')}
         </button>
       </div>
     </div>
@@ -489,7 +511,7 @@ function PastResultRow({
         {loadingWinner ? (
           <Skeleton width={100} height={13} />
         ) : winner?.botName ? (
-          <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{winner.botName}</span>
+          <span style={{ fontSize: 13, color: C.text, fontWeight: 500, paddingRight: 4 }}>{winner.botName}</span>
         ) : (
           <span style={{ fontSize: 13, color: C.muted }}>—</span>
         )}
@@ -841,7 +863,7 @@ export default function TournamentsPage() {
                       tournament={t}
                       winner={winnerMap.get(t.id)}
                       loadingWinner={loadingWinners && !winnerMap.has(t.id)}
-                      onViewAnalytics={() => navigate('/games')}
+                      onViewAnalytics={() => navigate(`/games?id=${t.id}`)}
                     />
                   ))}
                 </>

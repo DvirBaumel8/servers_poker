@@ -11,33 +11,33 @@ import { Game } from "./game.entity";
 export class HandSeed extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  game_id: string;
+  game_id!: string;
 
   @Column({ type: "integer" })
-  hand_number: number;
+  hand_number!: number;
 
   @Column({ type: "varchar", length: 64 })
-  server_seed: string;
+  server_seed!: string;
 
   @Column({ type: "varchar", length: 64 })
-  server_seed_hash: string;
+  server_seed_hash!: string;
 
   @Column({ type: "varchar", length: 32 })
-  client_seed: string;
+  client_seed!: string;
 
   @Column({ type: "varchar", length: 64 })
-  combined_hash: string;
+  combined_hash!: string;
 
   @Column({ type: "jsonb" })
-  deck_order: number[];
+  deck_order!: number[];
 
   @Column({ type: "boolean", default: false })
-  revealed: boolean;
+  revealed: boolean = false;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  revealed_at: Date | null;
+  revealed_at?: Date;
 
   @ManyToOne(() => Game, { onDelete: "CASCADE" })
   @JoinColumn({ name: "game_id" })
-  game: Game;
+  game!: Game;
 }

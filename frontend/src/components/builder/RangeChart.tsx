@@ -4,6 +4,9 @@ const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'] 
 type RangeAction = 'raise' | 'call' | 'fold' | null
 type RangeChart = Record<string, RangeAction>
 
+const RANGE_POSITIONS = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'] as const
+type RangePosition = (typeof RANGE_POSITIONS)[number]
+
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
 const C = {
@@ -13,9 +16,9 @@ const C = {
   accent: '#00e5ff',
   text: '#ffffff',
   muted: '#9ca3af',
-  success: '#1d9e75', // Raise
-  warning: '#b5851b', // Call
-  danger: '#e24b4a', // Fold
+  success: '#f97316', // Raise — orange
+  warning: '#00e5ff', // Call  — cyan
+  danger: '#6b7280',  // Fold  — grey
   font: "'Trebuchet MS', sans-serif",
 }
 
@@ -31,12 +34,12 @@ function getActionColor(action: RangeAction): string {
   }
 }
 
-function getActionLabel(action: RangeAction): string {
+function getActionLabel(action: RangeAction, isWatermark: boolean): string {
   switch (action) {
     case 'raise': return 'R'
     case 'call': return 'C'
     case 'fold': return 'F'
-    case null: return '\u00B7'
+    case null: return isWatermark ? 'F' : '\u00B7'
     default: return '\u00B7'
   }
 }
@@ -88,6 +91,10 @@ const ALL_HANDS = generateAllHandNotations()
 interface RangeChartProps {
   rangeChart: RangeChart | undefined
   onChange: (rangeChart: RangeChart) => void
+  /** Tier 3: per-position range overrides */
+  positionalRanges?: Partial<Record<RangePosition, RangeChart>>
+  /** Tier 3: callback when a position-specific range changes */
+  onPositionalChange?: (pos: RangePosition, rangeChart: RangeChart) => void
 }
 
 // ─── Main component ────────────────────────────────────────────────────────
@@ -95,20 +102,40 @@ interface RangeChartProps {
 export default function RangeChartComponent({
   rangeChart = {},
   onChange,
+  positionalRanges,
+  onPositionalChange,
 }: RangeChartProps) {
   const [paintAction, setPaintAction] = useState<RangeAction>('raise')
+  const [activePos, setActivePos] = useState<RangePosition | null>(null)
   const isPaintingRef = useRef(false)
   const pendingRef = useRef<RangeChart>({})
   const localOverrides = useRef<Record<string, RangeAction>>({})
   const [, forceRender] = useState(0)
 
+  const isPositionalMode = !!onPositionalChange
+
+  // Active chart: position-specific or global
+  const activeChart: RangeChart = useMemo(() => {
+    if (activePos !== null && positionalRanges) {
+      return positionalRanges[activePos] ?? {}
+    }
+    return rangeChart ?? {}
+  }, [activePos, positionalRanges, rangeChart])
+
+  // Does the active position have any data?
+  const positionHasData = useMemo(() => {
+    if (activePos === null) return true
+    const chart = positionalRanges?.[activePos]
+    return chart !== undefined && Object.keys(chart).length > 0
+  }, [activePos, positionalRanges])
+
   // Effective action for a cell: local override (during drag) or actual chart value
   const getEffectiveAction = useCallback(
     (hand: string): RangeAction => {
       if (hand in localOverrides.current) return localOverrides.current[hand]
-      return rangeChart[hand] || null
+      return activeChart[hand] || null
     },
-    [rangeChart],
+    [activeChart],
   )
 
   // Paint a single cell
@@ -125,7 +152,7 @@ export default function RangeChartComponent({
   // Flush pending changes to parent
   const flushChanges = useCallback(() => {
     if (Object.keys(pendingRef.current).length === 0) return
-    const updated = { ...rangeChart }
+    const updated = { ...activeChart }
     for (const [hand, action] of Object.entries(pendingRef.current)) {
       if (action === null) {
         delete updated[hand]
@@ -135,8 +162,12 @@ export default function RangeChartComponent({
     }
     pendingRef.current = {}
     localOverrides.current = {}
-    onChange(updated)
-  }, [rangeChart, onChange])
+    if (activePos !== null && onPositionalChange) {
+      onPositionalChange(activePos, updated)
+    } else {
+      onChange(updated)
+    }
+  }, [activeChart, activePos, onPositionalChange, onChange])
 
   // Mouse handlers
   const handleMouseDown = useCallback(
@@ -191,33 +222,51 @@ export default function RangeChartComponent({
   }, [flushChanges])
 
   // Bulk actions
-  const handleClearAll = () => onChange({})
+  const handleClearAll = () => {
+    if (activePos !== null && onPositionalChange) {
+      onPositionalChange(activePos, {})
+    } else {
+      onChange({})
+    }
+    localOverrides.current = {}
+    pendingRef.current = {}
+  }
+
   const handleSetAllRaise = () => {
     const newChart: RangeChart = {}
     ALL_HANDS.forEach((hand) => { newChart[hand] = 'raise' })
-    onChange(newChart)
+    if (activePos !== null && onPositionalChange) {
+      onPositionalChange(activePos, newChart)
+    } else {
+      onChange(newChart)
+    }
+    localOverrides.current = {}
+    pendingRef.current = {}
   }
 
-  // Range statistics
+  // Tab switch: flush pending first
+  const handleTabChange = (pos: RangePosition | null) => {
+    if (isPaintingRef.current) {
+      isPaintingRef.current = false
+      flushChanges()
+    }
+    localOverrides.current = {}
+    pendingRef.current = {}
+    setActivePos(pos)
+  }
+
+  // Range statistics — unset combos are counted as Fold
   const stats = useMemo(() => {
-    let raiseC = 0, callC = 0, foldC = 0, totalPlayed = 0
+    let raiseC = 0, callC = 0, foldC = 0
     for (const hand of ALL_HANDS) {
-      const action = rangeChart[hand] || null
-      if (action === null) continue
+      const action = activeChart[hand] || null
       const combos = getComboCount(hand)
-      totalPlayed += combos
       if (action === 'raise') raiseC += combos
       else if (action === 'call') callC += combos
-      else if (action === 'fold') foldC += combos
+      else foldC += combos // null → defaults to Fold
     }
-    return {
-      totalPlayed,
-      pct: ((totalPlayed / TOTAL_COMBOS) * 100).toFixed(1),
-      raiseC,
-      callC,
-      foldC,
-    }
-  }, [rangeChart])
+    return { raiseC, callC, foldC }
+  }, [activeChart])
 
   const PAINT_MODES: { action: RangeAction; label: string; color: string }[] = [
     { action: 'raise', label: 'Raise', color: C.success },
@@ -228,6 +277,104 @@ export default function RangeChartComponent({
 
   return (
     <div>
+      {/* Position Tab Bar (Tier 3 only) */}
+      {isPositionalMode && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: '0.375rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            {/* Global tab */}
+            <button
+              onClick={() => handleTabChange(null)}
+              style={{
+                padding: '0.4rem 0.875rem',
+                background: activePos === null ? `${C.accent}18` : 'transparent',
+                border: `2px solid ${activePos === null ? C.accent : C.border}`,
+                color: activePos === null ? C.accent : C.muted,
+                borderRadius: '0.375rem',
+                fontFamily: C.font,
+                fontSize: '0.9rem',
+                fontWeight: activePos === null ? 'bold' : 'normal',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              Global
+            </button>
+            {/* Position tabs */}
+            {RANGE_POSITIONS.map((pos) => {
+              const isActive = activePos === pos
+              const hasData = positionalRanges?.[pos] !== undefined &&
+                Object.keys(positionalRanges[pos]!).length > 0
+              return (
+                <button
+                  key={pos}
+                  onClick={() => handleTabChange(pos)}
+                  style={{
+                    padding: '0.4rem 0.875rem',
+                    background: isActive ? `${C.accent}18` : 'transparent',
+                    border: `2px solid ${isActive ? C.accent : C.border}`,
+                    color: isActive ? C.accent : C.muted,
+                    borderRadius: '0.375rem',
+                    fontFamily: C.font,
+                    fontSize: '0.9rem',
+                    fontWeight: isActive ? 'bold' : 'normal',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    position: 'relative',
+                  }}
+                >
+                  {pos}
+                  {/* Dot indicator for positions with data */}
+                  {hasData && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '4px',
+                        right: '4px',
+                        width: '5px',
+                        height: '5px',
+                        borderRadius: '50%',
+                        background: C.accent,
+                        display: 'block',
+                      }}
+                    />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Inheriting from Global notice */}
+          {activePos !== null && !positionHasData && (
+            <div
+              style={{
+                marginTop: '0.625rem',
+                padding: '0.5rem 0.75rem',
+                background: `${C.accent}08`,
+                border: `1px solid ${C.accent}30`,
+                borderRadius: '0.375rem',
+                fontSize: '0.75rem',
+                color: C.muted,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              <span style={{ color: C.accent, fontSize: '0.875rem' }}>ℹ</span>
+              <span>
+                Inheriting from Global — paint any cell to create a{' '}
+                <strong style={{ color: C.text }}>{activePos}</strong>-specific override
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Paint mode selector + bulk actions */}
       <div
         style={{
@@ -247,6 +394,7 @@ export default function RangeChartComponent({
                 padding: '0.5rem 1rem',
                 background: isActive ? `${mode.color}30` : 'transparent',
                 border: `2px solid ${isActive ? mode.color : C.border}`,
+                boxShadow: isActive ? `0 0 0 2px ${mode.color}` : 'none',
                 color: isActive ? mode.color : C.muted,
                 borderRadius: '0.375rem',
                 fontFamily: C.font,
@@ -309,6 +457,13 @@ export default function RangeChartComponent({
         onTouchEnd={handleTouchEnd}
       >
         <div style={{ display: 'inline-block', minWidth: '100%' }}>
+          {/* Suited axis label */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '2px', marginBottom: '2px' }}>
+            <span style={{ fontSize: '0.65rem', color: `${C.muted}70`, fontFamily: C.font, letterSpacing: '0.02em' }}>
+              Suited ↙
+            </span>
+          </div>
+
           {/* Header row */}
           <div style={{ display: 'flex', gap: '2px', marginBottom: '2px' }}>
             <div style={{ width: '30px' }} />
@@ -321,7 +476,7 @@ export default function RangeChartComponent({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '0.7rem',
+                  fontSize: '0.8rem',
                   fontWeight: 'bold',
                   color: C.muted,
                 }}
@@ -333,7 +488,7 @@ export default function RangeChartComponent({
 
           {/* Grid rows */}
           {MATRIX.map((row, rowIdx) => (
-            <div key={rowIdx} style={{ display: 'flex', gap: '2px', marginBottom: '2px' }}>
+            <div key={rowIdx} style={{ display: 'flex', gap: '2px', marginBottom: rowIdx === RANKS.length - 1 ? '0' : '2px' }}>
               <div
                 style={{
                   width: '30px',
@@ -341,7 +496,7 @@ export default function RangeChartComponent({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '0.7rem',
+                  fontSize: '0.8rem',
                   fontWeight: 'bold',
                   color: C.muted,
                 }}
@@ -354,8 +509,9 @@ export default function RangeChartComponent({
                   return <div key={`${rowIdx}-${colIdx}`} style={{ width: '30px' }} />
 
                 const action = getEffectiveAction(hand)
-                const color = getActionColor(action)
-                const label = getActionLabel(action)
+                const isUnset = action === null
+                const color = isUnset ? C.border : getActionColor(action)
+                const label = getActionLabel(action, /* watermark= */ isUnset)
 
                 return (
                   <div
@@ -374,17 +530,17 @@ export default function RangeChartComponent({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      background: `${color}20`,
+                      background: isUnset ? `${C.border}18` : `${color}20`,
                       border: `1px solid ${color}`,
                       borderRadius: '0.2rem',
-                      color,
+                      color: isUnset ? '#d4d4d8' : color,
                       fontFamily: C.font,
-                      fontSize: '0.65rem',
-                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      fontWeight: isUnset ? 'normal' : 'bold',
                       cursor: 'crosshair',
                       transition: 'background 0.08s',
                     }}
-                    title={`${hand}: ${action || 'null'}`}
+                    title={`${hand}: ${isUnset ? 'unset (defaults to Fold)' : action}`}
                   >
                     {label}
                   </div>
@@ -392,6 +548,12 @@ export default function RangeChartComponent({
               })}
             </div>
           ))}
+          {/* Offsuit axis label */}
+          <div style={{ display: 'flex', paddingLeft: '32px', marginTop: '2px' }}>
+            <span style={{ fontSize: '0.65rem', color: `${C.muted}70`, fontFamily: C.font, letterSpacing: '0.02em' }}>
+              ↖ Offsuit
+            </span>
+          </div>
         </div>
       </div>
 
@@ -414,11 +576,16 @@ export default function RangeChartComponent({
           }}
         >
           <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: C.text }}>
-            Playing {stats.totalPlayed} / {TOTAL_COMBOS} combos ({stats.pct}%)
+            Range Coverage
+          </span>
+          <span style={{ fontSize: '0.75rem', color: C.muted }}>
+            {((stats.raiseC / TOTAL_COMBOS) * 100).toFixed(1)}% R &nbsp;/&nbsp;
+            {((stats.callC / TOTAL_COMBOS) * 100).toFixed(1)}% C &nbsp;/&nbsp;
+            {((stats.foldC / TOTAL_COMBOS) * 100).toFixed(1)}% F
           </span>
         </div>
 
-        {/* Progress bar */}
+        {/* Segmented progress bar */}
         <div
           style={{
             height: '6px',
@@ -426,21 +593,37 @@ export default function RangeChartComponent({
             borderRadius: '3px',
             overflow: 'hidden',
             marginBottom: '0.75rem',
+            display: 'flex',
           }}
         >
           <div
             style={{
               height: '100%',
-              width: `${(stats.totalPlayed / TOTAL_COMBOS) * 100}%`,
-              background: `linear-gradient(to right, ${C.success}, ${C.accent})`,
-              borderRadius: '3px',
+              width: `${(stats.raiseC / TOTAL_COMBOS) * 100}%`,
+              background: C.success,
+              transition: 'width 0.2s',
+            }}
+          />
+          <div
+            style={{
+              height: '100%',
+              width: `${(stats.callC / TOTAL_COMBOS) * 100}%`,
+              background: C.warning,
+              transition: 'width 0.2s',
+            }}
+          />
+          <div
+            style={{
+              height: '100%',
+              width: `${(stats.foldC / TOTAL_COMBOS) * 100}%`,
+              background: `${C.danger}60`,
               transition: 'width 0.2s',
             }}
           />
         </div>
 
         {/* Breakdown */}
-        <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.875rem' }}>
           <span style={{ color: C.success }}>
             Raise: {stats.raiseC} ({((stats.raiseC / TOTAL_COMBOS) * 100).toFixed(1)}%)
           </span>
@@ -463,8 +646,9 @@ export default function RangeChartComponent({
           background: 'rgba(0, 229, 255, 0.02)',
           borderRadius: '0.375rem',
           border: `1px solid ${C.border}`,
-          fontSize: '0.8rem',
+          fontSize: '1rem',
           flexWrap: 'wrap',
+          alignItems: 'center',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -480,9 +664,12 @@ export default function RangeChartComponent({
           <span style={{ color: C.muted }}>Fold</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: '0.875rem', height: '0.875rem', background: C.border, borderRadius: '0.2rem' }} />
+          <div style={{ width: '0.875rem', height: '0.875rem', background: `${C.border}18`, border: `1px solid ${C.border}`, borderRadius: '0.2rem' }} />
           <span style={{ color: C.muted }}>Unset</span>
         </div>
+        <span style={{ color: `${C.muted}80`, fontSize: '0.7rem' }}>
+          Unset cells default to: <strong style={{ color: C.muted }}>Fold</strong>
+        </span>
         <span style={{ color: C.muted, marginLeft: 'auto', fontSize: '0.7rem' }}>
           Click & drag to paint cells
         </span>

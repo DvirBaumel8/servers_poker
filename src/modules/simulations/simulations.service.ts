@@ -10,7 +10,11 @@ import * as path from "path";
 import { BotRepository } from "../../repositories/bot.repository";
 import { SimulationRepository } from "../../repositories/simulation.repository";
 import { CreateSimulationDto } from "./dto/create-simulation.dto";
-import { PROFILE_CONFIGS, OpponentBotConfig } from "./opponent-profiles";
+import {
+  resolveOpponentsFromDistribution,
+  OpponentBotConfig,
+  OpponentProfile,
+} from "./opponent-profiles";
 import type {
   HandSimulationInput,
   HandSimulationOutput,
@@ -55,8 +59,13 @@ export class SimulationsService {
       );
     }
 
-    // 3. Load opponent bots for the selected profile
-    const opponents = await this.resolveOpponents(dto.opponentProfile, bot.id);
+    // 3. Load opponent bots for the selected profile (sliced to tableSize - 1)
+    const tableSize = dto.tableSize ?? 9;
+    const opponents = await this.resolveOpponents(
+      dto.opponentProfile,
+      bot.id,
+      tableSize,
+    );
 
     // 4. Persist the simulation record
     const simulation = await this.simulationRepository.create({
@@ -65,12 +74,14 @@ export class SimulationsService {
       status: "PENDING",
       hand_count: dto.handCount,
       opponent_profile: dto.opponentProfile,
+      table_size: tableSize,
       config_snapshot: {
         botName: bot.name,
         strategy: bot.strategy,
         opponents: opponents.map((o) => ({ id: o.id, name: o.name })),
         smallBlind: SIM_SMALL_BLIND,
         bigBlind: SIM_BIG_BLIND,
+        tableSize,
       },
     });
 
@@ -132,17 +143,17 @@ export class SimulationsService {
   // ─── Internal helpers ──────────────────────────────────────────────────────
 
   /**
-   * Resolve opponent bots for a profile.
-   * For CURRENT_META: attempts to fetch top-ranked bots from the DB,
-   * falls back to synthetic profiles if there aren't enough.
-   * For other profiles: always uses synthetic profiles.
+   * Resolve opponent bots for a profile using the lineup distribution.
+   * Builds a mixed seat composition (e.g. 6 Sharks + 2 Nits for AGGRESSIVE_SHARKS)
+   * and shuffles the result so seat order is varied each run.
    */
   private async resolveOpponents(
     profile: string,
     _excludeBotId: string,
+    tableSize: number = 9,
   ): Promise<OpponentBotConfig[]> {
-    const profileKey = profile as keyof typeof PROFILE_CONFIGS;
-    return PROFILE_CONFIGS[profileKey] ?? PROFILE_CONFIGS["CURRENT_META"];
+    const profileKey = (profile as OpponentProfile) ?? "CURRENT_META";
+    return resolveOpponentsFromDistribution(profileKey, tableSize);
   }
 
   /**

@@ -100,6 +100,8 @@ async function runHandSimulation(
   let currentHandVpip = false;
   let currentHandPfr = false;
   let currentHandPosition = "Unknown";
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  let currentHandTargetStartChips = BigInt(startingChips);
   let targetBotStartChips = BigInt(startingChips);
 
   // All player IDs in order (for position computation)

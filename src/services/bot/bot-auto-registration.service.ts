@@ -171,10 +171,16 @@ export class BotAutoRegistrationService implements OnModuleInit {
     }
 
     const buyIn = Number(tournament.buy_in);
-    if (subscription.min_buy_in !== null && buyIn < subscription.min_buy_in) {
+    if (
+      subscription.min_buy_in !== undefined &&
+      buyIn < subscription.min_buy_in
+    ) {
       return false;
     }
-    if (subscription.max_buy_in !== null && buyIn > subscription.max_buy_in) {
+    if (
+      subscription.max_buy_in !== undefined &&
+      buyIn > subscription.max_buy_in
+    ) {
       return false;
     }
 

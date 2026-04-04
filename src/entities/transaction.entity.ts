@@ -14,22 +14,22 @@ export type TransactionType =
 @Index(["wallet_id", "created_at"])
 export class Transaction extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
-  wallet_id: string;
+  wallet_id!: string;
 
   @Index()
   @Column({ type: "varchar", length: 20 })
-  type: TransactionType;
+  type!: TransactionType;
 
   @Column({ type: "bigint", transformer: bigIntTransformer })
-  amount: bigint;
+  amount!: bigint;
 
   @Column({ type: "varchar", length: 36, nullable: true })
-  reference_id: string | null;
+  reference_id?: string;
 
   @Column({ type: "varchar", length: 255, nullable: true })
-  description: string | null;
+  description?: string;
 
   @ManyToOne(() => Wallet)
   @JoinColumn({ name: "wallet_id" })
-  wallet: Wallet;
+  wallet!: Wallet;
 }

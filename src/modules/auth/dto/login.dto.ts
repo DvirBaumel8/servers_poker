@@ -10,16 +10,16 @@ import {
 
 export class LoginDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 }
 
 export class RegisterDto {
   @IsEmail({}, { message: "Please provide a valid email address" })
-  email: string;
+  email!: string;
 
   @IsString()
   @MinLength(2, { message: "Name must be at least 2 characters" })
@@ -28,7 +28,7 @@ export class RegisterDto {
     message:
       "Name can only contain letters, numbers, spaces, dots, underscores, and hyphens",
   })
-  name: string;
+  name!: string;
 
   @IsString()
   @MinLength(8, { message: "Password must be at least 8 characters" })
@@ -37,35 +37,35 @@ export class RegisterDto {
     message:
       "Password must contain at least one uppercase letter, one lowercase letter, and one number",
   })
-  password: string;
+  password!: string;
 }
 
 export class VerifyEmailDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
   @Length(6, 6)
-  code: string;
+  code!: string;
 }
 
 export class ResendVerificationDto {
   @IsEmail()
-  email: string;
+  email!: string;
 }
 
 export class ForgotPasswordDto {
   @IsEmail()
-  email: string;
+  email!: string;
 }
 
 export class ResetPasswordDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
   @Length(6, 6)
-  code: string;
+  code!: string;
 
   @IsString()
   @MinLength(8, { message: "Password must be at least 8 characters" })
@@ -74,27 +74,27 @@ export class ResetPasswordDto {
     message:
       "Password must contain at least one uppercase letter, one lowercase letter, and one number",
   })
-  newPassword: string;
+  newPassword!: string;
 }
 
 export class RefreshTokenDto {
   @IsString()
-  refreshToken: string;
+  refreshToken!: string;
 }
 
 export class UserDto {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  created_at: Date;
+  id!: string;
+  email!: string;
+  name!: string;
+  role!: string;
+  created_at!: Date;
 }
 
 export class AuthResponseDto {
-  accessToken: string;
+  accessToken!: string;
   refreshToken?: string;
-  expiresIn: number;
-  user: {
+  expiresIn!: number;
+  user!: {
     id: string;
     email: string;
     name: string;
@@ -109,12 +109,12 @@ export class AuthResponseDto {
  */
 export class RegisterDeveloperDto {
   @IsEmail({}, { message: "Please provide a valid email address" })
-  email: string;
+  email!: string;
 
   @IsString()
   @MinLength(2, { message: "Name must be at least 2 characters" })
   @MaxLength(100, { message: "Name cannot exceed 100 characters" })
-  name: string;
+  name!: string;
 
   @IsString()
   @MinLength(8, { message: "Password must be at least 8 characters" })
@@ -123,7 +123,7 @@ export class RegisterDeveloperDto {
     message:
       "Password must contain at least one uppercase letter, one lowercase letter, and one number",
   })
-  password: string;
+  password!: string;
 
   @IsString()
   @MinLength(3, { message: "Bot name must be at least 3 characters" })
@@ -132,7 +132,7 @@ export class RegisterDeveloperDto {
     message:
       "Bot name must start with a letter and contain only letters, numbers, underscores, and hyphens",
   })
-  botName: string;
+  botName!: string;
 
   @IsOptional()
   @IsString()
@@ -144,14 +144,14 @@ export class RegisterDeveloperDto {
 }
 
 export class RegisterDeveloperResponseDto {
-  message: string;
+  message!: string;
   verificationCode?: string;
-  user: {
+  user!: {
     id: string;
     email: string;
     name: string;
   };
-  bot: {
+  bot!: {
     id: string;
     name: string;
   };

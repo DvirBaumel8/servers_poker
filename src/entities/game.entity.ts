@@ -20,37 +20,37 @@ export type GameStatus = "waiting" | "running" | "finished";
 export class Game extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  table_id: string;
+  table_id!: string;
 
   @ManyToOne(() => Table, { onDelete: "CASCADE" })
   @JoinColumn({ name: "table_id" })
-  table: Table;
+  table!: Table;
 
   @Index()
   @Column({ type: "varchar", length: 36, nullable: true })
-  tournament_id: string | null;
+  tournament_id?: string;
 
   @ManyToOne(() => Tournament, { onDelete: "CASCADE", nullable: true })
   @JoinColumn({ name: "tournament_id" })
-  tournament: Tournament | null;
+  tournament?: Tournament;
 
   @Index()
   @Column({ type: "varchar", length: 20, default: "waiting" })
-  status: GameStatus;
+  status: GameStatus = "waiting";
 
   @Column({ type: "integer", default: 0 })
-  total_hands: number;
+  total_hands: number = 0;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  started_at: Date | null;
+  started_at?: Date;
 
   @Index()
   @Column({ type: "timestamp with time zone", nullable: true })
-  finished_at: Date | null;
+  finished_at?: Date;
 
   @OneToMany(() => GamePlayer, (gp) => gp.game)
-  players: GamePlayer[];
+  players?: GamePlayer[];
 
   @OneToMany(() => Hand, (hand) => hand.game)
-  hands: Hand[];
+  hands?: Hand[];
 }

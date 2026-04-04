@@ -30,45 +30,45 @@ export type ActionStage = "preflop" | "flop" | "turn" | "river";
 export class Action extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  hand_id: string;
+  hand_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({ type: "integer" })
-  action_seq: number;
+  action_seq!: number;
 
   @Column({ type: "varchar", length: 20 })
-  action_type: ActionType;
+  action_type!: ActionType;
 
   @Column({ type: "varchar", length: 20 })
-  stage: ActionStage;
+  stage!: ActionStage;
 
   @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
-  amount: bigint;
+  amount: bigint = 0n;
 
   @Column({
     type: "bigint",
     nullable: true,
     transformer: bigIntNullableTransformer,
   })
-  pot_after: bigint | null;
+  pot_after?: bigint | null;
 
   @Column({
     type: "bigint",
     nullable: true,
     transformer: bigIntNullableTransformer,
   })
-  chips_after: bigint | null;
+  chips_after?: bigint | null;
 
   @Column({ type: "integer", nullable: true })
-  response_time_ms: number | null;
+  response_time_ms?: number | null;
 
   @ManyToOne(() => Hand, (hand) => hand.actions, { onDelete: "CASCADE" })
   @JoinColumn({ name: "hand_id" })
-  hand: Hand;
+  hand!: Hand;
 
   @ManyToOne(() => Bot, { onDelete: "CASCADE" })
   @JoinColumn({ name: "bot_id" })
-  bot: Bot;
+  bot!: Bot;
 }

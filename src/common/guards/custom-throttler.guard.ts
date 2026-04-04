@@ -14,7 +14,7 @@ import { ConfigService } from "@nestjs/config";
 @Injectable()
 export class CustomThrottlerGuard extends ThrottlerGuard {
   @Inject(ConfigService)
-  private readonly configService: ConfigService;
+  private readonly configService!: ConfigService;
 
   /**
    * Override shouldSkip to implement custom bypass logic.

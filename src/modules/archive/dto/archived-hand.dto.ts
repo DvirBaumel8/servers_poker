@@ -68,26 +68,26 @@ export interface ArchivedLogicBug {
 }
 
 export class ArchivedHandResponseDto {
-  id: string;
-  game_id: string;
-  hand_number: number;
-  dealer_bot_id: string | null;
-  small_blind: string;
-  big_blind: string;
-  ante: string;
-  community_cards: Array<{ rank: string; suit: string }>;
-  pot: string;
-  stage: string;
-  started_at: string | null;
-  finished_at: string | null;
-  players: ArchivedHandPlayer[];
-  actions: ArchivedAction[];
+  id!: string;
+  game_id!: string;
+  hand_number!: number;
+  dealer_bot_id!: string | null;
+  small_blind!: string;
+  big_blind!: string;
+  ante!: string;
+  community_cards!: Array<{ rank: string; suit: string }>;
+  pot!: string;
+  stage!: string;
+  started_at!: string | null;
+  finished_at!: string | null;
+  players!: ArchivedHandPlayer[];
+  actions!: ArchivedAction[];
 }
 
 export class ArchivedHandListResponseDto {
-  tournament_id: string;
-  hand_count: number;
-  hands: Array<{
+  tournament_id!: string;
+  hand_count!: number;
+  hands!: Array<{
     id: string;
     hand_number: number;
     pot: string;

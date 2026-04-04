@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import api from '../lib/axios'
 import { useAnalyticsStore } from '../store/analyticsStore'
@@ -990,6 +990,7 @@ function ActionArena({
 
 export default function TournamentAnalyticsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { activeTournamentId, activeHandIndex, setTournament, setHandIndex, selectedLogEntryId, selectLogEntry } = useAnalyticsStore()
 
   const [tournaments, setTournaments] = useState<Tournament[]>([])
@@ -1009,15 +1010,19 @@ export default function TournamentAnalyticsPage() {
 
   // Fetch finished tournaments
   useEffect(() => {
+    const idFromUrl = searchParams.get('id')
     api.get<{ data?: Tournament[]; items?: Tournament[] } | Tournament[]>('/tournaments?status=finished&limit=30')
       .then(res => {
         const data = res.data
         const list = Array.isArray(data) ? data : ((data as { data?: Tournament[] }).data ?? (data as { items?: Tournament[] }).items ?? [])
         setTournaments(list)
+        if (idFromUrl && !activeTournamentId) {
+          setTournament(idFromUrl)
+        }
       })
       .catch(() => setTournaments([]))
       .finally(() => setTournamentsLoading(false))
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch manifest when tournament changes
   useEffect(() => {

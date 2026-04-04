@@ -8,13 +8,13 @@ import { v4 as uuidv4 } from "uuid";
 
 export abstract class BaseEntity {
   @PrimaryColumn({ type: "varchar", length: 36 })
-  id: string;
+  id!: string;
 
   @CreateDateColumn({ type: "timestamp with time zone" })
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ type: "timestamp with time zone" })
-  updated_at: Date;
+  updated_at!: Date;
 
   @BeforeInsert()
   generateId() {

@@ -9,7 +9,7 @@ export class DepositDto {
   @IsNumber()
   @Min(1)
   @Max(1_000_000_000)
-  amount: number;
+  amount!: number;
 }
 
 export class WithdrawDto {
@@ -20,7 +20,7 @@ export class WithdrawDto {
   @IsNumber()
   @Min(1)
   @Max(1_000_000_000)
-  amount: number;
+  amount!: number;
 }
 
 export class PaginationDto {
@@ -39,27 +39,27 @@ export class PaginationDto {
 }
 
 export class WalletResponseDto {
-  @ApiProperty() id: string;
-  @ApiProperty() user_id: string;
-  @ApiProperty({ description: "Balance as string (BigInt)" }) balance: string;
-  @ApiProperty() created_at: Date;
+  @ApiProperty() id!: string;
+  @ApiProperty() user_id!: string;
+  @ApiProperty({ description: "Balance as string (BigInt)" }) balance!: string;
+  @ApiProperty() created_at!: Date;
 }
 
 export class TransactionResponseDto {
-  @ApiProperty() id: string;
-  @ApiProperty() wallet_id: string;
+  @ApiProperty() id!: string;
+  @ApiProperty() wallet_id!: string;
   @ApiProperty({ enum: ["deposit", "withdrawal", "buy_in", "payout", "prize"] })
-  type: string;
-  @ApiProperty({ description: "Amount as string (BigInt)" }) amount: string;
-  @ApiPropertyOptional() reference_id: string | null;
-  @ApiPropertyOptional() description: string | null;
-  @ApiProperty() created_at: Date;
+  type!: string;
+  @ApiProperty({ description: "Amount as string (BigInt)" }) amount!: string;
+  @ApiPropertyOptional() reference_id!: string | null;
+  @ApiPropertyOptional() description!: string | null;
+  @ApiProperty() created_at!: Date;
 }
 
 export class PaginatedTransactionsDto {
   @ApiProperty({ type: [TransactionResponseDto] })
-  data: TransactionResponseDto[];
-  @ApiProperty() total: number;
-  @ApiProperty() limit: number;
-  @ApiProperty() offset: number;
+  data!: TransactionResponseDto[];
+  @ApiProperty() total!: number;
+  @ApiProperty() limit!: number;
+  @ApiProperty() offset!: number;
 }

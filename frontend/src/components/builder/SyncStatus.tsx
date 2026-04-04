@@ -85,7 +85,7 @@ export function SyncStatus({ isSaving, savedJustNow, isDirty }: SyncStatusProps)
               animation: 'sync-pulse 1.8s ease-in-out infinite',
               flexShrink: 0,
             }} />
-            <span style={{ color: '#9ca3af' }}>Auto-save on</span>
+            <span style={{ color: '#9ca3af' }}>Unsaved</span>
           </>
         )}
       </div>

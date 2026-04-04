@@ -55,34 +55,34 @@ export class CreateTournamentDto {
       "Tournament name can only contain letters, numbers, spaces, and basic punctuation (- _ . , ! ? ( ))",
   })
   @Validate(SafeNameConstraint)
-  name: string;
+  name!: string;
 
   @IsIn(["rolling", "scheduled"])
-  type: TournamentType;
+  type!: TournamentType;
 
   @IsNumber()
   @Min(0, { message: "buy_in must be at least 0" })
   @Max(MAX_SAFE_BUY_IN, {
     message: `buy_in cannot exceed ${MAX_SAFE_BUY_IN.toLocaleString()}`,
   })
-  buy_in: number;
+  buy_in!: number;
 
   @IsNumber()
   @Min(100, { message: "starting_chips must be at least 100" })
   @Max(MAX_SAFE_BUY_IN, {
     message: `starting_chips cannot exceed ${MAX_SAFE_BUY_IN.toLocaleString()}`,
   })
-  starting_chips: number;
+  starting_chips!: number;
 
   @IsNumber()
   @Min(2, { message: "min_players must be at least 2" })
   @Validate(MinPlayersLessThanMaxConstraint)
-  min_players: number;
+  min_players!: number;
 
   @IsNumber()
   @Min(2, { message: "max_players must be at least 2" })
   @Max(10000, { message: "max_players cannot exceed 10000" })
-  max_players: number;
+  max_players!: number;
 
   @IsOptional()
   @IsNumber()
@@ -116,28 +116,28 @@ export class CreateTournamentDto {
 
 export class RegisterBotDto {
   @IsString()
-  bot_id: string;
+  bot_id!: string;
 }
 
 export class TournamentResponseDto {
-  id: string;
-  name: string;
-  type: TournamentType;
-  status: string;
-  buy_in: number;
-  starting_chips: number;
+  id!: string;
+  name!: string;
+  type!: TournamentType;
+  status!: string;
+  buy_in!: number;
+  starting_chips!: number;
   small_blind?: number;
   big_blind?: number;
   current_level?: number;
-  min_players: number;
-  max_players: number;
-  players_per_table: number;
-  turn_timeout_ms: number;
-  rebuys_allowed: boolean;
-  scheduled_start_at: Date | null;
-  started_at: Date | null;
-  finished_at: Date | null;
-  entries_count: number;
+  min_players!: number;
+  max_players!: number;
+  players_per_table!: number;
+  turn_timeout_ms!: number;
+  rebuys_allowed!: boolean;
+  scheduled_start_at!: Date | null;
+  started_at!: Date | null;
+  finished_at!: Date | null;
+  entries_count!: number;
   entries?: Array<{
     id: string;
     user_id: string;
@@ -145,30 +145,30 @@ export class TournamentResponseDto {
     user?: { name: string };
     bot?: { name: string };
   }>;
-  created_at: Date;
+  created_at!: Date;
 }
 
 export class TournamentResultDto {
-  bot_id: string;
-  bot_name: string;
-  finish_position: number;
-  payout: number;
+  bot_id!: string;
+  bot_name!: string;
+  finish_position!: number;
+  payout!: number;
 }
 
 export class TournamentLeaderboardEntryDto {
-  position: number;
-  bot_id: string;
-  bot_name: string;
-  chips: number;
-  busted: boolean;
+  position!: number;
+  bot_id!: string;
+  bot_name!: string;
+  chips!: number;
+  busted!: boolean;
 }
 
 export class TournamentStateDto {
-  tournamentId: string;
-  name: string;
-  status: string;
-  playersRemaining: number;
-  totalEntrants: number;
+  tournamentId!: string;
+  name!: string;
+  status!: string;
+  playersRemaining!: number;
+  totalEntrants!: number;
   tables?: number;
   currentLevel?: number;
   smallBlind?: number;
@@ -194,10 +194,10 @@ export class UpdateSchedulerConfigDto {
 }
 
 export class SchedulerStatusDto {
-  enabled: boolean;
-  cronExpression: string;
-  nextRun: Date | null;
-  lastRun: Date | null;
+  enabled!: boolean;
+  cronExpression!: string;
+  nextRun!: Date | null;
+  lastRun!: Date | null;
 }
 
 export class TournamentQueryDto {

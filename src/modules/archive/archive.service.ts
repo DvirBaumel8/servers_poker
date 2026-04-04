@@ -392,7 +392,7 @@ function serializeHand(
     id: hand.id,
     game_id: hand.game_id,
     hand_number: hand.hand_number,
-    dealer_bot_id: hand.dealer_bot_id,
+    dealer_bot_id: hand.dealer_bot_id ?? null,
     small_blind: String(hand.small_blind),
     big_blind: String(hand.big_blind),
     ante: String(hand.ante),
@@ -436,16 +436,22 @@ function serializeAction(action: Action): ArchivedAction {
     action_type: action.action_type,
     stage: action.stage,
     amount: String(action.amount),
-    pot_after: action.pot_after != null ? String(action.pot_after) : null,
-    chips_after: action.chips_after != null ? String(action.chips_after) : null,
-    response_time_ms: action.response_time_ms,
+    pot_after:
+      action.pot_after != null
+        ? String(action.pot_after)
+        : (action.pot_after ?? null),
+    chips_after:
+      action.chips_after != null
+        ? String(action.chips_after)
+        : (action.chips_after ?? null),
+    response_time_ms: action.response_time_ms ?? null,
   };
 }
 
 function serializeLogicBug(bug: LogicBug): ArchivedLogicBug {
   return {
     id: bug.id,
-    hand_id: bug.hand_id,
+    hand_id: bug.hand_id ?? null,
     check_name: bug.check_name,
     description: bug.description,
     details: bug.details,

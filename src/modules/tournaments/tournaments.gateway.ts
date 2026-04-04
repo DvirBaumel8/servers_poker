@@ -31,7 +31,7 @@ interface AuthenticatedSocket extends Socket {
 })
 export class TournamentsGateway implements OnGatewayInit, OnGatewayConnection {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(TournamentsGateway.name);
 

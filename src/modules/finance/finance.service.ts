@@ -74,7 +74,7 @@ export class FinanceService {
           wallet_id: wallet.id,
           type: "deposit" as TransactionType,
           amount: amountBig,
-          reference_id: null,
+          reference_id: undefined,
           description: `Deposit of ${amount}`,
         },
         manager,
@@ -110,7 +110,7 @@ export class FinanceService {
           wallet_id: wallet.id,
           type: "withdrawal" as TransactionType,
           amount: amountBig,
-          reference_id: null,
+          reference_id: undefined,
           description: `Withdrawal of ${amount}`,
         },
         manager,
@@ -226,8 +226,8 @@ export class FinanceService {
       wallet_id: tx.wallet_id,
       type: tx.type,
       amount: tx.amount.toString(),
-      reference_id: tx.reference_id,
-      description: tx.description,
+      reference_id: tx.reference_id ?? null,
+      description: tx.description ?? null,
       created_at: tx.created_at,
     };
   }

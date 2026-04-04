@@ -10,8 +10,8 @@ import {
 @Injectable()
 export class CloudStorageService implements OnModuleInit {
   private readonly logger = new Logger(CloudStorageService.name);
-  private client: S3Client;
-  private bucket: string;
+  private client!: S3Client;
+  private bucket!: string;
 
   constructor(private readonly configService: ConfigService) {}
 

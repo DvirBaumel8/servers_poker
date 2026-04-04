@@ -11,35 +11,38 @@ export type OpponentProfile =
 @Index(["user_id", "status"])
 export class Simulation extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
-  user_id: string;
+  user_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({
     type: "enum",
     enum: ["PENDING", "RUNNING", "COMPLETED", "FAILED"],
     default: "PENDING",
   })
-  status: SimulationStatus;
+  status: SimulationStatus = "PENDING";
 
   @Column({ type: "integer" })
-  hand_count: number;
+  hand_count!: number;
 
   /** Number of hands completed so far. Used for progress reporting (progress % = progress_hands / hand_count * 100). */
   @Column({ type: "integer", default: 0 })
-  progress_hands: number;
+  progress_hands: number = 0;
 
   @Column({
     type: "enum",
     enum: ["AGGRESSIVE_SHARKS", "TIGHT_PASSIVE", "CURRENT_META"],
   })
-  opponent_profile: OpponentProfile;
+  opponent_profile!: OpponentProfile;
+
+  @Column({ type: "integer", default: 9 })
+  table_size: number = 9;
 
   /** Snapshot of the bot's strategy config at the time the simulation was created. */
   @Column({ type: "jsonb" })
-  config_snapshot: Record<string, any>;
+  config_snapshot!: Record<string, any>;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  completed_at: Date | null;
+  completed_at?: Date;
 }

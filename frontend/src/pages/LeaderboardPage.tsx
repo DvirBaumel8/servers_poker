@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
 import api from '../lib/axios'
 import { Sidebar } from '../components/Sidebar'
+import { useAuthStore } from '../store/authStore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LeaderboardEntry {
-  botId: string
-  botName: string
   userId: string
-  ownerName: string
-  tierBadge: 'TIER_1_QUICK' | 'TIER_2_MATRIX' | 'TIER_3_ELITE'
+  userName: string
+  activeBotCount: number
   bb100: number
   itmPct: number
   roiPct: number
@@ -53,36 +52,20 @@ const C = {
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
 
-const TIER_LABELS: Record<string, string> = {
-  TIER_1_QUICK: 'Quick',
-  TIER_2_MATRIX: 'Strategy',
-  TIER_3_ELITE: 'Pro',
-}
-
-const TIER_COLORS: Record<string, string> = {
-  TIER_1_QUICK: '#9ca3af',
-  TIER_2_MATRIX: '#3b82f6',
-  TIER_3_ELITE: '#ffd700',
-}
-
-function TierBadge({ tier }: { tier: string }) {
-  const color = TIER_COLORS[tier] ?? C.muted
-  const label = TIER_LABELS[tier] ?? 'Unknown'
+function UserAvatar({ name }: { name: string }) {
+  const initial = name ? name[0].toUpperCase() : '?'
+  const hue = (name || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360
   return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 8px',
-      borderRadius: 4,
-      fontSize: 11,
-      fontWeight: 700,
-      letterSpacing: 0.5,
-      color,
-      background: `${color}18`,
-      border: `1px solid ${color}40`,
-      textTransform: 'uppercase',
+    <div style={{
+      width: 28, height: 28, borderRadius: '50%',
+      background: `hsl(${hue}, 45%, 28%)`,
+      border: `1px solid hsl(${hue}, 45%, 42%)`,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 13, fontWeight: 700, color: '#fff',
+      flexShrink: 0,
     }}>
-      {label}
-    </span>
+      {initial}
+    </div>
   )
 }
 
@@ -128,7 +111,7 @@ function PodiumSection({ entries }: { entries: LeaderboardEntry[] }) {
 
         return (
           <div
-            key={entry.botId}
+            key={entry.rank}
             style={{
               flex: 1,
               background: C.card,
@@ -152,18 +135,16 @@ function PodiumSection({ entries }: { entries: LeaderboardEntry[] }) {
               {rankLabels[entry.rank]}
             </div>
 
-            {/* Rank badge + bot name */}
+            {/* Rank badge + user name */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <RankBadge rank={entry.rank} />
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <UserAvatar name={entry.userName} />
                 <div style={{
                   fontSize: isGold ? 16 : 14, fontWeight: 700, color: C.text,
                   lineHeight: 1.2,
                 }}>
-                  {entry.botName}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                  by {entry.ownerName || 'Unknown'}
+                  {entry.userName || 'Unknown'}
                 </div>
               </div>
             </div>
@@ -180,13 +161,8 @@ function PodiumSection({ entries }: { entries: LeaderboardEntry[] }) {
                 fontSize: isGold ? 18 : 15, fontWeight: 700, color: netColor,
                 fontFamily: 'monospace',
               }}>
-                {net >= 0 ? `+${net.toLocaleString()}` : net.toLocaleString()}
+                {formatNet(net)}
               </span>
-            </div>
-
-            {/* Tier badge */}
-            <div style={{ marginTop: 8 }}>
-              <TierBadge tier={entry.tierBadge} />
             </div>
           </div>
         )
@@ -222,26 +198,42 @@ function PillButton({
   )
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatNet(n: number): string {
+  const abs = Math.abs(n)
+  const sign = n >= 0 ? '+' : '-'
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 10_000)    return `${sign}${(abs / 1_000).toFixed(1)}k`
+  return n >= 0 ? `+${n.toLocaleString()}` : n.toLocaleString()
+}
+
+const EMPTY_MSGS: Record<string, string> = {
+  daily:    'No champions today yet — check back after some games.',
+  weekly:   'No champions this week yet.',
+  monthly:  'No champions this month yet.',
+  all_time: 'No players match the current filters.',
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
+  const currentUserId = useAuthStore((s) => s.user?.id)
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [total, setTotal] = useState(0)
-  const [lastRefreshed, setLastRefreshed] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   // Filters
-  const [tier, setTier] = useState<string>('')
   const [period, setPeriod] = useState('all_time')
   const [sortBy, setSortBy] = useState('bb100')
-  const [minGames, setMinGames] = useState(10)
+  const [minGames, setMinGames] = useState(0)
   const [page, setPage] = useState(0)
   const limit = 25
 
   useEffect(() => {
     fetchLeaderboard()
-  }, [tier, period, sortBy, minGames, page])
+  }, [period, sortBy, minGames, page])
 
   async function fetchLeaderboard() {
     setLoading(true)
@@ -254,11 +246,9 @@ export default function LeaderboardPage() {
         limit,
         offset: page * limit,
       }
-      if (tier) params.tier = tier
       const { data } = await api.get<LeaderboardResponse>('/leaderboard', { params })
       setEntries(data.data)
       setTotal(data.total)
-      setLastRefreshed(data.lastRefreshedAt)
     } catch {
       setError('Failed to load leaderboard')
     } finally {
@@ -281,7 +271,7 @@ export default function LeaderboardPage() {
           <div>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>Hall of Fame</div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2, letterSpacing: 0.5 }}>
-              Rankings across all bots on the platform
+              Rankings across all developers on the platform
             </div>
           </div>
         </div>
@@ -291,21 +281,6 @@ export default function LeaderboardPage() {
           display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16,
           padding: '8px 28px', borderBottom: `1px solid ${C.border}`, background: C.bg,
         }}>
-          {/* Tier pills */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {[
-              { value: '', label: 'All' },
-              { value: 'QUICK', label: 'Quick' },
-              { value: 'MATRIX', label: 'Strategy' },
-              { value: 'ELITE', label: 'Pro' },
-            ].map(o => (
-              <PillButton key={o.value} label={o.label} active={tier === o.value}
-                onClick={() => { setTier(o.value); setPage(0) }} />
-            ))}
-          </div>
-
-          <div style={{ width: 1, height: 18, background: C.border }} />
-
           {/* Period pills */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {[
@@ -335,6 +310,7 @@ export default function LeaderboardPage() {
             >
               <option value="bb100">BB/100</option>
               <option value="roi">ROI</option>
+              <option value="net_profit">Net Profit</option>
             </select>
           </div>
 
@@ -374,7 +350,7 @@ export default function LeaderboardPage() {
               <thead>
                 <tr style={{ background: C.card }}>
                   {[
-                    'Rank', 'Bot', 'Tier', 'BB/100', 'ITM%', 'ROI%',
+                    'Rank', 'Player', 'BB/100', 'ITM%', 'ROI%',
                     'Hands', 'Tournaments', 'Wins', 'Net Profit', 'Payouts',
                   ].map(h => {
                     const isHighlight = h === 'Rank' || h === 'Net Profit'
@@ -384,7 +360,7 @@ export default function LeaderboardPage() {
                         fontWeight: isHighlight ? 900 : 700,
                         color: isHighlight ? C.text : C.accent,
                         textTransform: 'uppercase', letterSpacing: 1,
-                        textAlign: h === 'Bot' ? 'left' : 'right',
+                        textAlign: h === 'Player' ? 'left' : 'right',
                         borderBottom: `1px solid ${C.border}`,
                         whiteSpace: 'nowrap',
                       }}>
@@ -398,7 +374,7 @@ export default function LeaderboardPage() {
                 {loading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 11 }).map((_, j) => (
+                      {Array.from({ length: 10 }).map((_, j) => (
                         <td key={j} style={{ padding: '12px', borderBottom: `1px solid ${C.border}` }}>
                           <div style={{ height: 16, borderRadius: 4, background: C.card, animation: 'pulse 1.5s ease-in-out infinite' }} />
                         </td>
@@ -407,29 +383,36 @@ export default function LeaderboardPage() {
                   ))
                 ) : entries.length === 0 ? (
                   <tr>
-                    <td colSpan={11} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 14 }}>
-                      No bots match the current filters
+                    <td colSpan={10} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 15, letterSpacing: 0.5 }}>
+                      {EMPTY_MSGS[period] ?? 'No players match the current filters.'}
                     </td>
                   </tr>
                 ) : (
-                  entries.map(e => (
-                    <tr key={e.botId} style={{ transition: 'background 0.15s' }}
-                      onMouseEnter={ev => (ev.currentTarget.style.background = C.cardHover)}
-                      onMouseLeave={ev => (ev.currentTarget.style.background = 'transparent')}
+                  entries.map(e => {
+                    const isMyRow = !!currentUserId && e.userId === currentUserId
+                    return (
+                    <tr
+                      key={String(e.rank)}
+                      title={`Playing with ${e.activeBotCount} active bot${e.activeBotCount !== 1 ? 's' : ''}`}
+                      style={{ transition: 'background 0.15s', background: isMyRow ? 'rgba(0, 229, 255, 0.06)' : 'transparent' }}
+                      onMouseEnter={ev => (ev.currentTarget.style.background = isMyRow ? 'rgba(0, 229, 255, 0.12)' : C.cardHover)}
+                      onMouseLeave={ev => (ev.currentTarget.style.background = isMyRow ? 'rgba(0, 229, 255, 0.06)' : 'transparent')}
                     >
-                      <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700 }}>
+                      <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, borderLeft: isMyRow ? `4px solid ${C.accent}` : '4px solid transparent' }}>
                         <RankBadge rank={e.rank} />
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'left' }}>
-                        <div style={{ fontWeight: 600, color: C.text }}>{e.botName}</div>
-                        {e.ownerName && (
-                          <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
-                            {e.ownerName}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <UserAvatar name={e.userName} />
+                          <div style={{ fontWeight: 600, color: C.text, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {e.userName || 'Unknown'}
+                            {isMyRow && (
+                              <span style={{ fontSize: 10, background: C.accent, color: '#000', fontWeight: 700, padding: '2px 6px', borderRadius: 3, letterSpacing: 0.5, textTransform: 'uppercase', lineHeight: 1.4 }}>
+                                YOU
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </td>
-                      <td style={{ ...cellStyle, textAlign: 'right' }}>
-                        <TierBadge tier={e.tierBadge} />
+                        </div>
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: e.totalTournaments === 0 ? C.muted : e.bb100 >= 0 ? C.success : C.danger }}>
                         {e.totalTournaments === 0 ? '--' : e.bb100.toFixed(1)}
@@ -454,17 +437,13 @@ export default function LeaderboardPage() {
                         fontWeight: 700,
                         color: e.totalTournaments === 0 ? C.muted : Number(e.totalNet) >= 0 ? C.emerald : C.rose,
                       }}>
-                        {e.totalTournaments === 0
-                          ? '--'
-                          : Number(e.totalNet) >= 0
-                            ? `+${Number(e.totalNet).toLocaleString()}`
-                            : Number(e.totalNet).toLocaleString()}
+                        {e.totalTournaments === 0 ? '--' : formatNet(Number(e.totalNet))}
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: e.totalTournaments === 0 ? C.muted : C.accent }}>
                         {e.totalTournaments === 0 ? '--' : Number(e.totalPayout).toLocaleString()}
                       </td>
                     </tr>
-                  ))
+                  )})
                 )}
               </tbody>
             </table>

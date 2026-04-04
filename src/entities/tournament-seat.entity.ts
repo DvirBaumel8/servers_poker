@@ -21,34 +21,34 @@ import { Bot } from "./bot.entity";
 @Check(`"seat_number" >= 1 AND "seat_number" <= 10`)
 export class TournamentSeat extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
-  tournament_id: string;
+  tournament_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  tournament_table_id: string;
+  tournament_table_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({ type: "integer" })
-  seat_number: number;
+  seat_number!: number;
 
   @Column({ type: "bigint", transformer: bigIntTransformer })
-  chips: bigint;
+  chips!: bigint;
 
   @Column({ type: "boolean", default: false })
-  busted: boolean;
+  busted: boolean = false;
 
   @ManyToOne(() => Tournament, { onDelete: "CASCADE" })
   @JoinColumn({ name: "tournament_id" })
-  tournament: Tournament;
+  tournament!: Tournament;
 
   @ManyToOne(() => TournamentTable, (table) => table.seats, {
     onDelete: "CASCADE",
   })
   @JoinColumn({ name: "tournament_table_id" })
-  tournament_table: TournamentTable;
+  tournament_table!: TournamentTable;
 
   @ManyToOne(() => Bot, { onDelete: "CASCADE" })
   @JoinColumn({ name: "bot_id" })
-  bot: Bot;
+  bot!: Bot;
 }

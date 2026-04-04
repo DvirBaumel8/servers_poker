@@ -10,29 +10,29 @@ export type PodStatus = "pending" | "running" | "finished" | "cancelled";
 export class TournamentPod extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  master_tournament_id: string;
+  master_tournament_id!: string;
 
   @Column({ type: "integer" })
-  pod_number: number;
+  pod_number!: number;
 
   @Index()
   @Column({ type: "varchar", length: 20, default: "pending" })
-  status: PodStatus;
+  status: PodStatus = "pending";
 
   @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
-  prize_pool: bigint;
+  prize_pool: bigint = 0n;
 
   @Column({ type: "integer", default: 0 })
-  player_count: number;
+  player_count: number = 0;
 
   @Column({ type: "varchar", length: 36, nullable: true })
-  winner_bot_id: string | null;
+  winner_bot_id?: string;
 
   @ManyToOne(() => Tournament)
   @JoinColumn({ name: "master_tournament_id" })
-  master_tournament: Tournament;
+  master_tournament!: Tournament;
 
   @ManyToOne(() => Bot, { nullable: true })
   @JoinColumn({ name: "winner_bot_id" })
-  winner_bot: Bot | null;
+  winner_bot?: Bot;
 }

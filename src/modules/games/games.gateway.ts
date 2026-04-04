@@ -96,7 +96,7 @@ export class GamesGateway
     OnModuleDestroy
 {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(GamesGateway.name);
   private readonly localConnectedClients = new Map<
@@ -171,36 +171,30 @@ export class GamesGateway
   }
 
   private setupLocalEventListeners(): void {
-    this.registerEventHandler(
-      "game.stateUpdated",
-      (event: {
-        tableId: string;
-        gameId: string;
-        state: GameStateSnapshot;
-      }) => {
-        this.broadcastGameState(event.gameId, event.state as any);
-      },
-    );
+    this.registerEventHandler("game.stateUpdated", ((event: {
+      tableId: string;
+      gameId: string;
+      state: GameStateSnapshot;
+    }) => {
+      this.broadcastGameState(event.gameId, event.state as any);
+    }) as any);
 
-    this.registerEventHandler(
-      "game.handStarted",
-      (event: {
-        tableId: string;
-        gameId: string;
-        handNumber: number;
-        provablyFair?: {
-          serverSeedHash: string;
-          clientSeed: string;
-          nonce: number;
-        };
-      }) => {
-        this.server.to(`table:${event.gameId}`).emit("handStarted", {
-          tableId: event.gameId,
-          handNumber: event.handNumber,
-          provablyFair: event.provablyFair,
-        });
-      },
-    );
+    this.registerEventHandler("game.handStarted", ((event: {
+      tableId: string;
+      gameId: string;
+      handNumber: number;
+      provablyFair?: {
+        serverSeedHash: string;
+        clientSeed: string;
+        nonce: number;
+      };
+    }) => {
+      this.server.to(`table:${event.gameId}`).emit("handStarted", {
+        tableId: event.gameId,
+        handNumber: event.handNumber,
+        provablyFair: event.provablyFair,
+      });
+    }) as any);
 
     this.registerEventHandler("game.handComplete", (event: any) => {
       this.broadcastHandResult(event.gameId || event.tableId, {
@@ -216,98 +210,91 @@ export class GamesGateway
       });
     });
 
-    this.registerEventHandler(
-      "game.showdownReveal",
-      (event: {
-        tableId: string;
-        gameId: string;
-        handNumber: number;
-        playerId: string;
-        playerName: string;
-        cardStatus: string;
-        holeCards?: any[];
-        hand?: any;
-        isWinner: boolean;
-      }) => {
-        this.server.to(`table:${event.gameId}`).emit("showdownReveal", {
-          playerId: event.playerId,
-          playerName: event.playerName,
-          cardStatus: event.cardStatus,
-          holeCards: event.holeCards,
-          hand: event.hand
-            ? { name: event.hand.name, rank: event.hand.rank }
-            : undefined,
-          isWinner: event.isWinner,
-        });
-      },
-    );
+    this.registerEventHandler("game.showdownReveal", ((event: {
+      tableId: string;
+      gameId: string;
+      handNumber: number;
+      playerId: string;
+      playerName: string;
+      cardStatus: string;
+      holeCards?: any[];
+      hand?: any;
+      isWinner: boolean;
+    }) => {
+      this.server.to(`table:${event.gameId}`).emit("showdownReveal", {
+        playerId: event.playerId,
+        playerName: event.playerName,
+        cardStatus: event.cardStatus,
+        holeCards: event.holeCards,
+        hand: event.hand
+          ? { name: event.hand.name, rank: event.hand.rank }
+          : undefined,
+        isWinner: event.isWinner,
+      });
+    }) as any);
 
-    this.registerEventHandler(
-      "game.playerAction",
-      (event: {
-        tableId: string;
-        gameId: string;
-        botId: string;
-        action: string;
-        amount: number;
-        pot: number;
-      }) => {
-        this.broadcastPlayerAction(event.gameId, {
-          botId: event.botId,
-          action: event.action,
-          amount: event.amount,
-          pot: event.pot,
-        });
-      },
-    );
+    this.registerEventHandler("game.playerAction", ((event: {
+      tableId: string;
+      gameId: string;
+      botId: string;
+      action: string;
+      amount: number;
+      pot: number;
+    }) => {
+      this.broadcastPlayerAction(event.gameId, {
+        botId: event.botId,
+        action: event.action,
+        amount: event.amount,
+        pot: event.pot,
+      });
+    }) as any);
 
-    this.registerEventHandler(
-      "game.finished",
-      (event: {
-        tableId: string;
-        gameId: string;
-        winnerId?: string;
-        winnerName?: string;
-      }) => {
-        this.broadcastGameFinished(event.gameId, {
-          reason: "winner_determined",
-          winnerId: event.winnerId,
-          winnerName: event.winnerName,
-        });
-      },
-    );
+    this.registerEventHandler("game.finished", ((event: {
+      tableId: string;
+      gameId: string;
+      winnerId?: string;
+      winnerName?: string;
+    }) => {
+      this.broadcastGameFinished(event.gameId, {
+        reason: "winner_determined",
+        winnerId: event.winnerId,
+        winnerName: event.winnerName,
+      });
+    }) as any);
 
-    this.registerEventHandler(
-      "game.playerRemoved",
-      (event: { tableId: string; gameId: string; playerId: string }) => {
-        const state = this.getGameState(event.tableId);
-        this.broadcastPlayerLeft(event.gameId, {
-          playerId: event.playerId,
-          playerName: "Player",
-          reason: "disconnect",
-          remainingPlayers:
-            state?.players.filter((p) => !p.disconnected).length || 0,
-        });
-        this.broadcastBotActivityUpdate(event.playerId).catch((e) =>
-          this.logger.error(
-            `Failed to broadcast bot activity: ${e.message}`,
-            e instanceof Error ? e.stack : undefined,
-          ),
-        );
-      },
-    );
+    this.registerEventHandler("game.playerRemoved", ((event: {
+      tableId: string;
+      gameId: string;
+      playerId: string;
+    }) => {
+      const state = this.getGameState(event.tableId);
+      this.broadcastPlayerLeft(event.gameId, {
+        playerId: event.playerId,
+        playerName: "Player",
+        reason: "disconnect",
+        remainingPlayers:
+          state?.players.filter((p) => !p.disconnected).length || 0,
+      });
+      this.broadcastBotActivityUpdate(event.playerId).catch((e) =>
+        this.logger.error(
+          `Failed to broadcast bot activity: ${e.message}`,
+          e instanceof Error ? e.stack : undefined,
+        ),
+      );
+    }) as any);
 
-    this.registerEventHandler(
-      "game.playerJoined",
-      (event: { tableId: string; gameId: string; player: { id: string } }) => {
-        this.broadcastBotActivityUpdate(event.player.id).catch((e) =>
-          this.logger.error(
-            `Failed to broadcast bot activity: ${e.message}`,
-            e instanceof Error ? e.stack : undefined,
-          ),
-        );
-      },
-    );
+    this.registerEventHandler("game.playerJoined", ((event: {
+      tableId: string;
+      gameId: string;
+      player: { id: string };
+    }) => {
+      this.broadcastBotActivityUpdate(event.player.id).catch((e) =>
+        this.logger.error(
+          `Failed to broadcast bot activity: ${e.message}`,
+          e instanceof Error ? e.stack : undefined,
+        ),
+      );
+    }) as any);
   }
 
   private getGameState(tableId: string): GameStateSnapshot | null {

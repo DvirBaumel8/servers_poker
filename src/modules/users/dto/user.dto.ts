@@ -28,11 +28,11 @@ export class AdminUpdateUserDto extends UpdateUserDto {
 }
 
 export class UserResponseDto {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  active: boolean;
-  created_at: Date;
-  last_login_at: Date | null;
+  id!: string;
+  email!: string;
+  name!: string;
+  role!: string;
+  active!: boolean;
+  created_at!: Date;
+  last_login_at!: Date | null;
 }

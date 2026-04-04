@@ -55,7 +55,7 @@ export class TournamentsService {
       rebuys_allowed: dto.rebuys_allowed ?? true,
       scheduled_start_at: dto.scheduled_start_at
         ? new Date(dto.scheduled_start_at)
-        : null,
+        : undefined,
     });
 
     if (dto.blind_levels) {
@@ -328,7 +328,7 @@ export class TournamentsService {
     return {
       tournamentId: id,
       tournamentName: tournament.name,
-      finishedAt: tournament.finished_at,
+      finishedAt: tournament.finished_at ?? null,
       totalEntries: entries.length,
       results,
     };
@@ -438,7 +438,7 @@ export class TournamentsService {
       seatPosition: seat.seat_number,
       remainingPlayers,
       currentBlindLevel: currentLevel?.level || 1,
-      gameId: seat.tournament_table.game_id,
+      gameId: seat.tournament_table.game_id ?? null,
     };
   }
 
@@ -563,9 +563,9 @@ export class TournamentsService {
       players_per_table: tournament.players_per_table,
       turn_timeout_ms: tournament.turn_timeout_ms,
       rebuys_allowed: tournament.rebuys_allowed,
-      scheduled_start_at: tournament.scheduled_start_at,
-      started_at: tournament.started_at,
-      finished_at: tournament.finished_at,
+      scheduled_start_at: tournament.scheduled_start_at ?? null,
+      started_at: tournament.started_at ?? null,
+      finished_at: tournament.finished_at ?? null,
       entries_count: entriesCount,
       created_at: tournament.created_at,
     };
@@ -680,9 +680,9 @@ export class TournamentsService {
       players_per_table: tournament.players_per_table,
       turn_timeout_ms: tournament.turn_timeout_ms,
       rebuys_allowed: tournament.rebuys_allowed,
-      scheduled_start_at: tournament.scheduled_start_at,
-      started_at: tournament.started_at,
-      finished_at: tournament.finished_at,
+      scheduled_start_at: tournament.scheduled_start_at ?? null,
+      started_at: tournament.started_at ?? null,
+      finished_at: tournament.finished_at ?? null,
       entries_count: entriesCount,
       entries: entries.map((e) => ({
         id: e.id,

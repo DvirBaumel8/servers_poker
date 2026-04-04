@@ -10,7 +10,7 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 export class CreateSupportTicketDto {
   @ApiProperty({ example: "user@example.com" })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: "Issue with hand history",
@@ -20,7 +20,7 @@ export class CreateSupportTicketDto {
   @IsString()
   @MinLength(3)
   @MaxLength(200)
-  subject: string;
+  subject!: string;
 
   @ApiProperty({
     example: "I noticed something wrong with hand #123...",
@@ -28,7 +28,7 @@ export class CreateSupportTicketDto {
   })
   @IsString()
   @MinLength(10)
-  message: string;
+  message!: string;
 
   @ApiPropertyOptional({
     description: "Hand ID to link this ticket to a specific hand",

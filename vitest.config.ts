@@ -10,6 +10,7 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 60000,
     pool: "threads",
+    // @ts-ignore
     poolOptions: {
       threads: {
         singleThread: false,

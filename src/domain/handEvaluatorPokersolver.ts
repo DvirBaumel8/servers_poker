@@ -4,8 +4,8 @@
  * Used by the tournament simulation worker so the custom evaluator stays untouched.
  */
 
-// @ts-expect-error pokersolver is CommonJS
-import Hand from "pokersolver";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Hand = require("pokersolver");
 
 interface Card {
   rank: string;

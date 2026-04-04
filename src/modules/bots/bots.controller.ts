@@ -14,6 +14,7 @@ import {
 import { BotsService } from "./bots.service";
 import { BotActivityService } from "../../services/bot/bot-activity.service";
 import { UpdateBotDto } from "./dto/internal-bot.dto";
+import { ScenarioDto } from "./dto/scenario.dto";
 import { PaginationDto } from "../../common/dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -92,6 +93,15 @@ export class BotsController {
     const activity = await this.botActivityService.getBotActivity(id);
     assertFound(activity, "Bot", id);
     return activity;
+  }
+
+  @Post(":id/scenario")
+  async evaluateScenario(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+    @Body() dto: ScenarioDto,
+  ) {
+    return this.botsService.evaluateScenario(id, user.id, dto);
   }
 
   @Put(":id")

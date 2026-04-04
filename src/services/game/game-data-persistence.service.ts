@@ -205,9 +205,9 @@ export class GameDataPersistenceService implements OnModuleInit {
       const savedHand = await this.dataSource.transaction(async (manager) => {
         const hand = manager.getRepository(Hand).create({
           game_id: event.gameId,
-          tournament_id: event.tournamentId ?? null,
+          tournament_id: event.tournamentId,
           hand_number: event.handNumber,
-          dealer_bot_id: event.dealerBotId || null,
+          dealer_bot_id: event.dealerBotId,
           small_blind: event.smallBlind ?? 10n,
           big_blind: event.bigBlind ?? 20n,
           stage: "preflop",

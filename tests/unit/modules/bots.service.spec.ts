@@ -14,6 +14,8 @@ describe("BotsService", () => {
     findById: ReturnType<typeof vi.fn>;
     findByIdOrThrow: ReturnType<typeof vi.fn>;
     findByUserId: ReturnType<typeof vi.fn>;
+    findActiveByUserId: ReturnType<typeof vi.fn>;
+    findActiveByUserAndName: ReturnType<typeof vi.fn>;
     findByName: ReturnType<typeof vi.fn>;
     findAll: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
@@ -55,6 +57,8 @@ describe("BotsService", () => {
       findById: vi.fn(),
       findByIdOrThrow: vi.fn(),
       findByUserId: vi.fn(),
+      findActiveByUserId: vi.fn(),
+      findActiveByUserAndName: vi.fn(),
       findByName: vi.fn(),
       findAll: vi.fn(),
       create: vi.fn(),
@@ -81,8 +85,8 @@ describe("BotsService", () => {
 
   describe("create", () => {
     it("should create an internal bot successfully", async () => {
-      mockBotRepository.findByUserId.mockResolvedValue([]);
-      mockBotRepository.findByName.mockResolvedValue(null);
+      mockBotRepository.findActiveByUserId.mockResolvedValue([]);
+      mockBotRepository.findActiveByUserAndName.mockResolvedValue(null);
       mockBotRepository.create.mockResolvedValue(mockBot);
 
       const result = await service.create("user-123", {
@@ -94,9 +98,11 @@ describe("BotsService", () => {
       expect(mockBotRepository.create).toHaveBeenCalled();
     });
 
-    it("should throw BadRequestException when bot limit reached", async () => {
-      const existingBots = Array(10).fill(mockBot);
-      mockBotRepository.findByUserId.mockResolvedValue(existingBots);
+    it("should throw BadRequestException when active bot limit reached", async () => {
+      const existingActiveBots = Array(10).fill(mockBot);
+      mockBotRepository.findActiveByUserId.mockResolvedValue(
+        existingActiveBots,
+      );
 
       await expect(
         service.create("user-123", {
@@ -107,8 +113,8 @@ describe("BotsService", () => {
     });
 
     it("should throw ConflictException when bot name exists", async () => {
-      mockBotRepository.findByUserId.mockResolvedValue([]);
-      mockBotRepository.findByName.mockResolvedValue(mockBot);
+      mockBotRepository.findActiveByUserId.mockResolvedValue([]);
+      mockBotRepository.findActiveByUserAndName.mockResolvedValue(mockBot);
 
       await expect(
         service.create("user-123", {

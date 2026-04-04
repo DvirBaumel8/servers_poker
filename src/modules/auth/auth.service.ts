@@ -161,8 +161,8 @@ export class AuthService {
 
     await this.userRepository.update(user.id, {
       email_verified: true,
-      verification_code: null,
-      verification_code_expires_at: null,
+      verification_code: undefined,
+      verification_code_expires_at: undefined,
     });
 
     await this.emailService.sendWelcomeEmail(user.email, user.name);
@@ -243,7 +243,7 @@ export class AuthService {
     ) {
       await this.userRepository.update(user.id, {
         failed_login_attempts: 0,
-        last_failed_login_at: null,
+        last_failed_login_at: undefined,
       });
       user.failed_login_attempts = 0;
     }
@@ -272,8 +272,8 @@ export class AuthService {
     await this.userRepository.update(user.id, {
       last_login_at: new Date(),
       failed_login_attempts: 0,
-      locked_until: null,
-      last_failed_login_at: null,
+      locked_until: undefined,
+      last_failed_login_at: undefined,
     });
 
     const tokens = await this.generateTokens(user);
@@ -367,8 +367,8 @@ export class AuthService {
 
     await this.userRepository.update(user.id, {
       password_hash: passwordHash,
-      password_reset_code: null,
-      password_reset_expires_at: null,
+      password_reset_code: undefined,
+      password_reset_expires_at: undefined,
     });
 
     this.logger.log(`Credential reset successful for ${user.email}`);
@@ -549,8 +549,8 @@ export class AuthService {
       new Date() > user.refresh_token_expires_at
     ) {
       await this.userRepository.update(user.id, {
-        refresh_token_hash: null,
-        refresh_token_expires_at: null,
+        refresh_token_hash: undefined,
+        refresh_token_expires_at: undefined,
       });
       throw new UnauthorizedException("Refresh token expired");
     }
@@ -575,8 +575,8 @@ export class AuthService {
 
   async revokeRefreshToken(userId: string): Promise<void> {
     await this.userRepository.update(userId, {
-      refresh_token_hash: null,
-      refresh_token_expires_at: null,
+      refresh_token_hash: undefined,
+      refresh_token_expires_at: undefined,
     });
   }
 

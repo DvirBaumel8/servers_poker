@@ -14,16 +14,16 @@ export interface TicketMetadata {
 export class SupportTicket extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36, nullable: true })
-  user_id: string | null;
+  user_id?: string;
 
   @Column({ type: "varchar", length: 255 })
-  email: string;
+  email!: string;
 
   @Column({ type: "varchar", length: 200 })
-  subject: string;
+  subject!: string;
 
   @Column({ type: "text" })
-  message: string;
+  message!: string;
 
   @Index()
   @Column({
@@ -31,8 +31,8 @@ export class SupportTicket extends BaseEntity {
     enum: ["open", "in_progress", "closed"],
     default: "open",
   })
-  status: TicketStatus;
+  status: TicketStatus = "open";
 
   @Column({ type: "jsonb", default: {} })
-  metadata: TicketMetadata;
+  metadata: TicketMetadata = {};
 }

@@ -15,15 +15,15 @@ import { bigIntTransformer } from "../common/transformers/bigint.transformer";
 export class Wallet extends BaseEntity {
   @Index({ unique: true })
   @Column({ type: "varchar", length: 36 })
-  user_id: string;
+  user_id!: string;
 
   @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
-  balance: bigint;
+  balance: bigint = 0n;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: "user_id" })
-  user: User;
+  user!: User;
 
   @OneToMany(() => Transaction, (tx) => tx.wallet)
-  transactions: Transaction[];
+  transactions?: Transaction[];
 }

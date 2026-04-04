@@ -24,35 +24,35 @@ import { Bot } from "./bot.entity";
 export class GamePlayer extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  game_id: string;
+  game_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({ type: "bigint", transformer: bigIntTransformer })
-  start_chips: bigint;
+  start_chips!: bigint;
 
   @Column({
     type: "bigint",
     nullable: true,
     transformer: bigIntNullableTransformer,
   })
-  end_chips: bigint | null;
+  end_chips?: bigint | null;
 
   @Column({ type: "integer", default: 0 })
-  hands_played: number;
+  hands_played: number = 0;
 
   @Column({ type: "integer", default: 0 })
-  hands_won: number;
+  hands_won: number = 0;
 
   @Column({ type: "integer", nullable: true })
-  finish_position: number | null;
+  finish_position?: number | null;
 
   @ManyToOne(() => Game, (game) => game.players, { onDelete: "CASCADE" })
   @JoinColumn({ name: "game_id" })
-  game: Game;
+  game!: Game;
 
   @ManyToOne(() => Bot, (bot) => bot.game_players, { onDelete: "CASCADE" })
   @JoinColumn({ name: "bot_id" })
-  bot: Bot;
+  bot!: Bot;
 }

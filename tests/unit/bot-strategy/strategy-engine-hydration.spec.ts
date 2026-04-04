@@ -368,6 +368,100 @@ describe("evaluateHydrated", () => {
     expect(result.action.type).toBe("raise");
   });
 
+  it("falls back to global range when current position has no specific override (Pro tier)", () => {
+    // BTN has a raise override, but we are playing from SB which has no override.
+    // Engine must fall back to the global range chart → fold.
+    const s: BotStrategy = {
+      version: 1,
+      tier: "pro",
+      personality: minPersonality,
+      rangeChart: { AKo: "fold" },
+      positionOverrides: {
+        BTN: { rangeChart: { AKo: "raise" } },
+      },
+    };
+    const h = hydrateStrategy(s);
+    const result = evaluateHydrated(
+      h,
+      basePayload({
+        you: {
+          name: "Bot",
+          chips: 2000,
+          holeCards: ["A♠", "K♥"],
+          bet: 0,
+          position: "SB",
+        },
+      }),
+    );
+    expect(result.source).toBe("range_chart");
+    expect(result.action.type).toBe("fold");
+  });
+
+  it("positional range chart: different positions yield different actions (Pro tier)", () => {
+    // BTN → raise, BB → call, any other position (no override) → fold (global)
+    // Each evaluation uses a unique decisionSeed (as happens in real games — every
+    // action has a unique seed derived from hand+bot+actionSeq).
+    const s: BotStrategy = {
+      version: 1,
+      tier: "pro",
+      personality: minPersonality,
+      rangeChart: { AKo: "fold" },
+      positionOverrides: {
+        BTN: { rangeChart: { AKo: "raise" } },
+        BB: { rangeChart: { AKo: "call" } },
+      },
+    };
+    const h = hydrateStrategy(s);
+
+    const btnResult = evaluateHydrated(
+      h,
+      basePayload({
+        decisionSeed:
+          "aaaa1234567890abcdef1234567890abcdef1234567890abcdef1234567890aa",
+        you: {
+          name: "Bot",
+          chips: 2000,
+          holeCards: ["A♠", "K♥"],
+          bet: 0,
+          position: "BTN",
+        },
+      }),
+    );
+    expect(btnResult.action.type).toBe("raise");
+
+    const bbResult = evaluateHydrated(
+      h,
+      basePayload({
+        decisionSeed:
+          "bbbb1234567890abcdef1234567890abcdef1234567890abcdef1234567890bb",
+        you: {
+          name: "Bot",
+          chips: 2000,
+          holeCards: ["A♠", "K♥"],
+          bet: 0,
+          position: "BB",
+        },
+      }),
+    );
+    expect(bbResult.action.type).toBe("call");
+
+    const hjResult = evaluateHydrated(
+      h,
+      basePayload({
+        decisionSeed:
+          "cccc1234567890abcdef1234567890abcdef1234567890abcdef1234567890cc",
+        you: {
+          name: "Bot",
+          chips: 2000,
+          holeCards: ["A♠", "K♥"],
+          bet: 0,
+          position: "HJ",
+        },
+      }),
+    );
+    expect(hjResult.action.type).toBe("fold"); // no override → global
+  });
+
   it("does NOT apply position override for non-pro tier", () => {
     const s: BotStrategy = {
       version: 1,

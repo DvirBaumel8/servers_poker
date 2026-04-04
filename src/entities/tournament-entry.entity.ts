@@ -13,38 +13,38 @@ export type EntryType = "initial" | "rebuy" | "re_entry";
 @Check(`"finish_position" IS NULL OR "finish_position" >= 1`)
 export class TournamentEntry extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
-  tournament_id: string;
+  tournament_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({ type: "varchar", length: 20, default: "initial" })
-  entry_type: EntryType;
+  entry_type: EntryType = "initial";
 
   @Column({ type: "integer", nullable: true })
-  finish_position: number | null;
+  finish_position?: number;
 
   @Column({ type: "integer", nullable: true })
-  bust_level: number | null;
+  bust_level?: number;
 
   @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
-  payout: bigint;
+  payout: bigint = 0n;
 
   @Column({ type: "integer", nullable: true })
-  bust_hand_number: number | null;
+  bust_hand_number?: number;
 
   @Column({ type: "integer", nullable: true })
-  chips_at_bust: number | null;
+  chips_at_bust?: number;
 
   @ManyToOne(() => Tournament, (tournament) => tournament.entries, {
     onDelete: "CASCADE",
   })
   @JoinColumn({ name: "tournament_id" })
-  tournament: Tournament;
+  tournament!: Tournament;
 
   @ManyToOne(() => Bot, (bot) => bot.tournament_entries, {
     onDelete: "CASCADE",
   })
   @JoinColumn({ name: "bot_id" })
-  bot: Bot;
+  bot!: Bot;
 }

@@ -30,13 +30,13 @@ export class SupportTicketRepository extends BaseRepository<SupportTicket> {
 
   async createTicket(data: CreateSupportTicketData): Promise<SupportTicket> {
     const ticket = this.repository.create({
-      user_id: data.user_id ?? null,
+      user_id: data.user_id,
       email: data.email,
       subject: data.subject,
       message: data.message,
       status: "open",
       metadata: data.metadata,
-    });
-    return this.repository.save(ticket);
+    } as any);
+    return this.repository.save(ticket) as unknown as Promise<SupportTicket>;
   }
 }

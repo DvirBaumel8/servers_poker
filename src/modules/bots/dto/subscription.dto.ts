@@ -70,28 +70,28 @@ export class UpdateSubscriptionDto {
 }
 
 export class SubscriptionResponseDto {
-  id: string;
-  bot_id: string;
+  id!: string;
+  bot_id!: string;
   bot_name?: string;
-  tournament_id: string | null;
+  tournament_id!: string | null;
   tournament_name?: string | null;
-  tournament_type_filter: string | null;
-  min_buy_in: number | null;
-  max_buy_in: number | null;
-  priority: number;
-  status: string;
-  successful_registrations: number;
-  failed_registrations: number;
-  last_registration_attempt: string | null;
-  expires_at: string | null;
-  created_at: string;
+  tournament_type_filter!: string | null;
+  min_buy_in!: number | null;
+  max_buy_in!: number | null;
+  priority!: number;
+  status!: string;
+  successful_registrations!: number;
+  failed_registrations!: number;
+  last_registration_attempt!: string | null;
+  expires_at!: string | null;
+  created_at!: string;
 }
 
 export class SubscriptionStatsDto {
-  total: number;
-  active: number;
-  paused: number;
-  expired: number;
-  total_successful_registrations: number;
-  total_failed_registrations: number;
+  total!: number;
+  active!: number;
+  paused!: number;
+  expired!: number;
+  total_successful_registrations!: number;
+  total_failed_registrations!: number;
 }

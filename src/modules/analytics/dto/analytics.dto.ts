@@ -28,7 +28,7 @@ export class RecordEventDto {
     "signup",
     "feature_used",
   ])
-  event_type: string;
+  event_type!: string;
 
   @IsOptional()
   @IsObject()
@@ -36,7 +36,7 @@ export class RecordEventDto {
 
   @IsString()
   @IsUUID()
-  session_id: string;
+  session_id!: string;
 
   @IsOptional()
   @IsString()
@@ -50,36 +50,36 @@ export class RecordEventDto {
 }
 
 export class LifetimeStatsDto {
-  totalUsers: number;
-  totalBots: number;
-  totalHandsDealt: number;
-  totalTournaments: number;
-  totalGames: number;
-  totalChipVolume: number;
+  totalUsers!: number;
+  totalBots!: number;
+  totalHandsDealt!: number;
+  totalTournaments!: number;
+  totalGames!: number;
+  totalChipVolume!: number;
 }
 
 export class TodayStatsDto {
-  newUsers: number;
-  activeUsers: number;
-  newBots: number;
-  activeBots: number;
-  gamesPlayed: number;
-  handsDealt: number;
-  tournamentsCompleted: number;
+  newUsers!: number;
+  activeUsers!: number;
+  newBots!: number;
+  activeBots!: number;
+  gamesPlayed!: number;
+  handsDealt!: number;
+  tournamentsCompleted!: number;
 }
 
 export class LiveStatsDto {
-  activeGames: number;
-  activeTournaments: number;
-  playersInGames: number;
-  currentHandsPerMinute: number;
+  activeGames!: number;
+  activeTournaments!: number;
+  playersInGames!: number;
+  currentHandsPerMinute!: number;
 }
 
 export class HealthStatsDto {
-  avgBotResponseMs: number;
-  botTimeoutCount: number;
-  botErrorCount: number;
-  errorRate: string;
+  avgBotResponseMs!: number;
+  botTimeoutCount!: number;
+  botErrorCount!: number;
+  errorRate!: string;
 }
 
 export class MetricsHistoryQueryDto {
@@ -92,7 +92,7 @@ export class MetricsHistoryQueryDto {
 }
 
 export class TopPerformerDto {
-  botId: string;
-  botName: string;
-  netChips: number;
+  botId!: string;
+  botName!: string;
+  netChips!: number;
 }

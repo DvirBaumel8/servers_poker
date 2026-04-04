@@ -71,73 +71,93 @@ export class LeaderboardQueryDto {
 // ============================================================================
 
 export class LeaderboardEntryDto {
-  @ApiProperty() botId: string;
-  @ApiProperty() botName: string;
-  @ApiProperty() userId: string;
+  @ApiProperty() botId!: string;
+  @ApiProperty() botName!: string;
+  @ApiProperty() userId!: string;
   @ApiProperty({ description: "Display name of the bot owner" })
-  ownerName: string;
-  @ApiProperty({ enum: TierBadge }) tierBadge: TierBadge;
-  @ApiProperty({ description: "Big blinds won per 100 hands" }) bb100: number;
-  @ApiProperty({ description: "In-the-money percentage" }) itmPct: number;
+  ownerName!: string;
+  @ApiProperty({ enum: TierBadge }) tierBadge!: TierBadge;
+  @ApiProperty({ description: "Big blinds won per 100 hands" }) bb100!: number;
+  @ApiProperty({ description: "In-the-money percentage" }) itmPct!: number;
   @ApiProperty({ description: "Return on investment percentage" })
-  roiPct: number;
-  @ApiProperty() totalHands: number;
-  @ApiProperty() totalTournaments: number;
-  @ApiProperty() tournamentWins: number;
+  roiPct!: number;
+  @ApiProperty() totalHands!: number;
+  @ApiProperty() totalTournaments!: number;
+  @ApiProperty() tournamentWins!: number;
   @ApiProperty({ description: "Net chips as string (BigInt)" })
-  totalNet: string;
+  totalNet!: string;
   @ApiProperty({ description: "Total payouts as string (BigInt)" })
-  totalPayout: string;
-  @ApiProperty({ description: "Leaderboard rank (1-based)" }) rank: number;
+  totalPayout!: string;
+  @ApiProperty({ description: "Leaderboard rank (1-based)" }) rank!: number;
+}
+
+export class UserLeaderboardEntryDto {
+  @ApiProperty() userId!: string;
+  @ApiProperty() userName!: string;
+  @ApiProperty({ description: "Number of active bots owned by this user" })
+  activeBotCount!: number;
+  @ApiProperty({ description: "Weighted BB/100 across all bots" })
+  bb100!: number;
+  @ApiProperty({ description: "In-the-money percentage" }) itmPct!: number;
+  @ApiProperty({ description: "Return on investment percentage" })
+  roiPct!: number;
+  @ApiProperty() totalHands!: number;
+  @ApiProperty() totalTournaments!: number;
+  @ApiProperty() tournamentWins!: number;
+  @ApiProperty({ description: "Net chips as string (BigInt)" })
+  totalNet!: string;
+  @ApiProperty({ description: "Total payouts as string (BigInt)" })
+  totalPayout!: string;
+  @ApiProperty({ description: "Leaderboard rank (1-based)" }) rank!: number;
 }
 
 export class PaginatedLeaderboardDto {
-  @ApiProperty({ type: [LeaderboardEntryDto] })
-  data: LeaderboardEntryDto[];
+  @ApiProperty({ type: [UserLeaderboardEntryDto] })
+  data!: UserLeaderboardEntryDto[];
 
-  @ApiProperty() total: number;
-  @ApiProperty() limit: number;
-  @ApiProperty() offset: number;
+  @ApiProperty() total!: number;
+  @ApiProperty() limit!: number;
+  @ApiProperty() offset!: number;
   @ApiProperty({
     description: "ISO timestamp of last materialized view refresh",
   })
-  lastRefreshedAt: string;
+  lastRefreshedAt!: string;
 }
 
 export class HotStreakEntryDto {
-  @ApiProperty() tournamentId: string;
-  @ApiProperty() tournamentName: string;
-  @ApiProperty() finishPosition: number;
-  @ApiProperty() maxPlayers: number;
+  @ApiProperty() tournamentId!: string;
+  @ApiProperty() tournamentName!: string;
+  @ApiProperty() finishPosition!: number;
+  @ApiProperty() maxPlayers!: number;
   @ApiProperty({ description: "Whether this finish was in the money" })
-  isItm: boolean;
-  @ApiProperty() finishedAt: string;
+  isItm!: boolean;
+  @ApiProperty() finishedAt!: string;
 }
 
 export class BotPerformanceDto {
-  @ApiProperty() botId: string;
-  @ApiProperty() botName: string;
-  @ApiProperty({ enum: TierBadge }) tierBadge: TierBadge;
-  @ApiProperty({ description: "Big blinds won per 100 hands" }) bb100: number;
-  @ApiProperty({ description: "In-the-money percentage" }) itmPct: number;
+  @ApiProperty() botId!: string;
+  @ApiProperty() botName!: string;
+  @ApiProperty({ enum: TierBadge }) tierBadge!: TierBadge;
+  @ApiProperty({ description: "Big blinds won per 100 hands" }) bb100!: number;
+  @ApiProperty({ description: "In-the-money percentage" }) itmPct!: number;
   @ApiProperty({ description: "Return on investment percentage" })
-  roiPct: number;
-  @ApiProperty() totalHands: number;
-  @ApiProperty() totalTournaments: number;
-  @ApiProperty() tournamentWins: number;
+  roiPct!: number;
+  @ApiProperty() totalHands!: number;
+  @ApiProperty() totalTournaments!: number;
+  @ApiProperty() tournamentWins!: number;
   @ApiProperty({ description: "Net chips as string (BigInt)" })
-  totalNet: string;
+  totalNet!: string;
   @ApiProperty({ description: "Total payouts as string (BigInt)" })
-  totalPayout: string;
+  totalPayout!: string;
   @ApiProperty({
     type: [HotStreakEntryDto],
     description: "Last 5 tournament finishes with ITM status",
   })
-  hotStreak: HotStreakEntryDto[];
+  hotStreak!: HotStreakEntryDto[];
   @ApiProperty({
     description:
       "Standard deviation of finish positions (lower = more consistent). Null if < 2 tournaments.",
     nullable: true,
   })
-  consistencyIndex: number | null;
+  consistencyIndex!: number | null;
 }

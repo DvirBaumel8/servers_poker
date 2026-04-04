@@ -638,7 +638,7 @@ class ActiveTournament {
           status: "waiting",
           total_hands: 0,
           started_at: new Date(),
-          finished_at: null,
+          finished_at: undefined,
         }),
       );
 
@@ -951,7 +951,7 @@ class ActiveTournament {
           `(${recoveryCount} attempts at hand ${event.handNumber}). Terminating permanently.`,
       );
       await this.dataSource.getRepository(LogicBug).save({
-        hand_id: null,
+        hand_id: undefined,
         check_name: "recovery_loop_detected",
         description: `Table ${event.tableId} stuck in recovery loop at hand ${event.handNumber}`,
         details: {

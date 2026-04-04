@@ -9,11 +9,13 @@
     "target": "es2022",
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": ".",
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "noEmitOnError": true,
-    "lib": ["es2022", "esnext.asynciterable"]
+    "lib": ["es2022", "esnext.asynciterable"],
+    "ignoreDeprecations": "6.0"
   },
   "include": [
     "src/**/*.ts",

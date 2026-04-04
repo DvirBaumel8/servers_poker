@@ -176,13 +176,14 @@ async function main() {
       // 3b. Upsert bot_stats (total_tournaments, tournament_wins, total_net)
       const totalNetChips = Math.round(stats.profitLoss * CHIPS_PER_BUYIN);
       await dataSource.query(
-        `INSERT INTO bot_stats (id, bot_id, total_tournaments, tournament_wins, total_net, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        `INSERT INTO bot_stats (id, bot_id, total_tournaments, tournament_wins, total_net, total_hands, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
          ON CONFLICT (bot_id) DO UPDATE SET
            total_tournaments = EXCLUDED.total_tournaments,
            tournament_wins   = EXCLUDED.tournament_wins,
-           total_net         = EXCLUDED.total_net`,
-        [uuid(), botId, stats.entries, stats.wins, totalNetChips],
+           total_net         = EXCLUDED.total_net,
+           total_hands       = EXCLUDED.total_hands`,
+        [uuid(), botId, stats.entries, stats.wins, totalNetChips, stats.totalHands],
       );
 
       // 3c. One game → one hand → one hand_player (for bb_per_100)

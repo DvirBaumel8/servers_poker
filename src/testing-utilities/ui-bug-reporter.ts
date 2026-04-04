@@ -107,7 +107,7 @@ if (require.main === module) {
     // Create a live game first
     fetch("http://localhost:3000/api/v1/testing/live-game", { method: "POST" })
       .then((res) => res.json())
-      .then((data: { gameId?: string }) => {
+      .then(((data: { gameId?: string }) => {
         if (!data.gameId) {
           throw new Error("Failed to create game: " + JSON.stringify(data));
         }
@@ -121,7 +121,7 @@ if (require.main === module) {
             screenshotInterval: 5000,
           }).catch(console.error);
         }, 5000);
-      })
+      }) as any)
       .catch((err: Error) => {
         console.error("❌ Failed to create game:", err.message);
         process.exit(1);

@@ -16,32 +16,32 @@ export type EventType =
 @Index(["bot_id", "created_at"])
 export class BotEvent extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({ type: "varchar", length: 36, nullable: true })
-  game_id: string | null;
+  game_id?: string;
 
   @ManyToOne(() => Game, { onDelete: "CASCADE", nullable: true })
   @JoinColumn({ name: "game_id" })
-  game: Game | null;
+  game?: Game;
 
   @Column({ type: "varchar", length: 36, nullable: true })
-  hand_id: string | null;
+  hand_id?: string;
 
   @ManyToOne(() => Hand, { onDelete: "CASCADE", nullable: true })
   @JoinColumn({ name: "hand_id" })
-  hand: Hand | null;
+  hand?: Hand;
 
   @Column({ type: "varchar", length: 20 })
-  event_type: EventType;
+  event_type!: EventType;
 
   @Column({ type: "text", nullable: true })
-  details: string | null;
+  details?: string;
 
   @Column({ type: "jsonb", nullable: true })
-  context: Record<string, any> | null;
+  context?: Record<string, any>;
 
   @ManyToOne(() => Bot, { onDelete: "CASCADE" })
   @JoinColumn({ name: "bot_id" })
-  bot: Bot;
+  bot!: Bot;
 }

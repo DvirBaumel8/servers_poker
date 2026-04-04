@@ -188,7 +188,7 @@ export class GamesService {
       combinedHash: seed.combined_hash,
       deckOrder: seed.deck_order,
       revealed: seed.revealed,
-      revealedAt: seed.revealed_at,
+      revealedAt: seed.revealed_at ?? null,
       createdAt: seed.created_at,
     };
   }

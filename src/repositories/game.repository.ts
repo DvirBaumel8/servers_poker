@@ -88,7 +88,7 @@ export class GameRepository extends BaseRepository<Game> {
     const repo = this.getRepo(manager);
     const game = repo.create({
       table_id: tableId,
-      tournament_id: tournamentId || null,
+      tournament_id: tournamentId,
       status: "waiting",
       started_at: new Date(),
     });

@@ -391,7 +391,7 @@ export class GameValidatorService {
       registerCard(card.rank, card.suit, "community");
     }
 
-    for (const hp of hand.players) {
+    for (const hp of hand.players ?? []) {
       for (const card of hp.hole_cards ?? []) {
         registerCard(card.rank, card.suit, `hole:${hp.bot_id}`);
       }
@@ -417,11 +417,11 @@ export class GameValidatorService {
   // =========================================================================
 
   private checkZeroSum(hand: Hand): BugInsert[] {
-    const startTotal = hand.players.reduce(
+    const startTotal = (hand.players ?? []).reduce(
       (sum, hp) => sum + hp.start_chips,
       0n,
     );
-    const endTotal = hand.players.reduce(
+    const endTotal = (hand.players ?? []).reduce(
       (sum, hp) => sum + (hp.end_chips ?? 0n),
       0n,
     );
@@ -452,7 +452,7 @@ export class GameValidatorService {
     // BatchTournamentPersistenceService doesn't populate amount_bet for simulation hands.
     // When all players have amount_bet=0, try to reconstruct from actions.
     // If reconstruction also gives 0 (e.g., blinds not stored as actions), skip — insufficient data.
-    const allZero = hand.players.every((hp) => hp.amount_bet === 0n);
+    const allZero = (hand.players ?? []).every((hp) => hp.amount_bet === 0n);
 
     let betTotal: bigint;
     if (allZero) {
@@ -461,7 +461,10 @@ export class GameValidatorService {
       // total without blind amounts, so skip this check to avoid false positives.
       return [];
     } else {
-      betTotal = hand.players.reduce((sum, hp) => sum + hp.amount_bet, 0n);
+      betTotal = (hand.players ?? []).reduce(
+        (sum, hp) => sum + hp.amount_bet,
+        0n,
+      );
     }
 
     if (betTotal === hand.pot) return [];
@@ -488,7 +491,7 @@ export class GameValidatorService {
 
   private checkActionSequence(hand: Hand): BugInsert[] {
     const bugs: BugInsert[] = [];
-    const sorted = [...hand.actions].sort(
+    const sorted = [...(hand.actions ?? [])].sort(
       (a, b) => a.action_seq - b.action_seq,
     );
 
@@ -518,7 +521,7 @@ export class GameValidatorService {
 
     // Sub-check: all-in player must never have folded
     const allInBotIds = new Set(
-      hand.players.filter((hp) => hp.all_in).map((hp) => hp.bot_id),
+      (hand.players ?? []).filter((hp) => hp.all_in).map((hp) => hp.bot_id),
     );
     for (const [botId, foldSeq] of foldedAt.entries()) {
       if (allInBotIds.has(botId)) {
@@ -544,7 +547,7 @@ export class GameValidatorService {
   // =========================================================================
 
   private checkStreetProgression(hand: Hand): BugInsert[] {
-    if (hand.actions.length === 0) return [];
+    if ((hand.actions ?? []).length === 0) return [];
 
     const stageOrder: Record<string, number> = {
       preflop: 0,
@@ -555,7 +558,7 @@ export class GameValidatorService {
 
     // Build min/max seq per stage
     const stageBounds = new Map<string, { min: number; max: number }>();
-    for (const action of hand.actions) {
+    for (const action of hand.actions ?? []) {
       const stage = action.stage;
       const existing = stageBounds.get(stage);
       if (!existing) {
@@ -608,11 +611,11 @@ export class GameValidatorService {
 
   private checkSidePotEligibility(hand: Hand): BugInsert[] {
     const bugs: BugInsert[] = [];
-    const allInPlayers = hand.players.filter((hp) => hp.all_in);
+    const allInPlayers = (hand.players ?? []).filter((hp) => hp.all_in);
 
     // BatchTournamentPersistenceService never populates amount_bet for simulation hands.
     // Without amount_bet we can't compute side-pot eligibility — skip to avoid false positives.
-    const allZero = hand.players.every((hp) => hp.amount_bet === 0n);
+    const allZero = (hand.players ?? []).every((hp) => hp.amount_bet === 0n);
     if (allZero) return [];
 
     const getAmountBet = (_botId: string, storedBet: bigint): bigint =>
@@ -625,12 +628,12 @@ export class GameValidatorService {
       if (X === 0n) continue; // can't determine eligibility without bet info
 
       // Max eligible = X * count(players whose amount_bet >= X)
-      const contributors = hand.players.filter(
+      const contributors = (hand.players ?? []).filter(
         (p) => getAmountBet(p.bot_id, p.amount_bet) >= X,
       );
       const maxEligible = X * BigInt(contributors.length);
 
-      if (hp.amount_won > maxEligible) {
+      if ((hp.amount_won ?? 0n) > maxEligible) {
         bugs.push({
           hand_id: hand.id,
           check_name: "side_pot_eligibility",
@@ -657,7 +660,7 @@ export class GameValidatorService {
 
   private checkOddChipRule(hand: Hand): BugInsert[] {
     // Only applies to showdown splits (≥2 winners)
-    const winners = hand.players.filter((hp) => hp.won);
+    const winners = (hand.players ?? []).filter((hp) => hp.won);
     if (winners.length < 2) return [];
     // Skip hands that ended before showdown (e.g. everyone folded to one)
     if (hand.community_cards.length < 5) return [];
@@ -690,7 +693,7 @@ export class GameValidatorService {
     if (remainder === 0n) return []; // No odd chip — nothing to check
 
     // Find dealer position by looking up dealer_bot_id in hand_players
-    const dealerHp = hand.players.find(
+    const dealerHp = (hand.players ?? []).find(
       (hp) => hp.bot_id === hand.dealer_bot_id,
     );
     const dealerPosition = dealerHp?.position ?? 0;
@@ -753,7 +756,7 @@ export class GameValidatorService {
   private checkMinRaise(hand: Hand): BugInsert[] {
     const bugs: BugInsert[] = [];
 
-    const sortedActions = [...hand.actions].sort(
+    const sortedActions = [...(hand.actions ?? [])].sort(
       (a, b) => a.action_seq - b.action_seq,
     );
 
@@ -827,7 +830,7 @@ export class GameValidatorService {
 
   private checkShowdownFairness(hand: Hand): BugInsert[] {
     // Only check hands that went to showdown with cards visible
-    const showdownPlayers = hand.players.filter(
+    const showdownPlayers = (hand.players ?? []).filter(
       (hp) => hp.saw_showdown && hp.hole_cards && hp.hole_cards.length === 2,
     );
 
@@ -857,7 +860,7 @@ export class GameValidatorService {
       return [];
     }
 
-    const recordedWinners = hand.players
+    const recordedWinners = (hand.players ?? [])
       .filter((hp) => hp.won && hp.saw_showdown)
       .map((hp) => hp.bot_id);
 
@@ -950,11 +953,14 @@ export class GameValidatorService {
     const bugs: BugInsert[] = [];
 
     // 1. sum(amount_won for winners) must equal hand.pot
-    const winnersTotal = hand.players
+    const winnersTotal = (hand.players ?? [])
       .filter((hp) => hp.won)
       .reduce((sum, hp) => sum + (hp.amount_won ?? 0n), 0n);
 
-    if (winnersTotal !== hand.pot && hand.players.some((hp) => hp.won)) {
+    if (
+      winnersTotal !== hand.pot &&
+      (hand.players ?? []).some((hp) => hp.won)
+    ) {
       bugs.push({
         hand_id: hand.id,
         check_name: "winner_amounts",
@@ -969,7 +975,7 @@ export class GameValidatorService {
     }
 
     // 2. won=true players must have amount_won > 0; won=false must have amount_won = 0
-    for (const hp of hand.players) {
+    for (const hp of hand.players ?? []) {
       if (hp.won && (hp.amount_won === null || hp.amount_won === 0n)) {
         bugs.push({
           hand_id: hand.id,
@@ -983,7 +989,7 @@ export class GameValidatorService {
           }),
         });
       }
-      if (!hp.won && hp.amount_won !== null && hp.amount_won > 0n) {
+      if (!hp.won && (hp.amount_won ?? 0n) > 0n) {
         bugs.push({
           hand_id: hand.id,
           check_name: "winner_amounts",
@@ -1006,10 +1012,10 @@ export class GameValidatorService {
   // =========================================================================
 
   private checkDuplicateActionSeq(hand: Hand): BugInsert[] {
-    if (hand.actions.length === 0) return [];
+    if ((hand.actions ?? []).length === 0) return [];
 
     const seqCount = new Map<number, number>();
-    for (const a of hand.actions) {
+    for (const a of hand.actions ?? []) {
       seqCount.set(a.action_seq, (seqCount.get(a.action_seq) ?? 0) + 1);
     }
 
@@ -1034,10 +1040,10 @@ export class GameValidatorService {
   // =========================================================================
 
   private checkBlindStructure(hand: Hand): BugInsert[] {
-    if (hand.actions.length === 0) return [];
+    if ((hand.actions ?? []).length === 0) return [];
 
     const blindTypes = new Set(["blind", "small_blind", "big_blind"]);
-    const blindActions = hand.actions.filter((a) =>
+    const blindActions = (hand.actions ?? []).filter((a) =>
       blindTypes.has(a.action_type),
     );
 
@@ -1046,7 +1052,7 @@ export class GameValidatorService {
     const sortedBlinds = [...blindActions].sort(
       (a, b) => a.action_seq - b.action_seq,
     );
-    const sortedNonBlinds = hand.actions
+    const sortedNonBlinds = (hand.actions ?? [])
       .filter((a) => !blindTypes.has(a.action_type) && a.action_type !== "ante")
       .sort((a, b) => a.action_seq - b.action_seq);
 
@@ -1070,13 +1076,13 @@ export class GameValidatorService {
     }
 
     // Two-player games (heads-up) may have only 1 or 2 blind actions; 3+ player must have both SB and BB
-    if (hand.players.length >= 3) {
+    if ((hand.players ?? []).length >= 3) {
       const amounts = sortedBlinds.map((a) => BigInt(a.amount ?? 0));
       if (amounts.length < 2) {
         bugs.push({
           hand_id: hand.id,
           check_name: "blind_structure",
-          description: `Expected 2 blind actions (SB+BB) for ${hand.players.length}-player hand, found ${amounts.length}`,
+          description: `Expected 2 blind actions (SB+BB) for ${(hand.players ?? []).length}-player hand, found ${amounts.length}`,
           details: serializeDetails({
             snapshot: buildHandSnapshot(hand),
             blind_actions: sortedBlinds.map((a) => ({
@@ -1108,12 +1114,12 @@ export class GameValidatorService {
       const blindBotIds = sortedBlinds.map((a) => a.bot_id);
       if (
         new Set(blindBotIds).size < blindBotIds.length &&
-        hand.players.length >= 3
+        (hand.players ?? []).length >= 3
       ) {
         bugs.push({
           hand_id: hand.id,
           check_name: "blind_structure",
-          description: `Same bot posted multiple blinds in a ${hand.players.length}-player hand`,
+          description: `Same bot posted multiple blinds in a ${(hand.players ?? []).length}-player hand`,
           details: serializeDetails({
             snapshot: buildHandSnapshot(hand),
             blind_bot_ids: blindBotIds,
@@ -1406,12 +1412,12 @@ export class GameValidatorService {
           .into(LogicBug)
           .values(
             bugs.map((b) => ({
-              hand_id: b.hand_id,
+              hand_id: b.hand_id ?? undefined,
               check_name: b.check_name,
               description: b.description,
               details: b.details,
               detected_at: new Date(),
-            })),
+            })) as any,
           )
           .orIgnore()
           .execute();
@@ -1452,7 +1458,7 @@ function buildHandSnapshot(hand: Hand): Record<string, unknown> {
     stage: hand.stage,
     pot: hand.pot?.toString(),
     community_cards: hand.community_cards,
-    players: hand.players.map((hp) => ({
+    players: (hand.players ?? []).map((hp) => ({
       bot_id: hp.bot_id,
       position: hp.position,
       start_chips: hp.start_chips?.toString(),
@@ -1463,7 +1469,7 @@ function buildHandSnapshot(hand: Hand): Record<string, unknown> {
       all_in: hp.all_in,
       won: hp.won,
     })),
-    actions: hand.actions
+    actions: (hand.actions ?? [])
       .sort((a, b) => a.action_seq - b.action_seq)
       .map((a) => ({
         seq: a.action_seq,

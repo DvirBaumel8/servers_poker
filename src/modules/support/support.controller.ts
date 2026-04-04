@@ -14,10 +14,10 @@ import { CreateSupportTicketDto } from "./dto/create-support-ticket.dto";
 
 class SubmitTicketResponseDto {
   @ApiProperty({ example: "550e8400-e29b-41d4-a716-446655440000" })
-  id: string;
+  id!: string;
 
   @ApiProperty({ example: "open" })
-  status: string;
+  status!: string;
 }
 
 @ApiTags("Support")

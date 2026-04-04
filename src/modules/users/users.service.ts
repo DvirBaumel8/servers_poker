@@ -67,7 +67,7 @@ export class UsersService {
       role: user.role,
       active: user.active,
       created_at: user.created_at,
-      last_login_at: user.last_login_at,
+      last_login_at: user.last_login_at ?? null,
     };
   }
 }

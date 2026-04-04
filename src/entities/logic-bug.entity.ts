@@ -6,21 +6,21 @@ import { Hand } from "./hand.entity";
 @Index(["hand_id"])
 export class LogicBug extends BaseEntity {
   @Column({ type: "varchar", length: 36, nullable: true })
-  hand_id: string | null;
+  hand_id?: string;
 
   @Column({ type: "varchar", length: 100 })
-  check_name: string;
+  check_name!: string;
 
   @Column({ type: "text" })
-  description: string;
+  description!: string;
 
   @Column({ type: "jsonb", default: {} })
-  details: Record<string, unknown>;
+  details: Record<string, unknown> = {};
 
   @Column({ type: "timestamp with time zone", default: () => "NOW()" })
-  detected_at: Date;
+  detected_at!: Date;
 
   @ManyToOne(() => Hand, { onDelete: "CASCADE", nullable: true })
   @JoinColumn({ name: "hand_id" })
-  hand: Hand | null;
+  hand?: Hand;
 }

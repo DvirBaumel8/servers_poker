@@ -25,58 +25,58 @@ import { Bot } from "./bot.entity";
 export class HandPlayer extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  hand_id: string;
+  hand_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({ type: "integer" })
-  position: number;
+  position!: number;
 
   @Column({ type: "jsonb", default: [] })
-  hole_cards: Array<{ rank: string; suit: string }>;
+  hole_cards: Array<{ rank: string; suit: string }> = [];
 
   @Column({ type: "bigint", transformer: bigIntTransformer })
-  start_chips: bigint;
+  start_chips!: bigint;
 
   @Column({
     type: "bigint",
     nullable: true,
     transformer: bigIntNullableTransformer,
   })
-  end_chips: bigint | null;
+  end_chips?: bigint | null;
 
   @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
-  amount_bet: bigint;
+  amount_bet: bigint = 0n;
 
   @Column({
     type: "bigint",
     nullable: true,
     transformer: bigIntNullableTransformer,
   })
-  amount_won: bigint | null;
+  amount_won?: bigint | null;
 
   @Column({ type: "boolean", default: false })
-  folded: boolean;
+  folded: boolean = false;
 
   @Column({ type: "boolean", default: false })
-  all_in: boolean;
+  all_in: boolean = false;
 
   @Column({ type: "boolean", default: false })
-  won: boolean;
+  won: boolean = false;
 
   @Column({ type: "boolean", default: false })
-  saw_flop: boolean;
+  saw_flop: boolean = false;
 
   @Column({ type: "boolean", default: false })
-  saw_showdown: boolean;
+  saw_showdown: boolean = false;
 
   /** Whether cards were shown, mucked, or hidden (folded before showdown). */
   @Column({ type: "varchar", length: 10, default: "hidden" })
-  card_status: "shown" | "mucked" | "hidden";
+  card_status: "shown" | "mucked" | "hidden" = "hidden";
 
   @Column({ type: "jsonb", nullable: true })
-  best_hand: {
+  best_hand?: {
     name: string;
     rank: number;
     cards: Array<{ rank: string; suit: string }>;
@@ -84,9 +84,9 @@ export class HandPlayer extends BaseEntity {
 
   @ManyToOne(() => Hand, (hand) => hand.players, { onDelete: "CASCADE" })
   @JoinColumn({ name: "hand_id" })
-  hand: Hand;
+  hand!: Hand;
 
   @ManyToOne(() => Bot, { onDelete: "CASCADE" })
   @JoinColumn({ name: "bot_id" })
-  bot: Bot;
+  bot!: Bot;
 }

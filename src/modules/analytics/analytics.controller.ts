@@ -44,17 +44,17 @@ export class AnalyticsController {
   ): Promise<{ success: boolean }> {
     try {
       const ipHash = this.hashIp(this.getClientIp(req));
-      const userAgent = req.headers["user-agent"]?.substring(0, 500) || null;
+      const userAgent = req.headers["user-agent"]?.substring(0, 500);
 
       const event = this.eventRepository.create({
-        user_id: user?.id || null,
+        user_id: user?.id,
         event_type: dto.event_type as AnalyticsEvent["event_type"],
         event_data: dto.event_data || {},
         session_id: dto.session_id,
         ip_hash: ipHash,
         user_agent: userAgent,
-        page_url: dto.page_url || null,
-        referrer: dto.referrer || null,
+        page_url: dto.page_url,
+        referrer: dto.referrer,
       });
 
       await this.eventRepository.save(event);

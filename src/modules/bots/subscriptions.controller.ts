@@ -128,13 +128,13 @@ export class SubscriptionsController {
 
     const subscription = await this.subscriptionRepository.create({
       bot_id: botId,
-      tournament_id: dto.tournament_id || null,
-      tournament_type_filter: dto.tournament_type_filter || null,
-      min_buy_in: dto.min_buy_in ?? null,
-      max_buy_in: dto.max_buy_in ?? null,
+      tournament_id: dto.tournament_id,
+      tournament_type_filter: dto.tournament_type_filter,
+      min_buy_in: dto.min_buy_in,
+      max_buy_in: dto.max_buy_in,
       priority: dto.priority ?? 50,
       status: "active",
-      expires_at: dto.expires_at ? new Date(dto.expires_at) : null,
+      expires_at: dto.expires_at ? new Date(dto.expires_at) : undefined,
     });
 
     return this.toResponseDto(subscription);
@@ -155,23 +155,27 @@ export class SubscriptionsController {
 
     const subscription = await this.getSubscriptionOrThrow(id, botId);
 
-    const updated = await this.subscriptionRepository.update(id, {
-      tournament_type_filter:
-        dto.tournament_type_filter !== undefined
-          ? dto.tournament_type_filter
-          : subscription.tournament_type_filter,
-      min_buy_in:
-        dto.min_buy_in !== undefined ? dto.min_buy_in : subscription.min_buy_in,
-      max_buy_in:
-        dto.max_buy_in !== undefined ? dto.max_buy_in : subscription.max_buy_in,
+    const updateData: any = {
       priority: dto.priority ?? subscription.priority,
       status: dto.status ?? subscription.status,
-      expires_at: dto.expires_at
+    };
+
+    if (dto.tournament_type_filter !== undefined) {
+      updateData.tournament_type_filter = dto.tournament_type_filter;
+    }
+    if (dto.min_buy_in !== undefined) {
+      updateData.min_buy_in = dto.min_buy_in;
+    }
+    if (dto.max_buy_in !== undefined) {
+      updateData.max_buy_in = dto.max_buy_in;
+    }
+    if (dto.expires_at !== undefined) {
+      updateData.expires_at = dto.expires_at
         ? new Date(dto.expires_at)
-        : dto.expires_at === null
-          ? null
-          : subscription.expires_at,
-    });
+        : undefined;
+    }
+
+    const updated = await this.subscriptionRepository.update(id, updateData);
 
     return this.toResponseDto(updated!);
   }
@@ -252,9 +256,9 @@ export class SubscriptionsController {
       id: subscription.id,
       bot_id: subscription.bot_id,
       bot_name: subscription.bot?.name,
-      tournament_id: subscription.tournament_id,
+      tournament_id: subscription.tournament_id ?? null,
       tournament_name: subscription.tournament?.name || null,
-      tournament_type_filter: subscription.tournament_type_filter,
+      tournament_type_filter: subscription.tournament_type_filter ?? null,
       min_buy_in: subscription.min_buy_in
         ? Number(subscription.min_buy_in)
         : null,

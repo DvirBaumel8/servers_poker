@@ -1164,6 +1164,56 @@ SELECT description, details FROM logic_bugs WHERE check_name = 'zero_sum' LIMIT 
 
 ## Changelog
 
+### 2026-04-04: Scenario Lab — Visual Strategy Workbench
+
+**Single-hand scenario editor that lets users construct any poker hand and see exactly how a bot reasons through the decision.**
+
+**New Files:**
+- `src/modules/bots/dto/scenario.dto.ts` — Validated DTO: `holeCards[2]`, `communityCards[0-5]`, `position`, `pot`, `toCall`, `minRaise`, optional `currentAction`
+- `frontend/src/pages/ScenarioLabPage.tsx` — Full workbench UI: board editor, hand editor, game state inputs, CardPicker modal, decision output panel, action tendencies bars, Bot's Reasoning text
+
+**Modified Files:**
+- `src/modules/bots/bots.service.ts` — Added `evaluateScenario(botId, userId, dto)`: loads bot, hydrates strategy via `getOrHydrateStrategy`, runs `evaluateHydrated` 20× with random seeds, returns primary decision + distribution
+- `src/modules/bots/bots.controller.ts` — Added `POST :id/scenario` route (JWT auth required)
+- `frontend/src/App.tsx` — Added `/scenario-lab` route
+- `frontend/src/components/Sidebar.tsx` — Added "Scenario Lab" nav entry with workbench icon
+
+**API Endpoint:**
+```
+POST /api/v1/bots/:id/scenario
+Body: { holeCards, communityCards, position, pot, toCall, minRaise, currentAction? }
+Response: { primaryAction, source, explanation, handNotation?, ruleId?, distribution }
+```
+
+**Distribution:** 20 evaluations with random seeds give a meaningful action-tendency distribution (especially revealing for personality-tier bots where the seeded PRNG affects choices).
+
+**UI:** Two-panel workbench — Setup (left, 440px) + Results (right, flex). CardPicker modal renders all 52 cards as 13×4 grid with already-selected cards greyed out. Results show: large action badge with color coding, source chip (Range Chart / Rule Match / Personality / Position Override), animated probability bars, monospace reasoning text box.
+
+---
+
+### 2026-04-04: Tier 3 Range Chart — Position Tabs, Default Behavior & Stats
+
+**Position-specific range charts and "unset = Fold" clarity for Pro tier bots.**
+
+**Modified Files:**
+- `frontend/src/components/builder/RangeChart.tsx` — Full rewrite:
+  - **Position Tab Bar**: `Global | UTG | HJ | CO | BTN | SB | BB` tabs (only shown in Tier 3/Pro mode). Cyan dot indicator on tabs with custom data. Tab switches reset pending paint state.
+  - **Inheritance indicator**: When a position tab has no data, shows an info box: "Inheriting from Global — paint any cell to create a [POS]-specific override".
+  - **New props**: `positionalRanges?: Partial<Record<RangePosition, RangeChart>>` and `onPositionalChange?: (pos, chart) => void`. Component is backward-compatible (no position props = Tier 2 behavior unchanged).
+  - **Stats — Unset = Fold**: Stats now count null/unset cells as Fold so total always = 100% of 1326 combos. Segmented progress bar shows Raise/Call/Fold as colored segments.
+  - **"F" watermark on unset cells**: Unset cells render grey with a muted "F" label (instead of `·`) to make the default-fold behavior visually clear.
+  - **Default behavior label**: Legend shows "Unset cells default to: Fold".
+  - **Flush on tab switch**: Pending paint changes are flushed before switching position tabs.
+- `frontend/src/pages/BotBuilder.tsx`:
+  - Added `RangePosition` type and `positionOverrides` field to local `BotStrategy` interface.
+  - Wired `positionalRanges` and `onPositionalChange` props to `RangeChartComponent`.
+  - Added `positionOverrides` to all 3 save payload locations (unmount flush, auto-save timer, explicit save) for Pro tier bots.
+- `docs/BOT_DEVELOPER_GUIDE.md` — Updated Range Chart and Position Overrides sections with new behavior.
+
+**Engine:** No changes needed. `strategy-engine.service.ts` already reads `positionOverrides[pos].rangeChart` and falls back to `base.rangeChart` (lines 108–124). Tier 1/2 bots fully unaffected.
+
+---
+
 ### 2026-04-04: Contact Support Page + Shared Sidebar Refactor
 
 **New `/support` page surfaces the existing `POST /api/v1/contact` backend endpoint. Sidebar extracted from all pages into a single shared component.**
@@ -1275,6 +1325,33 @@ GET  /api/v1/simulations/:id/result → SimulationResult with analytics
 - `pfr` = fraction of hands with preflop raise
 - `aggressionFactor = aggressiveActions / passiveActions` (9999 when calls=0)
 - `heatmapData`: per-position `{ wins, losses, hands }` for BTN/SB/BB/UTG/CO/HJ/etc.
+
+### 2026-04-04: Leaderboard Refactor — User-Based Aggregation (Developer Rankings)
+
+**Shifted the Hall of Fame leaderboard from ranking individual bots to ranking users (developers) by aggregating all their bots' stats. Bot names are strictly hidden from this view.**
+
+**New Files:**
+- `src/migrations/1744900000000-AddUserLeaderboardView.ts` — Creates `mv_user_leaderboard` materialized view, grouping all hand and tournament stats by `user_id`. Computes weighted BB/100, aggregated wins, ITM%, ROI%, and `active_bot_count` per user. Excludes admin users. Unique index on `user_id` for concurrent refresh.
+
+**Modified Files:**
+- `src/modules/leaderboard/dto/leaderboard.dto.ts` — Added `UserLeaderboardEntryDto` (fields: `userId`, `userName`, `activeBotCount`, plus all stat fields). Changed `PaginatedLeaderboardDto.data` type to `UserLeaderboardEntryDto[]`.
+- `src/modules/leaderboard/leaderboard.service.ts` — Added `queryAllTimeByUser()` (reads `mv_user_leaderboard`), `queryPeriodByUser()` (dynamic CTEs grouped by `user_id`), and `toUserLeaderboardEntry()` mapper. `getLeaderboard()` now routes to user-based queries. `refreshLeaderboard()` cron also refreshes `mv_user_leaderboard`. Old bot-based `queryAllTime()` / `queryPeriod()` preserved for `getBotPerformance()`.
+- `frontend/src/pages/LeaderboardPage.tsx`:
+  - `LeaderboardEntry` interface now has `userId/userName/activeBotCount` (no `botId/botName/tierBadge`)
+  - Removed `TierBadge` component and tier filter pills
+  - Added `UserAvatar` component (initials circle with deterministic hue from username)
+  - Podium shows user name + avatar instead of bot name + tier badge
+  - Table "Bot" column → "Player"; displays avatar + username
+  - "YOU" highlight compares `e.userId === currentUserId` (logic unchanged, now correctly targets the user row)
+  - Tooltip on each row: `"Playing with N active bot(s)"` via `title` attribute
+  - Header subtitle updated to "Rankings across all developers on the platform"
+  - `formatNet()` shorthand notation unchanged
+
+**Privacy:** Bot names do not appear anywhere in the leaderboard view. The `activeBotCount` tooltip reveals only the count, not names or configs.
+
+**API:** `GET /api/v1/leaderboard` — same endpoint, now returns `UserLeaderboardEntryDto[]`. `tier` query param ignored (bot-scoped, not applicable at user level). `GET /api/v1/leaderboard/:botId` unchanged (individual bot detail).
+
+---
 
 ### 2026-04-04: Hall of Fame — Living League Polish (V2)
 

@@ -124,8 +124,8 @@ export class TournamentRepository extends BaseRepository<Tournament> {
       {
         bust_level: bustLevel,
         finish_position: finishPosition,
-        bust_hand_number: bustHandNumber ?? null,
-        chips_at_bust: chipsAtBust ?? null,
+        bust_hand_number: bustHandNumber,
+        chips_at_bust: chipsAtBust,
       },
     );
   }
@@ -157,7 +157,9 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     gameId: string | null,
     manager?: EntityManager,
   ): Promise<void> {
-    await this.getTableRepo(manager).update(tableId, { game_id: gameId });
+    await this.getTableRepo(manager).update(tableId, {
+      game_id: gameId ?? undefined,
+    });
   }
 
   async updateTableStatus(
@@ -397,7 +399,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     scheduledStartAt: Date | null,
   ): Promise<void> {
     await this.repository.update(id, {
-      scheduled_start_at: scheduledStartAt,
+      scheduled_start_at: scheduledStartAt ?? undefined,
     });
   }
 

@@ -10,24 +10,24 @@ export type TableStatus = "waiting" | "running" | "finished";
 @Check(`"max_players" >= 2 AND "max_players" <= 9`)
 export class Table extends BaseEntity {
   @Column({ type: "varchar", length: 100 })
-  name: string;
+  name!: string;
 
   @Column({ type: "bigint", default: 10 })
-  small_blind: number;
+  small_blind: number = 10;
 
   @Column({ type: "bigint", default: 20 })
-  big_blind: number;
+  big_blind: number = 20;
 
   @Column({ type: "bigint", default: 1000 })
-  starting_chips: number;
+  starting_chips: number = 1000;
 
   @Column({ type: "integer", default: 9 })
-  max_players: number;
+  max_players: number = 9;
 
   @Column({ type: "integer", default: 10000 })
-  turn_timeout_ms: number;
+  turn_timeout_ms: number = 10000;
 
   @Index()
   @Column({ type: "varchar", length: 20, default: "waiting" })
-  status: TableStatus;
+  status: TableStatus = "waiting";
 }

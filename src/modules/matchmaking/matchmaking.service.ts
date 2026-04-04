@@ -214,7 +214,7 @@ export class MatchmakingService {
           status: "pending" as const,
           prize_pool: basePrize + (i === 0 ? remainder : 0n),
           player_count: podEntries.length,
-          winner_bot_id: null,
+          winner_bot_id: undefined,
         };
       });
 

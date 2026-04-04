@@ -7,6 +7,7 @@ import PersonalityEditor from '../components/builder/PersonalityEditor'
 import RulesEditor from '../components/builder/RulesEditor'
 import RangeChartComponent from '../components/builder/RangeChart'
 import SimulatePanel from '../components/builder/SimulatePanel'
+import { SyncStatus } from '../components/builder/SyncStatus'
 
 // Types
 type StrategyTier = 'quick' | 'strategy' | 'pro'
@@ -48,6 +49,7 @@ interface StreetRules {
 
 type RangeAction = 'raise' | 'call' | 'fold' | null
 type RangeChart = Record<string, RangeAction>
+type RangePosition = 'UTG' | 'HJ' | 'CO' | 'BTN' | 'SB' | 'BB'
 
 interface BotStrategy {
   version: 1
@@ -55,6 +57,7 @@ interface BotStrategy {
   personality: Personality
   rules?: StreetRules
   rangeChart?: RangeChart
+  positionOverrides?: Partial<Record<RangePosition, { rangeChart?: RangeChart }>>
 }
 
 interface BotState {
@@ -171,6 +174,7 @@ export default function BotBuilder() {
           ...(s.tier !== 'quick' && {
             rules: s.strategy.rules,
             rangeChart: s.strategy.rangeChart,
+            ...(s.tier === 'pro' && { positionOverrides: s.strategy.positionOverrides }),
           }),
         },
       })
@@ -212,6 +216,10 @@ export default function BotBuilder() {
       })
       .catch((err) => {
         console.error('❌ Failed to create bot draft:', err)
+        const msg: string = err?.response?.data?.message ?? ''
+        if (msg.includes('Maximum') && msg.includes('bots')) {
+          setSaveError(msg + ' Go to My Bots to delete inactive bots first.')
+        }
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated])
@@ -233,6 +241,7 @@ export default function BotBuilder() {
           ...(state.tier !== 'quick' && {
             rules: state.strategy.rules,
             rangeChart: state.strategy.rangeChart,
+            ...(state.tier === 'pro' && { positionOverrides: state.strategy.positionOverrides }),
           }),
         },
       }
@@ -556,20 +565,17 @@ export default function BotBuilder() {
         }}
       >
         {/* Header */}
-        <style>{`
-          @keyframes savePulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.45; }
-          }
-        `}</style>
         <div
           style={{
-            padding: '2rem',
+            padding: '1rem 2rem',
             borderBottom: `1px solid ${C.border}`,
             background: `linear-gradient(135deg, ${C.card} 0%, ${C.bg} 100%)`,
             display: 'flex',
             gap: '1rem',
             alignItems: 'flex-start',
+            position: 'sticky',
+            top: 0,
+            zIndex: 20,
           }}
         >
           {!sidebarVisible && (
@@ -591,7 +597,7 @@ export default function BotBuilder() {
           )}
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: C.muted, marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 'bold', color: C.muted, marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Bot Name
             </label>
             <input
@@ -612,10 +618,10 @@ export default function BotBuilder() {
                 background: C.bg,
                 border: `1.5px solid ${saveError ? '#e24b4a' : C.border}`,
                 color: C.text,
-                padding: '0.875rem 1rem',
+                padding: '0.5rem 0.875rem',
                 borderRadius: '0.5rem',
                 fontFamily: C.font,
-                fontSize: '1.125rem',
+                fontSize: '1rem',
                 fontWeight: '600',
                 width: '350px',
                 transition: 'border-color 0.2s',
@@ -630,29 +636,8 @@ export default function BotBuilder() {
           </div>
 
           {/* Auto-save status indicator */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', alignSelf: 'center' }}>
-            {state.isSaving && (
-              <span style={{
-                fontSize: '0.8rem',
-                color: C.muted,
-                fontFamily: C.font,
-                animation: 'savePulse 1s ease-in-out infinite',
-              }}>
-                Saving...
-              </span>
-            )}
-            {savedJustNow && !state.isSaving && (
-              <span style={{
-                fontSize: '0.8rem',
-                color: C.success,
-                fontFamily: C.font,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-              }}>
-                ✓ Saved
-              </span>
-            )}
+          <div style={{ marginLeft: 'auto', alignSelf: 'center' }}>
+            <SyncStatus isSaving={state.isSaving} savedJustNow={savedJustNow} isDirty={state.isDirty} />
           </div>
         </div>
 
@@ -803,12 +788,26 @@ export default function BotBuilder() {
                       border: `1px solid ${C.border}`,
                     }}
                   >
-                    <h2 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1.5rem', margin: 0 }}>
+                    <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 2rem 0' }}>
                       Preflop Range Chart (Tier 3)
                     </h2>
                     <RangeChartComponent
                       rangeChart={state.strategy.rangeChart}
                       onChange={(rangeChart) => updateStrategy({ rangeChart })}
+                      positionalRanges={
+                        Object.fromEntries(
+                          Object.entries(state.strategy.positionOverrides ?? {})
+                            .map(([pos, ov]) => [pos, (ov as { rangeChart?: RangeChart })?.rangeChart ?? {}])
+                        ) as Partial<Record<RangePosition, RangeChart>>
+                      }
+                      onPositionalChange={(pos, rangeChart) =>
+                        updateStrategy({
+                          positionOverrides: {
+                            ...state.strategy.positionOverrides,
+                            [pos]: { ...state.strategy.positionOverrides?.[pos], rangeChart },
+                          },
+                        })
+                      }
                     />
                   </div>
                 )}

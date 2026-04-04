@@ -1078,7 +1078,7 @@ export class GameInstance {
             const h = bestHand(player.holeCards, this.communityCards);
             return {
               name: h.name,
-              cards: h.cards.map(cardToString),
+              cards: (h.cards ?? []).map(cardToString),
             };
           })(),
         }),

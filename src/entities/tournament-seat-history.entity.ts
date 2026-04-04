@@ -17,38 +17,38 @@ export type SeatHistoryReason =
 @Check(`"chips_on_departure" >= 0 OR "chips_on_departure" IS NULL`)
 export class TournamentSeatHistory extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
-  tournament_id: string;
+  tournament_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  tournament_table_id: string;
+  tournament_table_id!: string;
 
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({ type: "integer" })
-  seat_number: number;
+  seat_number!: number;
 
   @Column({ type: "bigint" })
-  chips_on_arrival: number;
+  chips_on_arrival!: number;
 
   @Column({ type: "bigint", nullable: true })
-  chips_on_departure: number | null;
+  chips_on_departure?: number;
 
   @Column({ type: "varchar", length: 20 })
-  reason: SeatHistoryReason;
+  reason!: SeatHistoryReason;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  departed_at: Date | null;
+  departed_at?: Date;
 
   @ManyToOne(() => Tournament, { onDelete: "CASCADE" })
   @JoinColumn({ name: "tournament_id" })
-  tournament: Tournament;
+  tournament!: Tournament;
 
   @ManyToOne(() => TournamentTable, { onDelete: "CASCADE" })
   @JoinColumn({ name: "tournament_table_id" })
-  tournament_table: TournamentTable;
+  tournament_table!: TournamentTable;
 
   @ManyToOne(() => Bot, { onDelete: "CASCADE" })
   @JoinColumn({ name: "bot_id" })
-  bot: Bot;
+  bot!: Bot;
 }

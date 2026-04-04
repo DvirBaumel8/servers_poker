@@ -23,39 +23,39 @@ import { Bot } from "./bot.entity";
 export class BotStats extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  bot_id: string;
+  bot_id!: string;
 
   @Column({ type: "integer", default: 0 })
-  total_hands: number;
+  total_hands: number = 0;
 
   @Column({ type: "integer", default: 0 })
-  total_tournaments: number;
+  total_tournaments: number = 0;
 
   @Column({ type: "integer", default: 0 })
-  tournament_wins: number;
+  tournament_wins: number = 0;
 
   @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
-  total_net: bigint;
+  total_net: bigint = 0n;
 
   @Column({ type: "integer", default: 0 })
-  vpip_hands: number;
+  vpip_hands: number = 0;
 
   @Column({ type: "integer", default: 0 })
-  pfr_hands: number;
+  pfr_hands: number = 0;
 
   @Column({ type: "integer", default: 0 })
-  wtsd_hands: number;
+  wtsd_hands: number = 0;
 
   @Column({ type: "integer", default: 0 })
-  wmsd_hands: number;
+  wmsd_hands: number = 0;
 
   @Column({ type: "integer", default: 0 })
-  aggressive_actions: number;
+  aggressive_actions: number = 0;
 
   @Column({ type: "integer", default: 0 })
-  passive_actions: number;
+  passive_actions: number = 0;
 
   @ManyToOne(() => Bot, (bot) => bot.stats, { onDelete: "CASCADE" })
   @JoinColumn({ name: "bot_id" })
-  bot: Bot;
+  bot!: Bot;
 }

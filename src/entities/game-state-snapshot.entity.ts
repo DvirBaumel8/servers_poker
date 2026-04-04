@@ -13,71 +13,71 @@ export type SnapshotStatus = "active" | "recovered" | "orphaned" | "completed";
 @Check(`"hand_number" >= 0`)
 export class GameStateSnapshot extends BaseEntity {
   @Column({ type: "varchar", length: 36 })
-  game_id: string;
+  game_id!: string;
 
   @ManyToOne(() => Game, { onDelete: "CASCADE" })
   @JoinColumn({ name: "game_id" })
-  game: Game;
+  game!: Game;
 
   @Column({ type: "varchar", length: 36 })
-  table_id: string;
+  table_id!: string;
 
   @ManyToOne(() => Table, { onDelete: "CASCADE" })
   @JoinColumn({ name: "table_id" })
-  table: Table;
+  table!: Table;
 
   @Column({ type: "varchar", length: 36, nullable: true })
-  tournament_id: string | null;
+  tournament_id?: string | null;
 
   @ManyToOne(() => Tournament, { onDelete: "CASCADE", nullable: true })
   @JoinColumn({ name: "tournament_id" })
-  tournament: Tournament | null;
+  tournament?: Tournament | null;
 
   @Column({ type: "varchar", length: 20, default: "active" })
-  status: SnapshotStatus;
+  status: SnapshotStatus = "active";
 
   @Column({ type: "integer", default: 0 })
-  hand_number: number;
+  hand_number: number = 0;
 
   @Column({ type: "varchar", length: 20, default: "waiting" })
-  game_stage: string;
+  game_stage: string = "waiting";
 
   @Column({ type: "integer", default: 0 })
-  dealer_index: number;
+  dealer_index: number = 0;
 
   @Column({ type: "bigint", default: 0 })
-  pot: number;
+  pot: number = 0;
 
   @Column({ type: "bigint", default: 0 })
-  current_bet: number;
+  current_bet: number = 0;
 
   @Column({ type: "bigint" })
-  small_blind: number;
+  small_blind!: number;
 
   @Column({ type: "bigint" })
-  big_blind: number;
+  big_blind!: number;
 
   @Column({ type: "bigint", default: 0 })
-  ante: number;
+  ante: number = 0;
 
   @Column({ type: "bigint" })
-  starting_chips: number;
+  starting_chips!: number;
 
   @Column({ type: "integer", default: 10000 })
-  turn_timeout_ms: number;
+  turn_timeout_ms: number = 10000;
 
   @Column({ type: "jsonb", default: [] })
-  community_cards: Array<{ rank: string; suit: string }>;
+  community_cards: Array<{ rank: string; suit: string }> = [];
 
   @Column({ type: "varchar", length: 36, nullable: true })
-  active_player_id: string | null;
+  active_player_id?: string | null;
 
   @ManyToOne(() => Bot, { onDelete: "SET NULL", nullable: true })
   @JoinColumn({ name: "active_player_id" })
-  active_player: Bot | null;
+  active_player?: Bot | null;
 
   @Column({ type: "jsonb" })
-  players: Array<{
+  players!: Array<{
     id: string;
     name: string;
     strategy: Record<string, any> | null;
@@ -91,13 +91,13 @@ export class GameStateSnapshot extends BaseEntity {
   }>;
 
   @Column({ type: "jsonb", nullable: true })
-  pot_state: {
+  pot_state?: {
     mainPot: number;
     sidePots: Array<{ amount: number; eligiblePlayers: string[] }>;
   } | null;
 
   @Column({ type: "jsonb", nullable: true })
-  betting_round_state: {
+  betting_round_state?: {
     currentBet: number;
     playerBets: Record<string, number>;
     actedPlayers: string[];
@@ -105,14 +105,14 @@ export class GameStateSnapshot extends BaseEntity {
   } | null;
 
   @Column({ type: "varchar", length: 100, nullable: true })
-  server_instance_id: string | null;
+  server_instance_id?: string | null;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  last_action_at: Date | null;
+  last_action_at?: Date | null;
 
   @Column({ type: "jsonb", default: [] })
   action_log: Array<{
     message: string;
     timestamp: number;
-  }>;
+  }> = [];
 }

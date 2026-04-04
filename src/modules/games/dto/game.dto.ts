@@ -44,7 +44,7 @@ export class PaginationQueryDto {
 
 export class CreateGameDto {
   @IsString()
-  table_id: string;
+  table_id!: string;
 
   @IsOptional()
   @IsString()
@@ -53,7 +53,7 @@ export class CreateGameDto {
 
 export class JoinTableDto {
   @IsString()
-  bot_id: string;
+  bot_id!: string;
 }
 
 export class CreateTableDto {
@@ -64,7 +64,7 @@ export class CreateTableDto {
     message:
       "Table name must start with a letter or number and contain only letters, numbers, spaces, underscores, and hyphens",
   })
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsInt()
@@ -94,16 +94,16 @@ export class CreateTableDto {
 }
 
 export class TableResponseDto {
-  id: string;
-  name: string;
-  status: string;
-  config: {
+  id!: string;
+  name!: string;
+  status!: string;
+  config!: {
     small_blind: number;
     big_blind: number;
     starting_chips: number;
     max_players: number;
   };
-  players: Array<{
+  players!: Array<{
     name: string;
     chips: number;
     disconnected: boolean;
@@ -114,27 +114,27 @@ export class TableResponseDto {
 }
 
 export class JoinTableResponseDto {
-  message: string;
-  tableId: string;
-  botId: string;
-  playerCount: number;
+  message!: string;
+  tableId!: string;
+  botId!: string;
+  playerCount!: number;
 }
 
 export class LeaderboardEntryDto {
-  name: string;
-  bot_id: string;
-  games_played: number;
-  total_hands: number;
-  total_wins: number;
-  total_winnings: number;
-  win_rate_pct: number | null;
-  tournament_wins: number;
-  total_tournaments: number;
+  name!: string;
+  bot_id!: string;
+  games_played!: number;
+  total_hands!: number;
+  total_wins!: number;
+  total_winnings!: number;
+  win_rate_pct!: number | null;
+  tournament_wins!: number;
+  total_tournaments!: number;
 }
 
 export class BotActionDto {
   @IsString()
-  action: "fold" | "check" | "call" | "bet" | "raise" | "all_in";
+  action!: "fold" | "check" | "call" | "bet" | "raise" | "all_in";
 
   @IsOptional()
   @IsNumber()
@@ -143,18 +143,18 @@ export class BotActionDto {
 }
 
 export class GameStateDto {
-  id: string;
-  table_id: string;
-  tournament_id: string | null;
-  status: string;
-  hand_number: number;
-  stage: string;
-  pot: number;
-  community_cards: Array<{ rank: string; suit: string }>;
-  current_bet: number;
-  current_player_id: string | null;
-  dealer_position: number;
-  players: Array<{
+  id!: string;
+  table_id!: string;
+  tournament_id!: string | null;
+  status!: string;
+  hand_number!: number;
+  stage!: string;
+  pot!: number;
+  community_cards!: Array<{ rank: string; suit: string }>;
+  current_bet!: number;
+  current_player_id!: string | null;
+  dealer_position!: number;
+  players!: Array<{
     bot_id: string;
     position: number;
     chips: number;
@@ -163,7 +163,7 @@ export class GameStateDto {
     all_in: boolean;
     cards?: Array<{ rank: string; suit: string }>;
   }>;
-  valid_actions: Array<{
+  valid_actions!: Array<{
     action: string;
     min_amount?: number;
     max_amount?: number;
@@ -171,11 +171,11 @@ export class GameStateDto {
 }
 
 export class HandHistoryDto {
-  id: string;
-  hand_number: number;
-  pot: number;
-  community_cards: Array<{ rank: string; suit: string }>;
-  players: Array<{
+  id!: string;
+  hand_number!: number;
+  pot!: number;
+  community_cards!: Array<{ rank: string; suit: string }>;
+  players!: Array<{
     bot_id: string;
     bot_name: string;
     position: number;
@@ -189,42 +189,42 @@ export class HandHistoryDto {
       cards: Array<{ rank: string; suit: string }>;
     };
   }>;
-  actions: Array<{
+  actions!: Array<{
     bot_id: string;
     action_type: string;
     amount: number;
     stage: string;
   }>;
-  started_at: Date;
-  finished_at: Date;
+  started_at!: Date;
+  finished_at!: Date;
 }
 
 // Provably Fair DTOs
 export class VerifyHandDto {
   @IsString()
-  serverSeed: string;
+  serverSeed!: string;
 
   @IsString()
-  serverSeedHash: string;
+  serverSeedHash!: string;
 
   @IsString()
-  clientSeed: string;
+  clientSeed!: string;
 
   @IsInt()
   @Min(1)
-  nonce: number;
+  nonce!: number;
 
   @IsArray()
   @ArrayMinSize(52)
   @IsInt({ each: true })
-  deckOrder: number[];
+  deckOrder!: number[];
 }
 
 export class VerifyHandResponseDto {
-  valid: boolean;
-  serverSeedHashMatch: boolean;
-  deckOrderMatch: boolean;
-  message: string;
+  valid!: boolean;
+  serverSeedHashMatch!: boolean;
+  deckOrderMatch!: boolean;
+  message!: string;
   details?: {
     providedServerSeed: string;
     calculatedHash: string;
@@ -235,17 +235,17 @@ export class VerifyHandResponseDto {
 }
 
 export class HandSeedCommitmentDto {
-  serverSeedHash: string;
-  clientSeed: string;
-  nonce: number;
+  serverSeedHash!: string;
+  clientSeed!: string;
+  nonce!: number;
 }
 
 export class HandSeedVerificationDto {
-  serverSeed: string;
-  serverSeedHash: string;
-  clientSeed: string;
-  nonce: number;
-  combinedHash: string;
-  deckOrder: number[];
-  verificationUrl: string;
+  serverSeed!: string;
+  serverSeedHash!: string;
+  clientSeed!: string;
+  nonce!: number;
+  combinedHash!: string;
+  deckOrder!: number[];
+  verificationUrl!: string;
 }

@@ -51,36 +51,36 @@ class PersonalityDto {
   @IsNumber()
   @Min(0)
   @Max(100)
-  aggression: number;
+  aggression!: number;
 
   @IsNumber()
   @Min(0)
   @Max(100)
-  bluffFrequency: number;
+  bluffFrequency!: number;
 
   @IsNumber()
   @Min(0)
   @Max(100)
-  riskTolerance: number;
+  riskTolerance!: number;
 
   @IsNumber()
   @Min(0)
   @Max(100)
-  tightness: number;
+  tightness!: number;
 }
 
 class StrategyDto {
   @IsNumber()
-  version: number;
+  version!: number;
 
   @IsString()
   @IsIn([...VALID_TIERS])
-  tier: string;
+  tier!: string;
 
   @ValidateNested()
   @Type(() => PersonalityDto)
   @IsNotEmpty()
-  personality: PersonalityDto;
+  personality!: PersonalityDto;
 
   @IsOptional()
   @IsObject()
@@ -89,6 +89,10 @@ class StrategyDto {
   @IsOptional()
   @IsObject()
   rangeChart?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
+  positionOverrides?: Record<string, unknown>;
 }
 
 export class CreateInternalBotDto {
@@ -99,14 +103,14 @@ export class CreateInternalBotDto {
     message:
       "Bot name can only contain letters, numbers, underscores, hyphens, and spaces",
   })
-  name: string;
+  name!: string;
 
   @IsObject()
   @IsNotEmpty()
   @MaxJsonSize(MAX_STRATEGY_JSON_BYTES)
   @ValidateNested()
   @Type(() => StrategyDto)
-  strategy: StrategyDto;
+  strategy!: StrategyDto;
 
   @IsOptional()
   @IsString()
@@ -120,43 +124,43 @@ export class CreateInternalBotDto {
 class SimulateScenarioDto {
   @IsString()
   @IsIn(["pre-flop", "preflop", "flop", "turn", "river"])
-  stage: string;
+  stage!: string;
 
   @IsArray()
   @IsString({ each: true })
-  holeCards: string[];
+  holeCards!: string[];
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  communityCards: string[];
+  communityCards?: string[];
 
   @IsString()
-  position: string;
+  position!: string;
 
   @IsNumber()
   @Min(0)
-  stackSize: number;
+  stackSize!: number;
 
   @IsNumber()
   @Min(0)
-  potSize: number;
+  potSize!: number;
 
   @IsNumber()
   @Min(1)
-  bigBlind: number;
+  bigBlind!: number;
 
   @IsBoolean()
-  facingBet: boolean;
+  facingBet!: boolean;
 
   @IsNumber()
   @Min(0)
-  betAmount: number;
+  betAmount!: number;
 
   @IsNumber()
   @Min(2)
   @Max(10)
-  playersInHand: number;
+  playersInHand!: number;
 }
 
 export class SimulateActionDto {
@@ -165,13 +169,13 @@ export class SimulateActionDto {
   @MaxJsonSize(MAX_STRATEGY_JSON_BYTES)
   @ValidateNested()
   @Type(() => StrategyDto)
-  strategy: StrategyDto;
+  strategy!: StrategyDto;
 
   @IsObject()
   @IsNotEmpty()
   @ValidateNested()
   @Type(() => SimulateScenarioDto)
-  scenario: SimulateScenarioDto;
+  scenario!: SimulateScenarioDto;
 }
 
 export class UpdateBotDto {
@@ -202,13 +206,13 @@ export class UpdateBotDto {
 }
 
 export class BotResponseDto {
-  id: string;
-  name: string;
-  description: string | null;
-  active: boolean;
-  user_id: string;
-  created_at: Date;
-  strategy: Record<string, any> | null;
+  id!: string;
+  name!: string;
+  description!: string | null;
+  active!: boolean;
+  user_id!: string;
+  created_at!: Date;
+  strategy!: Record<string, any> | null;
 }
 
 export interface BotActivityGame {
@@ -236,16 +240,16 @@ export interface BotActivityTournament {
 }
 
 export class BotActivityDto {
-  botId: string;
-  botName: string;
-  isActive: boolean;
-  activeGames: BotActivityGame[];
-  activeTournaments: BotActivityTournament[];
-  lastActivityAt: string | null;
+  botId!: string;
+  botName!: string;
+  isActive!: boolean;
+  activeGames!: BotActivityGame[];
+  activeTournaments!: BotActivityTournament[];
+  lastActivityAt!: string | null;
 }
 
 export class ActiveBotsResponseDto {
-  bots: BotActivityDto[];
-  totalActive: number;
-  timestamp: string;
+  bots!: BotActivityDto[];
+  totalActive!: number;
+  timestamp!: string;
 }

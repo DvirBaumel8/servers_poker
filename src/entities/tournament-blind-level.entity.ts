@@ -21,32 +21,32 @@ import { Tournament } from "./tournament.entity";
 export class TournamentBlindLevel extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  tournament_id: string;
+  tournament_id!: string;
 
   @Column({ type: "integer" })
-  level: number;
+  level!: number;
 
   @Column({ type: "bigint", transformer: bigIntTransformer })
-  small_blind: bigint;
+  small_blind!: bigint;
 
   @Column({ type: "bigint", transformer: bigIntTransformer })
-  big_blind: bigint;
+  big_blind!: bigint;
 
   @Column({ type: "bigint", default: 0, transformer: bigIntTransformer })
-  ante: bigint;
+  ante: bigint = 0n;
 
   @Column({ type: "integer", default: 0 })
-  hands_played: number;
+  hands_played: number = 0;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  started_at: Date | null;
+  started_at?: Date;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  ended_at: Date | null;
+  ended_at?: Date;
 
   @ManyToOne(() => Tournament, (tournament) => tournament.blind_levels, {
     onDelete: "CASCADE",
   })
   @JoinColumn({ name: "tournament_id" })
-  tournament: Tournament;
+  tournament!: Tournament;
 }

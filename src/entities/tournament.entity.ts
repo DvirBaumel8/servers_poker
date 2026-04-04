@@ -24,57 +24,57 @@ export type TournamentType = "rolling" | "scheduled";
 export class Tournament extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 100 })
-  name: string;
+  name!: string;
 
   @Column({ type: "varchar", length: 20 })
-  type: TournamentType;
+  type!: TournamentType;
 
   @Index()
   @Column({ type: "varchar", length: 20, default: "registering" })
-  status: TournamentStatus;
+  status: TournamentStatus = "registering";
 
   @Column({ type: "bigint", transformer: bigIntTransformer })
-  buy_in: bigint;
+  buy_in!: bigint;
 
   @Column({ type: "bigint", transformer: bigIntTransformer })
-  starting_chips: bigint;
+  starting_chips!: bigint;
 
   @Column({ type: "integer" })
-  min_players: number;
+  min_players!: number;
 
   @Column({ type: "integer" })
-  max_players: number;
+  max_players!: number;
 
   @Column({ type: "integer", default: 9 })
-  players_per_table: number;
+  players_per_table: number = 9;
 
   @Column({ type: "integer", default: 10000 })
-  turn_timeout_ms: number;
+  turn_timeout_ms: number = 10000;
 
   @Column({ type: "boolean", default: true })
-  rebuys_allowed: boolean;
+  rebuys_allowed: boolean = true;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  scheduled_start_at: Date | null;
+  scheduled_start_at?: Date;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  started_at: Date | null;
+  started_at?: Date;
 
   @Column({ type: "timestamp with time zone", nullable: true })
-  finished_at: Date | null;
+  finished_at?: Date;
 
   @Column({ type: "boolean", default: false })
-  is_archived: boolean;
+  is_archived: boolean = false;
 
   @Column({ type: "varchar", length: 512, nullable: true })
-  archive_url: string | null;
+  archive_url?: string;
 
   @OneToMany(() => TournamentEntry, (entry) => entry.tournament)
-  entries: TournamentEntry[];
+  entries?: TournamentEntry[];
 
   @OneToMany(() => TournamentTable, (table) => table.tournament)
-  tables: TournamentTable[];
+  tables?: TournamentTable[];
 
   @OneToMany(() => TournamentBlindLevel, (level) => level.tournament)
-  blind_levels: TournamentBlindLevel[];
+  blind_levels?: TournamentBlindLevel[];
 }

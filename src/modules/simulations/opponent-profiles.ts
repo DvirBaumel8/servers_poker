@@ -290,6 +290,77 @@ export type OpponentProfile =
   | "TIGHT_PASSIVE"
   | "CURRENT_META";
 
+export type PlayerType = "Shark" | "Nit" | "Meta";
+
+/** Fractional seat weights per player type for each lineup. Must sum to 1. */
+export const LINEUP_DISTRIBUTIONS: Record<
+  OpponentProfile,
+  Partial<Record<PlayerType, number>>
+> = {
+  AGGRESSIVE_SHARKS: { Shark: 0.75, Nit: 0.25 },
+  TIGHT_PASSIVE: { Nit: 0.75, Shark: 0.25 },
+  CURRENT_META: { Meta: 0.5, Shark: 0.25, Nit: 0.25 },
+};
+
+const BOT_POOL: Record<PlayerType, OpponentBotConfig[]> = {
+  Shark: AGGRESSIVE_SHARKS_CONFIGS,
+  Nit: TIGHT_PASSIVE_CONFIGS,
+  Meta: CURRENT_META_CONFIGS,
+};
+
+/** Distribute totalSeats across player types using largest-remainder rounding. */
+function distributeSeats(
+  distribution: Partial<Record<PlayerType, number>>,
+  totalSeats: number,
+): Partial<Record<PlayerType, number>> {
+  const entries = Object.entries(distribution) as [PlayerType, number][];
+  const floors = entries.map(([type, weight]) => ({
+    type,
+    raw: weight * totalSeats,
+    count: Math.floor(weight * totalSeats),
+  }));
+  const remainder = totalSeats - floors.reduce((sum, f) => sum + f.count, 0);
+  floors.sort((a, b) => b.raw - b.count - (a.raw - a.count));
+  for (let i = 0; i < remainder; i++) floors[i].count++;
+  const result: Partial<Record<PlayerType, number>> = {};
+  for (const { type, count } of floors) result[type] = count;
+  return result;
+}
+
+/** Fisher-Yates shuffle (in-place, mutates array). */
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Build the opponent seat list from a profile's distribution.
+ * Picks bots from each type's pool proportionally, then shuffles the result.
+ */
+export function resolveOpponentsFromDistribution(
+  profile: OpponentProfile,
+  tableSize: number,
+): OpponentBotConfig[] {
+  const totalSeats = tableSize - 1;
+  const distribution =
+    LINEUP_DISTRIBUTIONS[profile] ?? LINEUP_DISTRIBUTIONS["CURRENT_META"];
+  const counts = distributeSeats(distribution, totalSeats);
+
+  const opponents: OpponentBotConfig[] = [];
+  for (const [typeKey, count] of Object.entries(counts) as [
+    PlayerType,
+    number,
+  ][]) {
+    opponents.push(...BOT_POOL[typeKey].slice(0, count));
+  }
+
+  return shuffle(opponents);
+}
+
+/** @deprecated Use resolveOpponentsFromDistribution instead. */
 export const PROFILE_CONFIGS: Record<OpponentProfile, OpponentBotConfig[]> = {
   AGGRESSIVE_SHARKS: AGGRESSIVE_SHARKS_CONFIGS,
   TIGHT_PASSIVE: TIGHT_PASSIVE_CONFIGS,

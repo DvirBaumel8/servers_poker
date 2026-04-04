@@ -20,27 +20,27 @@ export type TableStatus = "active" | "broken" | "finished";
 export class TournamentTable extends BaseEntity {
   @Index()
   @Column({ type: "varchar", length: 36 })
-  tournament_id: string;
+  tournament_id!: string;
 
   @Column({ type: "integer" })
-  table_number: number;
+  table_number!: number;
 
   @Column({ type: "varchar", length: 20, default: "active" })
-  status: TableStatus;
+  status: TableStatus = "active";
 
   @Column({ type: "varchar", length: 36, nullable: true })
-  game_id: string | null;
+  game_id?: string;
 
   @ManyToOne(() => Tournament, (tournament) => tournament.tables, {
     onDelete: "CASCADE",
   })
   @JoinColumn({ name: "tournament_id" })
-  tournament: Tournament;
+  tournament!: Tournament;
 
   @OneToOne(() => Game, { nullable: true })
   @JoinColumn({ name: "game_id" })
-  game: Game | null;
+  game?: Game;
 
   @OneToMany(() => TournamentSeat, (seat) => seat.tournament_table)
-  seats: TournamentSeat[];
+  seats?: TournamentSeat[];
 }

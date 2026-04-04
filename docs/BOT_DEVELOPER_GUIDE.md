@@ -115,22 +115,30 @@ For each cell, assign one of:
 - **Raise** — open-raise or 3-bet
 - **Call** — call a raise
 - **Fold** — fold preflop
+- **Unset** (grey "F") — defaults to Fold (the engine treats unset cells as Fold)
 
 The range chart takes priority over personality sliders for preflop decisions.
+
+**Stats bar:** Shows Raise / Call / Fold percentages across all 1326 hand combinations. Unset cells are counted as Fold, so the total always equals 100%.
 
 ---
 
 ## Position Overrides (Pro Tier)
 
-Override personality sliders and rules for specific positions. For example:
+Override personality sliders, rules, and the range chart for specific positions. Available positions: UTG, HJ, CO, BTN, SB, BB.
 
-- Play tighter from UTG (raise tightness to 90)
-- Play more aggressively from BTN (raise aggression to 85)
-- Add a 3-bet bluff rule only from the CO
+**Position-specific range charts** are the most powerful Tier 3 feature:
+- Switch to a position tab (e.g. BTN) above the range chart grid
+- Tabs with a cyan dot have custom overrides; others inherit from the Global range
+- Paint cells on the position tab to override specific hands from that seat
+- A position with no painted cells shows "Inheriting from Global" and uses the global range
 
 Each position override can include:
 - Custom personality slider values
 - Additional rules or rule overrides
+- A full per-position preflop range chart
+
+The engine fallback order: `positionOverrides[pos].rangeChart` → `globalRangeChart` → rules → personality.
 
 ---
 
