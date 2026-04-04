@@ -37,3 +37,6 @@ tests/qa/performance/reports/
 !tests/qa/monsters/screenshots/.gitkeep
 !tests/qa/performance/reports/.gitkeep
 .aider*
+
+# Claude Code temp files
+.claude/worktrees/
