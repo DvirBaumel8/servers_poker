@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
@@ -72,6 +72,20 @@ export default function TournamentDetailPage() {
     enabled: !!id && !loading,
   })
 
+  const fetchTournamentDetail = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await api.get(`/tournaments/${id}`)
+      setTournament(res.data)
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to load tournament'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
   // Apply real-time updates to tournament state
   useEffect(() => {
     if (latestUpdate && tournament?.id === latestUpdate.tournamentId) {
@@ -86,7 +100,7 @@ export default function TournamentDetailPage() {
           : null,
       )
     }
-  }, [latestUpdate])
+  }, [latestUpdate, tournament?.id])
 
   const userEntries = tournament?.entries?.filter((e) => e.user_id === user?.id) ?? []
   const hasJoined = userEntries.length > 0
@@ -97,21 +111,7 @@ export default function TournamentDetailPage() {
     if (id) {
       fetchTournamentDetail()
     }
-  }, [id])
-
-  async function fetchTournamentDetail() {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await api.get(`/tournaments/${id}`)
-      setTournament(res.data)
-    } catch (err: unknown) {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to load tournament'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [id, fetchTournamentDetail])
 
   const handleJoinSuccess = () => {
     setShowBotSelector(false)

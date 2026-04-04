@@ -34,7 +34,7 @@ interface CarouselHostProps {
  * This lets us test the full onboarding flow (gating + carousel behavior)
  * without depending on the full Home component and its API calls.
  */
-function CarouselHost({ initialLsValue, onUpgrade }: CarouselHostProps) {
+function CarouselHost({ initialLsValue: _initialLsValue, onUpgrade }: CarouselHostProps) {
   // Mirrors: useState(() => localStorage.getItem('hasSeenWelcomeCarousel') !== 'true')
   const [show, setShow] = useState<boolean>(
     () => localStorage.getItem(LS_KEY) !== 'true'

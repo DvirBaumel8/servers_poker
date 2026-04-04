@@ -109,8 +109,8 @@ export default function RangeChartComponent({
   const [activePos, setActivePos] = useState<RangePosition | null>(null)
   const isPaintingRef = useRef(false)
   const pendingRef = useRef<RangeChart>({})
-  const localOverrides = useRef<Record<string, RangeAction>>({})
-  const [, forceRender] = useState(0)
+  // localOverrides is kept as state (not a ref) so that it can be safely read during render
+  const [localOverrides, setLocalOverrides] = useState<Record<string, RangeAction>>({})
 
   const isPositionalMode = !!onPositionalChange
 
@@ -132,19 +132,18 @@ export default function RangeChartComponent({
   // Effective action for a cell: local override (during drag) or actual chart value
   const getEffectiveAction = useCallback(
     (hand: string): RangeAction => {
-      if (hand in localOverrides.current) return localOverrides.current[hand]
+      if (hand in localOverrides) return localOverrides[hand]
       return activeChart[hand] || null
     },
-    [activeChart],
+    [activeChart, localOverrides],
   )
 
   // Paint a single cell
   const paintCell = useCallback(
     (hand: string) => {
       const newAction = paintAction
-      localOverrides.current[hand] = newAction
       pendingRef.current[hand] = newAction
-      forceRender((n) => n + 1)
+      setLocalOverrides((prev) => ({ ...prev, [hand]: newAction }))
     },
     [paintAction],
   )
@@ -161,7 +160,7 @@ export default function RangeChartComponent({
       }
     }
     pendingRef.current = {}
-    localOverrides.current = {}
+    setLocalOverrides({})
     if (activePos !== null && onPositionalChange) {
       onPositionalChange(activePos, updated)
     } else {
@@ -228,7 +227,7 @@ export default function RangeChartComponent({
     } else {
       onChange({})
     }
-    localOverrides.current = {}
+    setLocalOverrides({})
     pendingRef.current = {}
   }
 
@@ -240,7 +239,7 @@ export default function RangeChartComponent({
     } else {
       onChange(newChart)
     }
-    localOverrides.current = {}
+    setLocalOverrides({})
     pendingRef.current = {}
   }
 
@@ -250,7 +249,7 @@ export default function RangeChartComponent({
       isPaintingRef.current = false
       flushChanges()
     }
-    localOverrides.current = {}
+    setLocalOverrides({})
     pendingRef.current = {}
     setActivePos(pos)
   }

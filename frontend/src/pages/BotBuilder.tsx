@@ -186,7 +186,6 @@ export default function BotBuilder() {
         },
       })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Create bot immediately on mount for new bots (no ?id= param)

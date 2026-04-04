@@ -33,7 +33,7 @@ export interface TournamentNotification {
   tournamentId: string
   type: 'blind_increase' | 'player_joined' | 'player_busted' | 'final_table_reached'
   message: string
-  data?: Record<string, any>
+  data?: Record<string, unknown>
   timestamp: string
 }
 
@@ -64,6 +64,7 @@ export function useTournamentSocket({
   const [latestUpdate, setLatestUpdate] = useState<TournamentStateUpdate | null>(null)
   const [playerUpdates, setPlayerUpdates] = useState<TournamentPlayerUpdate[]>([])
   const [notifications, setNotifications] = useState<TournamentNotification[]>([])
+  const [socket, setSocket] = useState<Socket | null>(null)
 
   useEffect(() => {
     if (!enabled || !token || !tournamentId) {
@@ -86,6 +87,7 @@ export function useTournamentSocket({
     })
 
     socketRef.current = socket
+    setSocket(socket)
 
     // Connection events
     socket.on('connect', () => {
@@ -126,6 +128,7 @@ export function useTournamentSocket({
       socket.emit('unsubscribe_tournament', { tournamentId })
       socket.disconnect()
       socketRef.current = null
+      setSocket(null)
     }
   }, [tournamentId, token, enabled])
 
@@ -141,6 +144,6 @@ export function useTournamentSocket({
     playerUpdates,
     notifications,
     refreshTournament,
-    socket: socketRef.current,
+    socket,
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import GameSpectator from './GameSpectator'
@@ -41,45 +41,7 @@ export default function TournamentLivePage() {
   const [, setTournamentFinished] = useState(false)
   const [tournamentStatus, setTournamentStatus] = useState<string | null>(null)
 
-  // Fetch current table info
-  useEffect(() => {
-    if (id) {
-      fetchCurrentTable()
-      // Poll every 30 seconds to check for table changes
-      const interval = setInterval(() => {
-        fetchCurrentTable()
-      }, 30000)
-      return () => clearInterval(interval)
-    }
-  }, [id])
-
-  // Check tournament status when eliminated
-  useEffect(() => {
-    if (eliminated && id) {
-      const checkTournamentStatus = async () => {
-        try {
-          const res = await api.get(`/tournaments/${id}`)
-          setTournamentStatus(res.data.status)
-
-          // Only auto-redirect if tournament is completely finished
-          if (res.data.status === 'finished') {
-            setTournamentFinished(true)
-            setTimeout(() => {
-              navigate(`/tournaments/${id}/results`)
-            }, 1000)
-          }
-        } catch (err) {
-          // Silently fail
-        }
-      }
-      checkTournamentStatus()
-      // Poll every 5 seconds while waiting for tournament to finish
-      const interval = setInterval(checkTournamentStatus, 5000)
-      return () => clearInterval(interval)
-    }
-  }, [eliminated, id, navigate])
-
-  async function fetchCurrentTable() {
+  const fetchCurrentTable = useCallback(async () => {
     try {
       const res = await api.get(`/tournaments/${id}/my-current-table`)
       setTableInfo(res.data)
@@ -102,7 +64,45 @@ export default function TournamentLivePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  // Fetch current table info
+  useEffect(() => {
+    if (id) {
+      fetchCurrentTable()
+      // Poll every 30 seconds to check for table changes
+      const interval = setInterval(() => {
+        fetchCurrentTable()
+      }, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [id, fetchCurrentTable])
+
+  // Check tournament status when eliminated
+  useEffect(() => {
+    if (eliminated && id) {
+      const checkTournamentStatus = async () => {
+        try {
+          const res = await api.get(`/tournaments/${id}`)
+          setTournamentStatus(res.data.status)
+
+          // Only auto-redirect if tournament is completely finished
+          if (res.data.status === 'finished') {
+            setTournamentFinished(true)
+            setTimeout(() => {
+              navigate(`/tournaments/${id}/results`)
+            }, 1000)
+          }
+        } catch (_err) {
+          // Silently fail
+        }
+      }
+      checkTournamentStatus()
+      // Poll every 5 seconds while waiting for tournament to finish
+      const interval = setInterval(checkTournamentStatus, 5000)
+      return () => clearInterval(interval)
+    }
+  }, [eliminated, id, navigate])
 
   if (loading) {
     return (

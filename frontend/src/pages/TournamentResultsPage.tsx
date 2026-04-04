@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
@@ -52,13 +52,7 @@ export default function TournamentResultsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    if (id) {
-      fetchResults()
-    }
-  }, [id])
-
-  async function fetchResults() {
+  const fetchResults = useCallback(async () => {
     try {
       const res = await api.get<TournamentResults>(`/tournaments/${id}/results`)
       setResults(res.data)
@@ -71,7 +65,13 @@ export default function TournamentResultsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    if (id) {
+      fetchResults()
+    }
+  }, [id, fetchResults])
 
   if (loading) {
     return (
