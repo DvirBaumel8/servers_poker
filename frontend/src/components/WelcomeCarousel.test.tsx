@@ -11,7 +11,7 @@
  * that mirrors the exact logic in Home.tsx, ensuring the tests reflect real usage.
  */
 
-import React, { useState, act } from 'react'
+import { useState, act } from 'react'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import WelcomeCarousel from './WelcomeCarousel'
