@@ -225,7 +225,7 @@ async function runHandSimulation(
   }
 
   // Record target bot's starting chips
-  targetBotStartChips = BigInt(startingChips);
+  const targetBotStartChips = BigInt(startingChips);
 
   // startGame() is triggered automatically by addPlayer when ≥2 players are seated.
   // We await it here to block until the game completes (game.stop() is called after handCount).
