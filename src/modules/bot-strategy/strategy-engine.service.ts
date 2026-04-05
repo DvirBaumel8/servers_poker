@@ -55,15 +55,19 @@ import { parseCardString } from "./evaluators/hand-analyzer";
 const HYDRATION_CACHE = new Map<string, HydratedStrategy>();
 const CACHE_MAX = 256;
 
+const STRATEGY_HASH_MAX_CHARS = 50_000;
+
 function strategyHash(strategy: BotStrategy): string {
   const str = JSON.stringify(strategy);
+  // Cap iteration to prevent unbounded loop over user-controlled input.
+  // Include str.length in the key so two strategies with identical prefixes
+  // but different total content don't collide.
+  const len = Math.min(str.length, STRATEGY_HASH_MAX_CHARS);
   let hash = 0;
-  const len = str.length;
   for (let i = 0; i < len; i++) {
     hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
   }
-  // Include tier in key to guard against hash collisions across different tiers
-  return `${strategy.tier}:${hash >>> 0}`;
+  return `${strategy.tier}:${hash >>> 0}:${str.length}`;
 }
 
 function compileStreetRules(rules?: StreetRules): HydratedStreetRules {
