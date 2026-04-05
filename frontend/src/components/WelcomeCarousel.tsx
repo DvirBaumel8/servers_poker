@@ -531,11 +531,13 @@ export default function WelcomeCarousel({ userName: _userName, onClose, onUpgrad
   }
 
   function handleBuildBot() {
+    // Completing the full flow always marks the carousel as seen (persist=true),
+    // regardless of the "Don't show again" checkbox state.
     if (onBuildBot) {
       setClosing(true)
-      setTimeout(() => onBuildBot(dontShow), 260)
+      setTimeout(() => onBuildBot(true), 260)
     } else {
-      triggerClose(dontShow)
+      triggerClose(true)
     }
   }
 
