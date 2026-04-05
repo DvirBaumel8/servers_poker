@@ -112,7 +112,7 @@ export default function TournamentResultsPage() {
             {error || 'Could not load tournament results'}
           </p>
           <button
-            onClick={() => navigate('/tournaments')}
+            onClick={() => navigate(-1)}
             style={{
               padding: '12px 24px',
               background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
@@ -152,7 +152,7 @@ export default function TournamentResultsPage() {
         }}
       >
         <button
-          onClick={() => navigate('/tournaments')}
+          onClick={() => navigate(-1)}
           style={{
             float: 'left',
             background: 'none',

@@ -336,16 +336,22 @@ export class GameDataPersistenceService implements OnModuleInit {
       let handId = this.handIdCache.get(cacheKey);
 
       if (!handId) {
-        const hand = await this.handRepository.findOne({
-          where: { game_id: event.gameId, hand_number: event.handNumber },
-        });
-        if (!hand) {
+        // Retry loop: onHandStarted's DB transaction may not have committed yet
+        // for very short hands (everyone folds preflop ~50ms after the hand starts).
+        for (let attempt = 0; attempt < 5 && !handId; attempt++) {
+          if (attempt > 0)
+            await new Promise((r) => setTimeout(r, 50 * attempt));
+          const hand = await this.handRepository.findOne({
+            where: { game_id: event.gameId, hand_number: event.handNumber },
+          });
+          handId = hand?.id;
+        }
+        if (!handId) {
           this.logger.warn(
-            `Hand ${event.handNumber} not found for completion, skipping`,
+            `Hand ${event.handNumber} not found for completion after retries, skipping`,
           );
           return;
         }
-        handId = hand.id;
       }
 
       const capturedHandId = handId;

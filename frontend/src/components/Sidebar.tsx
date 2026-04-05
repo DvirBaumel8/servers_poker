@@ -72,6 +72,11 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
       <line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/>
     </svg>
   ),
+  Admin: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L3 7v5c0 5.25 3.75 10.14 9 11.29C17.25 22.14 21 17.25 21 12V7L12 2z"/>
+    </svg>
+  ),
 }
 
 export function Sidebar() {
@@ -124,8 +129,9 @@ export function Sidebar() {
         >
           {collapsed ? '»' : '«'}
         </button>
-        {NAV.map(({ label, path }) => {
+        {[...NAV, ...(user?.role === 'admin' ? [{ label: 'Admin', path: '/admin' }] : [])].map(({ label, path }) => {
           const active = location.pathname === path
+          const isAdmin = label === 'Admin'
           return (
             <button
               key={path}
@@ -133,9 +139,9 @@ export function Sidebar() {
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: collapsed ? 0 : 10,
                 width: '100%', padding: collapsed ? '7px 0' : '7px 20px',
-                background: active ? C.accentDim : 'transparent',
+                background: active ? (isAdmin ? 'rgba(0,229,255,0.12)' : C.accentDim) : 'transparent',
                 border: 'none', borderLeft: collapsed ? 'none' : `3px solid ${active ? C.accent : 'transparent'}`,
-                color: active ? C.text : C.muted,
+                color: active ? C.text : (isAdmin ? 'rgba(0,229,255,0.7)' : C.muted),
                 fontSize: 14, fontFamily: C.font, cursor: 'pointer',
                 textAlign: 'left', transition: 'all 0.15s',
               }}

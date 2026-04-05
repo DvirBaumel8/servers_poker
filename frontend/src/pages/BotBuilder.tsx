@@ -153,6 +153,7 @@ export default function BotBuilder() {
   })
 
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [showUpgradeBanner, setShowUpgradeBanner] = useState(false)
   const [savedJustNow, setSavedJustNow] = useState(false)
   const [conditionFields, setConditionFields] = useState<ConditionFieldDef[]>([])
   const [presets, setPresets] = useState<PersonalityPreset[]>([])
@@ -161,6 +162,8 @@ export default function BotBuilder() {
   const personalityRef = useRef<HTMLDivElement>(null)
   const rulesRef = useRef<HTMLDivElement>(null)
   const rangeChartRef = useRef<HTMLDivElement>(null)
+  // Prevents React StrictMode double-invocation from firing two simultaneous create calls
+  const initCalledRef = useRef(false)
 
   // Always holds the latest state so the unmount cleanup can access it
   const stateRef = useRef(state)
@@ -191,6 +194,8 @@ export default function BotBuilder() {
   // Create bot immediately on mount for new bots (no ?id= param)
   useEffect(() => {
     if (searchParams.get('id') || !isAuthenticated) return
+    if (initCalledRef.current) return
+    initCalledRef.current = true
 
     api.get('/bots/my?limit=100&offset=0')
       .then((res) => {
@@ -223,8 +228,10 @@ export default function BotBuilder() {
       .catch((err) => {
         console.error('❌ Failed to create bot draft:', err)
         const msg: string = err?.response?.data?.message ?? ''
-        if (msg.includes('Maximum') && msg.includes('bots')) {
-          setSaveError(msg + ' Go to My Bots to delete inactive bots first.')
+        if (msg.toLowerCase().includes('maximum') || msg.toLowerCase().includes('upgrade')) {
+          setShowUpgradeBanner(true)
+        } else {
+          setSaveError('Failed to initialize bot. Please try again.')
         }
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -448,6 +455,40 @@ export default function BotBuilder() {
           minWidth: 0,
         }}
       >
+        {/* Upgrade banner — shown when bot creation is rejected due to tier limit */}
+        {showUpgradeBanner && (
+          <div style={{
+            margin: '16px 24px 0',
+            padding: '14px 18px',
+            borderRadius: 12,
+            background: 'rgba(0,229,255,0.07)',
+            border: '1px solid rgba(0,229,255,0.3)',
+            display: 'flex', alignItems: 'center', gap: 14,
+            fontFamily: C.font,
+          }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>⚡</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 3 }}>
+                Bot limit reached
+              </div>
+              <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5 }}>
+                Your Free plan allows 1 bot. Upgrade to Pro for 5 bot slots and automatic tournament entry.
+              </div>
+            </div>
+            <button
+              onClick={() => setShowUpgradeBanner(false)}
+              style={{
+                background: 'transparent', border: 'none',
+                color: '#9ca3af', fontSize: 16, cursor: 'pointer',
+                padding: '2px 6px', borderRadius: 4, flexShrink: 0,
+              }}
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div
           style={{

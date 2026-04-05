@@ -12,12 +12,18 @@ import { BotRepository } from "../../repositories/bot.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
 import { RedisCacheService } from "../../common/redis/redis-cache.service";
 import { Tournament, TournamentStatus } from "../../entities/tournament.entity";
+import { Bot } from "../../entities/bot.entity";
 import {
   CreateTournamentDto,
   TournamentResponseDto,
   TournamentResultDto,
   TournamentLeaderboardEntryDto,
 } from "./dto/tournament.dto";
+import { calculatePrizes } from "../../config/tournaments.config";
+import {
+  TournamentEvent,
+  EVENT_TABLE_MOVE,
+} from "../../entities/tournament-event.entity";
 
 export interface HandManifestItem {
   id: string;
@@ -52,6 +58,7 @@ export class TournamentsService {
       max_players: dto.max_players,
       players_per_table: dto.players_per_table ?? 9,
       turn_timeout_ms: dto.turn_timeout_ms ?? 10000,
+      hands_per_level: dto.hands_per_level ?? 50,
       rebuys_allowed: dto.rebuys_allowed ?? true,
       scheduled_start_at: dto.scheduled_start_at
         ? new Date(dto.scheduled_start_at)
@@ -472,17 +479,19 @@ export class TournamentsService {
     });
 
     // Calculate payouts
-    const prizePool = entries.length * Number(tournament.buy_in);
-    const payouts = this.calculatePayouts(prizePool, sortedEntries.length);
+    const prizePool = BigInt(entries.length) * tournament.buy_in;
+    const payouts = calculatePrizes(prizePool, sortedEntries.length);
+    const payoutByPosition = new Map(
+      payouts.map((p) => [p.position, p.amount]),
+    );
 
     // Update finish positions and payouts
     for (let i = 0; i < sortedEntries.length; i++) {
       const position = i + 1;
-      const payout = payouts[i] || 0;
       await this.tournamentRepository.setEntryPayout(
         tournamentId,
         sortedEntries[i].bot_id,
-        BigInt(payout),
+        payoutByPosition.get(position) ?? 0n,
         position,
       );
     }
@@ -492,59 +501,6 @@ export class TournamentsService {
     this.logger.log(
       `Tournament ${tournamentId} finalized with ${sortedEntries.length} entries`,
     );
-  }
-
-  /**
-   * Calculate payouts for tournament entries.
-   * Uses a standard payout structure: top 10% or minimum 3 players receive payouts.
-   */
-  private calculatePayouts(prizePool: number, entryCount: number): number[] {
-    const payouts: number[] = new Array(entryCount).fill(0);
-
-    // Determine number of paid places (top 10% or minimum 3, maximum 50%)
-    const paidPlaces = Math.max(
-      3,
-      Math.min(entryCount * 0.5, entryCount * 0.1),
-    );
-    const numPaid = Math.floor(paidPlaces);
-
-    if (numPaid === 0 || prizePool === 0) {
-      return payouts;
-    }
-
-    // Payout structure (percentage of prize pool for each position)
-    // Weighted towards top finishers
-    const payoutPercentages = [
-      0.3, // 1st: 30%
-      0.2, // 2nd: 20%
-      0.15, // 3rd: 15%
-      0.1, // 4th: 10%
-      0.08, // 5th: 8%
-      0.07, // 6th: 7%
-      0.05, // 7th: 5%
-      0.03, // 8th: 3%
-      0.02, // 9th: 2%
-    ];
-
-    let remainingPrizePool = prizePool;
-
-    // Pay out top positions using predefined percentages
-    for (let i = 0; i < Math.min(numPaid, payoutPercentages.length); i++) {
-      const payout = Math.floor(prizePool * payoutPercentages[i]);
-      payouts[i] = payout;
-      remainingPrizePool -= payout;
-    }
-
-    // Distribute remaining prize pool equally among remaining paid places
-    if (numPaid > payoutPercentages.length && remainingPrizePool > 0) {
-      const remainingPlaces = numPaid - payoutPercentages.length;
-      const payPerPlace = Math.floor(remainingPrizePool / remainingPlaces);
-      for (let i = payoutPercentages.length; i < numPaid; i++) {
-        payouts[i] = payPerPlace;
-      }
-    }
-
-    return payouts;
   }
 
   private toResponseDto(
@@ -663,6 +619,363 @@ export class TournamentsService {
     }));
   }
 
+  /**
+   * Returns DB-derived live summary for a running tournament when the
+   * in-memory director state is unavailable (e.g. after a server restart).
+   */
+  async getLiveSummary(tournamentId: string): Promise<{
+    playersRemaining: number;
+    tableCount: number;
+    tableIds: string[];
+    currentBlindLevel: number | null;
+    smallBlind: number | null;
+    bigBlind: number | null;
+    ante: number | null;
+  }> {
+    const [playerRows, tableRows, blindRows] = await Promise.all([
+      this.dataSource.query(
+        `SELECT COUNT(*) AS cnt FROM tournament_entries
+         WHERE tournament_id = $1 AND finish_position IS NULL`,
+        [tournamentId],
+      ),
+      this.dataSource.query(
+        `SELECT id FROM tournament_tables
+         WHERE tournament_id = $1 AND status = 'active'`,
+        [tournamentId],
+      ),
+      this.dataSource.query(
+        `SELECT level, small_blind, big_blind, ante
+         FROM tournament_blind_levels
+         WHERE tournament_id = $1
+         ORDER BY created_at DESC LIMIT 1`,
+        [tournamentId],
+      ),
+    ]);
+
+    const blind = blindRows[0] ?? null;
+    return {
+      playersRemaining: parseInt(playerRows[0]?.cnt ?? "0", 10),
+      tableCount: tableRows.length,
+      tableIds: tableRows.map((r: any) => r.id as string),
+      currentBlindLevel: blind ? Number(blind.level) : null,
+      smallBlind: blind ? Number(blind.small_blind) : null,
+      bigBlind: blind ? Number(blind.big_blind) : null,
+      ante: blind ? Number(blind.ante) : null,
+    };
+  }
+
+  // ─── Admin Operations ────────────────────────────────────────────────────────
+
+  async getAdminEntries(tournamentId: string): Promise<
+    Array<{
+      entryId: string;
+      botId: string;
+      botName: string;
+      ownerName: string;
+      isSystem: boolean;
+    }>
+  > {
+    const entries = await this.tournamentRepository.getEntries(tournamentId);
+    return entries.map((e) => ({
+      entryId: e.id,
+      botId: e.bot_id,
+      botName: e.bot?.name ?? "Unknown",
+      ownerName: e.bot?.user?.name ?? "Unknown",
+      isSystem: e.bot?.isSystem ?? false,
+    }));
+  }
+
+  async removeEntry(tournamentId: string, entryId: string): Promise<void> {
+    const tournament =
+      await this.tournamentRepository.findByIdOrThrow(tournamentId);
+    if (tournament.status !== "registering") {
+      throw new BadRequestException(
+        "Cannot remove entries from a started tournament",
+      );
+    }
+    await this.tournamentRepository.deleteEntry(entryId);
+  }
+
+  /**
+   * Inject system bots into a registering tournament until it's full.
+   * Bypasses the per-user ownership check since these are internal system bots.
+   */
+  async injectSystemBots(
+    tournamentId: string,
+    profile: "random" | "sharks" | "fish" | "balanced" = "random",
+    count?: number,
+  ): Promise<{ injected: number; total: number }> {
+    const tournament =
+      await this.tournamentRepository.findByIdOrThrow(tournamentId);
+
+    if (tournament.status !== "registering") {
+      throw new BadRequestException(
+        "Can only inject bots into registering tournaments",
+      );
+    }
+
+    const entries = await this.tournamentRepository.getEntries(tournamentId);
+    const slotsAvailable = Math.min(
+      tournament.max_players - entries.length,
+      count ?? tournament.max_players,
+    );
+
+    if (slotsAvailable <= 0) {
+      throw new BadRequestException("Tournament is already full");
+    }
+
+    const registeredBotIds = new Set(entries.map((e) => e.bot_id));
+
+    // Profile → name patterns (matches seeded system bot names)
+    const SHARK_NAMES = ["The Shark", "The Maniac", "The Bully", "The Tricky"];
+    const FISH_NAMES = ["The Calling Station", "The Nit", "The Rock"];
+
+    const allBots = await this.dataSource
+      .getRepository(Bot)
+      .find({ where: { isSystem: true, active: true } });
+
+    let pool: typeof allBots;
+    if (profile === "sharks") {
+      pool = allBots.filter((b) =>
+        SHARK_NAMES.some((n) => b.name.includes(n.replace("The ", ""))),
+      );
+      if (pool.length === 0) pool = allBots; // fallback
+    } else if (profile === "fish") {
+      pool = allBots.filter((b) =>
+        FISH_NAMES.some((n) => b.name.includes(n.replace("The ", ""))),
+      );
+      if (pool.length === 0) pool = allBots;
+    } else if (profile === "balanced") {
+      const sharks = allBots.filter((b) =>
+        SHARK_NAMES.some((n) => b.name.includes(n.replace("The ", ""))),
+      );
+      const fish = allBots.filter((b) =>
+        FISH_NAMES.some((n) => b.name.includes(n.replace("The ", ""))),
+      );
+      // Interleave: shark, fish, shark, fish…
+      pool = [];
+      const maxLen = Math.max(sharks.length, fish.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (sharks[i]) pool.push(sharks[i]);
+        if (fish[i]) pool.push(fish[i]);
+      }
+      if (pool.length === 0) pool = allBots;
+    } else {
+      // random — shuffle
+      pool = [...allBots].sort(() => Math.random() - 0.5);
+    }
+
+    // First try unique bots; if pool is exhausted (all already registered),
+    // cycle through the full pool to fill remaining slots.
+    const uniqueBots = pool.filter((b) => !registeredBotIds.has(b.id));
+    let botsToAdd: typeof pool;
+    if (uniqueBots.length >= slotsAvailable || pool.length === 0) {
+      botsToAdd = uniqueBots.slice(0, slotsAvailable);
+    } else {
+      // Cycle through pool to fill remaining slots
+      botsToAdd = [...uniqueBots];
+      const cyclePool = pool.length > 0 ? pool : allBots;
+      while (botsToAdd.length < slotsAvailable) {
+        botsToAdd.push(cyclePool[botsToAdd.length % cyclePool.length]);
+      }
+    }
+
+    let injected = 0;
+    for (const bot of botsToAdd) {
+      await this.tournamentRepository.createEntry({
+        tournament_id: tournamentId,
+        bot_id: bot.id,
+        entry_type: "initial",
+        payout: 0n,
+      });
+      injected++;
+    }
+
+    this.logger.log(
+      `Admin injected ${injected} system bots (${profile}) into tournament ${tournamentId}`,
+    );
+    return { injected, total: tournament.max_players };
+  }
+
+  /**
+   * Returns all non-admin users with their active bot counts.
+   */
+  async getUsersWithBotCounts(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      email: string;
+      subscription_status: string;
+      bot_count: string;
+      last_login_at: string | null;
+    }>
+  > {
+    return this.dataSource.query(`
+      SELECT u.id, u.name, u.email, u.subscription_status,
+             u.last_login_at,
+             COUNT(b.id) FILTER (WHERE b.active = true) AS bot_count
+      FROM users u
+      LEFT JOIN bots b ON b.user_id = u.id
+      WHERE u.role = 'user'
+      GROUP BY u.id, u.name, u.email, u.subscription_status, u.last_login_at
+      ORDER BY bot_count DESC
+      LIMIT 200
+    `);
+  }
+
+  /**
+   * Returns the last N finished tournaments with winner and prize info for the admin sidebar.
+   */
+  async getAdminHistory(limit = 20): Promise<
+    Array<{
+      id: string;
+      name: string;
+      buy_in: number;
+      finished_at: Date | null;
+      entries_count: number;
+      winner_bot_name: string | null;
+      prize_pool: number;
+    }>
+  > {
+    return this.dataSource.query(
+      `SELECT t.id, t.name, t.buy_in, t.finished_at,
+              (SELECT COUNT(*) FROM tournament_entries WHERE tournament_id = t.id)::int AS entries_count,
+              b.name AS winner_bot_name,
+              t.buy_in * (SELECT COUNT(*) FROM tournament_entries WHERE tournament_id = t.id)::int AS prize_pool
+       FROM tournaments t
+       LEFT JOIN tournament_entries te ON te.tournament_id = t.id AND te.finish_position = 1
+       LEFT JOIN bots b ON b.id = te.bot_id
+       WHERE t.status = 'finished'
+       ORDER BY t.finished_at DESC NULLS LAST
+       LIMIT $1`,
+      [limit],
+    );
+  }
+
+  /**
+   * Cancel all registering tournaments (dev/ops reset).
+   */
+  async resetDevState(): Promise<{ cancelled: number }> {
+    const result = await this.dataSource.query(
+      `UPDATE tournaments SET status = 'cancelled' WHERE status = 'registering'`,
+    );
+    const cancelled = result[1] ?? 0;
+    this.logger.warn(
+      `Admin reset: cancelled ${cancelled} registering tournaments`,
+    );
+    return { cancelled };
+  }
+
+  async getSeedingMap(tournamentId: string): Promise<{
+    tables: Array<{
+      tableId: string;
+      tableNumber: number;
+      broken: boolean;
+      seats: Array<{
+        botId: string;
+        botName: string;
+        ownerName: string;
+        userId: string;
+        elo: number;
+        busted: boolean;
+      }>;
+    }>;
+    fairnessScore: number;
+  }> {
+    const rows: Array<{
+      table_id: string;
+      table_number: string;
+      table_status: string;
+      bot_id: string;
+      bot_name: string;
+      user_id: string;
+      user_name: string;
+      wins: string;
+      busted: boolean;
+    }> = await this.dataSource.query(
+      `
+      SELECT
+        tt.id            AS table_id,
+        tt.table_number,
+        tt.status        AS table_status,
+        b.id             AS bot_id,
+        b.name           AS bot_name,
+        u.id             AS user_id,
+        u.name           AS user_name,
+        COALESCE(bs.tournament_wins, 0) AS wins,
+        ts.busted
+      FROM tournament_seats ts
+      JOIN tournament_tables tt ON tt.id = ts.tournament_table_id
+      JOIN bots b  ON b.id  = ts.bot_id
+      JOIN users u ON u.id  = b.user_id
+      LEFT JOIN bot_stats bs ON bs.bot_id = b.id
+      WHERE ts.tournament_id = $1
+      ORDER BY tt.table_number, ts.seat_number
+      `,
+      [tournamentId],
+    );
+
+    const tableMap = new Map<
+      string,
+      {
+        tableNumber: number;
+        broken: boolean;
+        seats: Array<{
+          botId: string;
+          botName: string;
+          ownerName: string;
+          userId: string;
+          elo: number;
+          busted: boolean;
+        }>;
+      }
+    >();
+
+    for (const r of rows) {
+      if (!tableMap.has(r.table_id)) {
+        tableMap.set(r.table_id, {
+          tableNumber: Number(r.table_number),
+          broken: r.table_status !== "active",
+          seats: [],
+        });
+      }
+      tableMap.get(r.table_id)!.seats.push({
+        botId: r.bot_id,
+        botName: r.bot_name,
+        ownerName: r.user_name,
+        userId: r.user_id,
+        elo: Number(r.wins),
+        busted: r.busted,
+      });
+    }
+
+    const tables = [...tableMap.entries()].map(([tableId, data]) => ({
+      tableId,
+      tableNumber: data.tableNumber,
+      broken: data.broken,
+      seats: data.seats,
+    }));
+
+    // Fairness score uses only active tables (broken tables are historical)
+    const activeTables = tables.filter((t) => !t.broken);
+    const means = activeTables.map(
+      (t) =>
+        t.seats.reduce((s, seat) => s + seat.elo, 0) / (t.seats.length || 1),
+    );
+    const globalMean = means.reduce((s, m) => s + m, 0) / (means.length || 1);
+    const fairnessScore =
+      activeTables.length < 2
+        ? 0
+        : Math.sqrt(
+            means.reduce((s, m) => s + (m - globalMean) ** 2, 0) / means.length,
+          );
+
+    return {
+      tables,
+      fairnessScore: Math.round(fairnessScore * 10) / 10,
+    };
+  }
+
   private toResponseDtoWithEntries(
     tournament: Tournament,
     entriesCount: number,
@@ -693,5 +1006,20 @@ export class TournamentsService {
       })),
       created_at: tournament.created_at,
     };
+  }
+
+  /**
+   * Return recent TABLE_MOVE events for a tournament, ordered newest-first.
+   * Used by the Admin Dashboard balancing moves panel and the Replay Player.
+   */
+  async getBalancingMoves(
+    tournamentId: string,
+    limit = 20,
+  ): Promise<TournamentEvent[]> {
+    return this.dataSource.getRepository(TournamentEvent).find({
+      where: { tournament_id: tournamentId, event_type: EVENT_TABLE_MOVE },
+      order: { created_at: "DESC" },
+      take: limit,
+    });
   }
 }

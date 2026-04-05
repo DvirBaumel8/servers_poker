@@ -97,6 +97,12 @@ export class CreateTournamentDto {
   turn_timeout_ms?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(500)
+  hands_per_level?: number;
+
+  @IsOptional()
   @IsBoolean()
   rebuys_allowed?: boolean;
 

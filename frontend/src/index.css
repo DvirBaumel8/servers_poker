@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
+/* ─── Design-system tokens ──────────────────────────────────────────────────── */
+@theme {
+  /* Zinc-900 at 50% opacity — matches Welcome Carousel card background */
+  --color-card-bg: rgba(24, 24, 27, 0.5);
+
+  /* Brand cyan */
+  --color-brand-cyan: #00e5ff;
+
+  /* Glow shadow utility for brand-cyan elements */
+  --shadow-cyan-glow: 0 0 16px rgba(0, 229, 255, 0.35), 0 0 4px rgba(0, 229, 255, 0.2);
+}
+
+/* ─── Shared component classes ──────────────────────────────────────────────── */
+@layer components {
+  /**
+   * .glass-card — the single source of truth for card elevation.
+   * Matches the Welcome Carousel modal DNA: blurred glass, zinc border, rounded.
+   * Usage: <div className="glass-card p-4"> ... </div>
+   */
+  .glass-card {
+    background-color: var(--color-card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgb(39 39 42); /* zinc-800 */
+    border-radius: 0.75rem;          /* rounded-xl */
+  }
+
+  /** Cyan glow button/badge helper */
+  .brand-glow {
+    box-shadow: var(--shadow-cyan-glow);
+  }
+}
+
 * {
   font-family: 'Exo 2', sans-serif;
   box-sizing: border-box;

@@ -445,6 +445,319 @@ describe("TournamentsService", () => {
     });
   });
 
+  // ── Admin bot management ──────────────────────────────────────────────────
+
+  describe("getAdminEntries", () => {
+    it("returns mapped entries with isSystem flag", async () => {
+      mockTournamentRepository.getEntries.mockResolvedValue([
+        {
+          id: "entry-1",
+          bot_id: "bot-1",
+          bot: {
+            name: "The Shark",
+            isSystem: true,
+            user: { name: "BotRoyale Team" },
+          },
+        },
+        {
+          id: "entry-2",
+          bot_id: "bot-2",
+          bot: { name: "Alice", isSystem: false, user: { name: "dvir" } },
+        },
+      ]);
+
+      const result = await service.getAdminEntries("tourney-123");
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        entryId: "entry-1",
+        botId: "bot-1",
+        botName: "The Shark",
+        ownerName: "BotRoyale Team",
+        isSystem: true,
+      });
+      expect(result[1]).toEqual({
+        entryId: "entry-2",
+        botId: "bot-2",
+        botName: "Alice",
+        ownerName: "dvir",
+        isSystem: false,
+      });
+    });
+
+    it("falls back to 'Unknown' when bot relation is missing", async () => {
+      mockTournamentRepository.getEntries.mockResolvedValue([
+        { id: "entry-1", bot_id: "bot-1", bot: null },
+      ]);
+
+      const result = await service.getAdminEntries("tourney-123");
+
+      expect(result[0].botName).toBe("Unknown");
+      expect(result[0].ownerName).toBe("Unknown");
+      expect(result[0].isSystem).toBe(false);
+    });
+  });
+
+  describe("removeEntry", () => {
+    it("deletes the entry for a registering tournament", async () => {
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
+        ...mockTournament,
+        status: "registering",
+      });
+      mockTournamentRepository.deleteEntry.mockResolvedValue(undefined);
+
+      await service.removeEntry("tourney-123", "entry-1");
+
+      expect(mockTournamentRepository.deleteEntry).toHaveBeenCalledWith(
+        "entry-1",
+      );
+    });
+
+    it("throws BadRequestException when tournament is not registering", async () => {
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
+        ...mockTournament,
+        status: "running",
+      });
+
+      await expect(
+        service.removeEntry("tourney-123", "entry-1"),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockTournamentRepository.deleteEntry).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("injectSystemBots", () => {
+    const makeBots = (names: string[]) =>
+      names.map((name, i) => ({
+        id: `sys-bot-${i}`,
+        name,
+        isSystem: true,
+        active: true,
+      }));
+
+    function makeServiceWithBots(bots: object[]) {
+      const mockDataSource = {
+        getRepository: vi
+          .fn()
+          .mockReturnValue({ find: vi.fn().mockResolvedValue(bots) }),
+        query: vi.fn().mockResolvedValue([]),
+      };
+      const mockCacheService = {
+        getOrSet: vi
+          .fn()
+          .mockImplementation((_k: string, fn: () => unknown) => fn()),
+      };
+      return new TournamentsService(
+        mockTournamentRepository as never,
+        mockBotRepository as never,
+        mockAnalyticsRepository as never,
+        mockEventEmitter as never,
+        mockCacheService as never,
+        mockDataSource as never,
+      );
+    }
+
+    it("injects unique bots when slots are available", async () => {
+      const bots = makeBots(["Shark", "Rock", "Maniac"]);
+      const svc = makeServiceWithBots(bots);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
+        ...mockTournament,
+        max_players: 10,
+      });
+      mockTournamentRepository.getEntries.mockResolvedValue([]);
+      mockTournamentRepository.createEntry.mockResolvedValue({});
+
+      const result = await svc.injectSystemBots("tourney-123", "random", 3);
+
+      expect(result.injected).toBe(3);
+      expect(mockTournamentRepository.createEntry).toHaveBeenCalledTimes(3);
+    });
+
+    it("cycles through pool when all unique bots are already registered", async () => {
+      const bots = makeBots(["Shark", "Rock"]);
+      const svc = makeServiceWithBots(bots);
+      // Both bots already registered
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
+        ...mockTournament,
+        max_players: 10,
+      });
+      mockTournamentRepository.getEntries.mockResolvedValue([
+        { bot_id: "sys-bot-0" },
+        { bot_id: "sys-bot-1" },
+      ]);
+      mockTournamentRepository.createEntry.mockResolvedValue({});
+
+      const result = await svc.injectSystemBots("tourney-123", "random", 3);
+
+      // Should still inject 3 by cycling
+      expect(result.injected).toBe(3);
+      expect(mockTournamentRepository.createEntry).toHaveBeenCalledTimes(3);
+    });
+
+    it("throws when tournament is not registering", async () => {
+      const svc = makeServiceWithBots([]);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
+        ...mockTournament,
+        status: "running",
+      });
+
+      await expect(svc.injectSystemBots("tourney-123")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("throws when tournament is already full", async () => {
+      const bots = makeBots(["Shark"]);
+      const svc = makeServiceWithBots(bots);
+      mockTournamentRepository.findByIdOrThrow.mockResolvedValue({
+        ...mockTournament,
+        max_players: 2,
+      });
+      mockTournamentRepository.getEntries.mockResolvedValue([
+        { bot_id: "a" },
+        { bot_id: "b" },
+      ]);
+
+      await expect(svc.injectSystemBots("tourney-123")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe("getSeedingMap", () => {
+    function makeServiceWithQuery(queryResult: object[]) {
+      const mockDataSource = {
+        getRepository: vi.fn(),
+        query: vi.fn().mockResolvedValue(queryResult),
+      };
+      const mockCacheService = {
+        getOrSet: vi
+          .fn()
+          .mockImplementation((_k: string, fn: () => unknown) => fn()),
+      };
+      return new TournamentsService(
+        mockTournamentRepository as never,
+        mockBotRepository as never,
+        mockAnalyticsRepository as never,
+        mockEventEmitter as never,
+        mockCacheService as never,
+        mockDataSource as never,
+      );
+    }
+
+    it("includes all tables — active and broken", async () => {
+      const svc = makeServiceWithQuery([
+        {
+          table_id: "t1",
+          table_number: "1",
+          table_status: "active",
+          bot_id: "b1",
+          bot_name: "Shark",
+          user_id: "u1",
+          user_name: "Team",
+          wins: "10",
+          busted: false,
+        },
+        {
+          table_id: "t2",
+          table_number: "2",
+          table_status: "finished",
+          bot_id: "b2",
+          bot_name: "Rock",
+          user_id: "u1",
+          user_name: "Team",
+          wins: "5",
+          busted: true,
+        },
+      ]);
+
+      const result = await svc.getSeedingMap("tourney-123");
+
+      expect(result.tables).toHaveLength(2);
+      expect(result.tables.find((t) => t.tableNumber === 1)!.broken).toBe(
+        false,
+      );
+      expect(result.tables.find((t) => t.tableNumber === 2)!.broken).toBe(true);
+    });
+
+    it("marks busted seats correctly", async () => {
+      const svc = makeServiceWithQuery([
+        {
+          table_id: "t1",
+          table_number: "1",
+          table_status: "active",
+          bot_id: "b1",
+          bot_name: "Shark",
+          user_id: "u1",
+          user_name: "Team",
+          wins: "10",
+          busted: false,
+        },
+        {
+          table_id: "t1",
+          table_number: "1",
+          table_status: "active",
+          bot_id: "b2",
+          bot_name: "Rock",
+          user_id: "u1",
+          user_name: "Team",
+          wins: "5",
+          busted: true,
+        },
+      ]);
+
+      const result = await svc.getSeedingMap("tourney-123");
+      const seats = result.tables[0].seats;
+
+      expect(seats.find((s) => s.botName === "Shark")!.busted).toBe(false);
+      expect(seats.find((s) => s.botName === "Rock")!.busted).toBe(true);
+    });
+
+    it("fairness score ignores broken tables", async () => {
+      // Active table: avg ELO 100. Broken table: avg ELO 1000. Should not skew score.
+      const svc = makeServiceWithQuery([
+        {
+          table_id: "t1",
+          table_number: "1",
+          table_status: "active",
+          bot_id: "b1",
+          bot_name: "A",
+          user_id: "u1",
+          user_name: "T",
+          wins: "100",
+          busted: false,
+        },
+        {
+          table_id: "t2",
+          table_number: "2",
+          table_status: "active",
+          bot_id: "b2",
+          bot_name: "B",
+          user_id: "u1",
+          user_name: "T",
+          wins: "100",
+          busted: false,
+        },
+        {
+          table_id: "t3",
+          table_number: "3",
+          table_status: "finished",
+          bot_id: "b3",
+          bot_name: "C",
+          user_id: "u1",
+          user_name: "T",
+          wins: "1000",
+          busted: true,
+        },
+      ]);
+
+      const result = await svc.getSeedingMap("tourney-123");
+
+      // Two active tables with equal ELO → perfect balance (score = 0)
+      expect(result.fairnessScore).toBe(0);
+    });
+  });
+
   describe("getLeaderboard", () => {
     it("should return leaderboard ordered by chips", async () => {
       mockTournamentRepository.getEntries.mockResolvedValue([

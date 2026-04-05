@@ -18,6 +18,8 @@ import { BotRepository } from "../../repositories/bot.repository";
 import { BotSubscriptionRepository } from "../../repositories/bot-subscription.repository";
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
+import { UserRepository } from "../../repositories/user.repository";
+import { User } from "../../entities/user.entity";
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { AnalyticsRepository } from "../../repositories/analytics.repository";
       TournamentTable,
       TournamentSeat,
       TournamentBlindLevel,
+      User,
     ]),
   ],
   controllers: [
@@ -45,6 +48,7 @@ import { AnalyticsRepository } from "../../repositories/analytics.repository";
     BotSubscriptionRepository,
     TournamentRepository,
     AnalyticsRepository,
+    UserRepository,
   ],
   exports: [
     BotsService,

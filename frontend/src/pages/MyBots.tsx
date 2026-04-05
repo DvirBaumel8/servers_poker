@@ -194,7 +194,7 @@ function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => void })
       }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 12 }}>Upgrade to Pro</div>
         <div style={{ fontSize: 14, color: C.muted, marginBottom: 20 }}>
-          Free users can create 1 bot. Upgrade to Pro for unlimited bots!
+          Free plan: 1 bot slot. Upgrade to Pro for 5 bot slots and automatic tournament entry.
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button
@@ -512,6 +512,10 @@ const BotCard = memo(function BotCard({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+function botLimit(subscriptionStatus?: string | null): number {
+  return subscriptionStatus === 'active' ? 5 : 1
+}
+
 export default function MyBots() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
@@ -612,7 +616,7 @@ export default function MyBots() {
   }
 
   async function handleDuplicate(botId: string) {
-    if ((!user?.subscription_status || user.subscription_status === 'free') && bots.length >= 1) {
+    if (bots.length >= botLimit(user?.subscription_status)) {
       setUpgradeModal(true)
       return
     }
@@ -669,7 +673,7 @@ export default function MyBots() {
   }
 
   function handleCreateBot() {
-    if ((!user?.subscription_status || user.subscription_status === 'free') && bots.length >= 1) {
+    if (bots.length >= botLimit(user?.subscription_status)) {
       setUpgradeModal(true)
       return
     }

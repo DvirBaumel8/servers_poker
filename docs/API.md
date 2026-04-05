@@ -112,7 +112,7 @@ Deactivate a bot. Requires ownership.
 
 #### POST /bots/:id/duplicate
 
-Create a copy of an existing bot with all its strategy settings. The duplicated bot will have " (Copy)" appended to its name. Requires ownership and that the user hasn't exceeded the bot limit.
+Create a copy of an existing bot with all its strategy settings. The duplicated bot will have " (Copy)" appended to its name. Requires ownership and that the user hasn't exceeded their tier bot limit (**Free: 1 bot, Pro: 5 bots**).
 
 **Response:** Created bot representation (same as POST /bots/internal)
 
@@ -184,6 +184,8 @@ The API returns **19** `ConditionFieldDef` entries describing fields usable in s
 #### POST /bots/internal
 
 Create an internal bot with a JSON strategy document. Requires JWT and the **`operate:bots`** OAuth-style scope.
+
+**Bot slot limits (enforced server-side):** Free plan = 1 bot, Pro plan (`subscription_status: 'active'`) = 5 bots. Returns `400` with message `"Your plan allows a maximum of N bot(s). Upgrade to Pro for up to 5 bots."` when the limit is reached.
 
 **Rate limit:** 10 requests per hour per scope (Throttler default bucket).
 

@@ -201,10 +201,15 @@ export class GamesGateway
         handNumber: event.handNumber,
         winners: event.winners.map((w: any) => ({
           botId: w.playerId,
-          amount: w.amount,
+          amount: Number(w.amount),
           handName: w.hand?.name || "Winner",
         })),
-        pot: event.winners.reduce((sum: number, w: any) => sum + w.amount, 0),
+        pot: Number(
+          event.winners.reduce(
+            (sum: bigint, w: any) => sum + BigInt(w.amount),
+            0n,
+          ),
+        ),
         provablyFair: event.provablyFair,
         showdownSequence: event.showdownSequence,
       });

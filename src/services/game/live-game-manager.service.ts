@@ -240,6 +240,8 @@ export class GameInstance {
     name: string;
     strategy: BotStrategy;
     chips?: number;
+    /** Optional seat index for position equity when moving players between tables. */
+    insertAt?: number;
   }): void {
     if (this.handInProgress) {
       this.pendingMutations.push(() => this.addPlayerImmediate(player));
@@ -256,6 +258,7 @@ export class GameInstance {
     name: string;
     strategy: BotStrategy;
     chips?: number;
+    insertAt?: number;
   }): void {
     const existing = this.players.find((p) => p.id === player.id);
 
@@ -289,7 +292,19 @@ export class GameInstance {
       disconnected: false,
     };
 
-    this.players.push(newPlayer);
+    if (
+      player.insertAt !== undefined &&
+      player.insertAt >= 0 &&
+      player.insertAt < this.players.length
+    ) {
+      this.players.splice(player.insertAt, 0, newPlayer);
+      // Adjust dealerIndex if the insertion is at or before it
+      if (player.insertAt <= this.dealerIndex) {
+        this.dealerIndex++;
+      }
+    } else {
+      this.players.push(newPlayer);
+    }
 
     if (this.expectedTotalChips === undefined) {
       this.expectedTotalChips = chips;

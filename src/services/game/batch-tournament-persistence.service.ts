@@ -9,7 +9,7 @@ import {
   SimAction,
   SimBustRecord,
 } from "../../workers/simulation.types";
-import { calculatePayouts } from "../../config/tournaments.config";
+import { calculatePrizes } from "../../config/tournaments.config";
 
 const CHUNK_SIZE = 500;
 
@@ -180,7 +180,7 @@ export class BatchTournamentPersistenceService {
       const prizePool = BigInt(totalEntrants) * buyIn;
 
       if (prizePool > 0) {
-        const payouts = calculatePayouts(prizePool, totalEntrants);
+        const payouts = calculatePrizes(prizePool, totalEntrants);
         for (const payout of payouts) {
           if (winnerId && payout.position === 1) {
             await manager.query(

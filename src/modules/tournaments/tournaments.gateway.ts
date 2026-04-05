@@ -283,6 +283,20 @@ export class TournamentsGateway implements OnGatewayInit, OnGatewayConnection {
       });
   }
 
+  @OnEvent("tournament.progress")
+  handleTournamentProgress(event: {
+    tournamentId: string;
+    handsProcessed: number;
+    totalHands: number;
+    hps: number;
+    topStacks: Array<{ botName: string; chips: number; rank: number }>;
+  }): void {
+    if (!this.server) return;
+    this.server
+      .to(`tournament:${event.tournamentId}`)
+      .emit("tournament_progress", event);
+  }
+
   @OnEvent("tournament.notification")
   handleNotification(event: {
     tournamentId: string;
