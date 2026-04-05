@@ -37,6 +37,9 @@ export async function getSharedApp(): Promise<SharedAppContext> {
   // Must be set before module init so TournamentDirectorService picks it up
   process.env.TOURNAMENT_SCHEDULER_CRON =
     process.env.TOURNAMENT_SCHEDULER_CRON || "*/5 * * * * *";
+  // Disable auto-scheduler so it doesn't race against matchmaking E2E tests
+  // (scheduler would auto-start Daily Master tournaments whose scheduled_start_at is in the past)
+  process.env.TOURNAMENT_SCHEDULER_ENABLED = "false";
 
   const moduleFixture = await Test.createTestingModule({
     imports: [
