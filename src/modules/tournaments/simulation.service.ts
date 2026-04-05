@@ -93,7 +93,7 @@ export class SimulationService implements OnModuleInit, OnModuleDestroy {
       smallBlind: l.small_blind,
       bigBlind: l.big_blind,
       ante: l.ante,
-      handsPerLevel: HANDS_PER_LEVEL,
+      handsPerLevel: tournament.hands_per_level ?? HANDS_PER_LEVEL,
     }));
 
     const input: SimulationInput = {

@@ -30,6 +30,9 @@ describe("BotsService", () => {
     getBotWithOwnershipCheck: ReturnType<typeof vi.fn>;
     assertOwnership: ReturnType<typeof vi.fn>;
   };
+  let mockUserRepository: {
+    findById: ReturnType<typeof vi.fn>;
+  };
 
   const defaultStrategy = {
     version: 1,
@@ -51,6 +54,9 @@ describe("BotsService", () => {
     user_id: "user-123",
     created_at: new Date("2024-01-01"),
   };
+
+  const freeUser = { id: "user-123", subscription_status: "free" };
+  const proUser = { id: "user-123", subscription_status: "active" };
 
   beforeEach(() => {
     mockBotRepository = {
@@ -76,15 +82,21 @@ describe("BotsService", () => {
       assertOwnership: vi.fn(),
     };
 
+    mockUserRepository = {
+      findById: vi.fn(),
+    };
+
     service = new BotsService(
       mockBotRepository as never,
       mockAnalyticsRepository as never,
       mockBotOwnershipService as never,
+      mockUserRepository as never,
     );
   });
 
   describe("create", () => {
-    it("should create an internal bot successfully", async () => {
+    it("should create a bot successfully for a free user with 0 bots", async () => {
+      mockUserRepository.findById.mockResolvedValue(freeUser);
       mockBotRepository.findActiveByUserId.mockResolvedValue([]);
       mockBotRepository.findActiveByUserAndName.mockResolvedValue(null);
       mockBotRepository.create.mockResolvedValue(mockBot);
@@ -98,11 +110,9 @@ describe("BotsService", () => {
       expect(mockBotRepository.create).toHaveBeenCalled();
     });
 
-    it("should throw BadRequestException when active bot limit reached", async () => {
-      const existingActiveBots = Array(10).fill(mockBot);
-      mockBotRepository.findActiveByUserId.mockResolvedValue(
-        existingActiveBots,
-      );
+    it("should throw BadRequestException when free user already has 1 bot", async () => {
+      mockUserRepository.findById.mockResolvedValue(freeUser);
+      mockBotRepository.findActiveByUserId.mockResolvedValue([mockBot]); // 1 bot = at limit
 
       await expect(
         service.create("user-123", {
@@ -112,7 +122,98 @@ describe("BotsService", () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it("should throw ConflictException when bot name exists", async () => {
+    it("error message for free user references 1 bot limit and upgrade", async () => {
+      mockUserRepository.findById.mockResolvedValue(freeUser);
+      mockBotRepository.findActiveByUserId.mockResolvedValue([mockBot]);
+
+      await expect(
+        service.create("user-123", {
+          name: "NewBot",
+          strategy: defaultStrategy,
+        } as never),
+      ).rejects.toThrow(/maximum of 1 bot/);
+    });
+
+    it("should allow a pro user to create up to 5 bots", async () => {
+      mockUserRepository.findById.mockResolvedValue(proUser);
+      mockBotRepository.findActiveByUserId.mockResolvedValue(
+        Array(4).fill(mockBot), // 4 bots — one slot remaining
+      );
+      mockBotRepository.findActiveByUserAndName.mockResolvedValue(null);
+      mockBotRepository.create.mockResolvedValue({
+        ...mockBot,
+        id: "bot-999",
+        name: "Bot5",
+      });
+
+      const result = await service.create("user-123", {
+        name: "Bot5",
+        strategy: defaultStrategy,
+      } as never);
+
+      expect(result.name).toBe("Bot5");
+    });
+
+    it("should throw BadRequestException when pro user already has 5 bots", async () => {
+      mockUserRepository.findById.mockResolvedValue(proUser);
+      mockBotRepository.findActiveByUserId.mockResolvedValue(
+        Array(5).fill(mockBot), // 5 bots = at limit
+      );
+
+      await expect(
+        service.create("user-123", {
+          name: "Bot6",
+          strategy: defaultStrategy,
+        } as never),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("error message for pro user references 5 bot limit", async () => {
+      mockUserRepository.findById.mockResolvedValue(proUser);
+      mockBotRepository.findActiveByUserId.mockResolvedValue(
+        Array(5).fill(mockBot),
+      );
+
+      await expect(
+        service.create("user-123", {
+          name: "Bot6",
+          strategy: defaultStrategy,
+        } as never),
+      ).rejects.toThrow(/maximum of 5 bots/);
+    });
+
+    it("should treat expired subscription as free tier (limit 1)", async () => {
+      mockUserRepository.findById.mockResolvedValue({
+        id: "user-123",
+        subscription_status: "expired",
+      });
+      mockBotRepository.findActiveByUserId.mockResolvedValue([mockBot]); // 1 bot
+
+      await expect(
+        service.create("user-123", {
+          name: "NewBot",
+          strategy: defaultStrategy,
+        } as never),
+      ).rejects.toThrow(/maximum of 1 bot/);
+    });
+
+    it("should treat cancelled subscription as free tier (limit 1)", async () => {
+      mockUserRepository.findById.mockResolvedValue({
+        id: "user-123",
+        subscription_status: "cancelled",
+      });
+      mockBotRepository.findActiveByUserId.mockResolvedValue([mockBot]);
+
+      await expect(
+        service.create("user-123", {
+          name: "NewBot",
+          strategy: defaultStrategy,
+        } as never),
+      ).rejects.toThrow(/maximum of 1 bot/);
+    });
+
+    it("should throw ConflictException when bot name already exists", async () => {
+      mockUserRepository.findById.mockResolvedValue(freeUser);
       mockBotRepository.findActiveByUserId.mockResolvedValue([]);
       mockBotRepository.findActiveByUserAndName.mockResolvedValue(mockBot);
 
@@ -122,6 +223,30 @@ describe("BotsService", () => {
           strategy: defaultStrategy,
         } as never),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe("duplicate", () => {
+    it("should throw BadRequestException when free user tries to duplicate beyond 1 bot", async () => {
+      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockUserRepository.findById.mockResolvedValue(freeUser);
+      mockBotRepository.findActiveByUserId.mockResolvedValue([mockBot]); // already at limit
+
+      await expect(service.duplicate("bot-123", "user-123")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("should throw BadRequestException when pro user tries to duplicate beyond 5 bots", async () => {
+      mockBotRepository.findById.mockResolvedValue(mockBot);
+      mockUserRepository.findById.mockResolvedValue(proUser);
+      mockBotRepository.findActiveByUserId.mockResolvedValue(
+        Array(5).fill(mockBot),
+      );
+
+      await expect(service.duplicate("bot-123", "user-123")).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

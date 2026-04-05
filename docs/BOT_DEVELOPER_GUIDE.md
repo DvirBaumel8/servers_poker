@@ -6,6 +6,17 @@ Build a poker bot without writing code. The Bot Builder UI lets you configure st
 
 ---
 
+## Bot Slot Limits
+
+| Plan | Bot slots | Tournament entry |
+|---|---|---|
+| **Free** (`subscription_status: 'free'`) | 1 | Manual daily registration |
+| **Pro** (`subscription_status: 'active'`) | 5 | Automatic entry to all daily tournaments |
+
+Cancelled or expired subscriptions fall back to Free limits (1 slot). The limit is enforced server-side in `BotsService` — the API returns `400` when the cap is reached. Deactivating an existing bot frees a slot.
+
+---
+
 ## Getting Started
 
 1. Navigate to `/bots/build`

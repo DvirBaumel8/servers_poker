@@ -15,6 +15,7 @@ import { RedisHealthService } from "./redis/redis-health.service";
 import { BotActivityService } from "./bot/bot-activity.service";
 import { BotAutoRegistrationService } from "./bot/bot-auto-registration.service";
 import { EmailService } from "./email.service";
+import { PrizePoolService } from "./prize-pool.service";
 import { BotSubscription } from "../entities/bot-subscription.entity";
 import { BotSubscriptionRepository } from "../repositories/bot-subscription.repository";
 import { GameStateSnapshot } from "../entities/game-state-snapshot.entity";
@@ -82,6 +83,7 @@ import { JwtConfigModule } from "../common/jwt";
     BotActivityService,
     BotAutoRegistrationService,
     EmailService,
+    PrizePoolService,
     BotSubscriptionRepository,
     GameStateRepository,
     HandSeedRepository,
@@ -99,6 +101,7 @@ import { JwtConfigModule } from "../common/jwt";
     BotActivityService,
     BotAutoRegistrationService,
     EmailService,
+    PrizePoolService,
     BotSubscriptionRepository,
   ],
 })

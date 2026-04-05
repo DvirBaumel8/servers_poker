@@ -44,3 +44,4 @@ export type {
   HeatmapData,
   PositionHeatmapEntry,
 } from "./simulation-result.entity";
+export { TournamentEvent, EVENT_TABLE_MOVE } from "./tournament-event.entity";

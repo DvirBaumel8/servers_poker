@@ -10,6 +10,25 @@
 
 **If you skip step 1 (reading memory), you WILL miss important rules like markdown updates.**
 
+## 🧪 MANDATORY: Tests After Every Code Change
+
+**After ANY source code change, you MUST:**
+1. **Consider test coverage** — ask yourself:
+   - Does this change alter existing behaviour? → Update or delete stale tests.
+   - Does this introduce new logic? → Add new tests covering it.
+   - Is this a bug fix? → Add a regression test that would have caught the bug.
+2. **Run the affected tests** and verify they pass before finalising your response:
+   ```bash
+   # Unit tests (fast, no NestJS/DB)
+   npx vitest run tests/unit/
+
+   # All tests
+   npx vitest run
+   ```
+3. **Do not skip this step**, even for "small" or "obvious" changes — most regressions come from edits that seemed trivial.
+
+Pure algorithmic logic (seeding, betting math, hand evaluation) must have unit tests in `tests/unit/`. Tests must be pure functions with no NestJS or database dependencies.
+
 ---
 
 ## Project
@@ -1162,7 +1181,101 @@ SELECT description, details FROM logic_bugs WHERE check_name = 'zero_sum' LIMIT 
 
 ---
 
+## Admin Dashboard
+
+**Route:** `/admin` — accessible only when `user.role === 'admin'`. Redirects non-admins to `/`.
+
+**Frontend:** `frontend/src/pages/AdminDashboard.tsx`
+- Split-view: Left panel (400px) = active/registering tournaments list; Right panel = quick actions
+- **Create Tournament** form: table size (2/3/6/9), speed (Slow=10s/Fast=3s timeout), buy-in, name
+- **Bot Injector**: "Add Bots" button per registering tournament → injects system bots
+- **GO LIVE**: Force-start button → calls existing `POST /tournaments/:id/start`
+- **User & Bot Monitoring**: table of all non-admin users with active bot counts
+- **Reset State**: two-click confirm → cancels all registering tournaments
+- Sidebar shows "Admin" nav item only when `user.role === 'admin'`
+
+**New Backend Endpoints** (all `@Roles('admin')` in `tournaments.controller.ts`):
+- `POST /api/v1/tournaments/admin/inject-bots/:id` — inject system bots into registering tournament
+- `GET  /api/v1/tournaments/admin/users-summary` — users with active bot counts (SQL aggregation)
+- `POST /api/v1/tournaments/admin/reset-state` — cancel all registering tournaments
+
+**Service methods added** (`tournaments.service.ts`):
+- `injectSystemBots(tournamentId)` — bypasses ownership check, inserts system bots directly via `createEntry()`
+- `getUsersWithBotCounts()` — raw SQL via `DataSource`
+- `resetDevState()` — raw SQL UPDATE
+
+---
+
 ## Changelog
+
+### 2026-04-05: Pro Table Balancing + Replay Audit Trail
+
+**Continuous table balancing, position equity seating, persistent move log, and admin UI.**
+
+#### Continuous Table Balancing (`tournament-director.service.ts`)
+- `checkTableBalancing()` now triggers whenever `maxTable.size - minTable.size > 1` — not just at the old `BREAK_THRESHOLD=4`
+- Full table break still occurs when `minTable.size < 2` (can't run a hand)
+- New `movePlayerForBalancing(fromTableId, toTableId)` method: moves exactly ONE player (largest stack first, respects owner isolation) from the biggest table to the smallest
+
+#### Position Equity (`live-game-manager.service.ts`)
+- `addPlayer()` and `addPlayerImmediate()` accept an optional `insertAt?: number` parameter
+- When provided, uses `players.splice(insertAt, 0, newPlayer)` and adjusts `dealerIndex` if necessary
+- `movePlayerForBalancing()` calculates `bestSeat = (dealerIndex + 2) % N` — inserting at the current BB's position gives the incoming player N hands before being forced to post again
+- `breakTable()` also uses position equity for all redistributed players
+
+#### Replay Audit Trail — `tournament_events` table
+- New entity: `src/entities/tournament-event.entity.ts` — `TournamentEvent` with `EVENT_TABLE_MOVE` constant
+- New migration: `1744600000000-AddTournamentEvents.ts`
+- Schema: `id, tournament_id, event_type, bot_id, from_table_id, to_table_id, from_seat, to_seat, chips_at_move, created_at`
+- Both `movePlayerForBalancing()` and `breakTable()` call `persistTableMoveEvent()` to write DB records
+- Old logger-only audit log retained alongside persistent records
+
+#### Admin API + UI
+- `GET /api/v1/tournaments/admin/:id/balancing-moves` — returns recent TABLE_MOVE events (admin only, limit param)
+- `AdminDashboard.tsx`:
+  - `BalancingMovesPanel` component: shows move log with time, from/to table+seat, chips; auto-refreshes every 10s
+  - "⚖ Balancing Active" badge in telemetry panel when `tables.length > 1`
+  - "⚖ Moves" button in tournament row (live tournaments with >1 table)
+  - Seeding Map auto-refreshes every 15s for running tournaments
+  - "LIVE" badge on seeding map header when tournament is running
+
+#### Tests (`tests/unit/tournament-balancing.spec.ts`)
+- 23 tests covering: `checkBalancingDecision` (8 cases), `calcBestSeat` (5 cases), owner isolation selection (4 cases), `hasDuplicateOwner` (3 cases)
+- Regression test: confirms old BREAK_THRESHOLD=4 is no longer required for a balance move
+
+---
+
+### 2026-04-05: Tournament Engine & Admin Visualization Pass
+
+**Three pillars: betting raise cap, snake seeding with owner isolation, admin seeding map.**
+
+#### Betting Raise Cap (`src/domain/betting.ts`)
+- `export const MAX_RAISES_PER_STREET = 5` — exported constant
+- `BettingRound` tracks `raisesThisStreet`; incremented on every successful raise/bet
+- `canReraise()` and `getValidActionsForPlayer()` block further raises once cap hit
+- Players forced to call or fold after 5 raises per street
+
+#### Snake Seeding + Owner Isolation (`src/modules/tournaments/tournament-director.service.ts`)
+- `BotInfo` gains `userId: string` (from `entry.bot.user.id`) and `elo: number`
+- `fetchBotElos()`: batch `BotStats.tournament_wins` query for all entrants
+- `createInitialTables()` now: sort by ELO → snake-seed → greedy owner-isolation pass
+- **Snake algorithm:** endpoints are double-visited (classic draft snake); endpoints receive two consecutive picks when direction reverses. Produces even table sizes.
+- **Owner isolation:** greedy swap — scans other tables for a conflict-free swap candidate; logs a warning if isolation is impossible (e.g. one user owns >50% of seats)
+- `seatsPerTable` getter reads `this.config.players_per_table ?? 9` — **fixes bug** where a 6-max tournament with 8 players created 1 table instead of 2 (hardcoded `SEATS_PER_TABLE=9` was used everywhere)
+- `breakTable()` uses `this.seatsPerTable` for capacity checks + prefers tables with no same-owner bots (secondary sort key)
+
+#### Admin Seeding Map (`GET /api/v1/tournaments/:id/seeding-map`, `AdminDashboard.tsx`)
+- Admin-only endpoint returns tables with seat data (botName, ownerName, userId, elo)
+- **Fairness Score** = standard deviation of mean ELO across tables (σ)
+- SQL filters `tt.status = 'active'` — broken tables excluded as tournament progresses
+- `TournamentSeedingMap` React component: color-coded owner rings (deterministic HSL from userId hash), per-table seat cards with bot initials + win count, fairness score badge
+- **"🗺 Seeding" button** on every registering/live tournament row in the admin left panel
+
+#### Tests (`tests/unit/`)
+- `betting-raise-cap.spec.ts` — 10 tests: cap constant, blocked raises, call/fold still allowed, cap is per-street, `canReraise` false after cap, exact count
+- `tournament-seeding.spec.ts` — 17 tests: `seatsPerTable` resolution (regression guard for the 6-max bug), `hasDuplicateOwner`, snake algorithm correctness (even distribution, endpoint double-visit), owner isolation (no conflicts, conservation, cross-table resolution)
+
+---
 
 ### 2026-04-04: Professional Selector — CustomSelect Upgrade
 

@@ -156,8 +156,14 @@ export class PrizeDistributionService {
       const topPercentages = curve.slice(0, topSlots);
       const topSum = topPercentages.reduce((a, b) => a + b, 0);
       const remainingSlots = itmCount - topSlots;
+      const lastCurveValue = curve[curve.length - 1];
       const remainingPerShare =
-        remainingSlots > 0 ? Math.floor((100 - topSum) / remainingSlots) : 0;
+        remainingSlots > 0
+          ? Math.min(
+              Math.floor((100 - topSum) / remainingSlots),
+              lastCurveValue,
+            )
+          : 0;
       const leftover =
         remainingSlots > 0
           ? 100 - topSum - remainingPerShare * remainingSlots

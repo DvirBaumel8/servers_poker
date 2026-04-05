@@ -180,6 +180,8 @@ export class PotManager {
  * BettingRound manages a single round of betting.
  * Raise amounts are now ADDITIONAL chips on top of the current bet.
  */
+export const MAX_RAISES_PER_STREET = 5;
+
 export class BettingRound {
   players: Player[];
   smallBlind: bigint;
@@ -193,6 +195,7 @@ export class BettingRound {
   betsThisRound: Record<string, bigint>;
   private lastRaiseWasFull: boolean = true;
   private bettingReopenedFor: Set<string> = new Set();
+  private raisesThisStreet: number = 0;
 
   constructor({
     players,
@@ -219,6 +222,7 @@ export class BettingRound {
     this.betsThisRound = {};
     this.lastRaiseWasFull = true;
     this.bettingReopenedFor = new Set();
+    this.raisesThisStreet = 0;
   }
 
   getPlayerBet(playerId: string): bigint {
@@ -313,6 +317,7 @@ export class BettingRound {
       const raiseAmount = newBet - this.currentMaxBet;
 
       if (newBet > this.currentMaxBet) {
+        this.raisesThisStreet++;
         const isFullRaise = raiseAmount >= this.lastRaiseDelta;
         this.lastRaiseWasFull = isFullRaise;
 
@@ -369,6 +374,8 @@ export class BettingRound {
     if (!player) return false;
     if (player.folded || player.allIn || player.chips === 0n) return false;
 
+    if (this.raisesThisStreet >= MAX_RAISES_PER_STREET) return false;
+
     if (!this.lastRaiseWasFull) {
       return false;
     }
@@ -402,9 +409,11 @@ export class BettingRound {
       actions.push("call");
     }
 
-    // Allow raise if no one has bet yet (first open) OR betting was reopened after a full raise
+    // Allow raise if no one has bet yet (first open) OR betting was reopened after a full raise;
+    // block if the per-street raise cap has been reached.
     const canBetOrRaise =
       player.chips > toCall &&
+      this.raisesThisStreet < MAX_RAISES_PER_STREET &&
       (this.lastRaiserIndex === -1 || this.canReraise(player.id));
     if (canBetOrRaise) {
       actions.push("raise");

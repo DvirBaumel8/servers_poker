@@ -6,9 +6,11 @@ import {
   ForbiddenException,
   Logger,
 } from "@nestjs/common";
+import { QueryFailedError } from "typeorm";
 import { BotRepository } from "../../repositories/bot.repository";
 import { AnalyticsRepository } from "../../repositories/analytics.repository";
 import { BotOwnershipService } from "./bot-ownership.service";
+import { UserRepository } from "../../repositories/user.repository";
 import { Bot } from "../../entities/bot.entity";
 import {
   CreateInternalBotDto,
@@ -24,7 +26,12 @@ import {
   type BotPayload,
 } from "../bot-strategy/strategy-engine.service";
 
-const MAX_BOTS_PER_ACCOUNT = 10;
+const BOT_LIMIT_FREE = 1;
+const BOT_LIMIT_PRO = 5;
+
+function getBotLimit(subscriptionStatus: string): number {
+  return subscriptionStatus === "active" ? BOT_LIMIT_PRO : BOT_LIMIT_FREE;
+}
 
 @Injectable()
 export class BotsService {
@@ -34,16 +41,19 @@ export class BotsService {
     private readonly botRepository: BotRepository,
     private readonly analyticsRepository: AnalyticsRepository,
     private readonly botOwnership: BotOwnershipService,
+    private readonly userRepository: UserRepository,
   ) {}
 
   async create(
     userId: string,
     dto: CreateInternalBotDto,
   ): Promise<BotResponseDto> {
+    const user = await this.userRepository.findById(userId);
+    const limit = getBotLimit(user?.subscription_status ?? "free");
     const userBots = await this.botRepository.findActiveByUserId(userId);
-    if (userBots.length >= MAX_BOTS_PER_ACCOUNT) {
+    if (userBots.length >= limit) {
       throw new BadRequestException(
-        `Maximum ${MAX_BOTS_PER_ACCOUNT} bots per account. Please deactivate or delete an existing bot.`,
+        `Your plan allows a maximum of ${limit} bot${limit === 1 ? "" : "s"}. Upgrade to Pro for up to ${BOT_LIMIT_PRO} bots.`,
       );
     }
 
@@ -55,12 +65,23 @@ export class BotsService {
       throw new ConflictException(`Bot name '${dto.name}' already exists`);
     }
 
-    const bot = await this.botRepository.create({
-      name: dto.name,
-      description: dto.description,
-      user_id: userId,
-      strategy: dto.strategy,
-    });
+    let bot: Bot;
+    try {
+      bot = await this.botRepository.create({
+        name: dto.name,
+        description: dto.description,
+        user_id: userId,
+        strategy: dto.strategy,
+      });
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err as any).constraint === "IDX_bots_active_user_name"
+      ) {
+        throw new ConflictException(`Bot name '${dto.name}' already exists`);
+      }
+      throw err;
+    }
 
     this.logger.log(`Bot created: ${bot.name} by user ${userId}`);
 
@@ -153,10 +174,12 @@ export class BotsService {
       throw new ForbiddenException("You can only duplicate your own bots");
     }
 
+    const user = await this.userRepository.findById(userId);
+    const limit = getBotLimit(user?.subscription_status ?? "free");
     const userBots = await this.botRepository.findActiveByUserId(userId);
-    if (userBots.length >= MAX_BOTS_PER_ACCOUNT) {
+    if (userBots.length >= limit) {
       throw new BadRequestException(
-        `Maximum ${MAX_BOTS_PER_ACCOUNT} bots per account. Please deactivate or delete an existing bot.`,
+        `Your plan allows a maximum of ${limit} bot${limit === 1 ? "" : "s"}. Upgrade to Pro for up to ${BOT_LIMIT_PRO} bots.`,
       );
     }
 

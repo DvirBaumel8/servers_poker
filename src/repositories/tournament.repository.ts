@@ -282,7 +282,7 @@ export class TournamentRepository extends BaseRepository<Tournament> {
   ): Promise<TournamentEntry[]> {
     return this.getEntryRepo(manager).find({
       where: { tournament_id: tournamentId },
-      relations: ["bot"],
+      relations: ["bot", "bot.user"],
       order: { finish_position: "ASC" },
     });
   }

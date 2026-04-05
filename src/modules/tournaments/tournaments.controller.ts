@@ -17,6 +17,7 @@ import { Throttle } from "@nestjs/throttler";
 import { TournamentsService } from "./tournaments.service";
 import { TournamentDirectorService } from "./tournament-director.service";
 import { SimulationService } from "./simulation.service";
+import { PrizePoolService } from "../../services/prize-pool.service";
 import {
   CreateTournamentDto,
   RegisterBotDto,
@@ -41,6 +42,7 @@ export class TournamentsController {
     private readonly tournamentsService: TournamentsService,
     private readonly tournamentDirector: TournamentDirectorService,
     private readonly simulationService: SimulationService,
+    private readonly prizePoolService: PrizePoolService,
   ) {}
 
   @Public()
@@ -79,10 +81,130 @@ export class TournamentsController {
     return this.simulationService.getPoolMetrics();
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/prize-preview")
+  getPrizePreview(
+    @Query("pool") pool: string,
+    @Query("players") players: string,
+  ) {
+    const p = parseInt(pool, 10);
+    const n = parseInt(players, 10);
+    if (!Number.isFinite(p) || p < 1 || !Number.isFinite(n) || n < 1) {
+      throw new BadRequestException(
+        "pool and players must be positive integers",
+      );
+    }
+    return { payouts: this.prizePoolService.calculatePayouts(p, n) };
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get("my-activity")
   async getMyActivity(@CurrentUser() user: User) {
     return this.tournamentsService.getMyActivity(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Post("admin/inject-bots/:id")
+  async injectBots(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body()
+    body: {
+      profile?: "random" | "sharks" | "fish" | "balanced";
+      count?: number;
+    },
+  ) {
+    return this.tournamentsService.injectSystemBots(
+      id,
+      body.profile ?? "random",
+      body.count,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/users-summary")
+  async getUsersSummary() {
+    return this.tournamentsService.getUsersWithBotCounts();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Post("admin/reset-state")
+  async resetState() {
+    return this.tournamentsService.resetDevState();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/history")
+  async getAdminHistory(@Query("limit") limit?: string) {
+    return this.tournamentsService.getAdminHistory(
+      Math.min(20, parseInt(limit ?? "20") || 20),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/:id/entries")
+  async getAdminEntries(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tournamentsService.getAdminEntries(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Delete("admin/:id/entries/:entryId")
+  async removeAdminEntry(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Param("entryId", ParseUUIDPipe) entryId: string,
+  ) {
+    await this.tournamentsService.removeEntry(id, entryId);
+    return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/:id/balancing-moves")
+  async getBalancingMoves(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Query("limit") limit?: string,
+  ) {
+    const parsedLimit = limit
+      ? Math.min(100, Math.max(1, parseInt(limit, 10) || 20))
+      : 20;
+    return this.tournamentsService.getBalancingMoves(id, parsedLimit);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/:id/status")
+  async getAdminTournamentStatus(@Param("id", ParseUUIDPipe) id: string) {
+    // Try live in-memory progress first (most accurate)
+    const progress = this.tournamentDirector.getTournamentProgress(id);
+    if (progress) {
+      return { tournamentId: id, ...progress };
+    }
+
+    // Fallback to DB summary when director not available (e.g. after restart)
+    const summary = await this.tournamentsService.getLiveSummary(id);
+    const tournament = await this.tournamentsService.findById(id);
+    const totalEntrants = tournament?.entries_count ?? 0;
+    const eliminated = Math.max(0, totalEntrants - summary.playersRemaining);
+    return {
+      tournamentId: id,
+      handsProcessed: eliminated,
+      totalHands: totalEntrants,
+      hps: 0,
+      topStacks: [],
+    };
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get(":id/seeding-map")
+  async getSeedingMap(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tournamentsService.getSeedingMap(id);
   }
 
   @Public()
@@ -189,12 +311,35 @@ export class TournamentsController {
     if (!state) {
       const tournament = await this.tournamentsService.findById(id);
       assertFound(tournament, "Tournament", id);
+
+      // Enrich with DB-derived data so the admin dashboard shows real numbers
+      // even when the in-memory director is gone (e.g. after server restart).
+      const live = await this.tournamentsService.getLiveSummary(id);
       return {
         tournamentId: id,
         name: tournament.name,
         status: tournament.status,
-        playersRemaining: 0,
         totalEntrants: tournament.entries_count,
+        playersRemaining: live.playersRemaining,
+        level: live.currentBlindLevel,
+        blinds:
+          live.smallBlind != null
+            ? {
+                small: live.smallBlind,
+                big: live.bigBlind,
+                ante: live.ante ?? 0,
+              }
+            : undefined,
+        tables: live.tableIds.map((tableId, i) => ({
+          tableId,
+          tableNumber: i + 1,
+          isFinalTable: live.tableCount === 1,
+        })),
+        handsThisLevel: null,
+        handsPerLevel: null,
+        handForHand: false,
+        prizePool: null,
+        _stale: true, // flag so frontend can show a warning
       };
     }
     return state;

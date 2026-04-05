@@ -34,8 +34,6 @@ export interface Payout {
   amount: bigint;
 }
 
-export type PayoutStructure = number[];
-
 export const HANDS_PER_LEVEL = 10;
 
 /**
@@ -62,112 +60,59 @@ export const BLIND_LEVELS: BlindLevel[] = [
   { level: 15, small_blind: 5000, big_blind: 10000, ante: 1000 },
 ];
 
-/**
- * Payout structure — percentage of prize pool by finish position.
- * Keyed by number of entrants, values are arrays of percentages
- * for 1st, 2nd, 3rd, etc. (must sum to 100).
- *
- * General rule: ~15% of field gets paid.
- * Winner gets 25-50% depending on field size.
- */
-const PAYOUT_STRUCTURES: Record<number, PayoutStructure> = {
-  // 2-5 entrants: winner takes all
-  2: [100],
-  3: [100],
-  4: [100],
-  5: [100],
-
-  // 6-9: top 2 paid
-  6: [65, 35],
-  7: [65, 35],
-  8: [65, 35],
-  9: [65, 35],
-
-  // 10-18: top 3 paid
-  10: [50, 30, 20],
-  11: [50, 30, 20],
-  12: [50, 30, 20],
-  13: [50, 30, 20],
-  14: [50, 30, 20],
-  15: [50, 30, 20],
-  16: [50, 30, 20],
-  17: [50, 30, 20],
-  18: [50, 30, 20],
-
-  // 19-27: top 4 paid
-  19: [40, 25, 20, 15],
-  27: [40, 25, 20, 15],
-
-  // 28-45: top 5 paid
-  28: [35, 22, 18, 14, 11],
-  45: [35, 22, 18, 14, 11],
-
-  // 46-90: top 9 paid (~15-20% of field)
-  46: [28, 18, 14, 11, 9, 7, 6, 4, 3],
-  90: [28, 18, 14, 11, 9, 7, 6, 4, 3],
-
-  // 91-180: top 18 paid
-  91: [25, 15, 11, 9, 7, 6, 5, 4, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1],
-  180: [25, 15, 11, 9, 7, 6, 5, 4, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1],
-};
+// 15% of field gets paid; top 3 slots follow the [30, 20, 15] curve,
+// rest split equally. Remainder from bigint division goes to 1st place.
+const ITM_PERCENTAGE = 0.15;
+const PAYOUT_CURVE = [30, 20, 15];
 
 /**
- * Resolve the correct payout structure for a given number of entrants.
- * Finds the largest bracket key that doesn't exceed entrantCount.
+ * Calculate payout amounts for a tournament.
+ * Pays the top 15% of the field (minimum 1). Uses a steep curve for the
+ * top positions and splits the remaining pool equally among lower ITM spots.
+ * Handles BigInt rounding — remainder always goes to 1st place.
  */
-export function getPayoutStructure(entrantCount: number): PayoutStructure {
-  const keys = Object.keys(PAYOUT_STRUCTURES)
-    .map(Number)
-    .sort((a, b) => a - b);
-  let chosen = keys[0];
-  for (const k of keys) {
-    if (entrantCount >= k) chosen = k;
-    else break;
-  }
-  return PAYOUT_STRUCTURES[chosen];
-}
-
-/**
- * Calculate actual payout amounts from prize pool and structure.
- * Returns array of { position, percentage, amount } sorted by position.
- * Handles rounding — remainder goes to 1st place.
- */
-export function calculatePayouts(
+export function calculatePrizes(
   prizePool: bigint,
-  entrantCount: number,
+  playerCount: number,
 ): Payout[] {
-  const structure = getPayoutStructure(entrantCount);
+  const itmCount = Math.max(1, Math.floor(playerCount * ITM_PERCENTAGE));
+
+  let percentages: number[];
+  if (itmCount === 1) {
+    percentages = [100];
+  } else if (itmCount === 2) {
+    percentages = [65, 35];
+  } else {
+    const topSlots = Math.min(PAYOUT_CURVE.length, itmCount);
+    const topPercentages = PAYOUT_CURVE.slice(0, topSlots);
+    const topSum = topPercentages.reduce((a, b) => a + b, 0);
+    const remainingSlots = itmCount - topSlots;
+    // Cap each remaining slot at the last curve value so lower positions
+    // can never pay more than 3rd place (avoids 4th > 1st for small ITM counts).
+    const lastCurveValue = PAYOUT_CURVE[PAYOUT_CURVE.length - 1];
+    const remainingPerShare =
+      remainingSlots > 0
+        ? Math.min(Math.floor((100 - topSum) / remainingSlots), lastCurveValue)
+        : 0;
+    const leftover =
+      remainingSlots > 0
+        ? 100 - topSum - remainingPerShare * remainingSlots
+        : 100 - topSum;
+    percentages = [...topPercentages];
+    for (let i = 0; i < remainingSlots; i++) {
+      percentages.push(remainingPerShare);
+    }
+    percentages[0] += leftover;
+  }
+
   let remaining = prizePool;
-  const payouts = structure.map((pct, i) => {
+  const payouts: Payout[] = percentages.map((pct, i) => {
     const amount = (prizePool * BigInt(pct)) / 100n;
     remaining -= amount;
     return { position: i + 1, percentage: pct, amount };
   });
-  payouts[0].amount += remaining;
+  if (remaining > 0n) payouts[0].amount += remaining;
   return payouts;
-}
-
-/**
- * Split combined prize money for tied positions equally.
- * E.g., 3 players tied at position 5 → combine prizes for positions 5,6,7 and split.
- * Returns per-player amounts. Remainder goes to first player.
- */
-export function splitPayoutsForTiedPositions(
-  payoutByPosition: Map<number, bigint>,
-  position: number,
-  groupSize: number,
-): bigint[] {
-  let combined = 0n;
-  for (let p = position; p < position + groupSize; p++) {
-    combined += payoutByPosition.get(p) ?? 0n;
-  }
-  const gs = BigInt(groupSize);
-  const perPlayer = combined / gs;
-  const remainder = combined - perPlayer * gs;
-  return Array.from(
-    { length: groupSize },
-    (_, i) => perPlayer + (i === 0 ? remainder : 0n),
-  );
 }
 
 /**

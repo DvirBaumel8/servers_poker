@@ -56,7 +56,7 @@ export default function TournamentLobbyPage() {
   // Memoize the callback to prevent effect re-runs
   const handleTournamentStarted = useCallback(() => {
     if (id) {
-      navigate(`/tournaments/${id}/live`)
+      navigate(`/tournaments/${id}`)
     }
   }, [id, navigate])
 

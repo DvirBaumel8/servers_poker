@@ -820,6 +820,12 @@ export default function Home() {
     setCarouselToast('Upgrade coming soon! Stay tuned.')
   }
 
+  function handleCarouselBuildBot(persist: boolean) {
+    if (persist) localStorage.setItem('hasSeenWelcomeCarousel', 'true')
+    setShowCarousel(false)
+    navigate('/bots/build')
+  }
+
   async function fetchBots() {
     try {
       const res = await api.get('/bots/my')
@@ -907,6 +913,7 @@ export default function Home() {
           userName={user.name}
           onClose={handleCarouselClose}
           onUpgrade={handleCarouselUpgrade}
+          onBuildBot={handleCarouselBuildBot}
         />
       )}
       {carouselToast && <Toast message={carouselToast} onClose={() => setCarouselToast(null)} />}

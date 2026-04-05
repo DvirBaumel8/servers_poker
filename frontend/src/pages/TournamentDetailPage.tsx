@@ -449,24 +449,20 @@ export default function TournamentDetailPage() {
                         ))}
                       </div>
                       {tournament?.status === 'running' && (
-                        <button
-                          onClick={() => navigate(`/tournaments/${id}/live`)}
-                          style={{
-                            width: '100%',
-                            padding: '10px',
-                            borderRadius: 8,
-                            background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
-                            border: 'none',
-                            color: '#000',
-                            fontWeight: 700,
-                            fontSize: 13,
-                            fontFamily: C.font,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          Watch Your Game →
-                        </button>
+                        <div style={{
+                          width: '100%',
+                          padding: '10px',
+                          borderRadius: 8,
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: C.muted,
+                          fontWeight: 600,
+                          fontSize: 12,
+                          fontFamily: C.font,
+                          textAlign: 'center',
+                        }}>
+                          Replay System coming soon — analyze your Bot's hands in the Lab.
+                        </div>
                       )}
                     </div>
                   ) : !isRegistrationOpen ? (
