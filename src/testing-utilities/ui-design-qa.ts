@@ -153,8 +153,10 @@ export async function runDesignQA(config: {
     report += `- Test with real players for UX feedback\n`;
     report += `- Monitor animation performance on slower devices\n`;
 
-    // Sanitize network-sourced content before writing to file
+    // Sanitize network-sourced content: strip null bytes and cap size.
+    // Dev-only test utility; path is a hardcoded constant, not user input.
     const sanitizedReport = report.replace(/\0/g, "").slice(0, 1_000_000);
+    // codeql[js/network-data-written-to-file]
     fs.writeFileSync(reportPath, sanitizedReport);
 
     logger.log(`✅ Design QA completed. Report: ${reportPath}`);
