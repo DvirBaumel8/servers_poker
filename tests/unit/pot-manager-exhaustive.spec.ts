@@ -2,7 +2,7 @@
  * Exhaustive test suite for PotManager and BettingRound (betting.ts).
  * ~230 unique pot distribution and betting-round scenarios.
  */
-import { describe, it, expect, test, beforeEach } from "vitest";
+import { describe, it, expect, test } from "vitest";
 import { PotManager, BettingRound } from "../../src/domain/betting";
 
 // ---------------------------------------------------------------------------
@@ -530,17 +530,8 @@ describe("C. distributePot — Odd Chip Distribution", () => {
       ],
     ];
 
-    test.each(oddCases)("%s", (desc, order, dealerIdx, extraWinner) => {
+    test.each(oddCases)("%s", (desc, order, dealerIdx, _extraWinner) => {
       const mgr = pm();
-      const [w1, w2] = order.filter((_, i) => order.indexOf(order[i]) < 2);
-      // Use two of the players as winners (the first two in order that are in the winners list)
-      const winners = [
-        {
-          id: extraWinner === "A" || extraWinner === "B" ? "A" : "A",
-          handRank: 5,
-        },
-        { id: extraWinner === "A" ? "B" : extraWinner, handRank: 5 },
-      ];
       // Actually just test a simple 2-winner scenario with pot=3 and verify conservation
       const winnerIds = [order[0], order[order.length - 1]];
       const ws = winnerIds.map((id) => ({ id, handRank: 5 }));
@@ -986,7 +977,7 @@ describe("D. BettingRound: Short All-In / canReraise", () => {
     });
 
     it("chipless player cannot re-raise", () => {
-      const { br, players } = makeBR([
+      const { br } = makeBR([
         { id: "A", chips: 1000n },
         { id: "B", chips: 0n },
       ]);

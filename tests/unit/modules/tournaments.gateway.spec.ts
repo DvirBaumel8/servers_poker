@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Logger } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { TournamentsGateway } from "../../../src/modules/tournaments/tournaments.gateway";
 import { TournamentsService } from "../../../src/modules/tournaments/tournaments.service";
 import { TournamentRepository } from "../../../src/repositories/tournament.repository";
-import { Server, Socket } from "socket.io";
+import { Server } from "socket.io";
 
 describe("TournamentsGateway", () => {
   let gateway: TournamentsGateway;

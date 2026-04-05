@@ -283,6 +283,15 @@
 
   <script>
     // Parse game state from URL parameter
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     function getGameState() {
       const params = new URLSearchParams(window.location.search)
       const stateParam = params.get('state')
@@ -390,14 +399,14 @@
         html += '<div class="player-cards">'
         if (player.holeCards && player.holeCards.length === 2) {
           player.holeCards.forEach((card) => {
-            html += `<div class="player-card ${card === '??' ? 'facedown' : ''}">${formatCard(card)}</div>`
+            html += `<div class="player-card ${card === '??' ? 'facedown' : ''}">${escapeHtml(formatCard(card))}</div>`
           })
         }
         html += '</div>'
 
         html += '<div class="player-nameplate ' + (player.id === state.activePlayerId ? 'active' : '') + '">'
-        html += `<div class="player-name">${player.name}</div>`
-        html += `<div class="player-chips">${player.chips}</div>`
+        html += `<div class="player-name">${escapeHtml(player.name)}</div>`
+        html += `<div class="player-chips">${escapeHtml(player.chips)}</div>`
         html += '</div>'
 
         // Blind badge

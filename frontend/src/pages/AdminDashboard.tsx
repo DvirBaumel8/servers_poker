@@ -5,6 +5,12 @@ import api from '../lib/axios'
 import { useAuthStore } from '../store/authStore'
 import { Sidebar } from '../components/Sidebar'
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+type ApiErr = { response?: { data?: { message?: string } } }
+const apiMsg = (e: unknown, fallback: string) =>
+  (e as ApiErr)?.response?.data?.message ?? fallback
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Tournament {
@@ -192,8 +198,8 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
       showToast(`Injected ${res.data.injected} bots (${selected})`, true)
       await loadEntries()
       onSuccess()
-    } catch (e: any) {
-      showToast(e?.response?.data?.message ?? 'Inject failed', false)
+    } catch (e: unknown) {
+      showToast(apiMsg(e, 'Inject failed'), false)
     } finally {
       setLoading(false)
     }
@@ -205,8 +211,8 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
       await api.delete(`/tournaments/admin/${tournamentId}/entries/${entryId}`)
       setEntries(prev => prev.filter(e => e.entryId !== entryId))
       onSuccess()
-    } catch (e: any) {
-      showToast(e?.response?.data?.message ?? 'Remove failed', false)
+    } catch (e: unknown) {
+      showToast(apiMsg(e, 'Remove failed'), false)
     } finally {
       setRemoving(null)
     }
@@ -415,7 +421,7 @@ export default function AdminDashboard() {
     } catch {
       showToast('Failed to load seeding map', false)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -552,7 +558,7 @@ export default function AdminDashboard() {
       return
     }
 
-    const baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000'
+    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
     const socket = io(`${baseURL}/tournament`, {
       auth: { token },
       transports: ['websocket', 'polling'],
@@ -583,7 +589,6 @@ export default function AdminDashboard() {
       telemetrySocketRef.current = null
       telemetrySocketConnected.current = false
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveIdsKey, token])
 
   // ── Polling fallback — used when WebSocket is not connected ───────────────
@@ -638,8 +643,8 @@ export default function AdminDashboard() {
       await api.post(`/tournaments/${id}/start`)
       showToast('Tournament started!', true)
       await fetchTournaments()
-    } catch (e: any) {
-      showToast(e?.response?.data?.message ?? 'Start failed', false)
+    } catch (e: unknown) {
+      showToast(apiMsg(e, 'Start failed'), false)
     } finally { setBusyId(null) }
   }
 
@@ -649,8 +654,8 @@ export default function AdminDashboard() {
       await api.post(`/tournaments/${id}/cancel`)
       showToast('Tournament cancelled', true)
       await fetchTournaments()
-    } catch (e: any) {
-      showToast(e?.response?.data?.message ?? 'Cancel failed', false)
+    } catch (e: unknown) {
+      showToast(apiMsg(e, 'Cancel failed'), false)
     } finally { setBusyId(null) }
   }
 
@@ -668,8 +673,8 @@ export default function AdminDashboard() {
       showToast(`"${name}" created`, true)
       setTnmtName('')
       await fetchTournaments()
-    } catch (e: any) {
-      showToast(e?.response?.data?.message ?? 'Create failed', false)
+    } catch (e: unknown) {
+      showToast(apiMsg(e, 'Create failed'), false)
     } finally { setCreating(false) }
   }
 
@@ -690,8 +695,8 @@ export default function AdminDashboard() {
       const res = await api.post<{ cancelled: number }>('/tournaments/admin/reset-state')
       showToast(`Reset: ${res.data.cancelled} tournaments cancelled`, true)
       await fetchTournaments()
-    } catch (e: any) {
-      showToast(e?.response?.data?.message ?? 'Reset failed', false)
+    } catch (e: unknown) {
+      showToast(apiMsg(e, 'Reset failed'), false)
     } finally { setBusyId(null) }
   }
 
@@ -1195,8 +1200,8 @@ function BalancingMovesPanel({ tournamentId, onClose }: { tournamentId: string; 
       const res = await api.get<TableMoveEvent[]>(`/tournaments/admin/${tournamentId}/balancing-moves?limit=30`)
       setMoves(res.data ?? [])
       setError(null)
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Failed to load')
+    } catch (e: unknown) {
+      setError(apiMsg(e, 'Failed to load'))
     } finally {
       setLoading(false)
     }
@@ -1506,21 +1511,26 @@ function QuickAnalyticsPanel({ tournamentId, onClose }: { tournamentId: string; 
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true); setError(null)
-    api.get<{ tournamentName: string; finishedAt: string | null; totalEntries: number; results: Array<{ rank: number; botName: string; userName: string; payout: number; isTied?: boolean }> }>(
-      `/tournaments/${tournamentId}/results`
-    ).then(res => {
-      if (!cancelled) setData({
-        tournamentName: res.data.tournamentName,
-        finishedAt: res.data.finishedAt,
-        totalEntries: res.data.totalEntries,
-        results: res.data.results,
-      })
-    }).catch((e: any) => {
-      if (!cancelled) setError(e?.response?.data?.message ?? 'Failed to load results')
-    }).finally(() => {
-      if (!cancelled) setLoading(false)
-    })
+    async function fetchResults() {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await api.get<{ tournamentName: string; finishedAt: string | null; totalEntries: number; results: Array<{ rank: number; botName: string; userName: string; payout: number; isTied?: boolean }> }>(
+          `/tournaments/${tournamentId}/results`
+        )
+        if (!cancelled) setData({
+          tournamentName: res.data.tournamentName,
+          finishedAt: res.data.finishedAt,
+          totalEntries: res.data.totalEntries,
+          results: res.data.results,
+        })
+      } catch (e: unknown) {
+        if (!cancelled) setError(apiMsg(e, 'Failed to load results'))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchResults()
     return () => { cancelled = true }
   }, [tournamentId])
 
@@ -1638,15 +1648,21 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
   const [prizeInfo, setPrizeInfo] = useState<{ pool: number; firstPlace: number } | null>(null)
 
   useEffect(() => {
-    if (t.buy_in === 0 || t.entries_count === 0) { setPrizeInfo(null); return }
-    const pool = t.buy_in * t.entries_count
-    api.get<{ payouts: Array<{ rank: number; amount: number; percentage: number }> }>(
-      `/tournaments/admin/prize-preview?pool=${pool}&players=${t.entries_count}`
-    ).then(res => {
-      if (res.data.payouts.length > 0) {
-        setPrizeInfo({ pool, firstPlace: res.data.payouts[0].amount })
+    async function fetchPrize() {
+      if (t.buy_in === 0 || t.entries_count === 0) { setPrizeInfo(null); return }
+      const pool = t.buy_in * t.entries_count
+      try {
+        const res = await api.get<{ payouts: Array<{ rank: number; amount: number; percentage: number }> }>(
+          `/tournaments/admin/prize-preview?pool=${pool}&players=${t.entries_count}`
+        )
+        if (res.data.payouts.length > 0) {
+          setPrizeInfo({ pool, firstPlace: res.data.payouts[0].amount })
+        }
+      } catch {
+        setPrizeInfo(null)
       }
-    }).catch(() => setPrizeInfo(null))
+    }
+    fetchPrize()
   }, [t.buy_in, t.entries_count])
 
   const isRegistering = t.status === 'registering'

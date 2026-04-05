@@ -39,7 +39,7 @@ jobs:
         working-directory: frontend
 
       - name: Lint backend
-        run: npx eslint "src/**/*.ts" "tests/**/*.ts"
+        run: npm run lint
 
       - name: Lint frontend
         run: npx eslint src

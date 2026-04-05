@@ -415,7 +415,6 @@ describe("Matchmaking & Finance E2E — Happy Flow", () => {
     );
 
     for (const pod of podRows) {
-      const winnerBotId = allEntries[offset].bot_id;
       const winnerUserId = allEntries[offset].user_id;
 
       const wallet = await finance.getWallet(winnerUserId);

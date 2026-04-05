@@ -4,11 +4,7 @@ import { INestApplication } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { getSharedApp } from "./shared/app-singleton";
-import {
-  createTestUser,
-  createTestTable,
-  authHeader,
-} from "./shared/test-factories";
+import { createTestUser, authHeader } from "./shared/test-factories";
 import {
   createDefaultStrategy,
   createCallerStrategy,

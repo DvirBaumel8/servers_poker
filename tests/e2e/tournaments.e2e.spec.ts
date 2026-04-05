@@ -525,8 +525,8 @@ describe("Tournaments E2E Tests", () => {
     it("should return 404 when user is not registered for tournament", async () => {
       const user1 = await createTestUser("flowuser1");
       const user2 = await createTestUser("flowuser2");
-      const bot1 = await createTestBot(user1.accessToken, "Bot1");
-      const bot2 = await createTestBot(user2.accessToken, "Bot2");
+      await createTestBot(user1.accessToken, "Bot1");
+      await createTestBot(user2.accessToken, "Bot2");
 
       // User1 creates tournament
       const tournamentResponse = await createTestTournament(user1.accessToken, {

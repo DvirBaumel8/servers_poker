@@ -6,7 +6,6 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { BotsService } from "../../../src/modules/bots/bots.service";
-import { BotOwnershipService } from "../../../src/modules/bots/bot-ownership.service";
 
 describe("BotsService", () => {
   let service: BotsService;

@@ -28,10 +28,8 @@ describe("WebSocket E2E Tests", () => {
   }, 60000);
 
   afterEach(async () => {
-    if (clientSocket && clientSocket.connected) {
-      clientSocket.disconnect();
-      clientSocket = null;
-    }
+    clientSocket?.disconnect();
+    clientSocket = null;
   });
 
   async function createTestUser() {
@@ -117,7 +115,7 @@ describe("WebSocket E2E Tests", () => {
       const socket = await connectSocket(accessToken);
       const id = uid();
 
-      const botResponse = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post("/api/v1/bots/internal")
         .set("Authorization", `Bearer ${accessToken}`)
         .send({
@@ -226,7 +224,7 @@ describe("WebSocket E2E Tests", () => {
           bot_id: botId,
         });
 
-      const event = await eventPromise;
+      await eventPromise;
       socket.disconnect();
     });
   });
@@ -313,7 +311,7 @@ describe("WebSocket E2E Tests", () => {
 
       socket.emit("subscribe", { tableId: `non-existent-table-${uid()}` });
 
-      const error = await errorPromise;
+      await errorPromise;
       socket.disconnect();
     });
 

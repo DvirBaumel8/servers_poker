@@ -10,7 +10,7 @@
  */
 
 const { isMainThread, Worker, workerData, parentPort } = require('worker_threads');
-const { randomBytes } = require('crypto');
+const { randomInt } = require('crypto');
 const { cpus } = require('os');
 const fs = require('fs');
 const path = require('path');
@@ -32,9 +32,8 @@ for (const suit of SUITS) for (const rank of RANKS) CARD_LABELS.push(`${rank}${s
 
 function shuffle(deck) {
   const d = deck.slice();
-  const bytes = randomBytes(d.length * 4);
   for (let i = d.length - 1; i > 0; i--) {
-    const j = bytes.readUInt32BE(i * 4) % (i + 1);
+    const j = randomInt(0, i + 1);
     const tmp = d[i]; d[i] = d[j]; d[j] = tmp;
   }
   return d;

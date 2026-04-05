@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import * as crypto from "crypto";
-import { DataSource } from "typeorm";
+
 import { getSharedApp } from "./shared/app-singleton";
 
 let testCounter = 1;
@@ -20,32 +20,11 @@ const uid = () => `${testCounter++}${Math.random().toString(36).slice(2, 6)}`;
 
 describe("Provably Fair E2E Tests", () => {
   let app: INestApplication;
-  let dataSource: DataSource;
 
   beforeAll(async () => {
     const shared = await getSharedApp();
     app = shared.app;
-    dataSource = shared.dataSource;
   }, 60000);
-
-  async function registerPlayer(): Promise<{
-    accessToken: string;
-    bot: { id: string };
-  }> {
-    const id = uid();
-
-    const response = await request(app.getHttpServer())
-      .post("/api/v1/auth/register-developer")
-      .send({
-        email: `pf${id}@test.com`,
-        name: `PFPlayer${id}`,
-        password: "SecurePass123",
-        botName: `PFBot${id}`,
-      })
-      .expect(201);
-
-    return response.body;
-  }
 
   describe("Provably Fair Info", () => {
     it("should return provably fair documentation", async () => {
