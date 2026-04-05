@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { DataSource } from "typeorm";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { randomBytes } from "crypto";
+import { randomInt } from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { TournamentRepository } from "../../repositories/tournament.repository";
 import { TournamentPodRepository } from "../../repositories/tournament-pod.repository";
@@ -296,9 +296,8 @@ export class MatchmakingService {
    * Cryptographically secure randomization for fair player distribution across pods.
    */
   shufflePlayers<T>(arr: T[]): T[] {
-    const bytes = randomBytes(arr.length * 4);
     for (let i = arr.length - 1; i > 0; i--) {
-      const j = bytes.readUInt32BE(i * 4) % (i + 1);
+      const j = randomInt(0, i + 1);
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;

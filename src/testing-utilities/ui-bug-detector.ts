@@ -5,7 +5,13 @@
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import {
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  mkdirSync,
+  existsSync,
+} from "fs";
 import { join } from "path";
 
 export interface UIBug {
@@ -351,7 +357,9 @@ function updatePokerBugsFile(result: BugDetectionResult): void {
       `_Last detected: ${new Date().toISOString()} (Game: ${result.gameId})_`,
     );
 
-    writeFileSync(bugsFilePath, lines.join("\n"));
+    const tmpPath = bugsFilePath + ".tmp";
+    writeFileSync(tmpPath, lines.join("\n"));
+    renameSync(tmpPath, bugsFilePath);
   } catch (error) {
     console.error("Failed to update POKER_BUGS.md:", error);
   }

@@ -46,8 +46,8 @@ export async function createTestUser(
     "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC";
 
   await dataSource.query(
-    `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, true, true, NOW(), NOW())`,
+    `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, subscription_status, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, true, true, 'active', NOW(), NOW())`,
     [userId, email, name, passwordHash, role],
   );
 

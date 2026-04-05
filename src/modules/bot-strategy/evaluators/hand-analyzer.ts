@@ -134,7 +134,7 @@ function computePairType(
 function detectFlushDraw(hole: ParsedCard[], allCards: ParsedCard[]): boolean {
   if (allCards.length < 4) return false;
 
-  const suitCounts: Record<string, number> = {};
+  const suitCounts: Record<string, number> = Object.create(null);
   for (const card of allCards) {
     suitCounts[card.suit] = (suitCounts[card.suit] || 0) + 1;
   }

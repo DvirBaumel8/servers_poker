@@ -103,7 +103,6 @@ async function runHandSimulation(
   let currentHandPosition = "Unknown";
 
   let currentHandTargetStartChips = BigInt(startingChips);
-  let targetBotStartChips = BigInt(startingChips);
 
   // All player IDs in order (for position computation)
   const allBots = [targetBot, ...opponents];

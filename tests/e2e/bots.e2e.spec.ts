@@ -609,7 +609,7 @@ describe("Bots E2E Tests", () => {
       const activeBotName = `ActiveBot-${uid()}`;
       const inactiveBotName = `InactiveBot-${uid()}`;
 
-      const activeResponse = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
@@ -705,9 +705,9 @@ describe("Bots E2E Tests", () => {
     it("should fail to duplicate when at account limit", async () => {
       const user = await createTestUser(dataSource, jwtService);
 
-      // Create 10 bots via API
-      const bots: any[] = [];
-      for (let i = 0; i < 10; i++) {
+      // Create 5 bots via API (pro plan limit)
+      const bots: { id: string }[] = [];
+      for (let i = 0; i < 5; i++) {
         const response = await request(app.getHttpServer())
           .post("/api/v1/bots/internal")
           .set(authHeader(user.accessToken))
@@ -729,10 +729,10 @@ describe("Bots E2E Tests", () => {
   });
 
   describe("Bot Account Limit", () => {
-    it("should allow creating up to MAX (10) bots", async () => {
+    it("should allow creating up to MAX (5) bots", async () => {
       const user = await createTestUser(dataSource, jwtService);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 5; i++) {
         await request(app.getHttpServer())
           .post("/api/v1/bots/internal")
           .set(authHeader(user.accessToken))
@@ -749,14 +749,14 @@ describe("Bots E2E Tests", () => {
         .expect(200);
 
       const bots = listResponse.body.data || listResponse.body;
-      expect(bots).toHaveLength(10);
+      expect(bots).toHaveLength(5);
     });
 
-    it("should reject creating 11th bot with 403", async () => {
+    it("should reject creating 6th bot with 400", async () => {
       const user = await createTestUser(dataSource, jwtService);
 
-      // Create 10 bots
-      for (let i = 0; i < 10; i++) {
+      // Create 5 bots (pro plan limit)
+      for (let i = 0; i < 5; i++) {
         await request(app.getHttpServer())
           .post("/api/v1/bots/internal")
           .set(authHeader(user.accessToken))
@@ -767,12 +767,12 @@ describe("Bots E2E Tests", () => {
           .expect(201);
       }
 
-      // Try to create 11th
+      // Try to create 6th
       const response = await request(app.getHttpServer())
         .post("/api/v1/bots/internal")
         .set(authHeader(user.accessToken))
         .send({
-          name: `ExceedBot11-${uid()}`,
+          name: `ExceedBot6-${uid()}`,
           strategy: createDefaultStrategy(),
         });
 

@@ -49,7 +49,7 @@ export default function TournamentLobbyPage() {
   const navigate = useNavigate()
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
@@ -84,7 +84,7 @@ export default function TournamentLobbyPage() {
     if (isInitialLoad) {
       setLoading(true)
     }
-    setError('')
+    setError(null)
     try {
       const res = await api.get(`/tournaments/${id}`)
       setTournament(res.data)

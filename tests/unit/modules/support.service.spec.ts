@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SupportService } from "../../../src/modules/support/support.service";
-import { NOTIFICATION_PROVIDER } from "../../../src/modules/support/notification/notification.provider";
 
 const mockTicketRepo = {
   createTicket: vi.fn(),

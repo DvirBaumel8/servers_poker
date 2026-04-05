@@ -4,7 +4,6 @@ import request from "supertest";
 import { DataSource } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { getSharedApp } from "./shared/app-singleton";
-import { createDefaultStrategy } from "../utils/strategy-bot-factory";
 
 const uid = () => Math.random().toString(36).slice(2, 8);
 

@@ -80,7 +80,7 @@ export function countOuts(
   let overCardOuts = 0;
 
   // ── Flush outs ──
-  const suitCounts: Record<string, number> = {};
+  const suitCounts: Record<string, number> = Object.create(null);
   for (const card of allCards) {
     suitCounts[card.suit] = (suitCounts[card.suit] || 0) + 1;
   }
@@ -275,7 +275,7 @@ function inferHandStrength(
   const allCards = [...hole, ...community];
 
   // Check flush (5+ same suit)
-  const suitCounts: Record<string, number> = {};
+  const suitCounts: Record<string, number> = Object.create(null);
   for (const c of allCards) {
     suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1;
   }

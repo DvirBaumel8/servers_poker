@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomInt } from "crypto";
 
 const SUITS: string[] = ["♠", "♥", "♦", "♣"];
 const RANKS: string[] = [
@@ -57,9 +57,8 @@ function createDeck(): Card[] {
  */
 function shuffle(deck: Card[]): Card[] {
   const d: Card[] = [...deck];
-  const bytes = randomBytes(d.length * 4);
   for (let i = d.length - 1; i > 0; i--) {
-    const j = bytes.readUInt32BE(i * 4) % (i + 1);
+    const j = randomInt(0, i + 1);
     [d[i], d[j]] = [d[j], d[i]];
   }
   return d;

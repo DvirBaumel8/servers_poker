@@ -34,7 +34,7 @@ export function analyzeBoard(communityCards: string[]): BoardAnalysis {
 function classifyBoardTexture(cards: ParsedCard[]): BoardTexture {
   if (cards.length < 3) return "dry";
 
-  const suitCounts: Record<string, number> = {};
+  const suitCounts: Record<string, number> = Object.create(null);
   for (const card of cards) {
     suitCounts[card.suit] = (suitCounts[card.suit] || 0) + 1;
   }

@@ -3,12 +3,7 @@ import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
-import {
-  createTestUser as createTestUserHelper,
-  createTestBot as createTestBotHelper,
-  TestUser,
-  TestBot,
-} from "./test-helpers";
+
 import { getSharedApp } from "./shared/app-singleton";
 import { v4 as uuidv4 } from "uuid";
 
@@ -34,8 +29,8 @@ describe("Games E2E Tests", () => {
     const passwordHash =
       "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.3L8KJ5h1V5OGRC";
     await dataSource.query(
-      `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, 'user', true, true, NOW(), NOW())`,
+      `INSERT INTO users (id, email, name, password_hash, role, active, email_verified, subscription_status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'user', true, true, 'active', NOW(), NOW())`,
       [userId, email, name, passwordHash],
     );
 

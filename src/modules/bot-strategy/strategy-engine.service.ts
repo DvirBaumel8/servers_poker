@@ -58,7 +58,8 @@ const CACHE_MAX = 256;
 function strategyHash(strategy: BotStrategy): string {
   const str = JSON.stringify(strategy);
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
+  const len = str.length;
+  for (let i = 0; i < len; i++) {
     hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
   }
   // Include tier in key to guard against hash collisions across different tiers
@@ -103,7 +104,8 @@ export function hydrateStrategy(strategy: BotStrategy): HydratedStrategy {
     rangeChart: baseRange,
   };
 
-  const positions: Partial<Record<Position, HydratedPosition>> = {};
+  const positions: Partial<Record<Position, HydratedPosition>> =
+    Object.create(null);
 
   if (strategy.positionOverrides) {
     for (const [pos, override] of Object.entries(

@@ -153,7 +153,9 @@ export async function runDesignQA(config: {
     report += `- Test with real players for UX feedback\n`;
     report += `- Monitor animation performance on slower devices\n`;
 
-    fs.writeFileSync(reportPath, report);
+    // Sanitize network-sourced content before writing to file
+    const sanitizedReport = report.replace(/\0/g, "").slice(0, 1_000_000);
+    fs.writeFileSync(reportPath, sanitizedReport);
 
     logger.log(`✅ Design QA completed. Report: ${reportPath}`);
 

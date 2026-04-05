@@ -60,8 +60,10 @@ export function writeBugReportsWithTracking(
     }
   });
 
-  // Save updated registry
-  fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2), "utf-8");
+  // Save updated registry atomically (write to temp then rename to avoid race conditions)
+  const registryTmpPath = registryPath + ".tmp";
+  fs.writeFileSync(registryTmpPath, JSON.stringify(registry, null, 2), "utf-8");
+  fs.renameSync(registryTmpPath, registryPath);
 
   // Generate report
   let content = "# Poker Game Bugs - Auto-Generated\n\n";
@@ -89,7 +91,9 @@ export function writeBugReportsWithTracking(
     });
   }
 
-  fs.writeFileSync(bugsFile, content, "utf-8");
+  const bugsTmpPath = bugsFile + ".tmp";
+  fs.writeFileSync(bugsTmpPath, content, "utf-8");
+  fs.renameSync(bugsTmpPath, bugsFile);
 
   return { bugsFile, registryFile: registryPath };
 }

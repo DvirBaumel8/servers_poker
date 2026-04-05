@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ForbiddenException, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import {
-  SelfOrAdminGuard,
-  SELF_OR_ADMIN_KEY,
-} from "../../../src/common/guards/self-or-admin.guard";
+import { SelfOrAdminGuard } from "../../../src/common/guards/self-or-admin.guard";
 
 describe("SelfOrAdminGuard", () => {
   let guard: SelfOrAdminGuard;
