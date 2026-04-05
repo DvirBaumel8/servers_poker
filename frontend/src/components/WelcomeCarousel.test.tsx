@@ -92,9 +92,8 @@ describe('WelcomeCarousel — visibility', () => {
     // The overlay with data-testid="welcome-carousel" must be present
     expect(screen.getByTestId('welcome-carousel')).toBeInTheDocument()
 
-    // Slide 1 headline should include the username
-    expect(screen.getByText(/The Arena Awaits/i)).toBeInTheDocument()
-    expect(screen.getByText(new RegExp(TEST_USER, 'i'))).toBeInTheDocument()
+    // Slide 1 headline should be visible
+    expect(screen.getByText(/Zero Risk\. Pure Profit\./i)).toBeInTheDocument()
   })
 
   /**
@@ -129,8 +128,8 @@ describe('WelcomeCarousel — localStorage persistence', () => {
     // Close without checking the box — X button
     fireEvent.click(screen.getByTestId('carousel-close'))
 
-    // Advance past the 260ms fade-out timer
-    vi.runAllTimers()
+    // Advance past the 260ms fade-out timer (wrapped in act because it triggers setShow)
+    await act(async () => { vi.runAllTimers() })
 
     // localStorage must still be unset
     expect(localStorage.getItem(LS_KEY)).toBeNull()
@@ -193,9 +192,9 @@ describe('WelcomeCarousel — localStorage persistence', () => {
 
     // Click "Build Your First Bot"
     fireEvent.click(screen.getByTestId('carousel-build-bot'))
-    vi.runAllTimers()
+    await act(async () => { vi.runAllTimers() })
 
-    // localStorage is still set (hardcoded persist=true in handleBuildBot)
+    // localStorage is still set (persist=true is hardcoded in handleBuildBot)
     expect(localStorage.getItem(LS_KEY)).toBe('true')
   })
 })
@@ -211,21 +210,21 @@ describe('WelcomeCarousel — slide navigation', () => {
     render(<CarouselHost />)
 
     // Slide 1
-    expect(screen.getByText(/The Arena Awaits/i)).toBeInTheDocument()
+    expect(screen.getByText(/Zero Risk\. Pure Profit\./i)).toBeInTheDocument()
     expect(screen.queryByTestId('carousel-back')).not.toBeInTheDocument()
 
     // → Slide 2
     fireEvent.click(screen.getByTestId('carousel-next'))
-    expect(screen.getByText(/Fight for Glory/i)).toBeInTheDocument()
+    expect(screen.getByText(/The Arena of Algorithms/i)).toBeInTheDocument()
     expect(screen.getByTestId('carousel-back')).toBeInTheDocument()
 
-    // → Slide 3 (check the unique full-width upgrade CTA, not the header which duplicates the subheader text)
+    // → Slide 3
     fireEvent.click(screen.getByTestId('carousel-next'))
-    expect(screen.getByText(/Upgrade to Pro.*Unlock All 5 Bots/i)).toBeInTheDocument()
+    expect(screen.getByText(/Tournament Entry/i)).toBeInTheDocument()
 
     // → Slide 4
     fireEvent.click(screen.getByTestId('carousel-next'))
-    expect(screen.getByText(/Analyze & Optimize/i)).toBeInTheDocument()
+    expect(screen.getByText(/Ready to Deploy/i)).toBeInTheDocument()
 
     // On slide 4, "Next →" is replaced by "Build Your First Bot"
     expect(screen.queryByTestId('carousel-next')).not.toBeInTheDocument()
@@ -244,18 +243,18 @@ describe('WelcomeCarousel — slide navigation', () => {
   it('Back returns to the previous slide', () => {
     render(<CarouselHost />)
 
-    // Advance to slide 3 (use unique full-width upgrade CTA text to avoid header/subheader ambiguity)
+    // Advance to slide 3
     fireEvent.click(screen.getByTestId('carousel-next'))
     fireEvent.click(screen.getByTestId('carousel-next'))
-    expect(screen.getByText(/Upgrade to Pro.*Unlock All 5 Bots/i)).toBeInTheDocument()
+    expect(screen.getByText(/Tournament Entry/i)).toBeInTheDocument()
 
     // Go back to slide 2
     fireEvent.click(screen.getByTestId('carousel-back'))
-    expect(screen.getByText(/Fight for Glory/i)).toBeInTheDocument()
+    expect(screen.getByText(/The Arena of Algorithms/i)).toBeInTheDocument()
 
     // Go back to slide 1
     fireEvent.click(screen.getByTestId('carousel-back'))
-    expect(screen.getByText(/The Arena Awaits/i)).toBeInTheDocument()
+    expect(screen.getByText(/Zero Risk\. Pure Profit\./i)).toBeInTheDocument()
 
     // Back button must be absent on slide 1
     expect(screen.queryByTestId('carousel-back')).not.toBeInTheDocument()
@@ -276,13 +275,13 @@ describe('WelcomeCarousel — slide navigation', () => {
     // There should be exactly 4 dots
     expect(dots).toHaveLength(4)
 
-    // Click the last dot → should jump to slide 4 (Lab)
+    // Click the last dot → should jump to slide 4
     fireEvent.click(dots[3])
-    expect(screen.getByText(/Analyze & Optimize/i)).toBeInTheDocument()
+    expect(screen.getByText(/Ready to Deploy/i)).toBeInTheDocument()
 
     // Click the first dot → back to slide 1
     fireEvent.click(dots[0])
-    expect(screen.getByText(/The Arena Awaits/i)).toBeInTheDocument()
+    expect(screen.getByText(/Zero Risk\. Pure Profit\./i)).toBeInTheDocument()
   })
 })
 
