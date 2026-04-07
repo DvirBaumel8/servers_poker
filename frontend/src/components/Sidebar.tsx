@@ -4,13 +4,13 @@ import { useAuthStore } from '../store/authStore'
 import { useSidebarStore } from '../store/sidebarStore'
 
 const C = {
-  bg: '#0d0d22',
-  border: '#1e1e3f',
-  card: '#13132a',
-  accent: '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
+  bg: '#09090b',
+  border: 'rgba(255,255,255,0.08)',
+  card: 'rgba(18,18,27,0.65)',
+  accent: '#00f5ff',
+  accentDim: 'rgba(0,245,255,0.08)',
   text: '#ffffff',
-  muted: '#9ca3af',
+  muted: '#a8b3c4',
   danger: '#e24b4a',
   font: "'Trebuchet MS', sans-serif",
 }
@@ -21,8 +21,8 @@ const NAV = [
   { label: 'Tournaments', path: '/tournaments' },
   { label: 'Leaderboard', path: '/leaderboard' },
   { label: 'Tournament Analytics', path: '/games' },
-  { label: 'Simulations', path: '/simulations' },
   { label: 'Scenario Lab', path: '/scenario-lab' },
+  { label: 'Simulations', path: '/simulations' },
   { label: 'Support', path: '/support' },
 ]
 
@@ -136,12 +136,29 @@ export function Sidebar() {
             <button
               key={path}
               onClick={() => navigate(path)}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  const el = e.currentTarget as HTMLElement
+                  el.style.background = 'rgba(0,245,255,0.05)'
+                  if (!collapsed) el.style.borderLeft = '3px solid rgba(0,245,255,0.3)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  const el = e.currentTarget as HTMLElement
+                  el.style.background = 'transparent'
+                  if (!collapsed) el.style.borderLeft = '3px solid transparent'
+                }
+              }}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: collapsed ? 0 : 10,
                 width: '100%', padding: collapsed ? '7px 0' : '7px 20px',
-                background: active ? (isAdmin ? 'rgba(0,229,255,0.12)' : C.accentDim) : 'transparent',
+                background: active ? (isAdmin ? 'rgba(0,245,255,0.12)' : C.accentDim) : 'transparent',
                 border: 'none', borderLeft: collapsed ? 'none' : `3px solid ${active ? C.accent : 'transparent'}`,
-                color: active ? C.text : (isAdmin ? 'rgba(0,229,255,0.7)' : C.muted),
+                boxShadow: active && !collapsed
+                  ? 'inset 3px 0 16px rgba(0,245,255,0.3), 0 0 8px rgba(0,245,255,0.15)'
+                  : 'none',
+                color: active ? C.accent : (isAdmin ? 'rgba(0,245,255,0.7)' : C.muted),
                 fontSize: 14, fontFamily: C.font, cursor: 'pointer',
                 textAlign: 'left', transition: 'all 0.15s',
               }}
@@ -166,7 +183,7 @@ export function Sidebar() {
         >
           <div style={{
             width: 32, height: 32, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #00e5ff, #0070ff)',
+            background: 'linear-gradient(135deg, #00f5ff, #0070ff)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13, fontWeight: 700, color: '#000', flexShrink: 0,
           }}>

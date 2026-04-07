@@ -1133,7 +1133,7 @@ export default function SimulationsPage() {
           <div style={{ flex: '0 0 60%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 24, overflowY: 'auto', padding: '28px' }}>
 
             {/* New Simulation form */}
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '24px 28px', boxShadow: '0 4px 24px rgba(0,0,0,0.45)' }}>
+            <div style={{ background: C.card, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: `1px solid ${C.border}`, borderRadius: 14, padding: '24px 28px', boxShadow: '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)' }}>
               <div style={{ ...sectionHeaderStyle, marginBottom: 22 }}>New Simulation</div>
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
@@ -1596,11 +1596,22 @@ export default function SimulationsPage() {
                             { label: 'Agg Factor', value: formatAF(result.aggression_factor), color: C.text, rawValue: undefined as number | undefined },
                             { label: 'Total Profit', value: result.total_profit >= 0 ? `+${result.total_profit}` : `${result.total_profit}`, color: result.total_profit >= 0 ? C.accent : '#FF4B4B', rawValue: undefined as number | undefined },
                           ].map(({ label, value, color, rawValue }) => (
-                            <div key={label} style={{ background: '#0d0d22', border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 14px' }}>
+                            <div key={label} style={{
+                              background: 'rgba(18,18,27,0.50)',
+                              backdropFilter: 'blur(12px)',
+                              WebkitBackdropFilter: 'blur(12px)',
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 8, padding: '12px 14px',
+                            }}>
                               <div style={{ fontSize: 12, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
                                 <MetricTooltip label={label} tip={METRIC_TOOLTIPS[label] ?? ''} />
                               </div>
-                              <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color, display: 'flex', alignItems: 'center' }}>
+                              <div style={{
+                                fontSize: 22, fontWeight: 700, marginTop: 6, color,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontVariantNumeric: 'tabular-nums',
+                                display: 'flex', alignItems: 'center',
+                              }}>
                                 {value}
                                 {rawValue !== undefined && rawValue < 0.05 && (
                                   <span title="Low Activity — bot may be too tight" style={{ fontSize: 12, color: C.warning, marginLeft: 6, fontWeight: 400 }}>⚠</span>

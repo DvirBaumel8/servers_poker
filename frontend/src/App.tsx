@@ -15,6 +15,7 @@ import TournamentAnalyticsPage from './pages/TournamentAnalyticsPage'
 import SupportPage from './pages/SupportPage'
 import ScenarioLabPage from './pages/ScenarioLabPage'
 import AdminDashboard from './pages/AdminDashboard'
+import TournamentTheaterPage from './pages/TournamentTheaterPage'
 
 /**
  * ProtectedRoute — guards a route behind authentication and optional role check.
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="/tournaments/:id/results" element={<ProtectedRoute><TournamentResultsPage /></ProtectedRoute>} />
         <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
         <Route path="/games" element={<ProtectedRoute><TournamentAnalyticsPage /></ProtectedRoute>} />
+        <Route path="/tournaments/:id/theater" element={<ProtectedRoute><TournamentTheaterPage /></ProtectedRoute>} />
         <Route path="/simulations" element={<ProtectedRoute><SimulationsPage /></ProtectedRoute>} />
         <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
         <Route path="/scenario-lab" element={<ProtectedRoute><ScenarioLabPage /></ProtectedRoute>} />

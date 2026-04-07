@@ -231,6 +231,7 @@ export default function ConditionRow({
     options: categoryFields.map(f => ({
       value: `${f.category}::${f.field}`,
       label: f.label,
+      description: f.description,
     })),
   }))
 

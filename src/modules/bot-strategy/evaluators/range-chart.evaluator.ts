@@ -184,7 +184,10 @@ export function evaluateCompiledRangeChart(
   const notation = INDEX_TO_NOTATION[i];
 
   if (encoded === 0) {
-    return { matched: false, handNotation: notation, action: null };
+    // Cell is unset — the UI contract says "unset defaults to Fold".
+    // Return matched:true with action:null so the engine honours the fold
+    // instead of falling through to rules (which could override the chart).
+    return { matched: true, handNotation: notation, action: null };
   }
 
   return {

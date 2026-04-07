@@ -32,14 +32,14 @@ interface LeaderboardResponse {
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
 const C = {
-  bg: '#0a0a1a',
-  card: '#13132a',
-  cardHover: '#161630',
-  border: '#1e1e3f',
-  accent: '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
+  bg: '#09090b',
+  card: 'rgba(18,18,27,0.50)',
+  cardHover: 'rgba(28,28,44,0.65)',
+  border: 'rgba(255,255,255,0.08)',
+  accent: '#00f5ff',
+  accentDim: 'rgba(0,245,255,0.08)',
   text: '#ffffff',
-  muted: '#9ca3af',
+  muted: '#a8b3c4',
   danger: '#e24b4a',
   success: '#1d9e75',
   warning: '#f59e0b',
@@ -116,14 +116,16 @@ function PodiumSection({ entries }: { entries: LeaderboardEntry[] }) {
             style={{
               flex: 1,
               background: C.card,
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
               border: `1px solid ${rankColor}40`,
               borderRadius: 10,
               padding: '20px 18px 16px',
               position: 'relative',
               marginBottom: isGold ? 0 : 20,
               boxShadow: isGold
-                ? `0 0 28px ${rankColor}25, 0 4px 16px rgba(0,0,0,0.4)`
-                : `0 2px 10px rgba(0,0,0,0.3)`,
+                ? `0 0 36px ${rankColor}35, 0 4px 16px rgba(0,0,0,0.4), 0 0 15px rgba(0,245,255,0.05)`
+                : `0 0 20px ${rankColor}20, 0 2px 10px rgba(0,0,0,0.3), 0 0 15px rgba(0,245,255,0.05)`,
             }}
           >
             {/* Rank label */}
@@ -160,7 +162,7 @@ function PodiumSection({ entries }: { entries: LeaderboardEntry[] }) {
               </span>
               <span style={{
                 fontSize: isGold ? 18 : 15, fontWeight: 700, color: netColor,
-                fontFamily: 'monospace',
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
               }}>
                 {formatNet(net)}
               </span>
@@ -267,7 +269,7 @@ export default function LeaderboardPage() {
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 28px', borderBottom: `1px solid ${C.border}`, background: '#0d0d22',
+          padding: '16px 28px', borderBottom: `1px solid ${C.border}`, background: C.bg,
         }}>
           <div>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>Hall of Fame</div>
@@ -344,7 +346,7 @@ export default function LeaderboardPage() {
           {!loading && entries.length > 0 && <PodiumSection entries={entries} />}
 
           {/* Table */}
-          <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+          <div style={{ borderRadius: 10, border: `1px solid ${C.border}`, overflow: 'hidden', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: C.font }}>
               <thead>
                 <tr style={{ background: C.card }}>
@@ -393,9 +395,9 @@ export default function LeaderboardPage() {
                     <tr
                       key={String(e.rank)}
                       title={`Playing with ${e.activeBotCount} active bot${e.activeBotCount !== 1 ? 's' : ''}`}
-                      style={{ transition: 'background 0.15s', background: isMyRow ? 'rgba(0, 229, 255, 0.06)' : 'transparent' }}
-                      onMouseEnter={ev => (ev.currentTarget.style.background = isMyRow ? 'rgba(0, 229, 255, 0.12)' : C.cardHover)}
-                      onMouseLeave={ev => (ev.currentTarget.style.background = isMyRow ? 'rgba(0, 229, 255, 0.06)' : 'transparent')}
+                      style={{ transition: 'background 0.15s', background: isMyRow ? 'rgba(0, 245, 255, 0.06)' : 'transparent' }}
+                      onMouseEnter={ev => (ev.currentTarget.style.background = isMyRow ? 'rgba(0, 245, 255, 0.12)' : C.cardHover)}
+                      onMouseLeave={ev => (ev.currentTarget.style.background = isMyRow ? 'rgba(0, 245, 255, 0.06)' : 'transparent')}
                     >
                       <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, borderLeft: isMyRow ? `4px solid ${C.accent}` : '4px solid transparent' }}>
                         <RankBadge rank={e.rank} />
@@ -413,32 +415,32 @@ export default function LeaderboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: e.totalTournaments === 0 ? C.muted : e.bb100 >= 0 ? C.success : C.danger }}>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", color: e.totalTournaments === 0 ? C.muted : e.bb100 >= 0 ? C.success : C.danger }}>
                         {e.totalTournaments === 0 ? '--' : e.bb100.toFixed(1)}
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace' }}>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
                         {e.totalTournaments === 0 ? '--' : `${e.itmPct.toFixed(1)}%`}
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: e.totalTournaments === 0 ? C.muted : e.roiPct >= 0 ? C.success : C.danger }}>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", color: e.totalTournaments === 0 ? C.muted : e.roiPct >= 0 ? C.success : C.danger }}>
                         {e.totalTournaments === 0 ? '--' : `${e.roiPct.toFixed(1)}%`}
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace' }}>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
                         {e.totalTournaments === 0 ? '--' : e.totalHands.toLocaleString()}
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace' }}>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
                         {e.totalTournaments === 0 ? '--' : e.totalTournaments}
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace' }}>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
                         {e.totalTournaments === 0 ? '--' : e.tournamentWins}
                       </td>
                       <td style={{
-                        ...cellStyle, textAlign: 'right', fontFamily: 'monospace',
+                        ...cellStyle, textAlign: 'right', fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                         fontWeight: 700,
                         color: e.totalTournaments === 0 ? C.muted : Number(e.totalNet) >= 0 ? C.emerald : C.rose,
                       }}>
                         {e.totalTournaments === 0 ? '--' : formatNet(Number(e.totalNet))}
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: 'monospace', color: e.totalTournaments === 0 ? C.muted : C.accent }}>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", color: e.totalTournaments === 0 ? C.muted : C.accent }}>
                         {e.totalTournaments === 0 ? '--' : Number(e.totalPayout).toLocaleString()}
                       </td>
                     </tr>

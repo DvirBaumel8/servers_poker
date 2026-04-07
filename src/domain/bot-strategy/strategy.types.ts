@@ -352,6 +352,16 @@ export const CONDITION_FIELDS: ConditionFieldDef[] = [
     min: 0,
     tier: "pro",
   },
+  {
+    category: "stack",
+    field: "spr",
+    type: "number",
+    label: "SPR (Stack-to-Pot Ratio)",
+    description:
+      "Effective stack divided by current pot. < 3 = committed, 3–13 = playable, > 13 = deep stack",
+    min: 0,
+    tier: "pro",
+  },
 
   // Pot conditions
   {
@@ -536,16 +546,26 @@ export interface GameContext {
   // Stack
   myStackBB: number;
   effectiveStackBB: number;
+  /** Stack-to-Pot Ratio: effectiveStack / pot. 0 when pot is 0. */
+  spr: number;
 
   // Pot
   potSizeBB: number;
   potOdds: number;
   /** Estimated win probability [0, 1] against random opponent range. */
   equity: number;
+  /**
+   * True when neither hole card improves the best 5-card hand on the river
+   * (i.e. "the board plays"). Hero can only split or lose — never win outright.
+   * Always false pre-river or when fewer than 5 community cards are dealt.
+   */
+  isBoardPlays: boolean;
 
   // Raw action constraints from game state
   canCheck: boolean;
   toCall: number;
+  /** Total facing bet level all players must match (= currentBet in the engine). Used for exponential re-raise sizing. */
+  currentBetLevel: number;
   minRaise: number;
   maxRaise: number;
 
@@ -563,16 +583,29 @@ export interface StrategyAction {
   amount?: number;
 }
 
+export interface StrategyMetrics {
+  /** Estimated win probability [0,1] at decision time */
+  equity: number;
+  /**
+   * Normalised fold/call/raise probability distribution from the personality
+   * evaluator. undefined when the decision came from a range-chart or rule
+   * (deterministic path that does not compute a weight distribution).
+   */
+  strategyWeights?: { fold: number; call: number; raise: number };
+}
+
 export interface StrategyEvaluation {
   action: StrategyAction;
   /** What triggered this action */
-  source: "position_override" | "range_chart" | "rule" | "personality";
+  source: "Position Override" | "Range Chart" | "Hard Rule" | "Personality";
   /** Human-readable explanation */
   explanation: string;
-  /** ID of the rule that fired (if source is "rule") */
+  /** ID of the rule that fired (if source is "Hard Rule" or "Position Override" from a rule) */
   ruleId?: string;
-  /** The hand notation looked up (if source is "range_chart") */
+  /** The hand notation looked up (if source is "Range Chart") */
   handNotation?: string;
+  /** Engine metrics captured at decision time — used by the tournament logger */
+  metrics?: StrategyMetrics;
 }
 
 // ============================================================================
@@ -621,6 +654,12 @@ export interface HydratedStrategy {
   readonly base: HydratedPosition;
   /** Per-position overrides with personality already merged. */
   readonly positions: Partial<Record<Position, HydratedPosition>>;
+  /**
+   * Fingerprint of the source BotStrategy content, used to namespace the
+   * evaluation cache so stale results from a previous strategy version are
+   * never returned after an edit.
+   */
+  readonly strategyKey: string;
 }
 
 // ============================================================================

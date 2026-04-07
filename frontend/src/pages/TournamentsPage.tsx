@@ -40,14 +40,14 @@ interface WinnerInfo {
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
 const C = {
-  bg: '#0a0a1a',
-  card: '#13132a',
-  cardHover: '#161630',
-  border: '#1e1e3f',
-  accent: '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
+  bg: '#09090b',
+  card: 'rgba(18,18,27,0.50)',
+  cardHover: 'rgba(28,28,44,0.65)',
+  border: 'rgba(255,255,255,0.08)',
+  accent: '#00f5ff',
+  accentDim: 'rgba(0,245,255,0.08)',
   text: '#ffffff',
-  muted: '#9ca3af',
+  muted: '#a8b3c4',
   danger: '#e24b4a',
   success: '#1d9e75',
   warning: '#f59e0b',
@@ -102,7 +102,7 @@ function Skeleton({ width = '100%', height = 14, radius = 4 }: { width?: number 
   return (
     <div
       className="animate-pulse"
-      style={{ width, height, borderRadius: radius, background: '#1e1e3f', display: 'inline-block' }}
+      style={{ width, height, borderRadius: radius, background: 'rgba(255,255,255,0.06)', display: 'inline-block' }}
     />
   )
 }
@@ -182,8 +182,8 @@ function FeaturedCard({
       onClick={onClick}
       style={{
         background: hovered
-          ? 'linear-gradient(135deg, #161630 0%, #0f0f2a 100%)'
-          : 'linear-gradient(135deg, #13132a 0%, #0d0d22 100%)',
+          ? 'linear-gradient(135deg, rgba(28,28,44,0.9) 0%, rgba(14,14,28,0.9) 100%)'
+          : 'linear-gradient(135deg, rgba(18,18,27,0.7) 0%, rgba(9,9,11,0.9) 100%)',
         border: `1px solid ${C.accent}`,
         borderRadius: 16,
         padding: '28px 32px',
@@ -191,8 +191,8 @@ function FeaturedCard({
         transition: 'all 0.25s',
         fontFamily: C.font,
         boxShadow: hovered
-          ? `0 0 0 1px ${C.accent}, 0 0 40px rgba(0,229,255,0.2)`
-          : `0 0 0 1px ${C.accent}, 0 0 20px rgba(0,229,255,0.1)`,
+          ? `0 0 0 1px ${C.accent}, 0 0 40px rgba(0,245,255,0.2)`
+          : `0 0 0 1px ${C.accent}, 0 0 20px rgba(0,245,255,0.1)`,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -207,7 +207,7 @@ function FeaturedCard({
           right: 0,
           width: 300,
           height: 300,
-          background: 'radial-gradient(circle at 80% 20%, rgba(0,229,255,0.06) 0%, transparent 70%)',
+          background: 'radial-gradient(circle at 80% 20%, rgba(0,245,255,0.06) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
@@ -303,7 +303,7 @@ function FeaturedCard({
               padding: '10px 22px',
               borderRadius: 8,
               background: canRegister || (isRegistered && (tournament.status === 'running' || tournament.status === 'final_table'))
-                ? 'linear-gradient(90deg, #00e5ff, #0070ff)'
+                ? 'linear-gradient(90deg, #00f5ff, #0070ff)'
                 : C.border,
               border: isRegistered && tournament.status === 'registering' ? `1px solid ${C.border}` : 'none',
               color: canRegister || (isRegistered && (tournament.status === 'running' || tournament.status === 'final_table')) ? '#000' : C.muted,
@@ -440,7 +440,7 @@ function TournamentCard({
             padding: '9px',
             borderRadius: 8,
             background: canRegister || (isRegistered && (tournament.status === 'running' || tournament.status === 'final_table'))
-              ? 'linear-gradient(90deg, #00e5ff, #0070ff)'
+              ? 'linear-gradient(90deg, #00f5ff, #0070ff)'
               : C.border,
             border: 'none',
             color: canRegister || (isRegistered && (tournament.status === 'running' || tournament.status === 'final_table')) ? '#000' : C.muted,
@@ -710,7 +710,7 @@ export default function TournamentsPage() {
             gap: 10,
             padding: '16px 28px',
             borderBottom: `1px solid ${C.border}`,
-            background: '#0d0d22',
+            background: C.bg,
           }}
         >
           <span style={{ fontSize: 18 }}>🏆</span>
@@ -753,11 +753,11 @@ export default function TournamentsPage() {
                 className="animate-pulse"
               >
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 4, background: '#1e1e3f' }} />
-                  <div style={{ width: 100, height: 16, borderRadius: 4, background: '#1e1e3f' }} />
+                  <div style={{ width: 22, height: 22, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
+                  <div style={{ width: 100, height: 16, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
                 </div>
-                <div style={{ width: '60%', height: 24, borderRadius: 6, background: '#1e1e3f' }} />
-                <div style={{ width: '40%', height: 14, borderRadius: 4, background: '#1e1e3f' }} />
+                <div style={{ width: '60%', height: 24, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
+                <div style={{ width: '40%', height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
               </div>
             ) : featured ? (
               <>
@@ -835,11 +835,11 @@ export default function TournamentsPage() {
                         alignItems: 'center',
                       }}
                     >
-                      <div style={{ height: 13, borderRadius: 4, background: '#1e1e3f' }} />
-                      <div style={{ height: 13, borderRadius: 4, background: '#1e1e3f', width: '70%' }} />
-                      <div style={{ height: 13, borderRadius: 4, background: '#1e1e3f', width: '60%' }} />
-                      <div style={{ height: 13, borderRadius: 4, background: '#1e1e3f' }} />
-                      <div style={{ height: 28, borderRadius: 6, background: '#1e1e3f' }} />
+                      <div style={{ height: 13, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
+                      <div style={{ height: 13, borderRadius: 4, background: 'rgba(255,255,255,0.06)', width: '70%' }} />
+                      <div style={{ height: 13, borderRadius: 4, background: 'rgba(255,255,255,0.06)', width: '60%' }} />
+                      <div style={{ height: 13, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
+                      <div style={{ height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.06)' }} />
                     </div>
                   ))}
                 </div>

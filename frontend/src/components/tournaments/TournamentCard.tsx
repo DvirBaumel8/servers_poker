@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom'
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
 const C = {
-  card: '#13132a',
-  cardHover: '#161630',
-  border: '#1e1e3f',
-  accent: '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
+  card: 'rgba(18,18,27,0.50)',
+  cardHover: 'rgba(28,28,44,0.65)',
+  border: 'rgba(255,255,255,0.08)',
+  accent: '#00f5ff',
+  accentDim: 'rgba(0,245,255,0.08)',
   text: '#ffffff',
   muted: '#9ca3af',
   danger: '#e24b4a',
@@ -87,23 +87,30 @@ export default function TournamentCard({ tournament, onViewDetails }: Tournament
       onClick={handleClick}
       style={{
         background: C.card,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         border: `1px solid ${C.border}`,
         borderRadius: 12,
         padding: '20px',
         cursor: 'pointer',
-        transition: 'all 0.2s',
+        transition: 'border-color 0.2s, box-shadow 0.2s, background 0.2s',
         fontFamily: C.font,
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)',
       }}
       onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLElement).style.background = C.cardHover
-        ;(e.currentTarget as HTMLElement).style.borderColor = C.accent
+        const el = e.currentTarget as HTMLElement
+        el.style.background = C.cardHover
+        el.style.borderColor = 'rgba(0,245,255,0.5)'
+        el.style.boxShadow = '0 0 0 1px rgba(0,245,255,0.15), 0 8px 32px rgba(0,245,255,0.08)'
       }}
       onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLElement).style.background = C.card
-        ;(e.currentTarget as HTMLElement).style.borderColor = C.border
+        const el = e.currentTarget as HTMLElement
+        el.style.background = C.card
+        el.style.borderColor = C.border
+        el.style.boxShadow = '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)'
       }}
     >
       <div
@@ -161,7 +168,7 @@ export default function TournamentCard({ tournament, onViewDetails }: Tournament
           >
             Participants
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontVariantNumeric: 'tabular-nums' }}>
             {registered}/{max}
           </div>
           {isFull && (

@@ -1,35 +1,67 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap");
 @import "tailwindcss";
 
 /* ─── Design-system tokens ──────────────────────────────────────────────────── */
 @theme {
-  /* Zinc-900 at 50% opacity — matches Welcome Carousel card background */
-  --color-card-bg: rgba(24, 24, 27, 0.5);
+  /* Zinc-900 at 50% opacity — glass card base */
+  --color-card-bg: rgba(18, 18, 27, 0.50);
 
-  /* Brand cyan */
-  --color-brand-cyan: #00e5ff;
+  /* Brand neon-cyan */
+  --color-brand-cyan: #00f5ff;
 
-  /* Glow shadow utility for brand-cyan elements */
-  --shadow-cyan-glow: 0 0 16px rgba(0, 229, 255, 0.35), 0 0 4px rgba(0, 229, 255, 0.2);
+  /* Intense glow for brand-cyan active/hover elements */
+  --shadow-cyan-glow: 0 0 20px rgba(0, 245, 255, 0.4), 0 0 6px rgba(0, 245, 255, 0.2);
+
+  /* Subtle depth accent used on every card */
+  --shadow-cyan-soft: 0 0 15px rgba(0, 245, 255, 0.05);
 }
 
 /* ─── Shared component classes ──────────────────────────────────────────────── */
 @layer components {
   /**
-   * .glass-card — the single source of truth for card elevation.
-   * Matches the Welcome Carousel modal DNA: blurred glass, zinc border, rounded.
+   * .glass-card — single source of truth for card elevation.
+   * Glassmorphism: blurred dark glass, white/10 border, cyan-soft shadow.
    * Usage: <div className="glass-card p-4"> ... </div>
    */
   .glass-card {
     background-color: var(--color-card-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgb(39 39 42); /* zinc-800 */
-    border-radius: 0.75rem;          /* rounded-xl */
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), var(--shadow-cyan-soft);
   }
 
   /** Cyan glow button/badge helper */
   .brand-glow {
     box-shadow: var(--shadow-cyan-glow);
+  }
+
+  /**
+   * .mono-data — JetBrains Mono for all numeric data (ELO, chips, latency, etc.)
+   * Usage: <span className="mono-data">1,234</span>
+   */
+  .mono-data {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /**
+   * .btn-primary — cyan-gradient primary action button.
+   * Usage: <button className="btn-primary px-4 py-2"> ... </button>
+   */
+  .btn-primary {
+    background: linear-gradient(135deg, #06b6d4, #00d4e8);
+    color: #000;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, opacity 0.2s;
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.3);
   }
 }
 

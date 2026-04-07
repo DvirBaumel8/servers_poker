@@ -14,6 +14,8 @@ const CS = {
 export interface SelectOption {
   value: string
   label: string
+  /** Optional tooltip shown as a muted subtitle below the label */
+  description?: string
 }
 
 export interface SelectGroup {
@@ -121,7 +123,7 @@ export default function CustomSelect({
         onClick={() => { onChange(opt.value); setOpen(false) }}
         style={{
           margin: twoColumn ? '0' : '0 4px',
-          padding: indented ? `8px 16px 8px 24px` : '8px 16px',
+          padding: indented ? `6px 16px 6px 24px` : '6px 16px',
           borderRadius: 6,
           fontSize: fs,
           fontFamily: CS.font,
@@ -129,17 +131,28 @@ export default function CustomSelect({
           color: isSelected || isHovered ? '#22d3ee' : CS.text,
           background: isHovered ? '#27272a' : isSelected ? 'rgba(0,229,255,0.05)' : 'transparent',
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           gap: 8,
           transition: 'background-color 0.15s, color 0.15s',
         }}
       >
-        {isSelected ? (
-          <Check size={12} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-        ) : (
-          <span style={{ width: 12, flexShrink: 0 }} />
-        )}
-        {opt.label}
+        <span style={{ width: 12, flexShrink: 0, paddingTop: 2 }}>
+          {isSelected && <Check size={12} strokeWidth={2.5} />}
+        </span>
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+          <span>{opt.label}</span>
+          {opt.description && (
+            <span style={{
+              fontSize: fs - 2,
+              color: isHovered ? 'rgba(34,211,238,0.55)' : 'rgba(156,163,175,0.6)',
+              fontWeight: 400,
+              lineHeight: 1.3,
+              transition: 'color 0.15s',
+            }}>
+              {opt.description}
+            </span>
+          )}
+        </span>
       </div>
     )
   }

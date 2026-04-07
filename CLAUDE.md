@@ -1208,6 +1208,78 @@ SELECT description, details FROM logic_bugs WHERE check_name = 'zero_sum' LIMIT 
 
 ## Changelog
 
+### 2026-04-06: Lean Tournament Log Schema
+
+**Minified action format — eliminates redundant data, abbreviates keys, flattens structures.**
+
+#### Schema changes (`tournament-log.types.ts`)
+
+| Before | After | Notes |
+|---|---|---|
+| `board_cards: { preflop, flop, turn, river }` | `board: string[]` | Flat cumulative array |
+| `live_players: PlayerSnapshot[]` | *(removed)* | Derived from `initial_stacks` + action history |
+| `facing_action: string` | *(removed)* | Human-readable, derived on display |
+| `stack_before / pot_before / amount_to_call` | *(removed)* | Derivable from initial stacks + actions |
+| `player_id` | `p_id` | Abbreviated |
+| `street: "preflop"` | `st: "p"` | Single-char codes: p/f/t/r |
+| `bot_decision: { type, amount? }` | `dec: string, amt?: number` | Flattened into action |
+| `engine_metrics: { calculated_equity, strategy_weights, explanation, … }` | `metrics: { eq, w: [f,c,r] \| null, source, … }` | Abbreviated; `explanation` removed; `w` is an array |
+| — | `initial_stacks: Record<string, number>` | New per-hand field |
+
+#### Service changes (`tournament-logger.service.ts`)
+- `onHandStarted(handNumber, dealerBotId, initialStacks?)` — new optional third param
+- `updateBoard()` replaces `updateBoardCards()` — simply sets `hand.board = [...communityCards]`
+- `buildFacingAction()` helper removed
+- `BoardCards`, `BotDecision`, `StrategyWeights`, `PlayerSnapshot` interfaces removed from types
+
+#### Caller updates
+- `tournament-director.service.ts` — extracts `initial_stacks` from `game.handStarted` event
+- `scripts/demo-tournament-log.ts` — same
+- `src/testing-utilities/chaos-tournament.ts` — same
+- `tests/unit/tournament-logger.spec.ts` — fully rewritten against lean schema
+
+### 2026-04-06: Dynamic Raise Sizing + Chaos Tournament Runner
+
+**Four upgrades to the engine and logging pipeline.**
+
+#### Dynamic Raise Sizing — The "69 Bug" Fix (`personality.evaluator.ts`, `strategy-tunables.ts`)
+- `computeRaiseSizing()` now accepts a `SeededRandom` instance and picks from a *menu* of realistic sizes instead of computing a single static value.
+- **Preflop**: selects from `[2.0, 2.5, 3.0, 3.5, 4.0]` BB multiples; aggression biases toward larger multiples; per-action RNG jitter ensures variety.
+- **Postflop facing a bet (35% probability)**: uses `previous_bet_multiple` mode (2x–3.5x) scaled by aggression + RNG for re-raise variety.
+- **Postflop open/c-bet**: picks from `[33%, 50%, 67%, 75%]` pot fractions; aggression biases up; 30% chance of one-step jitter.
+- All sizing options are tunable via `STRATEGY_TUNABLES.sizingOptions` (no magic numbers in evaluator code).
+- Exported `calculateRaiseAmount(potSize, lastBet, personality, bigBlind, street, seed)` for direct testing and chaos runner use.
+- RNG is reused after `rollAction()` — determinism is preserved; same hand seed → same raise size.
+
+#### Chaos Tournament Runner (`src/testing-utilities/chaos-tournament.ts`) — **NEW**
+- `runChaosTournament(opts)`: headless single-table tournament, no DB, no NestJS, no delays.
+- **Custom Bot Injection**: pass any `BotStrategy` (Quick/Strategy/Pro tier) per bot.
+- **Stack Imbalance Mode**: first bot gets 5 000 chips, rest get 100.
+- **Clone War Mode**: all bots share the `bots[0].strategy` (identical DNA).
+- Hand limit enforced via `stop()` so games don't run forever.
+- Returns `{ log: MasterTournamentLog, winner, handsPlayed, eliminationOrder }`.
+- Built-in presets: `CHAOS_PRESETS.maniacVsNit()`, `CHAOS_PRESETS.extremeDNA()`, `CHAOS_PRESETS.cloneWar()`.
+- Optional `outputPath` writes the full JSON log to disk.
+
+#### Decision Source Labels (`strategy-engine.service.ts`, `tournament-log.types.ts`)
+- Source strings renamed to professional labels:
+  - `"personality"` → `"Personality"`
+  - `"rule"` → `"Hard Rule"`
+  - `"range_chart"` → `"Range Chart"`
+  - `"position_override"` → `"Position Override"`
+- Comment in `EngineMetrics.source` updated to reflect new values.
+- All unit + e2e test assertions updated to match.
+
+#### Tournament Log Schema Slim-Down (`tournament-log.types.ts`, `tournament-logger.service.ts`)
+- Removed `buy_in` and `blind_structure` from `TournamentLogSummary`.
+- Removed `bot_id`, `bot_name`, `user_id` from `ParticipantInfo` — only `elo` and `dna` remain.
+- `TournamentLoggerService.initialize()` signature: `(tournamentId, participants[])` — 2 params instead of 4.
+- Updated all callers: `tournament-director.service.ts`, `scripts/demo-tournament-log.ts`.
+- Updated test: `tests/unit/tournament-logger.spec.ts`.
+
+#### Tests
+- `tests/unit/bot-strategy/personality-sizing.spec.ts` — **NEW**: 12 tests covering determinism, variety, BB-multiple bounds, pot-fraction mode selection, sizing value ranges, aggressive vs passive comparison.
+
 ### 2026-04-05: Pro Table Balancing + Replay Audit Trail
 
 **Continuous table balancing, position equity seating, persistent move log, and admin UI.**

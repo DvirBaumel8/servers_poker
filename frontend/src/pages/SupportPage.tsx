@@ -9,10 +9,10 @@ import CustomSelect from '../components/CustomSelect'
 
 const C = {
   bg: '#0a0a1a',
-  card: '#13132a',
-  border: '#1e1e3f',
-  accent: '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
+  card: 'rgba(18,18,27,0.50)',
+  border: 'rgba(255,255,255,0.08)',
+  accent: '#00f5ff',
+  accentDim: 'rgba(0,245,255,0.08)',
   text: '#ffffff',
   muted: '#9ca3af',
   danger: '#e24b4a',
@@ -52,22 +52,26 @@ const QUICK_RESOURCES = [
 const MAX_MESSAGE_LENGTH = 1000
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#0c0c1e', border: `1px solid ${C.border}`,
+  width: '100%',
+  background: 'rgba(12,12,30,0.60)',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  border: `1px solid ${C.border}`,
   borderRadius: 8, padding: '11px 14px', color: C.text,
   fontSize: 14, outline: 'none', fontFamily: C.font,
   boxSizing: 'border-box',
+  transition: 'border-color 0.2s',
 }
 
 const readonlyStyle: React.CSSProperties = {
   ...inputStyle,
   color: C.muted, cursor: 'default',
-  background: 'rgba(12,12,30,0.5)',
 }
 
 function FieldLabel({ text }: { text: string }) {
   return (
     <label style={{
-      display: 'block', fontSize: 11, fontWeight: 600, color: '#555',
+      display: 'block', fontSize: 11, fontWeight: 600, color: C.muted,
       textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8,
     }}>
       {text}
@@ -125,9 +129,12 @@ export default function SupportPage() {
         {/* Main card */}
         <div style={{
           width: '100%', maxWidth: 560,
-          background: C.card, border: `1px solid ${C.border}`,
+          background: C.card,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: `1px solid ${C.border}`,
           borderRadius: 16, padding: '40px 44px',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)',
         }}>
           {status === 'success' ? (
             <SuccessState onBack={() => navigate('/')} />
@@ -214,6 +221,8 @@ export default function SupportPage() {
                         setErrors(prev => ({ ...prev, message: undefined }))
                       }
                     }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(0,245,255,0.4)' }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = errors.message ? C.danger : C.border }}
                     rows={6}
                     placeholder="Describe your issue or question in detail…"
                     style={{
@@ -234,17 +243,20 @@ export default function SupportPage() {
                 <button
                   type="submit"
                   disabled={status === 'loading'}
+                  onMouseEnter={(e) => { if (status !== 'loading') (e.currentTarget as HTMLElement).style.boxShadow = '0 0 32px rgba(0,245,255,0.45)' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 20px rgba(0,245,255,0.3)' }}
                   style={{
                     width: '100%', padding: '13px 0',
                     background: status === 'loading'
                       ? 'rgba(0,229,255,0.3)'
-                      : 'linear-gradient(90deg, #00e5ff, #0070ff)',
+                      : 'linear-gradient(135deg, #06b6d4, #00d4e8)',
                     border: 'none', borderRadius: 8,
                     color: status === 'loading' ? C.muted : '#000',
                     fontWeight: 700, fontSize: 14, fontFamily: C.font,
                     cursor: status === 'loading' ? 'not-allowed' : 'pointer',
-                    letterSpacing: 1, transition: 'opacity 0.2s',
+                    letterSpacing: 1, transition: 'box-shadow 0.2s, opacity 0.2s',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    boxShadow: status === 'loading' ? 'none' : '0 0 20px rgba(0,245,255,0.3)',
                   }}
                 >
                   {status === 'loading' ? (
@@ -263,7 +275,7 @@ export default function SupportPage() {
 
         {/* Quick Resources */}
         <div style={{ width: '100%', maxWidth: 560, marginTop: 16 }}>
-          <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: 2 }}>
+          <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 2 }}>
             Quick Resources
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
@@ -297,12 +309,15 @@ function ResourceCard({
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'block',
-        background: hovered ? 'rgba(19,19,42,0.9)' : C.card,
-        border: `1px solid ${hovered ? 'rgba(0,229,255,0.3)' : C.border}`,
+        background: C.card,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${hovered ? 'rgba(0,245,255,0.3)' : C.border}`,
         borderRadius: 12,
         padding: 16,
         textDecoration: 'none',
-        transition: 'border-color 0.2s, background 0.2s',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        boxShadow: hovered ? '0 0 12px rgba(0,245,255,0.12), 0 4px 16px rgba(0,0,0,0.3)' : '0 2px 10px rgba(0,0,0,0.3)',
       }}
     >
       <Icon size={20} color={C.accent} style={{ marginBottom: 8 }} />
@@ -350,10 +365,11 @@ function SuccessState({ onBack }: { onBack: () => void }) {
         onClick={onBack}
         style={{
           padding: '12px 32px',
-          background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
+          background: 'linear-gradient(135deg, #06b6d4, #00d4e8)',
           border: 'none', borderRadius: 8,
           color: '#000', fontWeight: 700, fontSize: 14,
           fontFamily: C.font, cursor: 'pointer', letterSpacing: 1,
+          boxShadow: '0 0 20px rgba(0,245,255,0.3)',
         }}
       >
         Back to Dashboard

@@ -39,6 +39,7 @@ import {
 import type {
   BotStrategy,
   HydratedStrategy,
+  StrategyEvaluation,
 } from "../../domain/bot-strategy/strategy.types";
 
 export interface LiveGame {
@@ -151,6 +152,42 @@ export interface RecoverySnapshot {
 const MAX_STRIKES = 3;
 
 /**
+ * Normalises a StrategyAction before submitting to BettingRound.applyAction.
+ *
+ * Handles two cases:
+ * 1. `all_in` type — BettingRound has no all_in case; converts to a raise
+ *    with the player's full remaining stack above the call obligation.
+ * 2. Sub-minimum raise — snaps the raise delta up to lastRaiseDelta.
+ *    If the player cannot afford the legal minimum, goes all-in instead
+ *    (a partial all-in raise is always legal in NL poker).
+ */
+export function normalizeRaiseAction(
+  action: { type: string; amount?: number },
+  lastRaiseDelta: number,
+  playerChips: number,
+  toCall: number,
+): { type: string; amount?: number } {
+  const maxRaise = playerChips - toCall;
+
+  if (action.type === "all_in") {
+    return { type: "raise", amount: Math.max(1, maxRaise) };
+  }
+
+  if (
+    (action.type === "raise" || action.type === "bet") &&
+    action.amount !== undefined &&
+    action.amount < lastRaiseDelta
+  ) {
+    if (playerChips >= toCall + lastRaiseDelta) {
+      return { type: "raise", amount: lastRaiseDelta };
+    }
+    return { type: "raise", amount: Math.max(1, maxRaise) };
+  }
+
+  return action;
+}
+
+/**
  * Full poker game instance with game loop
  */
 export class GameInstance {
@@ -191,6 +228,28 @@ export class GameInstance {
 
   /** Optional hook called between hands. Used by TournamentDirector for hand-for-hand synchronization. */
   interHandHook?: () => Promise<void>;
+
+  /** Optional observer called after every bot decision. Used by the tournament logger. */
+  private actionLogger?: (entry: {
+    actionSeq: number;
+    playerId: string;
+    payload: BotPayload;
+    evaluation: StrategyEvaluation;
+    allPlayers: GamePlayer[];
+  }) => void;
+
+  /** Register an action observer. Called once per GameInstance at table-creation time. */
+  setActionLogger(
+    fn: (entry: {
+      actionSeq: number;
+      playerId: string;
+      payload: BotPayload;
+      evaluation: StrategyEvaluation;
+      allPlayers: GamePlayer[];
+    }) => void,
+  ): void {
+    this.actionLogger = fn;
+  }
 
   // Provably Fair fields
   private provablyFairService: ProvablyFairService | null = null;
@@ -727,9 +786,21 @@ export class GameInstance {
       this.emitStateUpdate();
 
       const botPayload = this.buildBotPayload(player);
-      const action = await this.getPlayerActionSafe(player, botPayload);
+      const rawAction = await this.getPlayerActionSafe(player, botPayload);
 
-      const result = this.bettingRound.applyAction(player, action as any);
+      // Strict Poker Validator — translate all_in and snap sub-minimum raises
+      const toCallAmt = Number(this.bettingRound!.getCallAmount(player));
+      const actionToApply = normalizeRaiseAction(
+        rawAction,
+        Number(this.bettingRound!.lastRaiseDelta),
+        Number(player.chips),
+        toCallAmt,
+      );
+
+      const result = this.bettingRound.applyAction(
+        player,
+        actionToApply as any,
+      );
       if (!result.valid) {
         this.logger.warn(
           `[bettingRoundLoop] Invalid action from ${player.name}: ${result.error}`,
@@ -743,13 +814,13 @@ export class GameInstance {
         if (result.amountAdded > 0) {
           this.potManager!.addBet(player.id, result.amountAdded);
         }
-        if (action.type === "bet" || action.type === "raise") {
+        if (actionToApply.type === "bet" || actionToApply.type === "raise") {
           this.lastAggressorId = player.id;
         }
         this.logEvent({
-          message: this.describeAction(player, action, result),
+          message: this.describeAction(player, actionToApply as any, result),
         });
-        this.emitPlayerAction(player, action, result.amountAdded);
+        this.emitPlayerAction(player, actionToApply as any, result.amountAdded);
       }
 
       this.emitStateUpdate();
@@ -778,6 +849,13 @@ export class GameInstance {
       try {
         const result = evaluateHydrated(player.hydratedStrategy, botPayload);
         player.strikes = 0;
+        this.actionLogger?.({
+          actionSeq: this.actionSeq,
+          playerId: player.id,
+          payload: botPayload,
+          evaluation: result,
+          allPlayers: this.players,
+        });
         const action = result.action;
         if (action.type === "all_in") {
           return { type: "raise", amount: botPayload.action.maxRaise };
@@ -808,9 +886,13 @@ export class GameInstance {
       );
     });
 
+    // Capture evaluation for the action logger before reducing to {type, amount}
+    let capturedEvaluation: StrategyEvaluation | undefined;
+
     const decidePromise = Promise.resolve().then(
       (): { type: string; amount?: number } => {
         const result = evaluateHydrated(player.hydratedStrategy, botPayload);
+        capturedEvaluation = result;
         player.strikes = 0;
         const action = result.action;
         if (action.type === "all_in") {
@@ -823,6 +905,15 @@ export class GameInstance {
     try {
       const action = await Promise.race([decidePromise, timeoutPromise]);
       clearTimeout(timeoutHandle);
+      if (capturedEvaluation) {
+        this.actionLogger?.({
+          actionSeq: this.actionSeq,
+          playerId: player.id,
+          payload: botPayload,
+          evaluation: capturedEvaluation,
+          allPlayers: this.players,
+        });
+      }
       return action;
     } catch (e: any) {
       clearTimeout(timeoutHandle);

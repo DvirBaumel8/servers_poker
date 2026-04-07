@@ -48,7 +48,7 @@ function bold(s: string) {
 
 // ── Build strategies ──────────────────────────────────────────────────────────
 
-const bots = PERSONALITY_PRESETS.map((preset) => ({
+const quickBots = PERSONALITY_PRESETS.map((preset) => ({
   id: preset.id,
   name: preset.name,
   strategy: {
@@ -58,6 +58,71 @@ const bots = PERSONALITY_PRESETS.map((preset) => ({
   } as BotStrategy,
 }));
 
+// Pro-tier bots with position overrides — these simulate real user configurations
+// that were NOT covered before and are the most likely source of engine bugs.
+const proBots: typeof quickBots = [
+  {
+    id: "pro-utg-aggressor",
+    name: "Pro UTG Aggressor",
+    strategy: {
+      version: 1,
+      tier: "pro",
+      personality: {
+        aggression: 90,
+        bluffFrequency: 70,
+        riskTolerance: 90,
+        tightness: 20,
+      },
+      positionOverrides: {
+        // UTG override: max aggression — simulates "always raise from UTG" config
+        UTG: {
+          personality: {
+            aggression: 100,
+            bluffFrequency: 80,
+            riskTolerance: 100,
+            tightness: 0,
+          },
+        },
+      },
+    } as BotStrategy,
+  },
+  {
+    id: "pro-btn-aggressive",
+    name: "Pro BTN Aggressor",
+    strategy: {
+      version: 1,
+      tier: "pro",
+      personality: {
+        aggression: 60,
+        bluffFrequency: 40,
+        riskTolerance: 60,
+        tightness: 50,
+      },
+      positionOverrides: {
+        // BTN + CO override: very aggressive steal positions
+        BTN: {
+          personality: {
+            aggression: 95,
+            bluffFrequency: 75,
+            riskTolerance: 90,
+            tightness: 10,
+          },
+        },
+        CO: {
+          personality: {
+            aggression: 85,
+            bluffFrequency: 60,
+            riskTolerance: 80,
+            tightness: 20,
+          },
+        },
+      },
+    } as BotStrategy,
+  },
+];
+
+const bots = [...quickBots, ...proBots];
+
 // ── Run audit ────────────────────────────────────────────────────────────────
 
 const auditor = new BotAuditor();
@@ -66,7 +131,7 @@ console.log(`\n${bold("═══════════════════
 console.log(`${bold("  BOT LOGIC HEALTH REPORT")}`);
 console.log(`${bold("══════════════════════════════════════════════════")}`);
 console.log(
-  dim(`  Testing ${bots.length} bots × 6 scenarios  |  ${new Date().toISOString()}\n`),
+  dim(`  Testing ${bots.length} bots (${quickBots.length} quick-tier + ${proBots.length} pro-tier) × 11 scenarios  |  ${new Date().toISOString()}\n`),
 );
 
 const report: BotAuditReport = auditor.runAll(bots);

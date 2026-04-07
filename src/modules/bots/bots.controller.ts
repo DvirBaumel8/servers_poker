@@ -10,6 +10,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   Logger,
+  HttpCode,
 } from "@nestjs/common";
 import { BotsService } from "./bots.service";
 import { BotActivityService } from "../../services/bot/bot-activity.service";
@@ -96,6 +97,7 @@ export class BotsController {
   }
 
   @Post(":id/scenario")
+  @HttpCode(200)
   async evaluateScenario(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: User,

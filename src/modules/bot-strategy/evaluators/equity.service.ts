@@ -22,6 +22,28 @@ import type {
 } from "../../../domain/bot-strategy/strategy.types";
 import { STRATEGY_TUNABLES } from "../strategy-tunables";
 import { parseCardString, classifyHoleCards } from "./hand-analyzer";
+import {
+  cardToInt,
+  eval5ints,
+  bestOf7ints,
+  holecardRangeIndex,
+} from "../../../domain/fastHandEval";
+
+// CAT_MULT mirrors the value in fastHandEval (B5 + 1 = 13^5 + 1) — used to extract
+// the hand-category index from a raw score without an extra import.
+const CAT_MULT_EQUITY = 371294; // 13^5 + 1
+
+// Per-category approximate probability that the board hand is NOT beaten by one random
+// opponent (i.e. opponent also plays the board or has a weaker hand).
+// Index = hand category: 0=high_card, 1=pair, 2=two_pair, 3=trips, 4=straight,
+//                        5=flush, 6=full_house, 7=quads, 8=straight_flush
+//
+// NOTE: these are lower than madeHandEquity because a "board plays" two pair
+// is easy to beat (any pocket pair on the board's ranks makes a full house), while
+// a "board plays" full house can only be beaten by the remaining quads.
+const BOARD_WIN_RATE_BY_CAT = [
+  0.15, 0.3, 0.4, 0.6, 0.75, 0.8, 0.92, 0.98, 0.99,
+];
 
 // ─── Memoization ─────────────────────────────────────────────────────────────
 
@@ -224,6 +246,35 @@ function estimatePreflopEquity(holeCards: string[], opponents: number): number {
 }
 
 /**
+ * Returns true when the 5-card board already forms the best possible hand —
+ * i.e. neither hole card improves the hero's best 5-card hand.
+ *
+ * Uses score comparison: if `bestOf7ints(hole + board)` equals `eval5ints(board)`,
+ * the hole cards contribute nothing. This is more reliable than checking whether
+ * specific card objects appear in the best-hand result, which can give inconsistent
+ * answers when hole cards share a rank with board cards (e.g. K♠ on a K♣K♥AAA board).
+ *
+ * On the river this means the hero can only split or lose, never win outright.
+ * Only meaningful when all 5 community cards are dealt.
+ */
+export function isBoardPlays(
+  holeCards: string[],
+  communityCards: string[],
+): boolean {
+  if (communityCards.length < 5) return false;
+  const commInts = communityCards.map(cardToInt);
+  const boardScore = eval5ints(
+    commInts[0],
+    commInts[1],
+    commInts[2],
+    commInts[3],
+    commInts[4],
+  );
+  const heroScore = bestOf7ints([...holeCards.map(cardToInt), ...commInts]);
+  return heroScore === boardScore;
+}
+
+/**
  * Postflop equity combining made hand strength and draw potential.
  *
  * Made hand equity: Lookup from hand strength (pair, flush, etc.)
@@ -237,6 +288,29 @@ function estimatePostflopEquity(
   opponents: number,
 ): number {
   const cfg = STRATEGY_TUNABLES.equity;
+
+  // Board-plays guard: when hole cards contribute nothing to the best hand,
+  // the hero can only TIE (not win outright). Equity = P(none of the N opponents
+  // holds a hand that beats the board) × 0.5 (split pot).
+  //
+  // The board's hand category is read from its fast-eval score to correctly identify
+  // full houses / quads even when inferHandStrength() would misclassify them.
+  // BOARD_WIN_RATE_BY_CAT[cat] ≈ probability the board hand beats one random opponent.
+  if (communityCards.length === 5 && isBoardPlays(holeCards, communityCards)) {
+    const commInts = communityCards.map(cardToInt);
+    const boardScore = eval5ints(
+      commInts[0],
+      commInts[1],
+      commInts[2],
+      commInts[3],
+      commInts[4],
+    );
+    const boardCat = Math.floor(boardScore / CAT_MULT_EQUITY);
+    const boardWinRate = BOARD_WIN_RATE_BY_CAT[boardCat] ?? 0.15;
+    // P(no opponent beats the board) = boardWinRate ^ opponents (independence approx)
+    // × 0.5 because any surviving opponent TIES (split pot) rather than losing
+    return Math.pow(boardWinRate, opponents) * 0.5;
+  }
 
   // Made hand equity from hand strength
   const handStrength = inferHandStrength(holeCards, communityCards);
@@ -265,6 +339,12 @@ function estimatePostflopEquity(
  * Infer hand strength category from hole cards and community cards.
  * Lightweight inline evaluation — does not use the full HandEvaluator
  * to avoid circular dependency. Checks for common patterns.
+ *
+ * CRITICAL: Board-awareness. When the board itself contains trips or quads,
+ * every player at the table shares that hand — the hero's strength comes only
+ * from their hole cards' contribution (kickers, pocket pair upgrade, etc.).
+ * Without this check, a player with 8♦4♠ on a QQQ96 board would be rated
+ * as "trips" equity (0.70) when they actually win <1% of the time.
  */
 function inferHandStrength(
   holeCards: string[],
@@ -274,19 +354,30 @@ function inferHandStrength(
   const community = communityCards.map(parseCardString);
   const allCards = [...hole, ...community];
 
+  // Value counts — full board, hole-only, and board-only
+  const valueCounts: Record<number, number> = {};
+  for (const c of allCards) {
+    valueCounts[c.value] = (valueCounts[c.value] || 0) + 1;
+  }
+  const boardValueCounts: Record<number, number> = {};
+  for (const c of community) {
+    boardValueCounts[c.value] = (boardValueCounts[c.value] || 0) + 1;
+  }
+  const holeValueCounts: Record<number, number> = {};
+  for (const c of hole) {
+    holeValueCounts[c.value] = (holeValueCounts[c.value] || 0) + 1;
+  }
+
+  const groups = Object.values(valueCounts).sort((a, b) => b - a);
+  const boardMaxGroup = Math.max(0, ...Object.values(boardValueCounts));
+  const holeMaxGroup = Math.max(0, ...Object.values(holeValueCounts));
+
   // Check flush (5+ same suit)
   const suitCounts: Record<string, number> = Object.create(null);
   for (const c of allCards) {
     suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1;
   }
   const maxSuit = Math.max(...Object.values(suitCounts));
-
-  // Check value groups
-  const valueCounts: Record<number, number> = {};
-  for (const c of allCards) {
-    valueCounts[c.value] = (valueCounts[c.value] || 0) + 1;
-  }
-  const groups = Object.values(valueCounts).sort((a, b) => b - a);
 
   // Check straight
   const uniqueVals = [...new Set(allCards.map((c) => c.value))].sort(
@@ -301,9 +392,9 @@ function inferHandStrength(
     }
   }
 
-  // Classify
+  // Classify — checking board-only hands to avoid overrating shared board strength
+
   if (maxSuit >= 5 && hasStraight) {
-    // Check if it's royal (A-high straight flush)
     const flushSuit = Object.entries(suitCounts).find(([, c]) => c >= 5)?.[0];
     const flushCards = allCards
       .filter((c) => c.suit === flushSuit)
@@ -315,13 +406,88 @@ function inferHandStrength(
       }
     }
   }
-  if (groups[0] >= 4) return "quads";
-  if (groups[0] >= 3 && groups[1] >= 2) return "full_house";
+
+  if (groups[0] >= 4) {
+    // Quads: check if the quad rank is contributed by hole cards
+    const quadRank = Number(
+      Object.entries(valueCounts).find(([, c]) => c >= 4)?.[0],
+    );
+    if ((boardValueCounts[quadRank] ?? 0) >= 4) {
+      // Board alone has quads — everyone shares them, only kicker matters
+      return "high_card";
+    }
+    return "quads";
+  }
+
+  if (groups[0] >= 3 && groups[1] >= 2) {
+    // Full house candidate
+    if (boardMaxGroup >= 3) {
+      // Board has trips (e.g. QQQ on board)
+      const tripRank = Number(
+        Object.entries(boardValueCounts).find(([, c]) => c >= 3)?.[0],
+      );
+      if (!holeValueCounts[tripRank]) {
+        // Hole cards don't match the trip rank
+        if (holeMaxGroup >= 2) {
+          // Pocket pair upgrades board trips → genuine full house (e.g. QQQ + 99 in hand)
+          return "full_house";
+        }
+        // Board provides both the trips AND the pair (e.g. QQQKK board) — everyone has it
+        return "pair";
+      }
+    }
+    return "full_house";
+  }
+
   if (maxSuit >= 5) return "flush";
   if (hasStraight) return "straight";
-  if (groups[0] >= 3) return "trips";
-  if (groups[0] >= 2 && groups[1] >= 2) return "two_pair";
-  if (groups[0] >= 2) return "pair";
+
+  if (groups[0] >= 3) {
+    // Trips: check if the trip rank was contributed by hole cards
+    const tripRank = Number(
+      Object.entries(valueCounts).find(([, c]) => c >= 3)?.[0],
+    );
+    const boardContrib = boardValueCounts[tripRank] ?? 0;
+    if (boardContrib >= 3) {
+      // Board alone has the three-of-a-kind (e.g. QQQ on board, hero has 84)
+      // Every player at the table has the same trips — only kickers differentiate.
+      // Pocket pair in hole → full house (handled above, but guard here too)
+      if (holeMaxGroup >= 2) return "full_house";
+      // Pure kicker situation — downgrade significantly
+      return "high_card";
+    }
+    if (boardContrib === 2 && (holeValueCounts[tripRank] ?? 0) >= 1) {
+      // Board pair + hero has matching card → genuine trips (hero made them)
+      return "trips";
+    }
+    return "trips";
+  }
+
+  if (groups[0] >= 2 && groups[1] >= 2) {
+    // Two pair — check if BOTH pairs come from the board
+    const boardPairCount = Object.values(boardValueCounts).filter(
+      (c) => c >= 2,
+    ).length;
+    if (boardPairCount >= 2 && holeMaxGroup < 2) {
+      // Both board pairs, hole cards contribute nothing — everyone has this two pair
+      // Competing only on kicker
+      return "pair";
+    }
+    return "two_pair";
+  }
+
+  if (groups[0] >= 2) {
+    // One pair — check if it comes from the board alone
+    const pairRank = Number(
+      Object.entries(valueCounts).find(([, c]) => c >= 2)?.[0],
+    );
+    if ((boardValueCounts[pairRank] ?? 0) >= 2 && !holeValueCounts[pairRank]) {
+      // Board pair, hole cards don't match — everyone has this pair, pure kicker game
+      return "high_card";
+    }
+    return "pair";
+  }
+
   return "high_card";
 }
 
@@ -337,44 +503,25 @@ class SeededRandom {
     this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
     return this.seed / 0x7fffffff;
   }
-  /** Fisher-Yates shuffle of an array in-place. */
-  shuffle<T>(arr: T[]): T[] {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(this.next() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
 }
 
-const SUITS = ["♠", "♥", "♦", "♣"];
-const RANKS = [
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10",
-  "J",
-  "Q",
-  "K",
-  "A",
-];
-
 /**
- * Monte Carlo equity estimation using pokersolver for hand evaluation.
+ * Monte Carlo equity estimation using a fast integer-based hand evaluator.
  *
  * Deals random opponent hands and remaining community cards across many
- * iterations, then counts wins and ties.
+ * iterations, then counts wins and ties. Uses partial Fisher-Yates shuffle
+ * (only shuffles the cards it needs) and integer-encoded card representation
+ * for maximum throughput — typically 15–35ms for 5,000 iterations.
  *
- * @param holeCards - Player's hole cards
- * @param communityCards - Community cards dealt so far
+ * @param holeCards - Player's hole cards (e.g. ["A♠", "K♥"])
+ * @param communityCards - Community cards dealt so far (0, 3, 4, or 5 cards)
  * @param numOpponents - Number of opponents
  * @param iterations - Number of Monte Carlo iterations (default from tunables)
  * @param seed - PRNG seed for deterministic results
+ * @param opponentRangeLUT - Optional Uint8Array(169) preflop range LUT.
+ *   When provided, opponent hands are rejection-sampled to only include hands
+ *   whose LUT entry is non-zero (i.e. hands the opponent would play).
+ *   Uses the same 169-cell encoding as the strategy engine range chart.
  * @returns Estimated equity in [0, 1]
  */
 export function estimateEquityMonteCarlo(
@@ -383,99 +530,129 @@ export function estimateEquityMonteCarlo(
   numOpponents: number,
   iterations?: number,
   seed?: number,
+  opponentRangeLUT?: Uint8Array,
 ): number {
   if (holeCards.length !== 2) return 0;
 
   const iters = iterations ?? STRATEGY_TUNABLES.equity.monteCarloIterations;
   const rng = new SeededRandom(seed ?? 42);
   const opponents = Math.max(1, numOpponents);
-
-  // Build full deck, remove known cards
-  const fullDeck: string[] = [];
-  for (const suit of SUITS) {
-    for (const rank of RANKS) {
-      fullDeck.push(`${rank}${suit}`);
-    }
-  }
-
-  const knownCards = new Set([...holeCards, ...communityCards]);
-  const remainingDeck = fullDeck.filter((c) => !knownCards.has(c));
   const communityNeeded = 5 - communityCards.length;
 
-  // Lazy-load pokersolver to avoid import overhead on heuristic path
-  let Hand: {
-    solve: (cards: string[]) => { rank: number };
-    winners: (hands: Array<{ rank: number }>) => Array<{ rank: number }>;
-  };
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pokersolver = require("pokersolver");
-    Hand = pokersolver.Hand;
-  } catch {
-    // If pokersolver not available, fall back to heuristic
-    return estimateEquityHeuristic(holeCards, communityCards, numOpponents);
+  // ── Pre-encode known cards as integers ──
+  const heroInts = holeCards.map(cardToInt);
+  const commInts = communityCards.map(cardToInt);
+
+  // Build remaining deck as an array of card integers (filtered out known cards)
+  const knownSet = new Set<number>([...heroInts, ...commInts]);
+  const remainingDeck: number[] = [];
+  for (let i = 0; i < 52; i++) {
+    if (!knownSet.has(i)) remainingDeck.push(i);
   }
+
+  // Working copy — we do partial Fisher-Yates on this array each iteration
+  const deck = new Int32Array(remainingDeck);
+  const deckLen = deck.length;
+
+  // How many cards we need per iteration
+  const cardsNeeded = communityNeeded + opponents * 2;
 
   let wins = 0;
   let ties = 0;
 
-  for (let i = 0; i < iters; i++) {
-    const deck = [...remainingDeck];
-    rng.shuffle(deck);
+  // Pre-allocate hand buffers once outside the loop to avoid GC pressure
+  const iterComm = new Array<number>(5);
+  const heroCards = new Array<number>(7);
+  const oppCards = new Array<number>(7);
+  const oppBase = communityNeeded; // opponent cards start after community in deck
 
-    let idx = 0;
-
-    // Deal remaining community cards
-    const fullCommunity = [...communityCards];
-    for (let c = 0; c < communityNeeded; c++) {
-      fullCommunity.push(deck[idx++]);
+  for (let iter = 0; iter < iters; iter++) {
+    // ── Partial Fisher-Yates: only shuffle first `cardsNeeded` positions ──
+    // O(cardsNeeded) instead of O(52), keeping each iteration fast.
+    for (let i = 0; i < cardsNeeded; i++) {
+      const j = i + Math.floor(rng.next() * (deckLen - i));
+      const tmp = deck[i];
+      deck[i] = deck[j];
+      deck[j] = tmp;
     }
 
-    // Deal opponent hands
-    const opponentHands: string[][] = [];
+    // ── Build full 5-card community (known + newly dealt) ──
+    let commLen = 0;
+    for (let c = 0; c < commInts.length; c++) iterComm[commLen++] = commInts[c];
+    for (let c = 0; c < communityNeeded; c++) iterComm[commLen++] = deck[c];
+
+    // ── Hero's 7-card hand ──
+    heroCards[0] = heroInts[0];
+    heroCards[1] = heroInts[1];
+    heroCards[2] = iterComm[0];
+    heroCards[3] = iterComm[1];
+    heroCards[4] = iterComm[2];
+    heroCards[5] = iterComm[3];
+    heroCards[6] = iterComm[4];
+    const heroScore = bestOf7ints(heroCards);
+
+    // ── Evaluate each opponent ──
+    let heroWins = true;
+    let heroTies = false;
+
     for (let o = 0; o < opponents; o++) {
-      opponentHands.push([deck[idx++], deck[idx++]]);
+      let oppCard1: number;
+      let oppCard2: number;
+
+      if (opponentRangeLUT) {
+        // Rejection-sample: only accept hands in the opponent's range (LUT entry ≠ 0).
+        // Cap at 20 attempts to avoid long loops against very tight ranges.
+        const pos1 = oppBase + o * 2;
+        const pos2 = oppBase + o * 2 + 1;
+        let attempts = 0;
+        do {
+          if (attempts > 0) {
+            const tail1 = pos1 + Math.floor(rng.next() * (deckLen - pos1));
+            const t1 = deck[pos1];
+            deck[pos1] = deck[tail1];
+            deck[tail1] = t1;
+            const tail2 = pos2 + Math.floor(rng.next() * (deckLen - pos2));
+            const t2 = deck[pos2];
+            deck[pos2] = deck[tail2];
+            deck[tail2] = t2;
+          }
+          oppCard1 = deck[pos1];
+          oppCard2 = deck[pos2];
+          attempts++;
+        } while (
+          attempts < 20 &&
+          opponentRangeLUT[holecardRangeIndex(oppCard1!, oppCard2!)] === 0
+        );
+      } else {
+        oppCard1 = deck[oppBase + o * 2];
+        oppCard2 = deck[oppBase + o * 2 + 1];
+      }
+
+      oppCards[0] = oppCard1!;
+      oppCards[1] = oppCard2!;
+      oppCards[2] = iterComm[0];
+      oppCards[3] = iterComm[1];
+      oppCards[4] = iterComm[2];
+      oppCards[5] = iterComm[3];
+      oppCards[6] = iterComm[4];
+      const oppScore = bestOf7ints(oppCards);
+
+      if (oppScore > heroScore) {
+        heroWins = false;
+        heroTies = false;
+        break; // Hero already loses
+      } else if (oppScore === heroScore) {
+        heroWins = false;
+        heroTies = true;
+        // Keep checking — another opponent might beat the current tie
+      }
     }
 
-    // Convert to pokersolver format: "As", "Kh", "Td", "2c"
-    const heroSolverCards = [...holeCards, ...fullCommunity].map(toPokersolver);
-    const heroHand = Hand.solve(heroSolverCards);
-
-    const allHands = [heroHand];
-    for (const oppHole of opponentHands) {
-      const oppCards = [...oppHole, ...fullCommunity].map(toPokersolver);
-      allHands.push(Hand.solve(oppCards));
-    }
-
-    const winners = Hand.winners(allHands);
-    if (winners.length === 1 && winners[0] === heroHand) {
-      wins++;
-    } else if (winners.includes(heroHand)) {
-      ties++;
-    }
+    if (heroWins) wins++;
+    else if (heroTies) ties++;
   }
 
   return (wins + ties / 2) / iters;
-}
-
-/**
- * Convert card from internal format ("A♠", "10♥") to pokersolver format ("As", "Th").
- */
-function toPokersolver(card: string): string {
-  const chars = [...card];
-  const suitChar = chars.pop() || "";
-  let rank = chars.join("");
-
-  // Pokersolver uses "T" for 10
-  if (rank === "10") rank = "T";
-
-  const suitMap: Record<string, string> = {
-    "♠": "s",
-    "♥": "h",
-    "♦": "d",
-    "♣": "c",
-  };
-  return `${rank}${suitMap[suitChar] || suitChar}`;
 }
 
 // ─── EV Calculations ─────────────────────────────────────────────────────────
