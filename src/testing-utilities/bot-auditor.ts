@@ -9,13 +9,17 @@
  *   - "strategy_sanity": Soft flags. The action is deeply suboptimal given math.
  *
  * Scenarios:
- *   1. neverFoldOnCheck       — canCheck=true → MUST NOT fold (illegal move)
- *   2. neverCallZeroEquity    — very negative EV call → should fold (strategy flag)
- *   3. minRaiseCompliance     — any raise must be >= minRaise (illegal move)
- *   4. neverFoldAllIn         — player is all-in → MUST NOT fold (illegal move)
- *   5. strongHandValidation  — full house on river, single bet → MUST NOT fold (strategy sanity)
- *   6. potOddsAwareness       — nut flush draw, 5:1 pot odds → MUST NOT fold (strategy sanity)
- *   7. bluffFrequencyCheck    — HIGH_CARD on dry river, 100 trials → Shark/Maniac must raise ≥15-20%
+ *   1.  neverFoldOnCheck          — canCheck=true → MUST NOT fold (illegal move)
+ *   2.  neverCallZeroEquity       — very negative EV call → should fold (strategy flag)
+ *   3.  minRaiseCompliance        — any raise must be >= minRaise (illegal move)
+ *   4.  neverFoldAllIn            — player is all-in → MUST NOT fold (illegal move)
+ *   5.  strongHandValidation      — full house on river, single bet → MUST NOT fold (strategy sanity)
+ *   6.  potOddsAwareness          — nut flush draw, 5:1 pot odds → MUST NOT fold (strategy sanity)
+ *   7.  bluffFrequencyCheck       — HIGH_CARD on dry river, 100 trials → Shark/Maniac must raise ≥15-20%
+ *   8.  boardPlaysNeverRaise      — 8♠6♠ on K-A-9-9-A river: hole cards contribute nothing → MUST NOT raise
+ *   9.  pairedBoardWeakKicker     — 2♠3♦ on A-A-K-Q-J river: 2-kicker useless → MUST NOT raise
+ *   10. tripsBoardFoldLargeBet    — 7♥4♦ on K-K-K-A-2 river facing large bet → should fold
+ *   11. freePremiumMustNotFold    — A♥K♥ on 2-7-3 flop, toCall=0 → MUST NOT fold (illegal move)
  */
 
 import type {
@@ -475,6 +479,252 @@ function scenarioPotOddsAwareness(): Scenario {
   };
 }
 
+function scenarioBoardPlaysNeverRaise(): Scenario {
+  // 8♠6♠ on K♠A♥9♦9♣A♣ river — best hand is the board itself (AA99K two pair).
+  // Hole cards contribute nothing. 3+ active players + facing a bet = bluff NOT justified.
+  // Bot can only split or lose, never win outright — raising is indefensible.
+  const payload = makePayload({
+    stage: "river",
+    holeCards: ["8s", "6s"],
+    communityCards: ["Ks", "Ah", "9d", "9c", "Ac"],
+    chips: 1000,
+    toCall: 50,
+    canCheck: false,
+    minRaise: 100,
+    maxRaise: 1000,
+    pot: 200,
+    position: "UTG",
+    bestHandName: "TWO_PAIR",
+  });
+  // 3 active players: not heads-up, so bluff is not justified
+  payload.players = [
+    {
+      name: "AuditBot",
+      chips: 1000,
+      bet: 0,
+      folded: false,
+      allIn: false,
+      position: "UTG",
+    },
+    {
+      name: "Opp1",
+      chips: 1000,
+      bet: 50,
+      folded: false,
+      allIn: false,
+      position: "CO",
+    },
+    {
+      name: "Opp2",
+      chips: 1000,
+      bet: 50,
+      folded: false,
+      allIn: false,
+      position: "BTN",
+    },
+  ];
+
+  return {
+    name: "boardPlaysNeverRaise",
+    description:
+      "8♠6♠ on K♠A♥9♦9♣A♣ river (3 players, facing bet): hole cards contribute nothing. " +
+      "Raising with 3+ players facing a bet is never justified — bot can only split or lose.",
+    payload,
+    assertions: [
+      {
+        name: "boardPlaysNeverRaise",
+        category: "strategy_sanity",
+        fn: (_payload, action) => ({
+          assertionName: "boardPlaysNeverRaise",
+          category: "strategy_sanity",
+          passed: action.type !== "raise" && action.type !== "all_in",
+          message:
+            action.type === "raise" || action.type === "all_in"
+              ? `FLAG: Bot raised with board-plays hand (8s6s on KsAh9d9cAc) in 3-way pot facing a bet`
+              : `OK: Bot chose ${action.type} (raise blocked for multi-player board-plays hand)`,
+        }),
+      },
+    ],
+  };
+}
+
+function scenarioPairedBoardWeakKicker(): Scenario {
+  // 2♠3♦ on A♥A♦K♠Q♣J♥ river — bot has the worst possible kicker.
+  // 3+ active players + facing a bet = bluff NOT justified.
+  const payload = makePayload({
+    stage: "river",
+    holeCards: ["2s", "3d"],
+    communityCards: ["Ah", "Ad", "Ks", "Qc", "Jh"],
+    chips: 1000,
+    toCall: 50,
+    canCheck: false,
+    minRaise: 100,
+    maxRaise: 1000,
+    pot: 200,
+    position: "BB",
+    bestHandName: "TWO_PAIR",
+  });
+  // 3 active players: not heads-up, so bluff is not justified
+  payload.players = [
+    {
+      name: "AuditBot",
+      chips: 1000,
+      bet: 0,
+      folded: false,
+      allIn: false,
+      position: "BB",
+    },
+    {
+      name: "Opp1",
+      chips: 1000,
+      bet: 50,
+      folded: false,
+      allIn: false,
+      position: "CO",
+    },
+    {
+      name: "Opp2",
+      chips: 1000,
+      bet: 50,
+      folded: false,
+      allIn: false,
+      position: "BTN",
+    },
+  ];
+
+  return {
+    name: "pairedBoardWeakKicker",
+    description:
+      "2♠3♦ on A♥A♦K♠Q♣J♥ river (3 players, facing bet): hole cards contribute nothing. " +
+      "Raising with 3+ players facing a bet is never justified — weakest possible kicker.",
+    payload,
+    assertions: [
+      {
+        name: "pairedBoardWeakKicker",
+        category: "strategy_sanity",
+        fn: (_payload, action) => ({
+          assertionName: "pairedBoardWeakKicker",
+          category: "strategy_sanity",
+          passed: action.type !== "raise" && action.type !== "all_in",
+          message:
+            action.type === "raise" || action.type === "all_in"
+              ? `FLAG: Bot raised with board-plays hand (2s3d on AhAdKsQcJh) in 3-way pot facing a bet`
+              : `OK: Bot chose ${action.type} (raise blocked for multi-player board-plays hand)`,
+        }),
+      },
+    ],
+  };
+}
+
+function scenarioTripsBoardFoldLargeBet(): Scenario {
+  // 3♥4♦ on K♣K♠K♥A♣J♦ river — board has trips kings with A and J kickers.
+  // Hole cards 3-4 contribute nothing (best 5 = K,K,K,A,J — all board cards).
+  // 3+ players, facing a large overbet (33% pot odds). Raising is indefensible.
+  const payload = makePayload({
+    stage: "river",
+    holeCards: ["3h", "4d"],
+    communityCards: ["Kc", "Ks", "Kh", "Ac", "Jd"],
+    chips: 1000,
+    toCall: 200,
+    canCheck: false,
+    minRaise: 400,
+    maxRaise: 1000,
+    pot: 400,
+    position: "BB",
+    bestHandName: "THREE_OF_A_KIND",
+  });
+  // 3 active players: not heads-up, so bluff is not justified
+  payload.players = [
+    {
+      name: "AuditBot",
+      chips: 1000,
+      bet: 0,
+      folded: false,
+      allIn: false,
+      position: "BB",
+    },
+    {
+      name: "Opp1",
+      chips: 1000,
+      bet: 200,
+      folded: false,
+      allIn: false,
+      position: "CO",
+    },
+    {
+      name: "Opp2",
+      chips: 1000,
+      bet: 200,
+      folded: false,
+      allIn: false,
+      position: "BTN",
+    },
+  ];
+
+  return {
+    name: "tripsBoardFoldLargeBet",
+    description:
+      "3♥4♦ on K♣K♠K♥A♣J♦ river (3 players, large bet): board has trip kings with A-J kickers. " +
+      "Hole cards contribute nothing. Raising in 3-way pot facing a large bet is indefensible.",
+    payload,
+    assertions: [
+      {
+        name: "tripsBoardFoldLargeBet",
+        category: "strategy_sanity",
+        fn: (_payload, action) => ({
+          assertionName: "tripsBoardFoldLargeBet",
+          category: "strategy_sanity",
+          passed: action.type !== "raise" && action.type !== "all_in",
+          message:
+            action.type === "raise" || action.type === "all_in"
+              ? `FLAG: Bot raised with board-plays hand (3h4d on KcKsKhAcJd) in 3-way pot facing a large bet`
+              : `OK: Bot chose ${action.type} (raise blocked for multi-player board-plays hand)`,
+        }),
+      },
+    ],
+  };
+}
+
+function scenarioFreePremiumMustNotFold(): Scenario {
+  // A♥K♥ on 2♦7♣3♠ flop with toCall=0, canCheck=true.
+  // AKs has strong draw equity and overcards — folding for free is always wrong.
+  const payload = makePayload({
+    stage: "flop",
+    holeCards: ["Ah", "Kh"],
+    communityCards: ["2d", "7c", "3s"],
+    chips: 1000,
+    toCall: 0,
+    canCheck: true,
+    minRaise: 40,
+    maxRaise: 1000,
+    pot: 80,
+    position: "CO",
+  });
+
+  return {
+    name: "freePremiumMustNotFold",
+    description:
+      "A♥K♥ on 2♦7♣3♠ flop, toCall=0 (free to check). " +
+      "Folding AKs for free is illegal — bot must check or bet.",
+    payload,
+    assertions: [
+      {
+        name: "freePremiumMustNotFold",
+        category: "illegal_move",
+        fn: (_payload, action) => ({
+          assertionName: "freePremiumMustNotFold",
+          category: "illegal_move",
+          passed: action.type !== "fold",
+          message:
+            action.type === "fold"
+              ? `ILLEGAL: Bot folded AKs for free (toCall=0, canCheck=true) — surrenders premium hand equity`
+              : `OK: Bot chose ${action.type} (AKs kept alive for free)`,
+        }),
+      },
+    ],
+  };
+}
+
 function scenarioBluffFrequencyCheck(): FrequencyScenario {
   // River: 7♣2♦ on A♠K♥J♦9♠4♣ — total miss, HIGH_CARD.
   // Board is dry (no flush, low connectivity) but has scary high cards.
@@ -530,6 +780,10 @@ export class BotAuditor {
       scenarioNeverFoldAllIn(),
       scenarioStrongHandValidation(),
       scenarioPotOddsAwareness(),
+      scenarioBoardPlaysNeverRaise(),
+      scenarioPairedBoardWeakKicker(),
+      scenarioTripsBoardFoldLargeBet(),
+      scenarioFreePremiumMustNotFold(),
     ];
     this.frequencyScenarios = [scenarioBluffFrequencyCheck()];
   }

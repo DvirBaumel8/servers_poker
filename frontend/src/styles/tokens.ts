@@ -2,14 +2,14 @@
 // Import C, T, and style helpers from here instead of defining per-file.
 
 export const C = {
-  bg:        '#0a0a1a',
-  card:      '#13132a',
-  cardHover: '#161630',
-  border:    '#1e1e3f',
-  accent:    '#00e5ff',
-  accentDim: 'rgba(0,229,255,0.08)',
+  bg:        '#09090b',
+  card:      'rgba(18,18,27,0.50)',   // zinc-900/50 — semi-transparent for glassmorphism
+  cardHover: 'rgba(28,28,44,0.65)',
+  border:    'rgba(255,255,255,0.08)', // border-white/8
+  accent:    '#00f5ff',               // neon-cyan
+  accentDim: 'rgba(0,245,255,0.08)',
   text:      '#ffffff',
-  muted:     '#a8b3c4',   // slightly brighter than #9ca3af for readability on dark bg
+  muted:     '#a8b3c4',
   danger:    '#e24b4a',
   success:   '#1d9e75',
   warning:   '#f59e0b',
@@ -35,14 +35,16 @@ export const T = {
 
 // Shared card styles — spread into a div's style prop
 export const cardStyle = (hovered = false): React.CSSProperties => ({
-  background:   hovered ? C.cardHover : C.card,
-  border:       `1px solid ${hovered ? C.accent : C.border}`,
-  borderRadius: 14,
-  padding:      20,
-  transition:   'border-color 0.2s, background 0.2s, box-shadow 0.2s',
-  boxShadow:    hovered
-    ? '0 0 0 1px rgba(0,229,255,0.15), 0 8px 32px rgba(0,229,255,0.08)'
-    : '0 4px 24px rgba(0,0,0,0.45)',
+  background:             hovered ? C.cardHover : C.card,
+  backdropFilter:         'blur(12px)',
+  WebkitBackdropFilter:   'blur(12px)',
+  border:                 `1px solid ${hovered ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)'}`,
+  borderRadius:           14,
+  padding:                20,
+  transition:             'border-color 0.2s, background 0.2s, box-shadow 0.2s',
+  boxShadow:              hovered
+    ? '0 0 0 1px rgba(0,245,255,0.15), 0 8px 32px rgba(0,245,255,0.08), 0 0 15px rgba(0,245,255,0.05)'
+    : '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)',
 })
 
 // Unified progress bar track
@@ -83,18 +85,24 @@ export const glassChip = (size: number): React.CSSProperties => ({
   flexShrink:     0,
 })
 
-// Primary CTA button — cyan gradient + glow (matches carousel "Next" / "Upgrade" buttons)
+// Primary CTA button — cyan gradient + glow
 export const primaryButtonStyle: React.CSSProperties = {
-  background:  'linear-gradient(90deg, #00e5ff, #0070ff)',
-  border:      'none',
-  borderRadius: 8,
-  color:       '#000',
-  fontWeight:  700,
-  fontSize:    13,
-  cursor:      'pointer',
+  background:    'linear-gradient(135deg, #06b6d4, #00d4e8)',
+  border:        'none',
+  borderRadius:  8,
+  color:         '#000',
+  fontWeight:    700,
+  fontSize:      13,
+  cursor:        'pointer',
   letterSpacing: 0.5,
-  boxShadow:   '0 0 20px rgba(0,229,255,0.25)',
-  transition:  'box-shadow 0.2s, opacity 0.2s',
+  boxShadow:     '0 0 16px rgba(0,245,255,0.25)',
+  transition:    'box-shadow 0.2s, opacity 0.2s',
+}
+
+// Monospace style for numeric data (ELO, chips, latencies, prize amounts)
+export const monoStyle: React.CSSProperties = {
+  fontFamily:         "'JetBrains Mono', 'Fira Code', monospace",
+  fontVariantNumeric: 'tabular-nums',
 }
 
 // Section / card header — matches carousel slide headers

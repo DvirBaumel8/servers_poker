@@ -57,12 +57,16 @@ function TopBar({ onCreateBot }: { onCreateBot: () => void }) {
       <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>My Bots</div>
       <button
         onClick={onCreateBot}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 32px rgba(0,245,255,0.45)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 20px rgba(0,245,255,0.3)' }}
         style={{
           padding: '9px 18px',
-          background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
+          background: 'linear-gradient(135deg, #06b6d4, #00d4e8)',
           border: 'none', borderRadius: 8,
           color: '#000', fontWeight: 700, fontSize: 13,
           fontFamily: C.font, cursor: 'pointer', letterSpacing: 1,
+          boxShadow: '0 0 20px rgba(0,245,255,0.3)',
+          transition: 'box-shadow 0.2s',
         }}
       >
         + Create Bot
@@ -106,12 +110,16 @@ function EmptyState({ onCreateBot }: { onCreateBot: () => void }) {
       </div>
       <button
         onClick={onCreateBot}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 32px rgba(0,245,255,0.45)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 20px rgba(0,245,255,0.3)' }}
         style={{
           padding: '12px 32px',
-          background: 'linear-gradient(90deg, #00e5ff, #0070ff)',
+          background: 'linear-gradient(135deg, #06b6d4, #00d4e8)',
           border: 'none', borderRadius: 8,
           color: '#000', fontWeight: 700, fontSize: 14,
           fontFamily: C.font, cursor: 'pointer', letterSpacing: 0.5,
+          boxShadow: '0 0 20px rgba(0,245,255,0.3)',
+          transition: 'box-shadow 0.2s',
         }}
       >
         + Create your first bot
@@ -245,14 +253,13 @@ function BotDNA({ personality }: { personality?: Personality }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
         {TRAIT_META.map(({ key, label, color }) => {
-          const isCyan = color === '#00e5ff'
           return (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: T.xs, color: C.muted, width: 30, flexShrink: 0, textAlign: 'right' }}>
                 {label}
               </span>
               <div style={{ ...barTrack }}>
-                <div style={barFill(personality[key], color, isCyan)} />
+                <div style={barFill(personality[key], color, true)} />
               </div>
               <span style={{ fontSize: T.xs, color: C.muted, width: 22, textAlign: 'right' }}>
                 {personality[key]}
@@ -276,7 +283,7 @@ function StatChip({ label, value, color }: { label: string; value: string | null
       {value === null ? (
         <div style={{ width: 40, height: 16, background: C.border, borderRadius: 3 }} />
       ) : (
-        <div style={{ fontSize: T.sm, fontWeight: 700, color }}>{value}</div>
+        <div style={{ fontSize: T.sm, fontWeight: 700, color, fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       )}
     </div>
   )

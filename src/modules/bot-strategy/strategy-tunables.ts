@@ -44,6 +44,56 @@ export const STRATEGY_TUNABLES = {
     postflopBasePotFraction: 0.33,
     postflopAggressionBonus: 0.5,
     rangeChartDefaultRaiseBB: 2.5,
+    /** Safety Rail 1 — Min Bet Floor.
+     * A lead bet (no facing bet) must be at least max(1 BB, 25% pot).
+     * Prevents the pot_fraction formula from producing micro-bets on small pots. */
+    minLeadBetBBMultiple: 1.0,
+    minLeadBetPotFraction: 0.25,
+    /** Safety Rail 3 — All-In Stack Commit.
+     * If a raise delta exceeds this fraction of the post-call remaining stack,
+     * convert to all-in rather than leaving a tiny residual.
+     * Post-call remaining stack = maxRaise (chips available after calling). */
+    allInStackCommitRatio: 0.7,
+  },
+
+  /**
+   * Dynamic raise sizing options.
+   * Replaces the static single-value computation with a menu of realistic
+   * bet sizes. Personality + seeded RNG select from these options so bots
+   * vary their sizing rather than always betting the same amount.
+   */
+  sizingOptions: {
+    preflop: {
+      /** BB multiples available for open-raises (no facing bet). */
+      bbMultiples: [2.0, 2.5, 3.0, 3.5, 4.0],
+    },
+    postflop: {
+      /** Pot fractions for c-bets and value bets when opening (no facing bet). */
+      potFractions: [0.33, 0.5, 0.67, 0.75],
+    },
+    /**
+     * Re-raise sizing — applies whenever facing a bet (any street).
+     * A raise against a facing bet always uses the facing-bet-multiple formula:
+     *   raise-to = currentBetLevel × multiple
+     *   raise-delta = currentBetLevel × (multiple - 1)   [what goes to the engine]
+     *
+     * This guarantees exponential pot growth and eliminates the ping-pong loop.
+     * Range [reRaiseMinMultiple, reRaiseMaxMultiple] is mapped by aggression + RNG jitter.
+     */
+    reRaise: {
+      minMultiple: 2.2,
+      maxMultiple: 3.0,
+    },
+    /**
+     * Whale logic — triggers when a bot has a significant chip lead AND good equity.
+     * Causes the bot to go all-in (or bet very large) to apply maximum pressure.
+     */
+    whale: {
+      /** Stack-ratio threshold: myStack must be > X × effectiveStack to trigger. */
+      stackRatio: 5.0,
+      /** Minimum equity (0–1) required alongside the stack advantage. */
+      equityThreshold: 0.5,
+    },
   },
 
   handQuality: {
@@ -86,6 +136,9 @@ export const STRATEGY_TUNABLES = {
       playable: { fold: 20, call: 55, raise: 25 },
       weak: { fold: 55, call: 30, raise: 15 },
       draw: { fold: 25, call: 50, raise: 25 },
+      // Board-plays: hole cards add nothing on the river. Split-pot guard zeroes fold
+      // and moves weight to call; raising is blocked via handQuality=0 (aggression gate).
+      board_plays: { fold: 55, call: 30, raise: 15 },
     } as Record<string, { fold: number; call: number; raise: number }>,
 
     /** Equity gate: aggression shift only applies above this hand strength threshold. */
@@ -93,6 +146,32 @@ export const STRATEGY_TUNABLES = {
 
     /** Sigmoid steepness for non-linear slider mapping (higher = sharper S-curve). */
     sigmoidK: 6,
+
+    /**
+     * Top-Heavy guard threshold (0–1).
+     * When the dominant action's normalised weight exceeds this value, that action
+     * is taken deterministically instead of going through the seeded RNG lottery.
+     * Applies to fold, call, and raise equally (unlike the old raise-only 50% guard).
+     */
+    topHeavyThreshold: 0.6,
+
+    /**
+     * Bluff escape scale (0–1).
+     * At bluffFrequency=100, the probability of bypassing the top-heavy guard is
+     * bluffEscapeScale. At bluffFrequency=0, the escape probability is 0.
+     * Formula: escapeChance = (bluffFrequency / 100) * bluffEscapeScale.
+     * Default 0.25 → max 25% chance of a surprise play even for max-bluff bots.
+     */
+    bluffEscapeScale: 0.25,
+
+    /** Safety Rail 2 — Nuts Protection (Suicidal Fold Guard).
+     * When equity exceeds this threshold, fold weight is capped at nutsMaxFoldRatio
+     * of total weight. A bot should almost never fold a near-nuts hand regardless of
+     * how tight its DNA is. Only fires when equity > 0 (i.e. postflop with real data). */
+    nutsProtectionThreshold: 0.7,
+    /** Maximum fraction of total weight that can be assigned to fold when the nuts
+     * guard fires. Default 0.05 = at most 5% fold weight on a 70%+ equity hand. */
+    nutsMaxFoldRatio: 0.05,
 
     /**
      * Maximum weight units added to fold when the call is deeply negative-EV.
@@ -110,8 +189,8 @@ export const STRATEGY_TUNABLES = {
   equity: {
     /** Safety buffer: equity must exceed potOdds by this margin for a profitable call. */
     safetyBuffer: 0.05,
-    /** Default Monte Carlo iterations for Pro tier. */
-    monteCarloIterations: 500,
+    /** Default Monte Carlo iterations. Minimum 5000 for accurate equity display. */
+    monteCarloIterations: 5000,
     /** Multi-way equity discount: equity^(base + scale * opponents/8). */
     multiWayDiscountBase: 0.7,
     multiWayDiscountScale: 0.3,
@@ -126,7 +205,7 @@ export const STRATEGY_TUNABLES = {
     madeHandEquity: {
       high_card: 0.15,
       pair: 0.35,
-      two_pair: 0.55,
+      two_pair: 0.75,
       trips: 0.7,
       straight: 0.8,
       flush: 0.85,

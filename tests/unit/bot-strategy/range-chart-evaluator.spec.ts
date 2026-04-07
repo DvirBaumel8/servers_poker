@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   evaluateRangeChart,
+  evaluateCompiledRangeChart,
+  compileRangeChartLUT,
   holeCardsToNotation,
   rangeActionToActionDef,
 } from "../../../src/modules/bot-strategy/evaluators/range-chart.evaluator";
@@ -82,6 +84,66 @@ describe("RangeChartEvaluator", () => {
     it("should not match hand not in chart", () => {
       const result = evaluateRangeChart([card(3, "♠"), card(2, "♥")], chart);
       expect(result.matched).toBe(false);
+    });
+  });
+
+  describe("evaluateCompiledRangeChart — unset cells fold (bug fix)", () => {
+    // Range chart with only AA=raise defined; all other cells are unset (encoded=0)
+    const lut = compileRangeChartLUT({
+      AA: "raise",
+      AKs: "call",
+      "72o": "fold",
+    });
+    const chart = { lut };
+
+    it("returns matched:true + action:null for an unset cell (22)", () => {
+      // 22 is unset → must not fall through to rules; engine will fold it
+      const result = evaluateCompiledRangeChart(
+        [
+          { value: 2, suit: "♠" },
+          { value: 2, suit: "♥" },
+        ],
+        chart,
+      );
+      expect(result.matched).toBe(true);
+      expect(result.action).toBeNull();
+      expect(result.handNotation).toBe("22");
+    });
+
+    it("returns matched:true + action:'raise' for an explicitly raised hand (AA)", () => {
+      const result = evaluateCompiledRangeChart(
+        [
+          { value: 14, suit: "♠" },
+          { value: 14, suit: "♥" },
+        ],
+        chart,
+      );
+      expect(result.matched).toBe(true);
+      expect(result.action).toBe("raise");
+    });
+
+    it("returns matched:true + action:'fold' for an explicitly folded hand (72o)", () => {
+      const result = evaluateCompiledRangeChart(
+        [
+          { value: 7, suit: "♠" },
+          { value: 2, suit: "♥" },
+        ],
+        chart,
+      );
+      expect(result.matched).toBe(true);
+      expect(result.action).toBe("fold");
+    });
+
+    it("unset cell (T9o) also returns matched:true so it cannot fall through to rules", () => {
+      const result = evaluateCompiledRangeChart(
+        [
+          { value: 10, suit: "♠" },
+          { value: 9, suit: "♥" },
+        ],
+        chart,
+      );
+      expect(result.matched).toBe(true);
+      expect(result.action).toBeNull();
     });
   });
 

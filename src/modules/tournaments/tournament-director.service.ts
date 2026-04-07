@@ -25,6 +25,7 @@ import {
   LiveGameManagerService,
   GameInstance,
 } from "../../services/game/live-game-manager.service";
+import { TournamentLoggerService } from "../../services/game/tournament-logger.service";
 import {
   HANDS_PER_LEVEL,
   getBlindLevel,
@@ -533,6 +534,7 @@ class ActiveTournament {
   private lastHandTs = 0; // 0 = not yet set; initialised on first hand
   private rollingHps = 0;
   private readonly barrier: BarrierCoordinator;
+  private readonly tournamentLogger = new TournamentLoggerService();
 
   constructor(
     private readonly tournamentId: string,
@@ -580,6 +582,15 @@ class ActiveTournament {
     for (const info of this.activeBots.values()) {
       info.elo = eloMap.get(info.botId) ?? 0;
     }
+
+    // Initialize the master tournament log
+    this.tournamentLogger.initialize(
+      this.tournamentId,
+      [...this.activeBots.values()].map((bot) => ({
+        elo: bot.elo,
+        dna: (bot.strategy ?? {}) as any,
+      })),
+    );
 
     await this.createInitialTables();
     await this.startBlindLevel(1);
@@ -798,6 +809,42 @@ class ActiveTournament {
       const allIds = [...this.tables.keys()];
       await this.barrier.checkIn(tableDbId, this.tables.size, allIds);
     };
+
+    // Wire the tournament logger as an action observer on this table
+    const logger = this.tournamentLogger;
+    game.setActionLogger((entry) => logger.recordAction(entry));
+    this.eventEmitter.on(
+      "game.handStarted",
+      (event: {
+        tableId: string;
+        handNumber: number;
+        dealerBotId: string;
+        players?: Array<{ id: string; chips: bigint | number }>;
+      }) => {
+        if (event.tableId === tableDbId) {
+          const initialStacks: Record<string, number> = {};
+          for (const p of event.players ?? []) {
+            initialStacks[p.id] = Number(p.chips);
+          }
+          logger.onHandStarted(
+            event.handNumber,
+            event.dealerBotId,
+            initialStacks,
+          );
+        }
+      },
+    );
+    this.eventEmitter.on(
+      "game.handComplete",
+      (event: { tableId: string; communityCards: any[] }) => {
+        if (event.tableId === tableDbId) {
+          const cards: string[] = (event.communityCards ?? []).map((c: any) =>
+            typeof c === "string" ? c : `${c.rank}${c.suit?.[0] ?? ""}`,
+          );
+          logger.onHandComplete(cards);
+        }
+      },
+    );
 
     const tableEntry: TableEntry = {
       game,
@@ -2081,6 +2128,15 @@ class ActiveTournament {
     this.logger.log(
       `Tournament ${this.name} finished. Winner: ${winner?.name || "Unknown"}`,
     );
+
+    // Write the master tournament log (fire-and-forget — don't block tournament finish)
+    const logPath = `logs/tournaments/${this.tournamentId}.json`;
+    this.tournamentLogger
+      .writeToFile(logPath)
+      .then(() => this.logger.log(`Master tournament log written: ${logPath}`))
+      .catch((e) =>
+        this.logger.warn(`Failed to write tournament log: ${e.message}`),
+      );
 
     this.eventEmitter.emit("tournament.finished", {
       tournamentId: this.tournamentId,

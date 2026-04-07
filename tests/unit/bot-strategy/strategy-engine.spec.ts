@@ -199,7 +199,7 @@ describe("StrategyEngine", () => {
 
     it("should use personality as fallback source for quick tier", () => {
       const result = evaluateStrategy(quickStrategy(), basePayload());
-      expect(result.source).toBe("personality");
+      expect(result.source).toBe("Personality");
       expect(result.explanation).toBeTruthy();
     });
 
@@ -216,11 +216,14 @@ describe("StrategyEngine", () => {
         rangeChart: { AKo: "raise" },
       };
       const result = evaluateStrategy(strategy, basePayload());
-      expect(result.source).toBe("range_chart");
+      expect(result.source).toBe("Range Chart");
       expect(result.handNotation).toBe("AKo");
     });
 
-    it("should fall through from range chart null to rules", () => {
+    it("rule fires before range chart — Hard Rule overrides unset range chart cell", () => {
+      // Rule Supremacy: a Hard Rule matching AKo (holeCardRank = "strong") fires BEFORE
+      // the range chart. Even though the range chart has AKo = null (unset = fold),
+      // the rule takes priority and returns its action.
       const strategy: BotStrategy = {
         version: 1,
         tier: "strategy",
@@ -251,8 +254,9 @@ describe("StrategyEngine", () => {
         },
       };
       const result = evaluateStrategy(strategy, basePayload());
-      expect(result.source).toBe("rule");
+      expect(result.source).toBe("Hard Rule");
       expect(result.ruleId).toBe("r1");
+      expect(result.action.type).toBe("call");
     });
 
     it("should use rules for postflop", () => {
@@ -308,7 +312,7 @@ describe("StrategyEngine", () => {
         action: { canCheck: true, toCall: 0, minRaise: 100, maxRaise: 5000 },
       });
       const result = evaluateStrategy(strategy, payload);
-      expect(result.source).toBe("rule");
+      expect(result.source).toBe("Hard Rule");
       expect(result.action.type).toBe("raise");
     });
 
@@ -330,7 +334,7 @@ describe("StrategyEngine", () => {
         },
       };
       const result = evaluateStrategy(strategy, basePayload());
-      expect(result.source).toBe("range_chart");
+      expect(result.source).toBe("Range Chart");
       expect(result.action.type).toBe("raise");
     });
 
@@ -587,5 +591,103 @@ describe("StrategyEngine", () => {
       });
       expect(() => evaluateStrategy(strategy, payload)).not.toThrow();
     });
+  });
+});
+
+// ─── resolveAction: heads-up all-in converts raise → call (regression) ─────────
+
+describe("resolveAction: raise → call when facing heads-up all-in", () => {
+  // River board-plays scenario: 2-3 on K-Q-J-10-9. Opponent all-in for 400.
+  // The personality evaluator might decide "raise" but the engine must convert it
+  // to "call" because raising into an all-in opponent gains nothing.
+
+  function boardPlaysPayload(): BotPayload {
+    return {
+      gameId: "test-allin",
+      handNumber: 1,
+      stage: "river",
+      decisionSeed: "a".repeat(64),
+      you: {
+        name: "Hero",
+        chips: 1000,
+        holeCards: ["2s", "3h"],
+        bet: 0,
+        position: "BTN",
+      },
+      action: {
+        canCheck: false,
+        toCall: 400,
+        minRaise: 400,
+        maxRaise: 1000,
+      },
+      table: {
+        pot: 450, // 50 original + 400 opponent bet already added
+        currentBet: 400,
+        communityCards: ["Kc", "Qs", "Js", "Th", "9d"],
+        smallBlind: 5,
+        bigBlind: 10,
+        ante: 0,
+      },
+      players: [
+        // Hero included (index 0) — mirrors bots.service.ts mock setup
+        {
+          name: "Hero",
+          chips: 1000,
+          bet: 0,
+          folded: false,
+          allIn: false,
+          position: "BTN",
+        },
+        {
+          name: "Villain",
+          chips: 0,
+          bet: 400,
+          folded: false,
+          allIn: true,
+          position: "SB",
+        },
+        {
+          name: "Villain2",
+          chips: 1000,
+          bet: 0,
+          folded: true,
+          allIn: false,
+          position: "BB",
+        },
+        {
+          name: "Villain3",
+          chips: 1000,
+          bet: 0,
+          folded: true,
+          allIn: false,
+          position: "UTG",
+        },
+      ],
+    };
+  }
+
+  it("action is call — never raise — when opponent is all-in and heads-up active", () => {
+    const strategy: BotStrategy = {
+      version: 1,
+      tier: "quick",
+      personality: {
+        aggression: 95, // max aggression — would normally raise
+        tightness: 20,
+        bluffFrequency: 60,
+        riskTolerance: 80,
+      },
+    };
+
+    // Run 20 times with different seeds to cover all PRNG paths
+    for (let hand = 1; hand <= 20; hand++) {
+      clearEvalCache();
+      const result = evaluateStrategy(strategy, {
+        ...boardPlaysPayload(),
+        handNumber: hand,
+      });
+      // Against a single all-in opponent, raising is invalid — must call or fold
+      expect(result.action.type).not.toBe("raise");
+      expect(result.action.type).not.toBe("all_in");
+    }
   });
 });

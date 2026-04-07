@@ -557,8 +557,12 @@ function EmptyDashboard({ tournaments, loadingTournaments, bots, onEnter }: { to
       {/* Welcome banner */}
       <div style={{
         position: 'relative', overflow: 'hidden',
-        background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
+        background: C.card,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${C.border}`, borderRadius: 14,
         padding: '36px 36px', marginBottom: 28, fontFamily: C.font,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)',
       }}>
         <div style={{
           position: 'absolute', right: -10, top: -20,
@@ -581,7 +585,7 @@ function EmptyDashboard({ tournaments, loadingTournaments, bots, onEnter }: { to
           { n: 2, title: 'Enter a tournament', desc: 'Register your bot in open tournaments. It plays automatically, 24/7, no babysitting.' },
           { n: 3, title: 'Watch & win', desc: 'Watch live hands, track your bot\'s stats, and climb the leaderboard.' },
         ].map(({ n, title, desc }) => (
-          <div key={n} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20 }}>
+          <div key={n} style={{ background: C.card, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)' }}>
             <div style={{
               width: 32, height: 32, borderRadius: '50%', background: C.accentDim,
               border: `1px solid ${C.accent}`, color: C.accent,
@@ -674,9 +678,16 @@ function ReturningDashboard({
           { label: 'My Bots', value: bots.length.toString(), sub: `${activeBots} active` },
           { label: 'Win Rate', value: `${winRate}%`, sub: `${totalWins}/${totalEntered} tournaments` },
         ].map(({ label, value, sub }) => (
-          <div key={label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 24px', fontFamily: C.font }}>
+          <div key={label} style={{
+            background: C.card,
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: `1px solid ${C.border}`,
+            borderRadius: 12, padding: '20px 24px', fontFamily: C.font,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.45), 0 0 15px rgba(0,245,255,0.05)',
+          }}>
             <div style={{ fontSize: 13, color: C.muted, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>{label}</div>
-            <div style={{ fontSize: 34, fontWeight: 700, color: C.text }}>
+            <div style={{ fontSize: 34, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontVariantNumeric: 'tabular-nums' }}>
               {label === 'Balance' && walletBalance === null
                 ? <span style={{ opacity: 0.4 }}>…</span>
                 : value}

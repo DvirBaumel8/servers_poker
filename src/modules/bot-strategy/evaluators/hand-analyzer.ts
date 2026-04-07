@@ -87,6 +87,51 @@ function computeHandStrength(
     return "high_card";
   }
 
+  // Evaluate hand strength from cards when bestHandName is absent (Scenario Lab, tests).
+  // Live games always supply bestHand via buildBotPayload, so this path is Scenario-Lab-only.
+  const allCards = [...hole, ...community];
+
+  const suitCounts: Record<string, number> = Object.create(null);
+  for (const c of allCards) suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1;
+  const maxSuit = Math.max(...Object.values(suitCounts));
+
+  const valueCounts: Record<number, number> = {};
+  for (const c of allCards)
+    valueCounts[c.value] = (valueCounts[c.value] || 0) + 1;
+  const groups = Object.values(valueCounts).sort((a, b) => b - a);
+
+  const uniqueVals = [...new Set(allCards.map((c) => c.value))].sort(
+    (a, b) => a - b,
+  );
+  if (uniqueVals.includes(14)) uniqueVals.unshift(1);
+  let hasStraight = false;
+  for (let i = 0; i <= uniqueVals.length - 5; i++) {
+    if (uniqueVals[i + 4] - uniqueVals[i] === 4) {
+      hasStraight = true;
+      break;
+    }
+  }
+
+  if (maxSuit >= 5 && hasStraight) {
+    const flushSuit = Object.entries(suitCounts).find(([, c]) => c >= 5)?.[0];
+    const flushVals = [
+      ...new Set(
+        allCards.filter((c) => c.suit === flushSuit).map((c) => c.value),
+      ),
+    ].sort((a, b) => a - b);
+    for (let i = 0; i <= flushVals.length - 5; i++) {
+      if (flushVals[i + 4] - flushVals[i] === 4) {
+        return flushVals[i + 4] === 14 ? "royal_flush" : "straight_flush";
+      }
+    }
+  }
+  if (groups[0] >= 4) return "quads";
+  if (groups[0] >= 3 && groups[1] >= 2) return "full_house";
+  if (maxSuit >= 5) return "flush";
+  if (hasStraight) return "straight";
+  if (groups[0] >= 3) return "trips";
+  if (groups[0] >= 2 && groups[1] >= 2) return "two_pair";
+  if (groups[0] >= 2) return "pair";
   return "high_card";
 }
 

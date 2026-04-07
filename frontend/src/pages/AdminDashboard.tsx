@@ -94,8 +94,8 @@ interface SeedingMapData {
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
 const C = {
-  bg: '#0a0a1a', card: '#13132a', cardHover: '#161630', border: '#1e1e3f',
-  accent: '#00e5ff', accentDim: 'rgba(0,229,255,0.08)', text: '#ffffff',
+  bg: '#09090b', card: 'rgba(18,18,27,0.50)', cardHover: 'rgba(28,28,44,0.65)', border: 'rgba(255,255,255,0.08)',
+  accent: '#00f5ff', accentDim: 'rgba(0,245,255,0.08)', text: '#ffffff',
   muted: '#a8b3c4', danger: '#e24b4a', dangerDim: 'rgba(226,75,74,0.1)',
   success: '#1d9e75', warning: '#f59e0b', font: "'Trebuchet MS', sans-serif",
 }
@@ -105,7 +105,7 @@ const C = {
 function StatusBadge({ status }: { status: Tournament['status'] }) {
   const map: Record<string, { label: string; color: string; bg: string }> = {
     registering: { label: 'OPEN',   color: C.success, bg: 'rgba(29,158,117,0.15)' },
-    running:     { label: 'LIVE',   color: C.accent,  bg: 'rgba(0,229,255,0.12)' },
+    running:     { label: 'LIVE',   color: C.accent,  bg: 'rgba(0,245,255,0.12)' },
     final_table: { label: 'FINALS', color: C.warning, bg: 'rgba(245,158,11,0.15)' },
     finished:    { label: 'DONE',   color: C.muted,   bg: 'rgba(168,179,196,0.1)' },
     cancelled:   { label: 'VOID',   color: C.danger,  bg: C.dangerDim },
@@ -121,7 +121,7 @@ function StatusBadge({ status }: { status: Tournament['status'] }) {
 
 function SubBadge({ status }: { status: string }) {
   const color = status === 'active' ? C.accent : status === 'free' ? C.muted : C.danger
-  const bg    = status === 'active' ? 'rgba(0,229,255,0.1)' : status === 'free' ? 'rgba(168,179,196,0.08)' : C.dangerDim
+  const bg    = status === 'active' ? 'rgba(0,245,255,0.1)' : status === 'free' ? 'rgba(168,179,196,0.08)' : C.dangerDim
   return (
     <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.8, padding: '2px 7px', borderRadius: 4, color, background: bg }}>
       {status.toUpperCase()}
@@ -257,9 +257,9 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
                   border: `1px solid ${C.border}`,
                 }}>
                   <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, flexShrink: 0,
-                    background: e.isSystem ? 'rgba(0,229,255,0.08)' : 'rgba(255,255,255,0.05)',
+                    background: e.isSystem ? 'rgba(0,245,255,0.08)' : 'rgba(255,255,255,0.05)',
                     color: e.isSystem ? C.accent : C.muted,
-                    border: `1px solid ${e.isSystem ? 'rgba(0,229,255,0.2)' : 'rgba(255,255,255,0.08)'}`,
+                    border: `1px solid ${e.isSystem ? 'rgba(0,245,255,0.2)' : 'rgba(255,255,255,0.08)'}`,
                   }}>
                     {e.isSystem ? 'sys' : 'user'}
                   </span>
@@ -317,9 +317,9 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
 
             <button onClick={inject} disabled={loading} style={{
               width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
-              background: loading ? 'rgba(0,229,255,0.3)' : 'linear-gradient(90deg, #00e5ff, #0070ff)',
+              background: loading ? 'rgba(0,245,255,0.3)' : 'linear-gradient(90deg, #00f5ff, #0070ff)',
               color: '#000', fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: C.font, letterSpacing: 0.5, boxShadow: loading ? 'none' : '0 0 20px rgba(0,229,255,0.25)',
+              fontFamily: C.font, letterSpacing: 0.5, boxShadow: loading ? 'none' : '0 0 20px rgba(0,245,255,0.25)',
             }}>
               {loading ? 'Adding…' : `🤖 Add ${Math.min(count, slotsLeft)} ${INJECTION_PROFILES.find(p => p.id === selected)?.label}`}
             </button>
@@ -711,8 +711,8 @@ export default function AdminDashboard() {
     <div style={{ display: 'flex', height: '100vh', background: C.bg, fontFamily: C.font, overflow: 'hidden' }}>
       <style>{`
         @keyframes adminPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        @keyframes adminGlow  { 0%,100%{box-shadow:0 0 12px rgba(0,229,255,0.3),0 0 0 1px rgba(0,229,255,0.2)}
-                                50%{box-shadow:0 0 24px rgba(0,229,255,0.6),0 0 0 1px rgba(0,229,255,0.4)} }
+        @keyframes adminGlow  { 0%,100%{box-shadow:0 0 12px rgba(0,245,255,0.3),0 0 0 1px rgba(0,245,255,0.2)}
+                                50%{box-shadow:0 0 24px rgba(0,245,255,0.6),0 0 0 1px rgba(0,245,255,0.4)} }
         @keyframes telemetryPulse { 0%,100%{box-shadow:0 0 6px rgba(29,158,117,0.8)} 50%{box-shadow:0 0 14px rgba(29,158,117,1)} }
         @keyframes finalTableRing { 0%,100%{box-shadow:0 0 6px rgba(245,158,11,0.7)} 50%{box-shadow:0 0 16px rgba(245,158,11,1),0 0 4px rgba(245,158,11,0.5)} }
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent}
@@ -729,7 +729,7 @@ export default function AdminDashboard() {
           borderBottom: `1px solid ${C.border}`, flexShrink: 0,
           background: 'rgba(10,10,26,0.8)', backdropFilter: 'blur(8px)' }}>
           <div style={{ width: 34, height: 34, borderRadius: 8, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.25)' }}>
+            justifyContent: 'center', background: 'rgba(0,245,255,0.12)', border: '1px solid rgba(0,245,255,0.25)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2"
               strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2L3 7v5c0 5.25 3.75 10.14 9 11.29C17.25 22.14 21 17.25 21 12V7L12 2z"/>
@@ -765,7 +765,7 @@ export default function AdminDashboard() {
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.accent, animation: 'adminPulse 2s infinite' }} />
             <span style={{ fontSize: 11, color: C.muted }}>{tournaments.length} active</span>
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, padding: '3px 10px', borderRadius: 20,
-              background: 'rgba(0,229,255,0.12)', color: C.accent, border: '1px solid rgba(0,229,255,0.25)' }}>
+              background: 'rgba(0,245,255,0.12)', color: C.accent, border: '1px solid rgba(0,245,255,0.25)' }}>
               GOD MODE
             </span>
           </div>
@@ -809,16 +809,16 @@ export default function AdminDashboard() {
                   <button key={tab} onClick={() => setSidebarTab(tab)} style={{
                     padding: '7px 14px', borderRadius: '6px 6px 0 0', fontSize: 11, fontWeight: 700,
                     cursor: 'pointer', fontFamily: C.font, letterSpacing: 0.5, transition: 'all 0.15s',
-                    border: `1px solid ${active ? 'rgba(0,229,255,0.3)' : 'transparent'}`,
+                    border: `1px solid ${active ? 'rgba(0,245,255,0.3)' : 'transparent'}`,
                     borderBottom: active ? `1px solid ${C.bg}` : 'none',
-                    background: active ? 'rgba(0,229,255,0.08)' : 'transparent',
+                    background: active ? 'rgba(0,245,255,0.08)' : 'transparent',
                     color: active ? C.accent : C.muted,
                     marginBottom: active ? -1 : 0,
                   }}>
                     {label}
                     {count > 0 && (
                       <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px',
-                        borderRadius: 8, background: active ? 'rgba(0,229,255,0.15)' : 'rgba(168,179,196,0.12)',
+                        borderRadius: 8, background: active ? 'rgba(0,245,255,0.15)' : 'rgba(168,179,196,0.12)',
                         color: active ? C.accent : C.muted }}>
                         {count}
                       </span>
@@ -979,7 +979,7 @@ export default function AdminDashboard() {
                       <button key={n} onClick={() => setTableSize(n)} style={{
                         padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontFamily: C.font, fontSize: 13,
                         border: `1px solid ${tableSize === n ? C.accent : C.border}`,
-                        background: tableSize === n ? 'rgba(0,229,255,0.12)' : 'rgba(0,0,0,0.2)',
+                        background: tableSize === n ? 'rgba(0,245,255,0.12)' : 'rgba(0,0,0,0.2)',
                         color: tableSize === n ? C.accent : C.muted, fontWeight: tableSize === n ? 700 : 400,
                         transition: 'all 0.15s',
                       }}>{n}</button>
@@ -995,7 +995,7 @@ export default function AdminDashboard() {
                       <button key={s} onClick={() => { setSpeed(s); setHandsPerLevel(s === 'Fast' ? 20 : 100) }} style={{
                         padding: '5px 16px', borderRadius: 6, cursor: 'pointer', fontFamily: C.font, fontSize: 13,
                         border: `1px solid ${speed === s ? C.accent : C.border}`,
-                        background: speed === s ? 'rgba(0,229,255,0.12)' : 'rgba(0,0,0,0.2)',
+                        background: speed === s ? 'rgba(0,245,255,0.12)' : 'rgba(0,0,0,0.2)',
                         color: speed === s ? C.accent : C.muted, fontWeight: speed === s ? 700 : 400,
                         transition: 'all 0.15s',
                       }}>{s}</button>
@@ -1042,10 +1042,10 @@ export default function AdminDashboard() {
               <button onClick={createTournament} disabled={creating || engineBusy} title={engineBusy ? 'Simulation engine at capacity' : undefined}
                 style={{
                   width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', fontFamily: C.font,
-                  background: (creating || engineBusy) ? 'rgba(0,229,255,0.2)' : 'linear-gradient(90deg, #00e5ff, #0070ff)',
+                  background: (creating || engineBusy) ? 'rgba(0,245,255,0.2)' : 'linear-gradient(90deg, #00f5ff, #0070ff)',
                   color: engineBusy ? C.muted : '#000', fontSize: 13, fontWeight: 700,
                   cursor: (creating || engineBusy) ? 'not-allowed' : 'pointer', letterSpacing: 0.5,
-                  boxShadow: (creating || engineBusy) ? 'none' : '0 0 20px rgba(0,229,255,0.25)',
+                  boxShadow: (creating || engineBusy) ? 'none' : '0 0 20px rgba(0,245,255,0.25)',
                   animation: (creating || engineBusy) ? 'none' : 'adminGlow 2s ease-in-out infinite',
                 }}>
                 {creating ? 'Creating…' : engineBusy ? '⚠ Engine Busy — Wait' : '⚡ Launch Tournament'}
@@ -1221,11 +1221,11 @@ function BalancingMovesPanel({ tournamentId, onClose }: { tournamentId: string; 
           ⚖ Table Balancing Log
         </span>
         <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
-          background: 'rgba(0,229,255,0.1)', color: C.accent, border: '1px solid rgba(0,229,255,0.2)' }}>
+          background: 'rgba(0,245,255,0.1)', color: C.accent, border: '1px solid rgba(0,245,255,0.2)' }}>
           ACTIVE
         </span>
         <button onClick={fetchMoves}
-          style={{ background: 'rgba(0,229,255,0.08)', border: `1px solid ${C.accent}44`, color: C.accent,
+          style={{ background: 'rgba(0,245,255,0.08)', border: `1px solid ${C.accent}44`, color: C.accent,
             fontSize: 11, fontWeight: 600, cursor: 'pointer', borderRadius: 6,
             padding: '3px 10px', fontFamily: C.font }}>↺</button>
         <button onClick={onClose}
@@ -1324,7 +1324,7 @@ const TournamentSeedingMap = memo(function TournamentSeedingMap({
           </span>
         )}
         <button onClick={onRefresh}
-          style={{ background: 'rgba(0,229,255,0.08)', border: `1px solid ${C.accent}44`, color: C.accent,
+          style={{ background: 'rgba(0,245,255,0.08)', border: `1px solid ${C.accent}44`, color: C.accent,
             fontSize: 11, fontWeight: 600, cursor: 'pointer', borderRadius: 6,
             padding: '3px 10px', fontFamily: C.font }}>↺ Refresh</button>
         <button onClick={onClose}
@@ -1477,9 +1477,9 @@ const FinishedTournamentCard = memo(function FinishedTournamentCard({
       {/* Quick Analytics button */}
       <button onClick={onAnalytics} style={{
         width: '100%', padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 600,
-        cursor: 'pointer', border: '1px solid rgba(0,229,255,0.2)', background: 'rgba(0,229,255,0.05)',
-        color: 'rgba(0,229,255,0.7)', fontFamily: C.font, transition: 'all 0.15s',
-        ...(hovered ? { background: 'rgba(0,229,255,0.1)', color: C.accent, border: '1px solid rgba(0,229,255,0.3)' } : {}),
+        cursor: 'pointer', border: '1px solid rgba(0,245,255,0.2)', background: 'rgba(0,245,255,0.05)',
+        color: 'rgba(0,245,255,0.7)', fontFamily: C.font, transition: 'all 0.15s',
+        ...(hovered ? { background: 'rgba(0,245,255,0.1)', color: C.accent, border: '1px solid rgba(0,245,255,0.3)' } : {}),
       }}>
         📊 Quick Analytics
       </button>
@@ -1538,7 +1538,7 @@ function QuickAnalyticsPanel({ tournamentId, onClose }: { tournamentId: string; 
 
   return (
     <div style={{ background: 'rgba(19,19,42,0.85)', backdropFilter: 'blur(12px)',
-      border: `1px solid rgba(0,229,255,0.2)`, borderRadius: 14, padding: 20, fontFamily: C.font }}>
+      border: `1px solid rgba(0,245,255,0.2)`, borderRadius: 14, padding: 20, fontFamily: C.font }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -1621,7 +1621,7 @@ function QuickAnalyticsPanel({ tournamentId, onClose }: { tournamentId: string; 
               textDecoration: 'none', padding: '8px', borderRadius: 8,
               border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.02)',
               transition: 'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.color = C.accent; e.currentTarget.style.borderColor = 'rgba(0,229,255,0.3)' }}
+            onMouseEnter={e => { e.currentTarget.style.color = C.accent; e.currentTarget.style.borderColor = 'rgba(0,245,255,0.3)' }}
             onMouseLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border }}>
             View Full Results →
           </a>
@@ -1676,8 +1676,8 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
 
   const chip = (text: string, highlight = false) => (
     <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4,
-      background: highlight ? 'rgba(0,229,255,0.1)' : 'rgba(0,0,0,0.3)',
-      color: highlight ? C.accent : C.muted, border: highlight ? '1px solid rgba(0,229,255,0.2)' : 'none' }}>
+      background: highlight ? 'rgba(0,245,255,0.1)' : 'rgba(0,0,0,0.3)',
+      color: highlight ? C.accent : C.muted, border: highlight ? '1px solid rgba(0,245,255,0.2)' : 'none' }}>
       {text}
     </span>
   )
@@ -1685,7 +1685,7 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{ background: hovered ? 'rgba(22,22,48,0.9)' : 'rgba(19,19,42,0.6)',
-        border: `1px solid ${isLive ? 'rgba(0,229,255,0.15)' : isFinished ? 'rgba(168,179,196,0.12)' : hovered ? 'rgba(0,229,255,0.2)' : C.border}`,
+        border: `1px solid ${isLive ? 'rgba(0,245,255,0.15)' : isFinished ? 'rgba(168,179,196,0.12)' : hovered ? 'rgba(0,245,255,0.2)' : C.border}`,
         borderRadius: 10, padding: isFinished ? '9px 12px' : '12px 14px', marginBottom: 6, transition: 'all 0.15s',
         opacity: isFinished ? 0.75 : 1 }}>
 
@@ -1724,7 +1724,7 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
           background: 'rgba(255,255,255,0.03)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          border: `1px solid ${isFinalTable ? 'rgba(245,158,11,0.2)' : 'rgba(0,229,255,0.12)'}`,
+          border: `1px solid ${isFinalTable ? 'rgba(245,158,11,0.2)' : 'rgba(0,245,255,0.12)'}`,
           borderRadius: 8, padding: '10px 12px', marginBottom: 10,
         }}>
 
@@ -1789,7 +1789,7 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
             {topStacks.length > 0 ? (
               topStacks.slice(0, 3).map((p, i) => (
                 <div key={p.rank} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
-                  background: i === 0 ? 'rgba(0,229,255,0.06)' : 'rgba(0,0,0,0.15)',
+                  background: i === 0 ? 'rgba(0,245,255,0.06)' : 'rgba(0,0,0,0.15)',
                   borderRadius: 5, padding: '4px 8px' }}>
                   <span style={{ fontSize: 9, fontWeight: 700, color: i === 0 ? C.accent : C.muted,
                     width: 14, flexShrink: 0 }}>#{p.rank}</span>
@@ -1845,7 +1845,7 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
             )}
             {(liveState.tables?.length ?? 0) > 1 && (
               <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                background: 'rgba(0,229,255,0.1)', color: C.accent, border: '1px solid rgba(0,229,255,0.25)' }}>
+                background: 'rgba(0,245,255,0.1)', color: C.accent, border: '1px solid rgba(0,245,255,0.25)' }}>
                 ⚖ Balancing Active
               </span>
             )}
@@ -1892,7 +1892,7 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
       <div style={{ display: 'flex', gap: 6 }}>
         {isRegistering && (
           <button onClick={onInject} style={{ flex: 1, padding: '6px 0', borderRadius: 6, fontSize: 11, fontWeight: 600,
-            cursor: 'pointer', border: '1px solid rgba(0,229,255,0.3)', background: 'rgba(0,229,255,0.08)',
+            cursor: 'pointer', border: '1px solid rgba(0,245,255,0.3)', background: 'rgba(0,245,255,0.08)',
             color: C.accent, fontFamily: C.font, transition: 'all 0.15s' }}>
             🤖 Manage Bots
           </button>
@@ -1908,7 +1908,7 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
         {isLive && (liveState?.tables?.length ?? 0) > 1 && (
           <button onClick={onBalancingMoves}
             style={{ padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              border: '1px solid rgba(0,229,255,0.25)', background: 'rgba(0,229,255,0.06)',
+              border: '1px solid rgba(0,245,255,0.25)', background: 'rgba(0,245,255,0.06)',
               color: C.accent, fontFamily: C.font, transition: 'all 0.15s' }}>
             ⚖ Moves
           </button>
@@ -1916,9 +1916,9 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
         {isRegistering && (
           <button onClick={() => onStart(t.id)} disabled={busyId === `start-${t.id}`}
             style={{ flex: 1, padding: '6px 0', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              border: '1px solid rgba(0,229,255,0.5)',
-              background: 'linear-gradient(90deg,rgba(0,229,255,0.15),rgba(0,112,255,0.15))',
-              color: C.accent, fontFamily: C.font, boxShadow: '0 0 10px rgba(0,229,255,0.2)',
+              border: '1px solid rgba(0,245,255,0.5)',
+              background: 'linear-gradient(90deg,rgba(0,245,255,0.15),rgba(0,112,255,0.15))',
+              color: C.accent, fontFamily: C.font, boxShadow: '0 0 10px rgba(0,245,255,0.2)',
               opacity: busyId === `start-${t.id}` ? 0.5 : 1 }}>
             {busyId === `start-${t.id}` ? '…' : '⚡ GO LIVE'}
           </button>
