@@ -664,9 +664,10 @@ describe("evaluateHydrated", () => {
     expect(raised).toBe(false);
   });
 
-  it("Pro-tier position override CAN raise board-plays hand when heads-up (bluff justified)", () => {
-    // Heads-up river: bluffing with a board-plays hand is a legitimate play.
-    // The engine should NOT block the raise when only 2 players remain.
+  it("Pro-tier position override CANNOT raise board-plays hand heads-up (split-pot guard blocks raise)", () => {
+    // Board-plays hands can never win outright — raising adds no value.
+    // The split-pot guard zeroes raise weight and the resolveAction convert blocks raise→call,
+    // so even max-bluff Pro bots must call (never raise) on a board-plays river.
     const s: BotStrategy = {
       version: 1,
       tier: "pro",
@@ -683,7 +684,6 @@ describe("evaluateHydrated", () => {
       },
     };
     const h = hydrateStrategy(s);
-    // Run many trials — with max bluff frequency, raise should appear
     let raised = false;
     for (let i = 0; i < 20; i++) {
       clearEvalCache();
@@ -711,7 +711,6 @@ describe("evaluateHydrated", () => {
             ante: 0,
           },
         }),
-        // Exactly 2 active players (heads-up): bluff IS justified
         players: [
           {
             name: "Bot",
@@ -738,13 +737,14 @@ describe("evaluateHydrated", () => {
         break;
       }
     }
-    // With max bluff personality, at least one raise should appear heads-up
-    expect(raised).toBe(true);
+    // Split-pot guard must hold even for max-bluff Pro bot: never raise a board-plays hand
+    expect(raised).toBe(false);
   });
 
-  it("Pro-tier position override CAN raise board-plays hand on free bet (probe bet justified)", () => {
-    // When everyone checked (canCheck=true, toCall=0), a probe bet is always justified
-    // regardless of player count. The engine must allow the raise.
+  it("Pro-tier position override CANNOT raise board-plays hand on free bet (split-pot guard blocks raise)", () => {
+    // Even when canCheck=true (toCall=0), a board-plays hand cannot benefit from a raise —
+    // the split-pot guard zeroes raise weight regardless of position override or bluff frequency.
+    // The bot must check (call with toCall=0), never raise.
     const s: BotStrategy = {
       version: 1,
       tier: "pro",
@@ -827,8 +827,8 @@ describe("evaluateHydrated", () => {
         break;
       }
     }
-    // With max bluff personality + free probe opportunity, raise should appear
-    expect(raised).toBe(true);
+    // Split-pot guard must hold even on a free bet: never raise a board-plays hand
+    expect(raised).toBe(false);
   });
 
   it("does NOT apply position override for non-pro tier", () => {
