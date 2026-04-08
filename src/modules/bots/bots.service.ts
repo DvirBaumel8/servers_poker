@@ -147,7 +147,7 @@ export class BotsService {
     offset: number,
   ): Promise<PaginatedResponse<BotResponseDto>> {
     const [bots, total] = await this.botRepository.findAndCount({
-      where: { user_id: userId, active: true },
+      where: { user_id: userId },
       relations: ["stats"],
       take: limit,
       skip: offset,
