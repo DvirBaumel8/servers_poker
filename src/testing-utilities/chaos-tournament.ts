@@ -304,10 +304,18 @@ export async function runChaosTournament(
   // ── Build shared logger ────────────────────────────────────────────────────
   const tournamentId = `chaos-${randomUUID().substring(0, 8)}`;
 
+  // Assign stable IDs once — reused across phases (must precede logger init)
+  const botIds: string[] = bots.map(
+    () => `bot-${randomUUID().substring(0, 8)}`,
+  );
+
   const tournamentLogger = new TournamentLoggerService();
   tournamentLogger.initialize(
     tournamentId,
-    bots.map((b) => ({
+    bots.map((b, i) => ({
+      botId: botIds[i],
+      botName: b.name,
+      userName: b.name,
       elo: 1000,
       dna: b.strategy,
     })),
@@ -318,10 +326,6 @@ export async function runChaosTournament(
   const eliminationOrder: string[] = [];
   const botNameById = new Map<string, string>();
 
-  // Assign stable IDs once — reused across phases
-  const botIds: string[] = bots.map(
-    () => `bot-${randomUUID().substring(0, 8)}`,
-  );
   for (let i = 0; i < bots.length; i++) {
     botNameById.set(botIds[i], bots[i].name);
   }
@@ -375,6 +379,7 @@ export async function runChaosTournament(
         handNumber: number;
         dealerBotId: string;
         players?: Array<{ id: string; chips: bigint | number }>;
+        holeCards?: Record<string, string[]>;
       }) => {
         phaseHandsPlayed = event.handNumber;
 
@@ -388,6 +393,7 @@ export async function runChaosTournament(
           globalHandNumber,
           event.dealerBotId,
           initialStacks,
+          event.holeCards ?? {},
         );
 
         if (phaseHandsPlayed >= phaseHandLimit) {

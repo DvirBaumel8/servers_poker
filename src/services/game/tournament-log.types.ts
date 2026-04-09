@@ -31,6 +31,9 @@ export interface TournamentLogSummary {
 }
 
 export interface ParticipantInfo {
+  botId: string;
+  botName: string;
+  userName: string;
   elo: number;
   /** Full strategy config (DNA) at tournament start */
   dna: BotStrategy;
@@ -41,6 +44,8 @@ export interface ParticipantInfo {
 export interface HandLog {
   hand_id: string; // stable UUID generated when hand starts
   hand_number: number;
+  /** Table that played this hand (needed for multi-table tournament replays). */
+  table_id: string;
   dealer_bot_id: string;
   /** Community cards in deal order (0–5 elements). Empty until flop. */
   board: string[];
@@ -50,6 +55,15 @@ export interface HandLog {
    * Keys are bot/player ids.
    */
   initial_stacks: Record<string, number>;
+  /**
+   * Chip counts for every seated player at the END of this hand,
+   * after pots are awarded. Used for state continuity verification.
+   */
+  final_stacks?: Record<string, number>;
+  /** Hole cards per player id, captured on first action. e.g. { "bot-uuid": ["Ah","Kd"] } */
+  hole_cards?: Record<string, string[]>;
+  /** Winner(s) of this hand. Multiple entries for split pots. */
+  winners?: WinnerEntry[];
   actions: ActionLog[];
 }
 
@@ -71,6 +85,17 @@ export interface ActionLog {
   /** Amount in chips for raise/all_in actions; absent for check/call/fold */
   amt?: number;
   metrics: ActionMetrics;
+}
+
+// ─── Winner ──────────────────────────────────────────────────────────────────
+
+export interface WinnerEntry {
+  /** Player (bot) id */
+  p_id: string;
+  /** Amount won in chips */
+  amt: number;
+  /** Winning hand name (e.g. "Full House"), absent for fold-wins */
+  hand_name?: string;
 }
 
 export interface ActionMetrics {

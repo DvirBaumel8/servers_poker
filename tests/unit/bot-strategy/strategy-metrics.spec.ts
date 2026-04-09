@@ -181,7 +181,7 @@ describe("StrategyMetrics in evaluateHydrated", () => {
 
     expect(result.source).toBe("Range Chart");
     expect(result.metrics).toBeDefined();
-    expect(result.metrics!.equity).toBe(0); // equity not computed on lazy path
+    expect(result.metrics!.equity).toBe(0.0001); // equity floor on lazy path (never exactly 0)
     expect(result.metrics!.strategyWeights).toBeUndefined();
   });
 });

@@ -272,6 +272,13 @@ export interface BotPayload {
   }>;
   /** Hex seed for deterministic strategy decisions. Derived from provably fair combinedHash + botId + actionSeq. */
   decisionSeed: string;
+  /** Tournament context — absent in cash games. */
+  tournament?: {
+    startingChips: number;
+    startingBigBlind: number;
+    playersRemaining: number;
+    totalPlayers: number;
+  };
 }
 
 /**
@@ -346,6 +353,64 @@ export function evaluateHydrated(
   return result;
 }
 
+/**
+ * All-in equity guard — hard override that fires AFTER any decision source.
+ * When facing an all-in, if the bot's equity is below the configured threshold,
+ * the action is overridden to fold (or check if available). This prevents rules,
+ * range charts, and position overrides from making suicidal calls.
+ */
+function applyAllInEquityGuard(
+  result: StrategyEvaluation,
+  payload: BotPayload,
+  context: GameContext | null,
+): StrategyEvaluation {
+  // Guard triggers when facing an all-in OR a bet > 50% of hero's stack.
+  // This prevents position overrides and personality aggression from making
+  // suicidal calls with trash hands (e.g. 7-high calling all-in on 9-6-2).
+  const facingAllIn = payload.players.some((p) => p.allIn && !p.folded);
+  const heroChips = payload.you.chips + (payload.you.bet ?? 0);
+  const facingLargeBet =
+    heroChips > 0 &&
+    payload.action.toCall >
+      heroChips * STRATEGY_TUNABLES.allInGuard.largeBetStackRatio;
+  if (!facingAllIn && !facingLargeBet) return result;
+
+  // Only override call/raise/all_in — fold and check are fine
+  const actionType = result.action.type;
+  if (actionType === "fold" || actionType === "check") return result;
+
+  // Build context if it wasn't built (e.g. range chart lazy path)
+  const ctx = context ?? buildGameContext(payload);
+  const equity = ctx.equity;
+
+  // Skip guard when equity is unknown (0 = not computed, e.g. deep preflop)
+  if (equity <= 0) return result;
+
+  const thresholds = STRATEGY_TUNABLES.allInGuard;
+  const threshold =
+    actionType === "call"
+      ? thresholds.callEquityThreshold
+      : thresholds.raiseEquityThreshold;
+
+  if (equity >= threshold) return result;
+
+  // Override to fold (or check if available)
+  const canCheck = payload.action.toCall === 0;
+  const overrideAction = canCheck
+    ? { type: "check" as const }
+    : { type: "fold" as const };
+
+  return {
+    ...result,
+    action: overrideAction,
+    explanation: `All-in equity guard: ${(equity * 100).toFixed(0)}% equity < ${(threshold * 100).toFixed(0)}% threshold (was: ${result.explanation})`,
+    metrics: {
+      ...result.metrics,
+      equity,
+    },
+  };
+}
+
 function evaluateHydratedUncached(
   hydrated: HydratedStrategy,
   payload: BotPayload,
@@ -375,16 +440,21 @@ function evaluateHydratedUncached(
     const ruleResult = evaluatePreSortedRules(streetRulesFirst, builtContext);
     if (ruleResult.matched && ruleResult.action) {
       const action = resolveAction(ruleResult.action, builtContext);
-      return {
-        action,
-        source:
-          builtContext.myPosition && hydrated.positions[builtContext.myPosition]
-            ? "Position Override"
-            : "Hard Rule",
-        explanation: `Rule matched: ${ruleResult.ruleLabel || ruleResult.ruleId}`,
-        ruleId: ruleResult.ruleId,
-        metrics: { equity: builtContext.equity, strategyWeights: undefined },
-      };
+      return applyAllInEquityGuard(
+        {
+          action,
+          source:
+            builtContext.myPosition &&
+            hydrated.positions[builtContext.myPosition]
+              ? "Position Override"
+              : "Hard Rule",
+          explanation: `Rule matched: ${ruleResult.ruleLabel || ruleResult.ruleId}`,
+          ruleId: ruleResult.ruleId,
+          metrics: { equity: builtContext.equity, strategyWeights: undefined },
+        },
+        payload,
+        builtContext,
+      );
     }
   }
 
@@ -402,14 +472,18 @@ function evaluateHydratedUncached(
       const actionDef = rangeActionToActionDef(resolvedAction);
       if (actionDef) {
         const action = resolveActionMinimal(actionDef, payload);
-        return {
-          action,
-          source: "Range Chart",
-          explanation: `Range chart: ${rangeResult.handNotation} → ${resolvedAction}`,
-          handNotation: rangeResult.handNotation,
-          // Equity is not computed on the lazy preflop path
-          metrics: { equity: 0, strategyWeights: undefined },
-        };
+        return applyAllInEquityGuard(
+          {
+            action,
+            source: "Range Chart",
+            explanation: `Range chart: ${rangeResult.handNotation} → ${resolvedAction}`,
+            handNotation: rangeResult.handNotation,
+            // Equity is not computed on the lazy preflop path — use floor, never 0
+            metrics: { equity: 0.0001, strategyWeights: undefined },
+          },
+          payload,
+          builtContext,
+        );
       }
     }
   }
@@ -426,18 +500,22 @@ function evaluateHydratedUncached(
     labMode,
   );
 
-  return {
-    action: resolveAction(personalityResult.action, context),
-    source:
-      context.myPosition && hydrated.positions[context.myPosition]
-        ? "Position Override"
-        : "Personality",
-    explanation: personalityResult.explanation,
-    metrics: {
-      equity: context.equity,
-      strategyWeights: personalityResult.weights,
+  return applyAllInEquityGuard(
+    {
+      action: resolveAction(personalityResult.action, context),
+      source:
+        context.myPosition && hydrated.positions[context.myPosition]
+          ? "Position Override"
+          : "Personality",
+      explanation: personalityResult.explanation,
+      metrics: {
+        equity: context.equity,
+        strategyWeights: personalityResult.weights,
+      },
     },
-  };
+    payload,
+    context,
+  );
 }
 
 /**
@@ -536,6 +614,13 @@ export function buildGameContext(payload: BotPayload): GameContext {
 
     street: stage,
     bigBlind: bb,
+
+    // Tournament stage: derived from how much blinds have grown relative to starting level.
+    // blindRatio=1 (level 1) → stage ≈ 0.25 (early), blindRatio=10 → stage ≈ 0.77 (late).
+    // Undefined in cash games (no payload.tournament).
+    tournamentStage: payload.tournament
+      ? 1 - 1 / (1 + bb / payload.tournament.startingBigBlind / 3)
+      : undefined,
   };
 }
 

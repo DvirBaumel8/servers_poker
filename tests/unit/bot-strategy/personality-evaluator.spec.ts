@@ -433,3 +433,177 @@ describe("handCategory board_plays — river, hole cards add nothing", () => {
     expect(result.explanation).not.toMatch(/board_plays/);
   });
 });
+
+// ─── Preflop bluff dampener ──────────────────────────────────────────────────
+
+describe("preflop bluff dampener — weak hands bluff less preflop", () => {
+  const bluffyPersonality = {
+    tightness: 50,
+    aggression: 44,
+    bluffFrequency: 44,
+    riskTolerance: 50,
+  };
+
+  it("weak hand preflop has lower raise weight than same hand postflop", () => {
+    const preflopCtx = makeCtx({
+      street: "preflop",
+      holeCardRank: "weak",
+      equity: 0,
+      handStrength: "high_card",
+      communityCardCount: 0,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+    const postflopCtx = makeCtx({
+      street: "flop",
+      equity: 0.12,
+      handStrength: "high_card",
+      communityCardCount: 3,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+
+    const preflopResult = evaluatePersonality(
+      bluffyPersonality,
+      preflopCtx,
+      42,
+    );
+    const postflopResult = evaluatePersonality(
+      bluffyPersonality,
+      postflopCtx,
+      42,
+    );
+
+    const preflopRaise = preflopResult.weights?.raise ?? 0;
+    const postflopRaise = postflopResult.weights?.raise ?? 0;
+    expect(preflopRaise).toBeLessThan(postflopRaise);
+  });
+
+  it("preflop raise weight for bluffFrequency=44 weak hand is moderate, not dominant", () => {
+    const ctx = makeCtx({
+      street: "preflop",
+      holeCardRank: "weak",
+      equity: 0,
+      handStrength: "high_card",
+      communityCardCount: 0,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+    const result = evaluatePersonality(bluffyPersonality, ctx, 42);
+    const raiseWeight = result.weights?.raise ?? 0;
+    // With dampener, raise weight should be below 35% (not the old ~37%)
+    expect(raiseWeight).toBeLessThan(0.35);
+  });
+});
+
+// ─── Tournament stage dampener ────────────────────────────────────────────────
+
+describe("tournament stage aggression dampener", () => {
+  const MANIAC = {
+    tightness: 15,
+    aggression: 95,
+    bluffFrequency: 70,
+    riskTolerance: 90,
+  };
+
+  it("early stage (0.25) reduces Maniac raise weight vs no-stage baseline", () => {
+    const baseCtx = makeCtx({ equity: 0.55, canCheck: true, toCall: 0 });
+    const earlyCtx = makeCtx({
+      equity: 0.55,
+      canCheck: true,
+      toCall: 0,
+      tournamentStage: 0.25,
+    });
+
+    const baseResult = evaluatePersonality(MANIAC, baseCtx, 42);
+    const earlyResult = evaluatePersonality(MANIAC, earlyCtx, 42);
+
+    // Raise weight should be lower in early tournament stage
+    expect(earlyResult.weights!.raise).toBeLessThan(baseResult.weights!.raise);
+  });
+
+  it("stage=1.0 has no dampening — matches no-stage baseline", () => {
+    const baseCtx = makeCtx({ equity: 0.55, canCheck: true, toCall: 0 });
+    const lateCtx = makeCtx({
+      equity: 0.55,
+      canCheck: true,
+      toCall: 0,
+      tournamentStage: 1.0,
+    });
+
+    const baseResult = evaluatePersonality(MANIAC, baseCtx, 42);
+    const lateResult = evaluatePersonality(MANIAC, lateCtx, 42);
+
+    // stage=1.0 means no dampening — weights should match baseline
+    expect(lateResult.weights!.raise).toBeCloseTo(baseResult.weights!.raise, 4);
+  });
+
+  it("undefined tournamentStage has no dampening (cash game compat)", () => {
+    const ctx = makeCtx({ equity: 0.55, canCheck: true, toCall: 0 });
+    // tournamentStage is undefined by default in makeCtx
+    expect(ctx.tournamentStage).toBeUndefined();
+
+    const result = evaluatePersonality(MANIAC, ctx, 42);
+    // Should behave normally — high raise weight
+    expect(result.weights!.raise).toBeGreaterThan(0.5);
+  });
+
+  it("Maniac at early stage does not deterministically raise on strong hands", () => {
+    // At stage=0.25, effective aggression ≈ 95 * 0.70 = 66.5
+    // Raise weight should drop below top-heavy threshold for some hands
+    const ctx = makeCtx({
+      equity: 0.55,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+      tournamentStage: 0.25,
+    });
+
+    // Collect actions across seeds — should see variety (not 100% raise)
+    const actions = new Set(
+      Array.from(
+        { length: 30 },
+        (_, i) => evaluatePersonality(MANIAC, ctx, i * 7 + 1).action.type,
+      ),
+    );
+    // With dampened aggression, RNG should produce at least 2 different outcomes
+    expect(actions.size).toBeGreaterThan(1);
+  });
+
+  it("bluff frequency is also dampened at early stage", () => {
+    const earlyCtx = makeCtx({
+      street: "flop",
+      equity: 0.12,
+      handStrength: "high_card",
+      communityCardCount: 3,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+      tournamentStage: 0.25,
+    });
+    const noStageCtx = makeCtx({
+      street: "flop",
+      equity: 0.12,
+      handStrength: "high_card",
+      communityCardCount: 3,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+
+    const earlyResult = evaluatePersonality(MANIAC, earlyCtx, 42);
+    const baseResult = evaluatePersonality(MANIAC, noStageCtx, 42);
+
+    // Bluff dampening means lower raise weight on weak hands
+    expect(earlyResult.weights!.raise).toBeLessThan(baseResult.weights!.raise);
+  });
+});

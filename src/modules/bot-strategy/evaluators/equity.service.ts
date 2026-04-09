@@ -218,7 +218,7 @@ export function estimateEquityHeuristic(
     equity = estimatePostflopEquity(holeCards, communityCards, opponents);
   }
 
-  equity = Math.max(0, Math.min(1, equity));
+  equity = Math.max(0.0001, Math.min(1, equity));
 
   // Store in memo (bounded LRU)
   if (EQUITY_MEMO.size >= EQUITY_MEMO_MAX) {
@@ -652,7 +652,9 @@ export function estimateEquityMonteCarlo(
     else if (heroTies) ties++;
   }
 
-  return (wins + ties / 2) / iters;
+  const raw = (wins + ties / 2) / iters;
+  // Floor: a dealt hand always has non-zero equity
+  return holeCards.length === 2 ? Math.max(0.0001, raw) : raw;
 }
 
 // ─── EV Calculations ─────────────────────────────────────────────────────────

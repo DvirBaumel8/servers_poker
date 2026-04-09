@@ -214,3 +214,70 @@ describe("hasDuplicateOwner (isolation check)", () => {
     expect(hasDuplicateOwner(seats)).toBe(false);
   });
 });
+
+// ─── nextAvailableSeatNumber ─────────────────────────────────────────────────
+
+/**
+ * Pure reimplementation matching the director's nextAvailableSeatNumber.
+ * Tests the logic without needing a real repository.
+ */
+function nextAvailableSeatNumberSync(
+  existingSeats: Array<{ seat_number: number; busted: boolean }>,
+  maxSeats: number,
+): number {
+  const occupied = new Set(
+    existingSeats.filter((s) => !s.busted).map((s) => s.seat_number),
+  );
+  for (let n = 1; n <= maxSeats; n++) {
+    if (!occupied.has(n)) return n;
+  }
+  return occupied.size + 1;
+}
+
+describe("nextAvailableSeatNumber (seat collision prevention)", () => {
+  it("returns 1 for an empty table", () => {
+    expect(nextAvailableSeatNumberSync([], 9)).toBe(1);
+  });
+
+  it("returns the first gap in occupied seats", () => {
+    const seats = [
+      { seat_number: 1, busted: false },
+      { seat_number: 2, busted: false },
+      { seat_number: 4, busted: false },
+    ];
+    expect(nextAvailableSeatNumberSync(seats, 9)).toBe(3);
+  });
+
+  it("reuses seats of busted players", () => {
+    const seats = [
+      { seat_number: 1, busted: false },
+      { seat_number: 2, busted: true },
+      { seat_number: 3, busted: false },
+    ];
+    expect(nextAvailableSeatNumberSync(seats, 9)).toBe(2);
+  });
+
+  it("returns next seat after all occupied", () => {
+    const seats = [
+      { seat_number: 1, busted: false },
+      { seat_number: 2, busted: false },
+      { seat_number: 3, busted: false },
+    ];
+    expect(nextAvailableSeatNumberSync(seats, 3)).toBe(4); // overflow fallback
+  });
+
+  it("never returns a seat_number that is already active", () => {
+    const seats = [
+      { seat_number: 1, busted: false },
+      { seat_number: 2, busted: false },
+      { seat_number: 3, busted: false },
+      { seat_number: 5, busted: false },
+    ];
+    const result = nextAvailableSeatNumberSync(seats, 9);
+    expect(result).toBe(4);
+    // Verify no collision
+    expect(seats.some((s) => !s.busted && s.seat_number === result)).toBe(
+      false,
+    );
+  });
+});

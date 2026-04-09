@@ -215,6 +215,7 @@ export class TournamentQueryDto {
     "final_table",
     "finished",
     "cancelled",
+    "error",
   ])
   status?: string;
 

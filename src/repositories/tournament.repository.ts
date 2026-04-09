@@ -81,6 +81,26 @@ export class TournamentRepository extends BaseRepository<Tournament> {
     return this.update(id, updates, manager);
   }
 
+  async markError(
+    id: string,
+    errorReason: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.getRepo(manager).update(id, {
+      status: "error" as TournamentStatus,
+      error_reason: errorReason.slice(0, 1000),
+      error_at: new Date(),
+    });
+  }
+
+  async saveLogData(
+    id: string,
+    log: any,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.getRepo(manager).update(id, { log_data: log });
+  }
+
   async createEntry(
     data: Partial<TournamentEntry>,
     manager?: EntityManager,
@@ -196,7 +216,28 @@ export class TournamentRepository extends BaseRepository<Tournament> {
       return { ...existing, ...data } as TournamentSeat;
     }
     const seat = repo.create(data);
-    return repo.save(seat);
+    try {
+      return await repo.save(seat);
+    } catch (err: any) {
+      // Seat number collision (UQ_seat_per_table_active) — find next available
+      if (err?.code === "23505" && data.tournament_table_id) {
+        const occupied = await this.findSeatsByTable(
+          data.tournament_table_id,
+          manager,
+        );
+        const taken = new Set(
+          occupied.filter((s) => !s.busted).map((s) => s.seat_number),
+        );
+        for (let n = 1; n <= 10; n++) {
+          if (!taken.has(n)) {
+            data.seat_number = n;
+            const retrySeat = repo.create(data);
+            return repo.save(retrySeat);
+          }
+        }
+      }
+      throw err;
+    }
   }
 
   async updateSeatChips(
@@ -309,6 +350,16 @@ export class TournamentRepository extends BaseRepository<Tournament> {
       where: { tournament_id: tournamentId },
       relations: ["bot"],
       order: { chips: "DESC" },
+    });
+  }
+
+  async findSeatsByTable(
+    tableId: string,
+    manager?: EntityManager,
+  ): Promise<Array<{ seat_number: number; busted: boolean }>> {
+    return this.getSeatRepo(manager).find({
+      where: { tournament_table_id: tableId },
+      select: ["seat_number", "busted"],
     });
   }
 

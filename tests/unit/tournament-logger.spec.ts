@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { TournamentLoggerService } from "../../src/services/game/tournament-logger.service";
 import type { BotPayload } from "../../src/modules/bot-strategy/strategy-engine.service";
 import type { StrategyEvaluation } from "../../src/domain/bot-strategy/strategy.types";
@@ -334,5 +334,508 @@ describe("TournamentLoggerService", () => {
     expect(result.hands).toHaveLength(2);
     expect(result.hands[0].hand_number).toBe(1);
     expect(result.hands[1].hand_number).toBe(2);
+  });
+
+  it("hole_cards is populated after first action by a player in a hand", () => {
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload({
+        you: { ...makePayload().you, holeCards: ["Ah", "Kd"] },
+      }),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.hole_cards).toBeDefined();
+    expect(hand.hole_cards!["bot-a"]).toEqual(["Ah", "Kd"]);
+  });
+
+  it("hole_cards is not overwritten on subsequent actions by the same player", () => {
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+
+    // First action by bot-a captures AhKd
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload({
+        you: { ...makePayload().you, holeCards: ["Ah", "Kd"] },
+      }),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    // Second action by bot-a tries to capture different cards (should be ignored)
+    logger.recordAction({
+      actionSeq: 2,
+      playerId: "bot-a",
+      payload: makePayload({
+        you: { ...makePayload().you, holeCards: ["2c", "3d"] },
+        stage: "flop",
+      }),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    // Should still be the first captured cards
+    expect(hand.hole_cards!["bot-a"]).toEqual(["Ah", "Kd"]);
+  });
+
+  it("hole_cards is empty object when payload.you.holeCards is absent or empty", () => {
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000 });
+
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload({ you: { ...makePayload().you, holeCards: [] } }),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.hole_cards).toEqual({});
+    expect(hand.hole_cards!["bot-a"]).toBeUndefined();
+  });
+
+  it("hole_cards are captured at deal time via onHandStarted holeCards param", () => {
+    const holeCards = {
+      "bot-a": ["Ah", "Kd"],
+      "bot-b": ["2c", "3s"],
+    };
+    logger.onHandStarted(
+      1,
+      "bot-a",
+      { "bot-a": 1000, "bot-b": 980 },
+      holeCards,
+    );
+
+    // No actions recorded yet — cards should already be present
+    const hand = logger.serialize().hands[0];
+    expect(hand.hole_cards!["bot-a"]).toEqual(["Ah", "Kd"]);
+    expect(hand.hole_cards!["bot-b"]).toEqual(["2c", "3s"]);
+  });
+
+  it("deal-time hole cards are not overwritten by recordAction", () => {
+    const holeCards = { "bot-a": ["Ah", "Kd"] };
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000 }, holeCards);
+
+    // recordAction with different cards for same player — should NOT overwrite
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload({
+        you: { ...makePayload().you, holeCards: ["Qs", "Jh"] },
+      }),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.hole_cards!["bot-a"]).toEqual(["Ah", "Kd"]);
+  });
+
+  // ─── table_id ────────────────────────────────────────────────────────────────
+
+  it("table_id is set on hand logs when provided", () => {
+    logger.onHandStarted(1, "bot-a", {}, {}, "table-42");
+    logger.onHandComplete([], "table-42");
+    const hand = logger.serialize().hands[0];
+    expect(hand.table_id).toBe("table-42");
+  });
+
+  it("table_id defaults to empty string when omitted", () => {
+    logger.onHandStarted(1, "bot-a");
+    logger.onHandComplete([]);
+    const hand = logger.serialize().hands[0];
+    expect(hand.table_id).toBe("");
+  });
+
+  // ─── Multi-table safety ──────────────────────────────────────────────────────
+
+  it("concurrent tables do not clobber each other's hands", () => {
+    // Table A starts hand 1
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000 }, {}, "table-A");
+    // Table B starts hand 1 (should NOT overwrite table A's hand)
+    logger.onHandStarted(1, "bot-b", { "bot-b": 2000 }, {}, "table-B");
+
+    // Record action on table A
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload(),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+      tableId: "table-A",
+    });
+
+    // Record action on table B
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-b",
+      payload: makePayload(),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+      tableId: "table-B",
+    });
+
+    // Complete both
+    logger.onHandComplete([], "table-A");
+    logger.onHandComplete([], "table-B");
+
+    const log = logger.serialize();
+    expect(log.hands).toHaveLength(2);
+    expect(log.hands[0].table_id).toBe("table-A");
+    expect(log.hands[0].initial_stacks).toEqual({ "bot-a": 1000 });
+    expect(log.hands[0].actions).toHaveLength(1);
+    expect(log.hands[1].table_id).toBe("table-B");
+    expect(log.hands[1].initial_stacks).toEqual({ "bot-b": 2000 });
+    expect(log.hands[1].actions).toHaveLength(1);
+  });
+
+  it("actions without tableId go to the default empty-string hand", () => {
+    logger.onHandStarted(1, "bot-a");
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload(),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+      // no tableId
+    });
+    logger.onHandComplete([]);
+    const hand = logger.serialize().hands[0];
+    expect(hand.actions).toHaveLength(1);
+  });
+
+  // ─── final_stacks ────────────────────────────────────────────────────────────
+
+  it("final_stacks is populated from onHandComplete", () => {
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+    const finalStacks = { "bot-a": 1030, "bot-b": 950 };
+    logger.onHandComplete([], "", finalStacks);
+    const hand = logger.serialize().hands[0];
+    expect(hand.final_stacks).toEqual(finalStacks);
+  });
+
+  it("final_stacks defaults to empty object when not provided", () => {
+    logger.onHandStarted(1, "bot-a");
+    logger.onHandComplete([]);
+    const hand = logger.serialize().hands[0];
+    expect(hand.final_stacks).toEqual({});
+  });
+
+  // ─── Data integrity check ─────────────────────────────────────────────────
+
+  it("logs DataIntegrityError when initial_stacks mismatch prev final_stacks", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000 }, {}, "t1");
+    logger.onHandComplete([], "t1", { "bot-a": 1030 });
+
+    // Hand 2: bot-a initial=999 but prev final=1030 → mismatch
+    logger.onHandStarted(2, "bot-a", { "bot-a": 999 }, {}, "t1");
+    logger.onHandComplete([], "t1", { "bot-a": 999 });
+
+    // Filter for DataIntegrityError specifically (chip_conservation validation also fires)
+    const integrityErrors = errorSpy.mock.calls.filter((c) =>
+      c[0].includes("[DataIntegrityError]"),
+    );
+    expect(integrityErrors).toHaveLength(1);
+    expect(integrityErrors[0][0]).toContain("bot-a");
+    errorSpy.mockRestore();
+  });
+
+  it("no DataIntegrityError when stacks match", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000 }, {}, "t1");
+    logger.onHandComplete([], "t1", { "bot-a": 1000 }); // conserved
+
+    // Hand 2: matching stacks
+    logger.onHandStarted(2, "bot-a", { "bot-a": 1000 }, {}, "t1");
+    logger.onHandComplete([], "t1", { "bot-a": 1000 }); // conserved
+
+    const integrityErrors = errorSpy.mock.calls.filter((c) =>
+      c[0].includes("[DataIntegrityError]"),
+    );
+    expect(integrityErrors).toHaveLength(0);
+    errorSpy.mockRestore();
+  });
+
+  it("integrity check is scoped per table", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Table A: bot-a ends with same as start (conserved)
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000 }, {}, "table-A");
+    logger.onHandComplete([], "table-A", { "bot-a": 1000 });
+
+    // Table B: bot-b starts fresh — no cross-table check
+    logger.onHandStarted(1, "bot-b", { "bot-b": 500 }, {}, "table-B");
+    logger.onHandComplete([], "table-B", { "bot-b": 500 });
+
+    const integrityErrors = errorSpy.mock.calls.filter((c) =>
+      c[0].includes("[DataIntegrityError]"),
+    );
+    expect(integrityErrors).toHaveLength(0);
+    errorSpy.mockRestore();
+  });
+
+  // ─── Defensive warnings ────────────────────────────────────────────────────
+
+  it("recordAction warns when no active hand exists for tableId", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // No hand started — action should be dropped with a warning
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload(),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+      tableId: "nonexistent-table",
+    });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain(
+      "[TournamentLogger] recordAction",
+    );
+    expect(warnSpy.mock.calls[0][0]).toContain("nonexistent-table");
+    expect(warnSpy.mock.calls[0][0]).toContain("action dropped");
+    warnSpy.mockRestore();
+  });
+
+  it("onHandComplete warns when no active hand exists for tableId", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // No hand started — complete should be dropped with a warning
+    logger.onHandComplete(["Ah", "Kd", "Qs"], "nonexistent-table", {
+      "bot-a": 1000,
+    });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain(
+      "[TournamentLogger] onHandComplete",
+    );
+    expect(warnSpy.mock.calls[0][0]).toContain("nonexistent-table");
+    expect(warnSpy.mock.calls[0][0]).toContain("hand completion dropped");
+    warnSpy.mockRestore();
+  });
+
+  it("recordAction with missing tableId and no default hand warns", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // No hand started for default "" tableId
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload(),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+      // no tableId — falls back to ""
+    });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
+  });
+
+  it("players without deal-time cards still get captured on first action", () => {
+    // Only bot-a gets cards at deal time; bot-b is missing
+    logger.onHandStarted(
+      1,
+      "bot-a",
+      { "bot-a": 1000, "bot-b": 980 },
+      { "bot-a": ["Ah", "Kd"] },
+    );
+
+    // bot-b acts and their cards should now be captured
+    logger.recordAction({
+      actionSeq: 2,
+      playerId: "bot-b",
+      payload: makePayload({
+        you: { ...makePayload().you, holeCards: ["Tc", "9d"] },
+      }),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.hole_cards!["bot-a"]).toEqual(["Ah", "Kd"]);
+    expect(hand.hole_cards!["bot-b"]).toEqual(["Tc", "9d"]);
+  });
+
+  // ─── Schema guard ──────────────────────────────────────────────────────────
+
+  it("recordAction rejects action from player not in initial_stacks", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+
+    // Action from "ghost-bot" — not in initial_stacks
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "ghost-bot",
+      payload: makePayload(),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.actions).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain("action rejected");
+    expect(warnSpy.mock.calls[0][0]).toContain("ghost-bot");
+    warnSpy.mockRestore();
+  });
+
+  it("recordAction accepts action from player in initial_stacks", () => {
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "bot-a",
+      payload: makePayload(),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.actions).toHaveLength(1);
+    expect(hand.actions[0].p_id).toBe("bot-a");
+  });
+
+  it("schema guard skipped when initial_stacks is empty (legacy)", () => {
+    logger.onHandStarted(1, "bot-a"); // no stacks
+
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "any-bot",
+      payload: makePayload(),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.actions).toHaveLength(1);
+  });
+
+  it("ghost player hole_cards are not captured when action is rejected", () => {
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000 });
+
+    logger.recordAction({
+      actionSeq: 1,
+      playerId: "ghost-bot",
+      payload: makePayload({
+        you: { ...makePayload().you, holeCards: ["Ah", "Kd"] },
+      }),
+      evaluation: makeEval(),
+      allPlayers: makePlayers(),
+    });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.hole_cards!["ghost-bot"]).toBeUndefined();
+  });
+
+  // ─── Action sorting ────────────────────────────────────────────────────────
+
+  it("actions are sorted by seq after onHandComplete", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+
+    // Record actions out of order
+    for (const seq of [3, 1, 2]) {
+      logger.recordAction({
+        actionSeq: seq,
+        playerId: seq % 2 === 0 ? "bot-b" : "bot-a",
+        payload: makePayload(),
+        evaluation: makeEval(),
+        allPlayers: makePlayers(),
+      });
+    }
+
+    logger.onHandComplete([], "", { "bot-a": 1000, "bot-b": 980 });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.actions.map((a) => a.seq)).toEqual([1, 2, 3]);
+    errorSpy.mockRestore();
+  });
+
+  it("actions are sorted by seq in serialize for unclosed hands", () => {
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+
+    for (const seq of [5, 3, 4]) {
+      logger.recordAction({
+        actionSeq: seq,
+        playerId: seq % 2 === 0 ? "bot-b" : "bot-a",
+        payload: makePayload(),
+        evaluation: makeEval(),
+        allPlayers: makePlayers(),
+      });
+    }
+
+    // No onHandComplete — serialize flushes in-progress hands
+    const hand = logger.serialize().hands[0];
+    expect(hand.actions.map((a) => a.seq)).toEqual([3, 4, 5]);
+  });
+
+  // ─── Winners ───────────────────────────────────────────────────────────────
+
+  it("winners field is populated from onHandComplete", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+    logger.onHandComplete([], "", { "bot-a": 1030, "bot-b": 950 }, [
+      { playerId: "bot-a", amount: 50, hand: { name: "Two Pair" } },
+    ]);
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.winners).toBeDefined();
+    expect(hand.winners).toHaveLength(1);
+    expect(hand.winners![0].p_id).toBe("bot-a");
+    expect(hand.winners![0].amt).toBe(50);
+    expect(hand.winners![0].hand_name).toBe("Two Pair");
+    errorSpy.mockRestore();
+  });
+
+  it("winners field supports split pots (multiple winners)", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+    logger.onHandComplete([], "", { "bot-a": 1010, "bot-b": 970 }, [
+      { playerId: "bot-a", amount: 30 },
+      { playerId: "bot-b", amount: 10 },
+    ]);
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.winners).toHaveLength(2);
+    expect(hand.winners![0].p_id).toBe("bot-a");
+    expect(hand.winners![1].p_id).toBe("bot-b");
+    // hand_name absent for fold-wins
+    expect(hand.winners![0].hand_name).toBeUndefined();
+    errorSpy.mockRestore();
+  });
+
+  it("winners field is absent when no winners provided", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+    logger.onHandComplete([], "", { "bot-a": 1000, "bot-b": 980 });
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.winners).toBeUndefined();
+    errorSpy.mockRestore();
+  });
+
+  it("winners amount handles bigint values", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logger.onHandStarted(1, "bot-a", { "bot-a": 1000, "bot-b": 980 });
+    logger.onHandComplete([], "", { "bot-a": 1030, "bot-b": 950 }, [
+      { playerId: "bot-a", amount: BigInt(50), hand: { name: "Flush" } },
+    ]);
+
+    const hand = logger.serialize().hands[0];
+    expect(hand.winners![0].amt).toBe(50);
+    expect(typeof hand.winners![0].amt).toBe("number");
+    errorSpy.mockRestore();
   });
 });
