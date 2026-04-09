@@ -10,7 +10,8 @@ export type TournamentStatus =
   | "running"
   | "final_table"
   | "finished"
-  | "cancelled";
+  | "cancelled"
+  | "error";
 
 export type TournamentType = "rolling" | "scheduled";
 
@@ -66,11 +67,20 @@ export class Tournament extends BaseEntity {
   @Column({ type: "timestamp with time zone", nullable: true })
   finished_at?: Date;
 
+  @Column({ type: "varchar", length: 1000, nullable: true })
+  error_reason?: string;
+
+  @Column({ type: "timestamp with time zone", nullable: true })
+  error_at?: Date;
+
   @Column({ type: "boolean", default: false })
   is_archived: boolean = false;
 
   @Column({ type: "varchar", length: 512, nullable: true })
   archive_url?: string;
+
+  @Column({ type: "jsonb", nullable: true })
+  log_data?: any;
 
   @OneToMany(() => TournamentEntry, (entry) => entry.tournament)
   entries?: TournamentEntry[];

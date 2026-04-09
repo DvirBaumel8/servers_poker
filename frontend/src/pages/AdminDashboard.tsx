@@ -158,6 +158,7 @@ const INJECTION_PROFILES: Array<{
 ]
 
 interface AdminEntry { entryId: string; botId: string; botName: string; ownerName: string; isSystem: boolean }
+interface AvailableBot { botId: string; botName: string; userId: string; userName: string }
 
 function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast }: {
   tournamentId: string
@@ -166,12 +167,16 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
   onSuccess: () => void
   showToast: (text: string, ok: boolean) => void
 }) {
+  const [tab, setTab]             = useState<'system' | 'user'>('user')
   const [selected, setSelected]   = useState<InjectionProfile>('random')
   const [count, setCount]         = useState(1)
   const [loading, setLoading]     = useState(false)
   const [entries, setEntries]     = useState<AdminEntry[]>([])
   const [removing, setRemoving]   = useState<string | null>(null)
   const [loadingEntries, setLoadingEntries] = useState(true)
+  const [availBots, setAvailBots]     = useState<AvailableBot[]>([])
+  const [loadingAvail, setLoadingAvail] = useState(false)
+  const [addingBotId, setAddingBotId]   = useState<string | null>(null)
 
   const slotsUsed = entries.length
   const slotsLeft = Math.max(0, maxSlots - slotsUsed)
@@ -186,7 +191,18 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
     }
   }
 
+  async function loadAvailBots() {
+    setLoadingAvail(true)
+    try {
+      const res = await api.get<AvailableBot[]>(`/tournaments/admin/${tournamentId}/available-bots`)
+      setAvailBots(res.data)
+    } catch { /* ok */ } finally {
+      setLoadingAvail(false)
+    }
+  }
+
   useEffect(() => { loadEntries() }, [tournamentId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === 'user') loadAvailBots() }, [tab, tournamentId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function inject() {
     if (slotsLeft === 0) { showToast('Tournament is full', false); return }
@@ -205,11 +221,26 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
     }
   }
 
+  async function addUserBot(bot: AvailableBot) {
+    setAddingBotId(bot.botId)
+    try {
+      await api.post(`/tournaments/admin/register-bot/${tournamentId}`, { botId: bot.botId })
+      showToast(`Added ${bot.botName}`, true)
+      await Promise.all([loadEntries(), loadAvailBots()])
+      onSuccess()
+    } catch (e: unknown) {
+      showToast(apiMsg(e, 'Failed to add bot'), false)
+    } finally {
+      setAddingBotId(null)
+    }
+  }
+
   async function removeEntry(entryId: string) {
     setRemoving(entryId)
     try {
       await api.delete(`/tournaments/admin/${tournamentId}/entries/${entryId}`)
       setEntries(prev => prev.filter(e => e.entryId !== entryId))
+      if (tab === 'user') loadAvailBots()
       onSuccess()
     } catch (e: unknown) {
       showToast(apiMsg(e, 'Remove failed'), false)
@@ -217,6 +248,16 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
       setRemoving(null)
     }
   }
+
+  const tabBtn = (id: 'system' | 'user', label: string) => (
+    <button onClick={() => setTab(id)} style={{
+      flex: 1, padding: '7px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
+      fontFamily: C.font, fontSize: 12, fontWeight: 700, letterSpacing: 0.4,
+      background: tab === id ? 'rgba(0,245,255,0.12)' : 'transparent',
+      color: tab === id ? C.accent : C.muted,
+      transition: 'all 0.15s',
+    }}>{label}</button>
+  )
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -239,7 +280,7 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
         </div>
 
         {/* Registered bots list */}
-        <div style={{ flex: 1, overflowY: 'auto', marginBottom: 18, minHeight: 0 }}>
+        <div style={{ marginBottom: 16, minHeight: 0, maxHeight: 200, overflowY: 'auto', flexShrink: 0 }}>
           <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
             Registered ({slotsUsed})
           </div>
@@ -282,47 +323,101 @@ function InjectionModal({ tournamentId, maxSlots, onClose, onSuccess, showToast 
           )}
         </div>
 
-        {/* Inject section */}
+        {/* Add Bots section */}
         {slotsLeft > 0 && (
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16, flexShrink: 0 }}>
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
             <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
               Add Bots
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-              {INJECTION_PROFILES.map(p => (
-                <button key={p.id} onClick={() => setSelected(p.id)} style={{
-                  padding: '9px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                  border: `1px solid ${selected === p.id ? p.color : C.border}`,
-                  background: selected === p.id ? `${p.color}14` : 'rgba(0,0,0,0.2)',
-                  transition: 'all 0.15s', fontFamily: C.font,
-                }}>
-                  <div style={{ fontSize: 14, marginBottom: 3 }}>{p.icon}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: selected === p.id ? p.color : C.text }}>
-                    {p.label}
+            {/* Tab switcher */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 12, background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: 3, border: `1px solid ${C.border}` }}>
+              {tabBtn('user', 'Your Bots')}
+              {tabBtn('system', 'System Bots')}
+            </div>
+
+            {/* User bots tab */}
+            {tab === 'user' && (
+              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                {loadingAvail ? (
+                  <div style={{ fontSize: 12, color: C.muted, padding: '12px 0', textAlign: 'center' }}>Loading…</div>
+                ) : availBots.length === 0 ? (
+                  <div style={{ fontSize: 12, color: C.muted, padding: '12px 0', textAlign: 'center' }}>
+                    No available user bots — all active bots are already registered.
                   </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {availBots.map(b => (
+                      <div key={b.botId} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 10px', borderRadius: 8,
+                        background: 'rgba(0,0,0,0.2)', border: `1px solid ${C.border}`,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: C.text,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {b.botName}
+                          </div>
+                          <div style={{ fontSize: 11, color: C.muted }}>{b.userName}</div>
+                        </div>
+                        <button
+                          onClick={() => addUserBot(b)}
+                          disabled={addingBotId === b.botId || slotsLeft === 0}
+                          style={{
+                            background: 'rgba(0,245,255,0.1)', border: `1px solid rgba(0,245,255,0.25)`,
+                            borderRadius: 6, color: C.accent, fontSize: 12, padding: '3px 10px',
+                            cursor: addingBotId === b.botId ? 'not-allowed' : 'pointer',
+                            fontFamily: C.font, fontWeight: 700, flexShrink: 0,
+                            opacity: addingBotId === b.botId ? 0.5 : 1,
+                          }}>
+                          {addingBotId === b.botId ? '…' : '+ Add'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* System bots tab */}
+            {tab === 'system' && (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                  {INJECTION_PROFILES.map(p => (
+                    <button key={p.id} onClick={() => setSelected(p.id)} style={{
+                      padding: '9px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                      border: `1px solid ${selected === p.id ? p.color : C.border}`,
+                      background: selected === p.id ? `${p.color}14` : 'rgba(0,0,0,0.2)',
+                      transition: 'all 0.15s', fontFamily: C.font,
+                    }}>
+                      <div style={{ fontSize: 14, marginBottom: 3 }}>{p.icon}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: selected === p.id ? p.color : C.text }}>
+                        {p.label}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                  <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>Count</span>
+                  <input type="range" min={1} max={slotsLeft} value={Math.min(count, slotsLeft)}
+                    onChange={e => setCount(Number(e.target.value))}
+                    style={{ flex: 1, accentColor: C.accent }} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.accent, minWidth: 24, textAlign: 'right' }}>
+                    {Math.min(count, slotsLeft)}
+                  </span>
+                </div>
+
+                <button onClick={inject} disabled={loading} style={{
+                  width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
+                  background: loading ? 'rgba(0,245,255,0.3)' : 'linear-gradient(90deg, #00f5ff, #0070ff)',
+                  color: '#000', fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+                  fontFamily: C.font, letterSpacing: 0.5, boxShadow: loading ? 'none' : '0 0 20px rgba(0,245,255,0.25)',
+                }}>
+                  {loading ? 'Adding…' : `🤖 Add ${Math.min(count, slotsLeft)} ${INJECTION_PROFILES.find(p => p.id === selected)?.label}`}
                 </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>Count</span>
-              <input type="range" min={1} max={slotsLeft} value={Math.min(count, slotsLeft)}
-                onChange={e => setCount(Number(e.target.value))}
-                style={{ flex: 1, accentColor: C.accent }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.accent, minWidth: 24, textAlign: 'right' }}>
-                {Math.min(count, slotsLeft)}
-              </span>
-            </div>
-
-            <button onClick={inject} disabled={loading} style={{
-              width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
-              background: loading ? 'rgba(0,245,255,0.3)' : 'linear-gradient(90deg, #00f5ff, #0070ff)',
-              color: '#000', fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: C.font, letterSpacing: 0.5, boxShadow: loading ? 'none' : '0 0 20px rgba(0,245,255,0.25)',
-            }}>
-              {loading ? 'Adding…' : `🤖 Add ${Math.min(count, slotsLeft)} ${INJECTION_PROFILES.find(p => p.id === selected)?.label}`}
-            </button>
+              </div>
+            )}
           </div>
         )}
         {slotsLeft === 0 && !loadingEntries && (

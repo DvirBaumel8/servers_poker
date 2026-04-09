@@ -41,6 +41,7 @@ import {
   TournamentEvent,
   EVENT_TABLE_MOVE,
 } from "../../entities/tournament-event.entity";
+import { TournamentAlertService } from "./tournament-alert.service";
 import * as crypto from "crypto";
 
 const SEATS_PER_TABLE = 9;
@@ -115,6 +116,7 @@ export class TournamentDirectorService
     private readonly configService: ConfigService,
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly redisService: RedisService,
+    private readonly tournamentAlertService: TournamentAlertService,
   ) {}
 
   onModuleInit(): void {
@@ -315,6 +317,14 @@ export class TournamentDirectorService
    * chip sync, and blind advancement are all dead.
    */
   private async recoverRunningTournaments(): Promise<void> {
+    // Log tournaments stuck in error state from previous runs
+    const errored = await this.tournamentRepository.findByStatus("error");
+    if (errored.length > 0) {
+      this.logger.warn(
+        `${errored.length} tournament(s) in error state: ${errored.map((t) => `"${t.name}" (${t.id})`).join(", ")}`,
+      );
+    }
+
     const running = await this.tournamentRepository.findByStatus("running");
     if (running.length === 0) return;
 
@@ -339,6 +349,7 @@ export class TournamentDirectorService
           this.tournamentRepository,
           this.dataSource,
           this.redisService,
+          (tid, err) => this.handleTournamentError(tid, err),
         );
         // Restore in-memory state from DB without creating new tables/games
         await director.recoverFromDb();
@@ -352,6 +363,41 @@ export class TournamentDirectorService
         );
       }
     }
+  }
+
+  private async handleTournamentError(
+    tournamentId: string,
+    error: Error,
+  ): Promise<void> {
+    const directorName =
+      this.activeDirectors.get(tournamentId)?.getState().name ?? tournamentId;
+
+    this.logger.error(
+      `Tournament ${tournamentId} ("${directorName}") entered error state: ${error.message}`,
+    );
+
+    // Remove from active directors
+    this.activeDirectors.delete(tournamentId);
+
+    // Update DB status (best-effort)
+    try {
+      await this.tournamentRepository.markError(tournamentId, error.message);
+    } catch (dbErr) {
+      this.logger.error(
+        `Failed to mark tournament ${tournamentId} as error in DB: ${(dbErr as Error).message}`,
+      );
+    }
+
+    // Emit event for websocket listeners
+    this.eventEmitter.emit("tournament.error", {
+      tournamentId,
+      error: error.message,
+    });
+
+    // Send alert email (fire-and-forget, never throws)
+    this.tournamentAlertService
+      .sendTournamentErrorAlert(tournamentId, directorName, error)
+      .catch(() => {});
   }
 
   async startTournament(tournamentId: string): Promise<void> {
@@ -386,6 +432,7 @@ export class TournamentDirectorService
       this.tournamentRepository,
       this.dataSource,
       this.redisService,
+      (tid, err) => this.handleTournamentError(tid, err),
     );
 
     // Mark as running BEFORE inserting tables so the scheduler never double-starts
@@ -497,6 +544,30 @@ class BarrierCoordinator {
   }
 }
 
+/**
+ * Find the next available DB seat number at a table.
+ * Queries existing non-busted seats and returns the first unused number (1-based).
+ */
+async function nextAvailableSeatNumber(
+  repo: {
+    findSeatsByTable(
+      tableId: string,
+    ): Promise<Array<{ seat_number: number; busted: boolean }>>;
+  },
+  tableId: string,
+  maxSeats: number,
+): Promise<number> {
+  const seats = await repo.findSeatsByTable(tableId);
+  const occupied = new Set(
+    seats.filter((s) => !s.busted).map((s) => s.seat_number),
+  );
+  for (let n = 1; n <= maxSeats; n++) {
+    if (!occupied.has(n)) return n;
+  }
+  // All seats occupied — return next number beyond max (shouldn't happen in practice)
+  return occupied.size + 1;
+}
+
 // ─── Seeding helpers ──────────────────────────────────────────────────────────
 
 function hasDuplicateOwner(seats: BotInfo[]): boolean {
@@ -526,6 +597,11 @@ class ActiveTournament {
     event: string;
     handler: (...args: any[]) => void;
   }> = [];
+  /** Per-table logger listener refs — prevents accumulation on game respawn. */
+  private loggerListenersByTable = new Map<
+    string,
+    Array<{ event: string; handler: (...args: any[]) => void }>
+  >();
   private safetyNetInterval?: ReturnType<typeof setInterval>;
   private chipSnapshot = new Map<string, number>();
   private roundCounter = 0;
@@ -535,6 +611,8 @@ class ActiveTournament {
   private rollingHps = 0;
   private readonly barrier: BarrierCoordinator;
   private readonly tournamentLogger = new TournamentLoggerService();
+  private consecutiveErrors = 0;
+  private static readonly MAX_CONSECUTIVE_ERRORS = 3;
 
   constructor(
     private readonly tournamentId: string,
@@ -547,6 +625,7 @@ class ActiveTournament {
     private readonly tournamentRepository: TournamentRepository,
     private readonly dataSource: DataSource,
     private readonly redis: RedisService,
+    private readonly onFatalError: (tournamentId: string, error: Error) => void,
   ) {
     this.totalEntrants = entries.length;
     this.barrier = new BarrierCoordinator(
@@ -587,6 +666,9 @@ class ActiveTournament {
     this.tournamentLogger.initialize(
       this.tournamentId,
       [...this.activeBots.values()].map((bot) => ({
+        botId: bot.botId,
+        botName: bot.name,
+        userName: bot.userName,
         elo: bot.elo,
         dna: (bot.strategy ?? {}) as any,
       })),
@@ -630,40 +712,128 @@ class ActiveTournament {
     }
 
     // ── 2. Attach to running game instances from liveGameManager ──────────
+    // If a game is missing (server restart), respawn it from DB seat data
     const dbTables = await this.tournamentRepository.getTables(
       this.tournamentId,
     );
     for (const table of dbTables) {
-      const liveGame = this.liveGameManager.getGame(table.id);
-      if (!liveGame) {
-        this.logger.warn(
-          `[Recovery] No live game for table ${table.id.slice(0, 8)}`,
+      // Skip broken or finished tables — only recover active ones
+      if (table.status !== "active") {
+        this.logger.debug(
+          `[Recovery] Skipping ${table.status} table ${table.table_number}`,
         );
         continue;
       }
 
-      const tableEntry: TableEntry = {
-        game: liveGame.game,
-        tableDbId: table.id,
-        gameDbId: liveGame.gameDbId,
-        tableNumber: table.table_number,
-        botIdMap: {},
-      };
+      const liveGame = this.liveGameManager.getGame(table.id);
+      if (liveGame) {
+        // Game still exists in memory — normal reattach path
+        const tableEntry: TableEntry = {
+          game: liveGame.game,
+          tableDbId: table.id,
+          gameDbId: liveGame.gameDbId,
+          tableNumber: table.table_number,
+          botIdMap: {},
+        };
 
-      this.tables.set(table.id, tableEntry);
-      this.tableHandNumbers.set(table.id, liveGame.game.handNumber);
+        this.tables.set(table.id, tableEntry);
+        this.tableHandNumbers.set(table.id, liveGame.game.handNumber);
 
-      // Re-wire inter-hand hook for hand-for-hand sync
-      const tableId = table.id;
-      liveGame.game.interHandHook = async () => {
-        if (!this.handForHandMode) return;
-        const allIds = [...this.tables.keys()];
-        await this.barrier.checkIn(tableId, this.tables.size, allIds);
-      };
+        // Re-wire inter-hand hook for hand-for-hand sync
+        const tableId = table.id;
+        liveGame.game.interHandHook = async () => {
+          if (!this.handForHandMode) return;
+          const allIds = [...this.tables.keys()];
+          await this.barrier.checkIn(tableId, this.tables.size, allIds);
+        };
 
-      this.logger.log(
-        `[Recovery] Reattached table ${table.table_number} game=${liveGame.gameDbId.slice(0, 8)} hand=${liveGame.game.handNumber}`,
-      );
+        // Re-wire tournament logger so hands are captured after recovery
+        this.wireLoggerForGame(liveGame.game, table.id);
+
+        this.logger.log(
+          `[Recovery] Reattached table ${table.table_number} game=${liveGame.gameDbId.slice(0, 8)} hand=${liveGame.game.handNumber}`,
+        );
+      } else {
+        // Game lost after restart — respawn from DB seat data
+        this.logger.warn(
+          `[Recovery] No live game for table ${table.id.slice(0, 8)} — respawning from DB`,
+        );
+
+        // Get all active (non-busted) seats for this table
+        const tableSeats = allSeats.filter(
+          (s) => s.tournament_table_id === table.id && !s.busted,
+        );
+
+        if (tableSeats.length === 0) {
+          this.logger.warn(
+            `[Recovery] Table ${table.table_number} has no active seats — skipping`,
+          );
+          continue;
+        }
+
+        // Respawn the game with current blind level and seat chips
+        const gameDbId = crypto.randomUUID();
+        const blindLevel = getBlindLevel(this.currentLevel);
+
+        const respawnedGame = this.liveGameManager.createGameSync({
+          tableId: table.id,
+          gameDbId,
+          tournamentId: this.tournamentId,
+          smallBlind: blindLevel.small_blind,
+          bigBlind: blindLevel.big_blind,
+          ante: blindLevel.ante,
+          startingChips: Number(this.config.starting_chips),
+          turnTimeoutMs: this.config.turn_timeout_ms,
+        });
+
+        // Add players from seat data (using current chips, not starting chips)
+        const botIdMap: Record<string, string> = {};
+        for (const seat of tableSeats) {
+          const entry = this.entries.find((e) => e.bot_id === seat.bot_id);
+          respawnedGame.addPlayer({
+            id: seat.bot_id,
+            name: entry?.bot?.user?.name || "Unknown",
+            strategy: entry?.bot?.strategy || null,
+            chips: Number(seat.chips),
+          });
+          const botName = entry?.bot?.name || "Unknown";
+          botIdMap[botName] = seat.bot_id;
+        }
+
+        // Wire inter-hand hook for hand-for-hand synchronization
+        const tableId = table.id;
+        respawnedGame.interHandHook = async () => {
+          if (!this.handForHandMode) return;
+          const allIds = [...this.tables.keys()];
+          await this.barrier.checkIn(tableId, this.tables.size, allIds);
+        };
+
+        // Wire tournament logger (action observer + hand lifecycle events)
+        this.wireLoggerForGame(respawnedGame, table.id);
+
+        // Register table in-memory state
+        const tableEntry: TableEntry = {
+          game: respawnedGame,
+          tableDbId: table.id,
+          gameDbId,
+          tableNumber: table.table_number,
+          botIdMap,
+        };
+
+        this.tables.set(table.id, tableEntry);
+        this.tableHandNumbers.set(table.id, 0); // Respawned game starts at hand 0
+
+        // Start the respawned game (detached, no await)
+        respawnedGame.startGame().catch((err) => {
+          this.logger.error(
+            `[Recovery] Failed to start respawned game on table ${table.table_number}: ${err.message}`,
+          );
+        });
+
+        this.logger.log(
+          `[Recovery] Respawned game for table ${table.table_number} gameId=${gameDbId.slice(0, 8)} with ${tableSeats.length} players`,
+        );
+      }
     }
 
     // ── 3. Restore chip snapshot from current game state ──────────────────
@@ -775,6 +945,92 @@ class ActiveTournament {
     return new Map(stats.map((s) => [s.bot_id, s.tournament_wins]));
   }
 
+  /**
+   * Wires the tournament logger to a game instance so that every hand
+   * played on this table is captured in the tournament log.
+   *
+   * Must be called for EVERY game — normal creation, reattach, and respawn.
+   */
+  private wireLoggerForGame(game: GameInstance, tableDbId: string): void {
+    const logger = this.tournamentLogger;
+
+    // Remove any previous logger listeners for this table (prevents accumulation on respawn)
+    const prevHandlers = this.loggerListenersByTable.get(tableDbId);
+    if (prevHandlers) {
+      for (const { event, handler } of prevHandlers) {
+        this.eventEmitter.removeListener(event, handler);
+      }
+      // Also remove from global refs
+      this.eventHandlerRefs = this.eventHandlerRefs.filter(
+        (ref) => !prevHandlers.some((ph) => ph.handler === ref.handler),
+      );
+    }
+
+    // 1. Action logger — captures bot decisions with tableId
+    game.setActionLogger((entry) =>
+      logger.recordAction({ ...entry, tableId: tableDbId }),
+    );
+
+    // 2. Hand started — creates hand entry in the logger
+    const onLoggerHandStarted = (event: {
+      tableId: string;
+      handNumber: number;
+      dealerBotId: string;
+      players?: Array<{ id: string; chips: bigint | number }>;
+      holeCards?: Record<string, string[]>;
+    }) => {
+      if (event.tableId === tableDbId) {
+        const initialStacks: Record<string, number> = {};
+        for (const p of event.players ?? []) {
+          initialStacks[p.id] = Number(p.chips);
+        }
+        logger.onHandStarted(
+          event.handNumber,
+          event.dealerBotId,
+          initialStacks,
+          event.holeCards ?? {},
+          tableDbId,
+        );
+      }
+    };
+
+    // 3. Hand complete — finalizes hand entry with community cards + final stacks + winners
+    const onLoggerHandComplete = (event: {
+      tableId: string;
+      communityCards: any[];
+      players?: Array<{ id: string; chips: bigint | number }>;
+      winners?: Array<{
+        playerId: string;
+        amount: bigint | number;
+        hand?: { name: string };
+      }>;
+    }) => {
+      if (event.tableId === tableDbId) {
+        const cards: string[] = (event.communityCards ?? []).map((c: any) =>
+          typeof c === "string" ? c : `${c.rank}${c.suit?.[0] ?? ""}`,
+        );
+        const finalStacks: Record<string, number> = {};
+        for (const p of event.players ?? []) {
+          finalStacks[p.id] = Number(p.chips);
+        }
+        logger.onHandComplete(cards, tableDbId, finalStacks, event.winners);
+      }
+    };
+
+    this.eventEmitter.on("game.handStarted", onLoggerHandStarted);
+    this.eventEmitter.on("game.handComplete", onLoggerHandComplete);
+
+    // Track for per-table cleanup on respawn
+    const tableHandlers = [
+      { event: "game.handStarted", handler: onLoggerHandStarted },
+      { event: "game.handComplete", handler: onLoggerHandComplete },
+    ];
+    this.loggerListenersByTable.set(tableDbId, tableHandlers);
+
+    // Also track in global refs for full cleanup on tournament end
+    this.eventHandlerRefs.push(...tableHandlers);
+  }
+
   private async createTable(
     tableNumber: number,
     bots: BotInfo[],
@@ -802,6 +1058,15 @@ class ActiveTournament {
       turnTimeoutMs: this.config.turn_timeout_ms,
     });
 
+    // Set tournament context so bot strategies can adjust for tournament stage
+    const firstBlind = getBlindLevel(1);
+    game.setTournamentContext({
+      startingChips: Number(this.config.starting_chips),
+      startingBigBlind: firstBlind.big_blind,
+      playersRemaining: this.activeBots.size,
+      totalPlayers: this.entries.length,
+    });
+
     // Wire the inter-hand hook for hand-for-hand synchronization.
     // The hook is a no-op when handForHandMode is false, so it's safe on all tables.
     game.interHandHook = async () => {
@@ -811,40 +1076,7 @@ class ActiveTournament {
     };
 
     // Wire the tournament logger as an action observer on this table
-    const logger = this.tournamentLogger;
-    game.setActionLogger((entry) => logger.recordAction(entry));
-    this.eventEmitter.on(
-      "game.handStarted",
-      (event: {
-        tableId: string;
-        handNumber: number;
-        dealerBotId: string;
-        players?: Array<{ id: string; chips: bigint | number }>;
-      }) => {
-        if (event.tableId === tableDbId) {
-          const initialStacks: Record<string, number> = {};
-          for (const p of event.players ?? []) {
-            initialStacks[p.id] = Number(p.chips);
-          }
-          logger.onHandStarted(
-            event.handNumber,
-            event.dealerBotId,
-            initialStacks,
-          );
-        }
-      },
-    );
-    this.eventEmitter.on(
-      "game.handComplete",
-      (event: { tableId: string; communityCards: any[] }) => {
-        if (event.tableId === tableDbId) {
-          const cards: string[] = (event.communityCards ?? []).map((c: any) =>
-            typeof c === "string" ? c : `${c.rank}${c.suit?.[0] ?? ""}`,
-          );
-          logger.onHandComplete(cards);
-        }
-      },
-    );
+    this.wireLoggerForGame(game, tableDbId);
 
     const tableEntry: TableEntry = {
       game,
@@ -1053,11 +1285,21 @@ class ActiveTournament {
       if (!this.running || !this.ownsGame(event.gameId)) return;
       try {
         await this.handleHandComplete(event);
+        this.consecutiveErrors = 0; // reset on success
       } catch (e: any) {
         this.logger.error(
           `[Tournament ${this.tournamentId}] handleHandComplete error: ${e.message}`,
           e.stack,
         );
+        this.consecutiveErrors++;
+        if (this.consecutiveErrors >= ActiveTournament.MAX_CONSECUTIVE_ERRORS) {
+          this.handleFatalError(
+            new Error(
+              `${this.consecutiveErrors} consecutive handler errors, last: ${e.message}`,
+            ),
+            "handleHandComplete",
+          );
+        }
       }
     };
 
@@ -1077,6 +1319,15 @@ class ActiveTournament {
           `[Tournament ${this.tournamentId}] handleGameFinished error: ${e.message}`,
           e.stack,
         );
+        this.consecutiveErrors++;
+        if (this.consecutiveErrors >= ActiveTournament.MAX_CONSECUTIVE_ERRORS) {
+          this.handleFatalError(
+            new Error(
+              `${this.consecutiveErrors} consecutive handler errors, last: ${e.message}`,
+            ),
+            "handleGameFinished",
+          );
+        }
       }
     };
 
@@ -1387,23 +1638,32 @@ class ActiveTournament {
   }
 
   private async syncChipsToDatabase(): Promise<void> {
-    // Sync chip counts from in-memory game state to database
-    for (const [_tableId, tableEntry] of this.tables) {
-      const state = tableEntry.game.getPublicState();
+    try {
+      // Sync chip counts from in-memory game state to database
+      for (const [_tableId, tableEntry] of this.tables) {
+        const state = tableEntry.game.getPublicState();
 
-      for (const player of state.players) {
-        if (!player.disconnected) {
-          const bot = this.activeBots.get(player.id);
-          if (bot && bot.chips !== player.chips) {
-            bot.chips = player.chips;
-            await this.tournamentRepository.updateSeatChips(
-              this.tournamentId,
-              player.id,
-              player.chips,
-            );
+        for (const player of state.players) {
+          if (!player.disconnected) {
+            const bot = this.activeBots.get(player.id);
+            if (bot && bot.chips !== player.chips) {
+              bot.chips = player.chips;
+              await this.tournamentRepository.updateSeatChips(
+                this.tournamentId,
+                player.id,
+                player.chips,
+              );
+            }
           }
         }
       }
+    } catch (error) {
+      // Chip sync failure is NOT fatal — chips are authoritative in-memory.
+      // The next hand completion will retry.
+      this.logger.error(
+        `[Tournament ${this.tournamentId}] syncChipsToDatabase error: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
     }
   }
 
@@ -1593,6 +1853,26 @@ class ActiveTournament {
     for (const bust of bustedThisRound) {
       this.chipSnapshot.delete(bust.botId);
     }
+
+    // Update tournament context on all active tables so strategies reflect
+    // the current player count after eliminations.
+    if (bustedThisRound.length > 0) {
+      this.broadcastTournamentContext();
+    }
+  }
+
+  /** Push updated playersRemaining to all active game instances. */
+  private broadcastTournamentContext(): void {
+    const firstBlind = getBlindLevel(1);
+    const ctx = {
+      startingChips: Number(this.config.starting_chips),
+      startingBigBlind: firstBlind.big_blind,
+      playersRemaining: this.activeBots.size,
+      totalPlayers: this.entries.length,
+    };
+    for (const entry of this.tables.values()) {
+      entry.game.setTournamentContext(ctx);
+    }
   }
 
   /**
@@ -1761,12 +2041,17 @@ class ActiveTournament {
     });
     if (movingBot) movingBot.tableDbId = toTableId;
 
-    // ── DB seat update ───────────────────────────────────────────────────────
+    // ── DB seat update (safe seat number — never collides) ─────────────────
+    const safeSeatNumber = await nextAvailableSeatNumber(
+      this.tournamentRepository,
+      toTableId,
+      this.seatsPerTable,
+    );
     await this.tournamentRepository.seatBot({
       tournament_id: this.tournamentId,
       tournament_table_id: toTableId,
       bot_id: playerToMove.id,
-      seat_number: bestSeat + 1,
+      seat_number: safeSeatNumber,
       chips: playerToMove.chips,
       busted: false,
     });
@@ -1777,7 +2062,7 @@ class ActiveTournament {
       fromTableId,
       toTableId,
       fromSeat,
-      toSeat: bestSeat + 1,
+      toSeat: safeSeatNumber,
       chipsAtMove: playerToMove.chips,
     });
 
@@ -1965,12 +2250,17 @@ class ActiveTournament {
         movingBot.tableDbId = targetTable.tableDbId;
       }
 
-      // ── 3. DB seat update ─────────────────────────────────────────
+      // ── 3. DB seat update (safe seat number) ─────────────────────
+      const safeSeatNum = await nextAvailableSeatNumber(
+        this.tournamentRepository,
+        targetTable.tableDbId,
+        this.seatsPerTable,
+      );
       await this.tournamentRepository.seatBot({
         tournament_id: this.tournamentId,
         tournament_table_id: targetTable.tableDbId,
         bot_id: player.id,
-        seat_number: bestSeat + 1,
+        seat_number: safeSeatNum,
         chips: player.chips,
         busted: false,
       });
@@ -1981,7 +2271,7 @@ class ActiveTournament {
         fromTableId: tableId,
         toTableId: targetTable.tableDbId,
         fromSeat,
-        toSeat: bestSeat + 1,
+        toSeat: safeSeatNum,
         chipsAtMove: player.chips,
       });
 
@@ -2078,72 +2368,96 @@ class ActiveTournament {
       this.safetyNetInterval = undefined;
     }
 
-    const winner = Array.from(this.activeBots.values())[0];
-    if (winner) {
-      this.bustOrder.push({
-        botId: winner.botId,
-        bustLevel: this.currentLevel,
-        bustHandNumber: this.roundCounter,
-        chipsAtHandStart: 0,
-        finishPosition: 1,
-        isTied: false,
-      });
-    }
+    try {
+      const winner = Array.from(this.activeBots.values())[0];
+      if (winner) {
+        this.bustOrder.push({
+          botId: winner.botId,
+          bustLevel: this.currentLevel,
+          bustHandNumber: this.roundCounter,
+          chipsAtHandStart: 0,
+          finishPosition: 1,
+          isTied: false,
+        });
+      }
 
-    const prizePool = BigInt(this.totalEntrants) * this.config.buy_in;
-    const payouts = calculatePrizes(prizePool, this.totalEntrants);
-    const payoutByPosition = new Map(
-      payouts.map((payout) => [payout.position, payout.amount]),
-    );
+      const prizePool = BigInt(this.totalEntrants) * this.config.buy_in;
+      const payouts = calculatePrizes(prizePool, this.totalEntrants);
+      const payoutByPosition = new Map(
+        payouts.map((payout) => [payout.position, payout.amount]),
+      );
 
-    const finalOrder = [...this.bustOrder].reverse();
-    for (let index = 0; index < finalOrder.length; index++) {
-      const position = index + 1;
-      const botId = finalOrder[index].botId;
-      await this.tournamentRepository.setEntryPayout(
+      const finalOrder = [...this.bustOrder].reverse();
+      for (let index = 0; index < finalOrder.length; index++) {
+        const position = index + 1;
+        const botId = finalOrder[index].botId;
+        await this.tournamentRepository.setEntryPayout(
+          this.tournamentId,
+          botId,
+          payoutByPosition.get(position) ?? 0n,
+          position,
+        );
+      }
+
+      await this.tournamentRepository.updateStatus(
         this.tournamentId,
-        botId,
-        payoutByPosition.get(position) ?? 0n,
-        position,
+        "finished",
+      );
+
+      // Persist log immediately after marking finished — before any further awaits
+      // that could throw and leave log_data as null.
+      const serializedLog = this.tournamentLogger.serialize();
+      await this.tournamentRepository
+        .saveLogData(this.tournamentId, serializedLog)
+        .then(() =>
+          this.logger.log(`Tournament log saved to DB: ${this.tournamentId}`),
+        )
+        .catch((e) =>
+          this.logger.warn(`Failed to save tournament log to DB: ${e.message}`),
+        );
+
+      for (const [tableId, tableEntry] of this.tables) {
+        await this.finalizePersistedGame(
+          tableEntry.gameDbId,
+          tableEntry.game.players.map((player) => ({
+            botId: player.id,
+            chips: player.chips,
+          })),
+          tableEntry.game.handNumber,
+        );
+        await this.tournamentRepository.updateTableStatus(tableId, "finished");
+        tableEntry.game.stop();
+        this.liveGameManager.removeGameSync(tableId);
+      }
+      this.tables.clear();
+
+      this.logger.log(
+        `Tournament ${this.name} finished. Winner: ${winner?.name || "Unknown"}`,
+      );
+
+      // Write log file (fire-and-forget — non-critical)
+      const logPath = `logs/tournaments/${this.tournamentId}.json`;
+      this.tournamentLogger
+        .writeToFile(logPath)
+        .then(() =>
+          this.logger.log(`Master tournament log written: ${logPath}`),
+        )
+        .catch((e) =>
+          this.logger.warn(`Failed to write tournament log: ${e.message}`),
+        );
+
+      this.eventEmitter.emit("tournament.finished", {
+        tournamentId: this.tournamentId,
+        winnerId: winner?.botId,
+        winnerName: winner?.name,
+        payouts,
+      });
+    } catch (error) {
+      this.handleFatalError(
+        error instanceof Error ? error : new Error(String(error)),
+        "finishTournament",
       );
     }
-
-    await this.tournamentRepository.updateStatus(this.tournamentId, "finished");
-
-    for (const [tableId, tableEntry] of this.tables) {
-      await this.finalizePersistedGame(
-        tableEntry.gameDbId,
-        tableEntry.game.players.map((player) => ({
-          botId: player.id,
-          chips: player.chips,
-        })),
-        tableEntry.game.handNumber,
-      );
-      await this.tournamentRepository.updateTableStatus(tableId, "finished");
-      tableEntry.game.stop();
-      this.liveGameManager.removeGameSync(tableId);
-    }
-    this.tables.clear();
-
-    this.logger.log(
-      `Tournament ${this.name} finished. Winner: ${winner?.name || "Unknown"}`,
-    );
-
-    // Write the master tournament log (fire-and-forget — don't block tournament finish)
-    const logPath = `logs/tournaments/${this.tournamentId}.json`;
-    this.tournamentLogger
-      .writeToFile(logPath)
-      .then(() => this.logger.log(`Master tournament log written: ${logPath}`))
-      .catch((e) =>
-        this.logger.warn(`Failed to write tournament log: ${e.message}`),
-      );
-
-    this.eventEmitter.emit("tournament.finished", {
-      tournamentId: this.tournamentId,
-      winnerId: winner?.botId,
-      winnerName: winner?.name,
-      payouts,
-    });
   }
 
   getState(): TournamentState {
@@ -2266,6 +2580,46 @@ class ActiveTournament {
       );
     }
     await this.checkAndRecoverErroredGames();
+  }
+
+  /**
+   * Handle a fatal, unrecoverable error: stop all games, clean up resources,
+   * and notify the director service via the onFatalError callback.
+   */
+  private handleFatalError(error: Error, context: string): void {
+    if (!this.running) return; // already shutting down
+    this.logger.error(
+      `[Tournament ${this.tournamentId}] FATAL ERROR in ${context}: ${error.message}`,
+      error.stack,
+    );
+
+    this.running = false;
+    this.barrier.release();
+    this.removeEventHandlers();
+    if (this.safetyNetInterval) {
+      clearInterval(this.safetyNetInterval);
+      this.safetyNetInterval = undefined;
+    }
+
+    for (const [tableId, tableEntry] of this.tables) {
+      try {
+        tableEntry.game.stop();
+        this.liveGameManager.removeGameSync(tableId);
+      } catch (cleanupErr) {
+        this.logger.warn(
+          `[Tournament ${this.tournamentId}] Cleanup error for table ${tableId}: ${(cleanupErr as Error).message}`,
+        );
+      }
+    }
+    this.tables.clear();
+
+    try {
+      this.onFatalError(this.tournamentId, error);
+    } catch (callbackErr) {
+      this.logger.error(
+        `onFatalError callback failed: ${(callbackErr as Error).message}`,
+      );
+    }
   }
 
   stop(): void {

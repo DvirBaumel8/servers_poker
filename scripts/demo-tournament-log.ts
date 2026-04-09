@@ -66,12 +66,12 @@ async function main() {
 
   eventEmitter.on(
     "game.handStarted",
-    (event: { handNumber: number; dealerBotId: string; players?: Array<{ id: string; chips: bigint | number }> }) => {
+    (event: { handNumber: number; dealerBotId: string; players?: Array<{ id: string; chips: bigint | number }>; holeCards?: Record<string, string[]> }) => {
       const initialStacks: Record<string, number> = {};
       for (const p of event.players ?? []) {
         initialStacks[p.id] = Number(p.chips);
       }
-      tournamentLogger.onHandStarted(event.handNumber, event.dealerBotId, initialStacks);
+      tournamentLogger.onHandStarted(event.handNumber, event.dealerBotId, initialStacks, event.holeCards ?? {});
     },
   );
 

@@ -251,6 +251,24 @@ export class GameInstance {
     this.actionLogger = fn;
   }
 
+  /** Tournament context for strategy stage-awareness. Set by TournamentDirector. */
+  private tournamentContext?: {
+    startingChips: number;
+    startingBigBlind: number;
+    playersRemaining: number;
+    totalPlayers: number;
+  };
+
+  /** Set tournament context so bot strategies can adjust for tournament stage. */
+  setTournamentContext(ctx: {
+    startingChips: number;
+    startingBigBlind: number;
+    playersRemaining: number;
+    totalPlayers: number;
+  }): void {
+    this.tournamentContext = ctx;
+  }
+
   // Provably Fair fields
   private provablyFairService: ProvablyFairService | null = null;
   private currentHandSeed: HandSeedData | null = null;
@@ -582,6 +600,14 @@ export class GameInstance {
       message: `Hand #${this.handNumber} started. Dealer: ${this.players[this.dealerIndex].name}`,
     });
 
+    // Build hole cards map for tournament logger (captured at deal time for God Mode replays)
+    const dealtHoleCards: Record<string, string[]> = {};
+    for (const p of this.players.filter(
+      (p) => !p.folded && p.holeCards?.length === 2,
+    )) {
+      dealtHoleCards[p.id] = p.holeCards.map(cardToString);
+    }
+
     this.eventEmitter.emit("game.handStarted", {
       tableId: this.tableId,
       gameId: this.gameId,
@@ -598,6 +624,7 @@ export class GameInstance {
           chips: p.chips,
           position: idx,
         })),
+      holeCards: dealtHoleCards,
       provablyFair: this.currentHandSeed
         ? this.provablyFairService?.getCommitment(this.currentHandSeed)
         : undefined,
@@ -866,9 +893,23 @@ export class GameInstance {
         if (player.strikes >= MAX_STRIKES && player.seatStatus === "active") {
           player.seatStatus = "sitting_out";
         }
-        return botPayload.action.canCheck
-          ? { type: "check" }
-          : { type: "fold" };
+        const fallbackAction = botPayload.action.canCheck
+          ? { type: "check" as const }
+          : { type: "fold" as const };
+        // Log the fallback so the tournament log is never missing an action
+        this.actionLogger?.({
+          actionSeq: this.actionSeq,
+          playerId: player.id,
+          payload: botPayload,
+          evaluation: {
+            action: fallbackAction,
+            source: "Personality",
+            explanation: `Error fallback: ${_e?.message ?? "unknown"}`,
+            metrics: { equity: 0, strategyWeights: undefined },
+          },
+          allPlayers: this.players,
+        });
+        return fallbackAction;
       }
     }
 
@@ -939,10 +980,23 @@ export class GameInstance {
         }
       }
 
-      if (botPayload.action.canCheck) {
-        return { type: "check" };
-      }
-      return { type: "fold" };
+      const fallbackAction = botPayload.action.canCheck
+        ? { type: "check" as const }
+        : { type: "fold" as const };
+      // Log the fallback so the tournament log is never missing an action
+      this.actionLogger?.({
+        actionSeq: this.actionSeq,
+        playerId: player.id,
+        payload: botPayload,
+        evaluation: {
+          action: fallbackAction,
+          source: "Personality",
+          explanation: `Error fallback: ${e?.message ?? "unknown"}`,
+          metrics: { equity: 0, strategyWeights: undefined },
+        },
+        allPlayers: this.players,
+      });
+      return fallbackAction;
     }
   }
 
@@ -1238,6 +1292,15 @@ export class GameInstance {
         disconnected: p.disconnected,
         position: positions[p.id] || "Unknown",
       })),
+
+      ...(this.tournamentContext && {
+        tournament: {
+          startingChips: this.tournamentContext.startingChips,
+          startingBigBlind: this.tournamentContext.startingBigBlind,
+          playersRemaining: this.tournamentContext.playersRemaining,
+          totalPlayers: this.tournamentContext.totalPlayers,
+        },
+      }),
     };
   }
 

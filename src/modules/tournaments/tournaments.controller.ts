@@ -104,6 +104,12 @@ export class TournamentsController {
     return this.tournamentsService.getMyActivity(user.id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get("participated")
+  async getParticipated(@CurrentUser() user: User) {
+    return this.tournamentsService.getParticipatedTournaments(user.id);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("admin")
   @Post("admin/inject-bots/:id")
@@ -120,6 +126,24 @@ export class TournamentsController {
       body.profile ?? "random",
       body.count,
     );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/:id/available-bots")
+  async getAvailableUserBots(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tournamentsService.getAvailableUserBots(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("admin")
+  @Post("admin/register-bot/:id")
+  async adminRegisterBot(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: { botId: string },
+  ) {
+    await this.tournamentsService.adminRegisterBot(id, body.botId);
+    return { registered: true };
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -343,6 +367,15 @@ export class TournamentsController {
       };
     }
     return state;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(":id/log")
+  async getTournamentLog(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.tournamentsService.getTournamentLog(id, user.id);
   }
 
   @UseGuards(JwtAuthGuard)

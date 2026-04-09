@@ -119,7 +119,24 @@ function computeActionWeights(
   positionAware: boolean,
 ): ActionWeights {
   const w = getBaseDistribution(category);
-  const sigAgg = sigmoid(p.aggression);
+
+  // Tournament stage dampener: reduce aggression and bluff in early stages
+  // so bots (especially Maniacs) don't shove on hand 1.
+  let effectiveAggression = p.aggression;
+  let effectiveBluff = p.bluffFrequency;
+  if (ctx.tournamentStage !== undefined && ctx.tournamentStage < 1) {
+    const stageT = STRATEGY_TUNABLES.tournamentStage;
+    const aggrMult =
+      stageT.minAggressionDampener +
+      (1 - stageT.minAggressionDampener) * ctx.tournamentStage;
+    const bluffMult =
+      stageT.minBluffDampener +
+      (1 - stageT.minBluffDampener) * ctx.tournamentStage;
+    effectiveAggression = p.aggression * aggrMult;
+    effectiveBluff = p.bluffFrequency * bluffMult;
+  }
+
+  const sigAgg = sigmoid(effectiveAggression);
   const sigTight = sigmoid(p.tightness);
   const sigRisk = sigmoid(p.riskTolerance);
 
@@ -165,7 +182,11 @@ function computeActionWeights(
   // Linear mapping (not sigmoid) so low-frequency bluffers (Shark, Rock) still get
   // proportional boosts instead of being compressed to ~0 by the steep sigmoid.
   if (category === "weak" || category === "draw") {
-    const bluffBoost = (p.bluffFrequency / 100) * 50;
+    const streetDampener =
+      ctx.street === "preflop"
+        ? STRATEGY_TUNABLES.distributions.preflopBluffDampener
+        : 1.0;
+    const bluffBoost = (effectiveBluff / 100) * 50 * streetDampener;
     w.raise += bluffBoost;
     w.fold -= bluffBoost * 0.7;
     w.call -= bluffBoost * 0.3;
@@ -183,6 +204,20 @@ function computeActionWeights(
       w.fold += penalty;
       w.raise -= penalty * 0.6;
       w.call -= penalty * 0.4;
+
+      // Equity-based all-in guard: massive fold boost for low-equity hands.
+      // Works alongside the engine-level hard guard as a secondary safety net.
+      if (
+        ctx.equity > 0 &&
+        ctx.equity < STRATEGY_TUNABLES.allInGuard.callEquityThreshold
+      ) {
+        const eqPenalty =
+          (1 - ctx.equity / STRATEGY_TUNABLES.allInGuard.callEquityThreshold) *
+          80;
+        w.fold += eqPenalty;
+        w.call = Math.max(0, w.call - eqPenalty * 0.6);
+        w.raise = Math.max(0, w.raise - eqPenalty * 0.4);
+      }
     }
   }
 

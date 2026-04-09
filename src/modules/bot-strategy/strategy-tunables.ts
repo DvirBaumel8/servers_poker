@@ -144,6 +144,10 @@ export const STRATEGY_TUNABLES = {
     /** Equity gate: aggression shift only applies above this hand strength threshold. */
     equityGateThreshold: 0.4,
 
+    /** Preflop dampener for bluff frequency boost (0–1). Halves bluff raise injection
+     *  preflop since 3-betting light is a much higher-commitment play than postflop bluffs. */
+    preflopBluffDampener: 0.5,
+
     /** Sigmoid steepness for non-linear slider mapping (higher = sharper S-curve). */
     sigmoidK: 6,
 
@@ -222,6 +226,34 @@ export const STRATEGY_TUNABLES = {
       overCards: 3,
       comboDrawOverlap: 2,
     },
+  },
+
+  /**
+   * All-in equity guard — hard override that fires AFTER any decision source
+   * (rules, range chart, personality) when the bot is facing an all-in.
+   * If equity is below the threshold, the action is overridden to fold.
+   */
+  allInGuard: {
+    /** Minimum equity to call an all-in. Below this → auto-fold. */
+    callEquityThreshold: 0.35,
+    /** Minimum equity to raise/all-in vs an all-in. Below this → auto-fold. */
+    raiseEquityThreshold: 0.45,
+    /** Bet-to-stack ratio that triggers the guard even without a literal all-in.
+     *  0.5 = any bet > 50% of hero's stack activates equity-based override. */
+    largeBetStackRatio: 0.5,
+  },
+
+  /**
+   * Tournament stage dampener — reduces aggression and bluff frequency
+   * in early tournament stages (deep stacks, low blinds) so bots don't
+   * go all-in on hand 1. Stage is derived from blind growth ratio.
+   */
+  tournamentStage: {
+    /** Minimum aggression multiplier at the earliest stage (blindRatio=1).
+     *  Effective aggression = base × lerp(minAggressionDampener, 1.0, stage). */
+    minAggressionDampener: 0.6,
+    /** Minimum bluff frequency multiplier at the earliest stage. */
+    minBluffDampener: 0.5,
   },
 
   analysis: {

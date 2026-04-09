@@ -572,6 +572,11 @@ export interface GameContext {
   // Metadata
   street: Street;
   bigBlind: number;
+
+  // Tournament
+  /** Tournament stage [0–1]. Lower = earlier (deep stacks, low blinds).
+   *  Undefined in cash games / non-tournament contexts. */
+  tournamentStage?: number;
 }
 
 // ============================================================================

@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
   Logger,
 } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
@@ -574,6 +575,124 @@ export class TournamentsService {
     }));
   }
 
+  async getParticipatedTournaments(userId: string): Promise<
+    Array<{
+      tournamentId: string;
+      tournamentName: string;
+      finishedAt: Date | null;
+      status: string;
+      botId: string;
+      botName: string;
+    }>
+  > {
+    const rows: Array<{
+      tournament_id: string;
+      tournament_name: string;
+      finished_at: Date | null;
+      status: string;
+      bot_id: string;
+      bot_name: string;
+    }> = await this.dataSource.query(
+      `
+      SELECT t.id          AS tournament_id,
+             t.name        AS tournament_name,
+             t.finished_at,
+             t.status,
+             b.id          AS bot_id,
+             b.name        AS bot_name
+      FROM   tournaments t
+      JOIN   tournament_entries te ON te.tournament_id = t.id
+      JOIN   bots b ON b.id = te.bot_id
+      WHERE  te.bot_id IN (
+               SELECT id FROM bots WHERE user_id = $1 AND active = true
+             )
+        AND  t.status = 'finished'
+        AND  t.log_data IS NOT NULL
+        AND  jsonb_array_length(t.log_data->'hands') > 0
+      ORDER  BY t.finished_at DESC NULLS LAST
+      `,
+      [userId],
+    );
+    return rows.map((r) => ({
+      tournamentId: r.tournament_id,
+      tournamentName: r.tournament_name,
+      finishedAt: r.finished_at,
+      status: r.status,
+      botId: r.bot_id,
+      botName: r.bot_name,
+    }));
+  }
+
+  async getTournamentLog(
+    tournamentId: string,
+    userId: string,
+  ): Promise<{
+    log_data: any;
+    nameMap: Record<
+      string,
+      { botName: string; userName: string; finishPosition: number | null }
+    >;
+  }> {
+    const accessRows: Array<{ id: string }> = await this.dataSource.query(
+      `
+      SELECT t.id
+      FROM tournaments t
+      JOIN tournament_entries te ON te.tournament_id = t.id
+      WHERE t.id = $1
+        AND te.bot_id IN (
+          SELECT id FROM bots WHERE user_id = $2 AND active = true
+        )
+      LIMIT 1
+      `,
+      [tournamentId, userId],
+    );
+    if (accessRows.length === 0) {
+      const exists = await this.tournamentRepository.findById(tournamentId);
+      if (!exists) {
+        throw new NotFoundException(`Tournament ${tournamentId} not found`);
+      }
+      throw new ForbiddenException(
+        "You do not have an active bot in this tournament",
+      );
+    }
+
+    // Fetch log + build nameMap from tournament_entries in parallel
+    const [tournament, participantRows] = await Promise.all([
+      this.tournamentRepository.findById(tournamentId),
+      this.dataSource.query(
+        `
+        SELECT te.bot_id, b.name AS bot_name, u.name AS user_name, te.finish_position
+        FROM tournament_entries te
+        JOIN bots b ON b.id = te.bot_id
+        JOIN users u ON u.id = b.user_id
+        WHERE te.tournament_id = $1
+        `,
+        [tournamentId],
+      ) as Promise<
+        Array<{
+          bot_id: string;
+          bot_name: string;
+          user_name: string;
+          finish_position: number | null;
+        }>
+      >,
+    ]);
+
+    const nameMap: Record<
+      string,
+      { botName: string; userName: string; finishPosition: number | null }
+    > = {};
+    for (const r of participantRows) {
+      nameMap[r.bot_id] = {
+        botName: r.bot_name,
+        userName: r.user_name,
+        finishPosition: r.finish_position ?? null,
+      };
+    }
+
+    return { log_data: tournament!.log_data ?? {}, nameMap };
+  }
+
   async getMyActivity(userId: string): Promise<
     Array<{
       id: string;
@@ -795,6 +914,80 @@ export class TournamentsService {
       `Admin injected ${injected} system bots (${profile}) into tournament ${tournamentId}`,
     );
     return { injected, total: tournament.max_players };
+  }
+
+  /**
+   * Returns all active user (non-system) bots not already registered in the tournament.
+   * Used by admin to pick specific user bots for injection.
+   */
+  async getAvailableUserBots(
+    tournamentId: string,
+  ): Promise<
+    Array<{ botId: string; botName: string; userId: string; userName: string }>
+  > {
+    const rows: Array<{
+      bot_id: string;
+      bot_name: string;
+      user_id: string;
+      user_name: string;
+    }> = await this.dataSource.query(
+      `
+      SELECT b.id AS bot_id, b.name AS bot_name, u.id AS user_id, u.name AS user_name
+      FROM bots b
+      JOIN users u ON u.id = b.user_id
+      WHERE b.active = true
+        AND b.is_system = false
+        AND b.id NOT IN (
+          SELECT bot_id FROM tournament_entries WHERE tournament_id = $1
+        )
+      ORDER BY u.name, b.name
+      `,
+      [tournamentId],
+    );
+    return rows.map((r) => ({
+      botId: r.bot_id,
+      botName: r.bot_name,
+      userId: r.user_id,
+      userName: r.user_name,
+    }));
+  }
+
+  /**
+   * Admin-only: register any active bot into a registering tournament,
+   * bypassing the per-user ownership check.
+   */
+  async adminRegisterBot(tournamentId: string, botId: string): Promise<void> {
+    const tournament =
+      await this.tournamentRepository.findByIdOrThrow(tournamentId);
+    if (tournament.status !== "registering") {
+      throw new BadRequestException(
+        "Tournament is not accepting registrations",
+      );
+    }
+
+    const bot = await this.botRepository.findByIdOrThrow(botId);
+    if (!bot.active) {
+      throw new BadRequestException("Bot is not active");
+    }
+
+    const entries = await this.tournamentRepository.getEntries(tournamentId);
+    if (entries.length >= tournament.max_players) {
+      throw new BadRequestException("Tournament is full");
+    }
+    if (entries.some((e) => e.bot_id === botId)) {
+      throw new BadRequestException("Bot is already registered");
+    }
+
+    await this.tournamentRepository.createEntry({
+      tournament_id: tournamentId,
+      bot_id: botId,
+      entry_type: "initial",
+      payout: 0n,
+    });
+
+    this.logger.log(
+      `Admin registered bot ${bot.name} (${botId}) into tournament ${tournamentId}`,
+    );
   }
 
   /**
