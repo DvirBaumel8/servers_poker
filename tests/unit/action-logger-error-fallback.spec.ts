@@ -38,7 +38,7 @@ const foldStrategy: BotStrategy = {
   },
 };
 
-function makeGame(sleepMs = 0) {
+function makeGame() {
   const emitter = new EventEmitter2();
   const game = new GameInstance(silentLogger(), emitter, {
     tableId: `t-${randomUUID().slice(0, 8)}`,
@@ -46,7 +46,6 @@ function makeGame(sleepMs = 0) {
     smallBlind: 10,
     bigBlind: 20,
     startingChips: 1000,
-    sleepMs,
     simulationMode: true,
   });
   return { game, emitter };
@@ -54,7 +53,7 @@ function makeGame(sleepMs = 0) {
 
 describe("actionLogger called on error fallback", () => {
   it("logs fallback action when strategy evaluation throws (simulation path)", async () => {
-    const { game, emitter } = makeGame(0);
+    const { game, emitter } = makeGame();
 
     const loggedEntries: Array<{
       playerId: string;
@@ -87,11 +86,11 @@ describe("actionLogger called on error fallback", () => {
       (p2 as any).hydratedStrategy = null; // will cause evaluateHydrated to throw
     }
 
-    // Run one hand
+    // Run two hands — p2 is dealer in hand 2 and must act first (triggering the crash)
     let handCount = 0;
     emitter.on("game.handComplete", () => {
       handCount++;
-      if (handCount >= 1) game.stop();
+      if (handCount >= 2) game.stop();
     });
 
     try {
@@ -114,7 +113,7 @@ describe("actionLogger called on error fallback", () => {
   });
 
   it("fallback action is fold when canCheck is false, check when true", async () => {
-    const { game, emitter } = makeGame(0);
+    const { game, emitter } = makeGame();
 
     const loggedActions: Array<{ playerId: string; action: { type: string } }> =
       [];
@@ -143,10 +142,11 @@ describe("actionLogger called on error fallback", () => {
       (p2 as any).hydratedStrategy = null;
     }
 
+    // Run two hands — p2 is dealer in hand 2 and must act first (triggering the crash)
     let handCount = 0;
     emitter.on("game.handComplete", () => {
       handCount++;
-      if (handCount >= 1) game.stop();
+      if (handCount >= 2) game.stop();
     });
 
     try {

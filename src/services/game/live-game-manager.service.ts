@@ -124,7 +124,6 @@ export interface RecoverySnapshot {
   big_blind: string | number;
   ante: string | number;
   starting_chips: string | number;
-  turn_timeout_ms: number;
   community_cards: Array<{ rank: string; suit: string }>;
   /** Present on hot-state (Redis) snapshots; absent on DB snapshots. */
   action_seq?: number;
@@ -200,8 +199,6 @@ export class GameInstance {
   bigBlind: bigint;
   ante: bigint;
   startingChips: bigint;
-  turnTimeoutMs: number;
-
   dealerIndex = 0;
   handNumber = 0;
   actionSeq = 0;
@@ -285,7 +282,6 @@ export class GameInstance {
       bigBlind?: number;
       ante?: number;
       startingChips?: number;
-      turnTimeoutMs?: number;
       sleepMs?: number;
       /** turboMode skips all animation/between-hand delays (equivalent to sleepMs=0). */
       turboMode?: boolean;
@@ -305,7 +301,6 @@ export class GameInstance {
     this.bigBlind = BigInt(config.bigBlind ?? 20);
     this.ante = BigInt(config.ante ?? 0);
     this.startingChips = BigInt(config.startingChips ?? 1000);
-    this.turnTimeoutMs = config.turnTimeoutMs ?? 10000;
     this.simulationMode = config.simulationMode ?? false;
     this.sleepMs =
       config.turboMode || config.simulationMode ? 0 : (config.sleepMs ?? 4000);
@@ -813,7 +808,7 @@ export class GameInstance {
       this.emitStateUpdate();
 
       const botPayload = this.buildBotPayload(player);
-      const rawAction = await this.getPlayerActionSafe(player, botPayload);
+      const rawAction = this.getPlayerActionSafe(player, botPayload);
 
       // Strict Poker Validator — translate all_in and snap sub-minimum raises
       const toCallAmt = Number(this.bettingRound!.getCallAmount(player));
@@ -866,98 +861,26 @@ export class GameInstance {
     this.potManager!.calculatePots(this.players);
   }
 
-  private async getPlayerActionSafe(
+  private getPlayerActionSafe(
     player: GamePlayer,
     botPayload: BotPayload,
-  ): Promise<{ type: string; amount?: number }> {
-    // Simulation fast path: evaluateHydrated is synchronous, so skip Promise.race
-    // and the 200ms timer entirely — saves ~2 timer allocs + microtask yields per action.
-    if (this.sleepMs === 0) {
-      try {
-        const result = evaluateHydrated(player.hydratedStrategy, botPayload);
-        player.strikes = 0;
-        this.actionLogger?.({
-          actionSeq: this.actionSeq,
-          playerId: player.id,
-          payload: botPayload,
-          evaluation: result,
-          allPlayers: this.players,
-        });
-        const action = result.action;
-        if (action.type === "all_in") {
-          return { type: "raise", amount: botPayload.action.maxRaise };
-        }
-        return action;
-      } catch (_e: any) {
-        player.strikes++;
-        if (player.strikes >= MAX_STRIKES && player.seatStatus === "active") {
-          player.seatStatus = "sitting_out";
-        }
-        const fallbackAction = botPayload.action.canCheck
-          ? { type: "check" as const }
-          : { type: "fold" as const };
-        // Log the fallback so the tournament log is never missing an action
-        this.actionLogger?.({
-          actionSeq: this.actionSeq,
-          playerId: player.id,
-          payload: botPayload,
-          evaluation: {
-            action: fallbackAction,
-            source: "Personality",
-            explanation: `Error fallback: ${_e?.message ?? "unknown"}`,
-            metrics: { equity: 0, strategyWeights: undefined },
-          },
-          allPlayers: this.players,
-        });
-        return fallbackAction;
-      }
-    }
-
-    const TIMEOUT_MS = 200;
-
-    // evaluateHydrated is synchronous; Promise.race establishes the 200ms SLA
-    // and guards against future async strategy paths.
-    // Synchronous infinite-loop protection is enforced by MAX_CONDITION_DEPTH
-    // and MAX_CONDITION_NODES limits in the rule evaluator.
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutHandle = setTimeout(
-        () => reject(new Error("Strategy timeout (200ms)")),
-        TIMEOUT_MS,
-      );
-    });
-
-    // Capture evaluation for the action logger before reducing to {type, amount}
-    let capturedEvaluation: StrategyEvaluation | undefined;
-
-    const decidePromise = Promise.resolve().then(
-      (): { type: string; amount?: number } => {
-        const result = evaluateHydrated(player.hydratedStrategy, botPayload);
-        capturedEvaluation = result;
-        player.strikes = 0;
-        const action = result.action;
-        if (action.type === "all_in") {
-          return { type: "raise", amount: botPayload.action.maxRaise };
-        }
-        return action;
-      },
-    );
-
+  ): { type: string; amount?: number } {
     try {
-      const action = await Promise.race([decidePromise, timeoutPromise]);
-      clearTimeout(timeoutHandle);
-      if (capturedEvaluation) {
-        this.actionLogger?.({
-          actionSeq: this.actionSeq,
-          playerId: player.id,
-          payload: botPayload,
-          evaluation: capturedEvaluation,
-          allPlayers: this.players,
-        });
+      const result = evaluateHydrated(player.hydratedStrategy, botPayload);
+      player.strikes = 0;
+      this.actionLogger?.({
+        actionSeq: this.actionSeq,
+        playerId: player.id,
+        payload: botPayload,
+        evaluation: result,
+        allPlayers: this.players,
+      });
+      const action = result.action;
+      if (action.type === "all_in") {
+        return { type: "raise", amount: botPayload.action.maxRaise };
       }
       return action;
     } catch (e: any) {
-      clearTimeout(timeoutHandle);
       player.strikes++;
       this.logger.debug(
         `[getPlayerActionSafe] ${player.name} strategy error: ${e.message} (strike ${player.strikes}/${MAX_STRIKES})`,
@@ -971,13 +894,6 @@ export class GameInstance {
         this.logEvent({
           message: `${player.name} sitting out after ${player.strikes} strikes`,
         });
-        if (!this.simulationMode) {
-          this.eventEmitter.emit("game.playerSittingOut", {
-            tableId: this.tableId,
-            gameId: this.gameId,
-            playerId: player.id,
-          });
-        }
       }
 
       const fallbackAction = botPayload.action.canCheck
@@ -1487,7 +1403,6 @@ export class GameInstance {
       big_blind: this.bigBlind.toString(),
       ante: this.ante.toString(),
       starting_chips: this.startingChips.toString(),
-      turn_timeout_ms: this.turnTimeoutMs,
       community_cards: this.communityCards,
       action_seq: this.actionSeq,
       last_action_at: new Date().toISOString(),
@@ -1695,7 +1610,6 @@ export class LiveGameManagerService implements OnModuleInit, OnModuleDestroy {
           bigBlind: Number(snapshot.big_blind),
           ante: Number(snapshot.ante),
           startingChips: Number(snapshot.starting_chips),
-          turnTimeoutMs: snapshot.turn_timeout_ms,
         },
         this.provablyFairService,
       );
@@ -1814,7 +1728,6 @@ export class LiveGameManagerService implements OnModuleInit, OnModuleDestroy {
     bigBlind?: number;
     ante?: number;
     startingChips?: number;
-    turnTimeoutMs?: number;
   }): Promise<GameInstance> {
     if (this.liveGames.has(config.tableId)) {
       return this.liveGames.get(config.tableId)!.game;
@@ -1831,7 +1744,6 @@ export class LiveGameManagerService implements OnModuleInit, OnModuleDestroy {
         bigBlind: config.bigBlind,
         ante: config.ante,
         startingChips: config.startingChips,
-        turnTimeoutMs: config.turnTimeoutMs,
       },
       this.provablyFairService,
     );
@@ -1861,7 +1773,6 @@ export class LiveGameManagerService implements OnModuleInit, OnModuleDestroy {
     bigBlind?: number;
     ante?: number;
     startingChips?: number;
-    turnTimeoutMs?: number;
   }): GameInstance {
     if (this.liveGames.has(config.tableId)) {
       return this.liveGames.get(config.tableId)!.game;
@@ -1878,7 +1789,7 @@ export class LiveGameManagerService implements OnModuleInit, OnModuleDestroy {
         bigBlind: config.bigBlind,
         ante: config.ante,
         startingChips: config.startingChips,
-        turnTimeoutMs: config.turnTimeoutMs,
+        simulationMode: true,
       },
       this.provablyFairService,
     );

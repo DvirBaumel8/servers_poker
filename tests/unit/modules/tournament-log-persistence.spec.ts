@@ -158,7 +158,8 @@ describe("TournamentsService.getTournamentLog", () => {
       log_data: SAMPLE_LOG,
     });
     const result = await service.getTournamentLog("t1", "user-1");
-    expect(result).toEqual(SAMPLE_LOG);
+    expect(result.log_data).toEqual(SAMPLE_LOG);
+    expect(result).toHaveProperty("nameMap");
   });
 
   it("throws ForbiddenException when user has no active bot in the tournament", async () => {
@@ -180,10 +181,10 @@ describe("TournamentsService.getTournamentLog", () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  it("returns empty object when log_data is null", async () => {
+  it("returns empty log_data when log_data is null", async () => {
     mockQueryResult = [{ id: "t1" }];
     mockTournamentRepo.findById.mockResolvedValue({ id: "t1", log_data: null });
     const result = await service.getTournamentLog("t1", "user-1");
-    expect(result).toEqual({});
+    expect(result.log_data).toEqual({});
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { AlertTriangle, ArrowDown, ArrowUp, GitCompare, Trash2, TrendingUp, Trophy, X, Zap } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
@@ -237,29 +238,46 @@ function ProgressBar({ pct }: { pct: number }) {
 
 function MetricTooltip({ label, tip }: { label: string; tip: string }) {
   const [show, setShow] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const iconRef = useRef<HTMLSpanElement>(null)
+
+  const handleMouseEnter = () => {
+    if (iconRef.current) {
+      const rect = iconRef.current.getBoundingClientRect()
+      const tooltipWidth = 220
+      // Center on the icon, then clamp so it stays within viewport
+      let left = rect.left + rect.width / 2 - tooltipWidth / 2
+      left = Math.max(8, Math.min(left, window.innerWidth - tooltipWidth - 8))
+      setPos({ top: rect.top - 6, left })
+    }
+    setShow(true)
+  }
+
   return (
     <span
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'help' }}
-      onMouseEnter={() => setShow(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShow(false)}
     >
       {label}
-      <span style={{
+      <span ref={iconRef} style={{
         fontSize: 9, color: C.accent, border: `1px solid ${C.accent}`, borderRadius: '50%',
         width: 13, height: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         lineHeight: 1, flexShrink: 0,
       }}>?</span>
-      {show && (
+      {show && createPortal(
         <div style={{
-          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', top: pos.top, left: pos.left,
+          transform: 'translateY(-100%)',
           background: '#0d1a2e', border: `1px solid ${C.accent}`, borderRadius: 6,
           padding: '8px 10px', width: 220, fontSize: 12, color: '#d1d5db',
-          zIndex: 999, lineHeight: 1.5, pointerEvents: 'none', whiteSpace: 'normal',
+          zIndex: 9999, lineHeight: 1.5, pointerEvents: 'none', whiteSpace: 'normal',
           textTransform: 'none', letterSpacing: 'normal', fontWeight: 400,
           boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
         }}>
           {tip}
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   )

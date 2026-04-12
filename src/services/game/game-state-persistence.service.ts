@@ -23,7 +23,6 @@ export interface GameState {
   bigBlind: number;
   ante: number;
   startingChips: number;
-  turnTimeoutMs: number;
   communityCards: Array<{ rank: string; suit: string }>;
   activePlayerId: string | null;
   players: Array<{
@@ -131,7 +130,6 @@ export class GameStatePersistenceService
           bigBlind: raw.bigBlind || 20,
           ante: raw.ante || 0,
           startingChips: raw.startingChips || 1000,
-          turnTimeoutMs: raw.turnTimeoutMs || 10000,
           communityCards: raw.communityCards || [],
           activePlayerId: raw.activePlayerId || null,
           players: (raw.players || []).map((p: any) => ({
@@ -204,7 +202,6 @@ export class GameStatePersistenceService
         big_blind: state.bigBlind,
         ante: state.ante,
         starting_chips: state.startingChips,
-        turn_timeout_ms: state.turnTimeoutMs,
         community_cards: state.communityCards,
         active_player_id: state.activePlayerId,
         players: state.players,

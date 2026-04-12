@@ -206,7 +206,6 @@ async function runHandSimulation(
     bigBlind,
     startingChips,
     simulationMode: true,
-    // turnTimeoutMs left at default (200ms kill-switch is inside GameInstance)
   });
 
   // Pre-hydrate all strategies before adding players

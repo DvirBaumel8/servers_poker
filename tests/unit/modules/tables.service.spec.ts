@@ -140,7 +140,6 @@ describe("TablesService", () => {
           big_blind: 20,
           starting_chips: 1000,
           max_players: 9,
-          turn_timeout_ms: 10000,
         }),
       );
     });

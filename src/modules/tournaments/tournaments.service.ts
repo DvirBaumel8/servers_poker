@@ -58,7 +58,6 @@ export class TournamentsService {
       min_players: dto.min_players,
       max_players: dto.max_players,
       players_per_table: dto.players_per_table ?? 9,
-      turn_timeout_ms: dto.turn_timeout_ms ?? 10000,
       hands_per_level: dto.hands_per_level ?? 50,
       rebuys_allowed: dto.rebuys_allowed ?? true,
       scheduled_start_at: dto.scheduled_start_at
@@ -518,7 +517,6 @@ export class TournamentsService {
       min_players: tournament.min_players,
       max_players: tournament.max_players,
       players_per_table: tournament.players_per_table,
-      turn_timeout_ms: tournament.turn_timeout_ms,
       rebuys_allowed: tournament.rebuys_allowed,
       scheduled_start_at: tournament.scheduled_start_at ?? null,
       started_at: tournament.started_at ?? null,
@@ -1036,7 +1034,11 @@ export class TournamentsService {
               b.name AS winner_bot_name,
               t.buy_in * (SELECT COUNT(*) FROM tournament_entries WHERE tournament_id = t.id)::int AS prize_pool
        FROM tournaments t
-       LEFT JOIN tournament_entries te ON te.tournament_id = t.id AND te.finish_position = 1
+       LEFT JOIN LATERAL (
+         SELECT bot_id FROM tournament_entries
+         WHERE tournament_id = t.id AND finish_position = 1
+         LIMIT 1
+       ) te ON true
        LEFT JOIN bots b ON b.id = te.bot_id
        WHERE t.status = 'finished'
        ORDER BY t.finished_at DESC NULLS LAST
@@ -1184,7 +1186,6 @@ export class TournamentsService {
       min_players: tournament.min_players,
       max_players: tournament.max_players,
       players_per_table: tournament.players_per_table,
-      turn_timeout_ms: tournament.turn_timeout_ms,
       rebuys_allowed: tournament.rebuys_allowed,
       scheduled_start_at: tournament.scheduled_start_at ?? null,
       started_at: tournament.started_at ?? null,

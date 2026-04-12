@@ -47,7 +47,6 @@ export class TablesService {
         big_blind: dto.big_blind ?? 20,
         starting_chips: dto.starting_chips ?? 1000,
         max_players: dto.max_players ?? 9,
-        turn_timeout_ms: dto.turn_timeout_ms ?? 10000,
         status: "waiting" as TableStatus,
       });
 
@@ -216,7 +215,6 @@ export class TablesService {
             smallBlind: Number(table.small_blind),
             bigBlind: Number(table.big_blind),
             startingChips: Number(table.starting_chips),
-            turnTimeoutMs: table.turn_timeout_ms,
           });
           currentLiveGame = this.liveGameManager.getGame(tableId)!;
         } else {

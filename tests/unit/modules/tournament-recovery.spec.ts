@@ -140,3 +140,66 @@ describe("Tournament Recovery — Respawn Decision Logic", () => {
 function needsRespawn(table: { status: string }, liveGame: any): boolean {
   return table.status === "active" && !liveGame;
 }
+
+// ─── handCount restoration on recovery ───────────────────────────────────────
+
+/**
+ * Mirrors the formula used in ActiveTournament.recoverFromDb() to restore
+ * handCount and handsThisLevel from the persisted TournamentBlindLevel row.
+ */
+function restoreHandCount(
+  currentLevel: number,
+  handsPlayed: number,
+  handsPerLevel: number,
+): { handCount: number; handsThisLevel: number } {
+  return {
+    handsThisLevel: handsPlayed,
+    handCount: (currentLevel - 1) * handsPerLevel + handsPlayed,
+  };
+}
+
+describe("Tournament Recovery — handCount restoration", () => {
+  it("returns zero for a fresh tournament at level 1, hand 0", () => {
+    expect(restoreHandCount(1, 0, 5)).toEqual({
+      handCount: 0,
+      handsThisLevel: 0,
+    });
+  });
+
+  it("restores mid-level state correctly", () => {
+    // Level 3, 2 hands played so far; 5 hands per level → 2×5 + 2 = 12
+    expect(restoreHandCount(3, 2, 5)).toEqual({
+      handCount: 12,
+      handsThisLevel: 2,
+    });
+  });
+
+  it("restores state at end of a completed level", () => {
+    // Level 7, hands_played = 5 (full level); 6×5 + 5 = 35
+    expect(restoreHandCount(7, 5, 5)).toEqual({
+      handCount: 35,
+      handsThisLevel: 5,
+    });
+  });
+
+  it("works with non-default handsPerLevel", () => {
+    // Level 4, 10 hands played; handsPerLevel = 20 → 3×20 + 10 = 70
+    expect(restoreHandCount(4, 10, 20)).toEqual({
+      handCount: 70,
+      handsThisLevel: 10,
+    });
+  });
+
+  it("handCount is always >= handsThisLevel", () => {
+    for (const level of [1, 3, 7]) {
+      for (const played of [0, 1, 4]) {
+        const { handCount, handsThisLevel } = restoreHandCount(
+          level,
+          played,
+          5,
+        );
+        expect(handCount).toBeGreaterThanOrEqual(handsThisLevel);
+      }
+    }
+  });
+});
