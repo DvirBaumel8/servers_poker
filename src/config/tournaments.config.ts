@@ -23,7 +23,6 @@ export interface TournamentConfig {
   min_players: number;
   max_players: number;
   players_per_table: number;
-  turn_timeout_ms: number;
   rebuys_allowed: boolean;
   scheduled_start_at?: number;
 }
@@ -136,7 +135,6 @@ export const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     min_players: 2,
     max_players: 18,
     players_per_table: 9,
-    turn_timeout_ms: 10000,
     rebuys_allowed: true,
   },
   {
@@ -148,7 +146,6 @@ export const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     min_players: 9,
     max_players: 90,
     players_per_table: 9,
-    turn_timeout_ms: 10000,
     rebuys_allowed: true,
   },
   {
@@ -160,7 +157,6 @@ export const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     min_players: 6,
     max_players: 45,
     players_per_table: 9,
-    turn_timeout_ms: 8000,
     rebuys_allowed: false,
   },
 ];

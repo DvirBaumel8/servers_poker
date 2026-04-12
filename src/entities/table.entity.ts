@@ -24,9 +24,6 @@ export class Table extends BaseEntity {
   @Column({ type: "integer", default: 9 })
   max_players: number = 9;
 
-  @Column({ type: "integer", default: 10000 })
-  turn_timeout_ms: number = 10000;
-
   @Index()
   @Column({ type: "varchar", length: 20, default: "waiting" })
   status: TableStatus = "waiting";

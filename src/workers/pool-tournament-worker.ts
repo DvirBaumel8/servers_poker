@@ -246,7 +246,7 @@ async function runTableGame(
     startingChips: tableBots[0]
       ? Number(tableBots[0].chips)
       : blinds.bigBlind * 100,
-    sleepMs: 0,
+    simulationMode: true,
   });
 
   // Pre-hydrate all strategies before the game loop to avoid first-hand latency

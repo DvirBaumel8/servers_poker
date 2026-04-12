@@ -5,7 +5,7 @@ import { ConfigService } from "@nestjs/config";
  * Use this to reduce boilerplate when reading numeric config values.
  *
  * @example
- * this.timeoutMs = parseConfigNumber(this.configService, 'TURN_TIMEOUT_MS', 30000);
+ * this.workerTimeout = parseConfigNumber(this.configService, 'WORKER_TIMEOUT', 30000);
  * this.maxRetries = parseConfigNumber(this.configService, 'MAX_RETRIES', 3);
  */
 export function parseConfigNumber(

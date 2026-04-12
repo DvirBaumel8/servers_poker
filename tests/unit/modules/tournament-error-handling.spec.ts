@@ -107,18 +107,18 @@ describe("Tournament Error Handling", () => {
       let consecutiveErrors = 0;
       const handleFatalError = vi.fn();
 
-      // 2 errors
-      consecutiveErrors++;
-      consecutiveErrors++;
-
-      // Success resets
+      // 2 errors, then success resets the counter
+      for (let i = 0; i < MAX - 1; i++) {
+        consecutiveErrors++;
+      }
       consecutiveErrors = 0;
 
-      // 2 more errors (still under threshold)
-      consecutiveErrors++;
-      consecutiveErrors++;
-      if (consecutiveErrors >= MAX) {
-        handleFatalError(new Error("should not happen"));
+      // 2 more errors after reset — should not reach threshold
+      for (let i = 0; i < MAX - 1; i++) {
+        consecutiveErrors++;
+        if (consecutiveErrors >= MAX) {
+          handleFatalError(new Error("should not happen"));
+        }
       }
 
       expect(handleFatalError).not.toHaveBeenCalled();

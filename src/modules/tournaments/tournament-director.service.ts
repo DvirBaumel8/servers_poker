@@ -674,11 +674,14 @@ class ActiveTournament {
       })),
     );
 
+    // Register handlers BEFORE creating tables so that game events emitted
+    // via setImmediate (which can fire during the seatBot DB I/O wait, i.e.
+    // between poll and check phases) are never missed.
+    this.registerEventHandlers();
+
     await this.createInitialTables();
     await this.startBlindLevel(1);
     this.emitStateUpdate();
-
-    this.registerEventHandlers();
     this.startSafetyNet();
   }
 
@@ -688,6 +691,10 @@ class ActiveTournament {
    */
   async recoverFromDb(): Promise<void> {
     this.running = true;
+
+    // Register handlers immediately — respawned games start via setImmediate
+    // and can fire events before the rest of recoverFromDb() completes.
+    this.registerEventHandlers();
 
     // ── 1. Load all seats; active = not busted ────────────────────────────
     const allSeats = await this.tournamentRepository.getSeats(
@@ -783,7 +790,6 @@ class ActiveTournament {
           bigBlind: blindLevel.big_blind,
           ante: blindLevel.ante,
           startingChips: Number(this.config.starting_chips),
-          turnTimeoutMs: this.config.turn_timeout_ms,
         });
 
         // Add players from seat data (using current chips, not starting chips)
@@ -850,13 +856,18 @@ class ActiveTournament {
     );
     if (currentLevel) {
       this.currentLevel = currentLevel.level;
+      // Restore hands-this-level and compute cumulative hand count so that
+      // telemetry doesn't reset to 0 after a server restart/recovery.
+      this.handsThisLevel = currentLevel.hands_played;
+      const handsPerLevel = this.config.hands_per_level ?? HANDS_PER_LEVEL;
+      this.handCount =
+        (this.currentLevel - 1) * handsPerLevel + this.handsThisLevel;
     }
 
     this.logger.log(
-      `[Recovery] Tournament "${this.name}": ${this.tables.size} tables, ${this.activeBots.size} active bots, level ${this.currentLevel}`,
+      `[Recovery] Tournament "${this.name}": ${this.tables.size} tables, ${this.activeBots.size} active bots, level ${this.currentLevel}, hands ${this.handCount}`,
     );
 
-    this.registerEventHandlers();
     this.startSafetyNet();
   }
 
@@ -1055,7 +1066,6 @@ class ActiveTournament {
       bigBlind: blindLevel.big_blind,
       ante: blindLevel.ante,
       startingChips: Number(this.config.starting_chips),
-      turnTimeoutMs: this.config.turn_timeout_ms,
     });
 
     // Set tournament context so bot strategies can adjust for tournament stage
@@ -1149,7 +1159,6 @@ class ActiveTournament {
             big_blind: 20, // Will be set by blind level during game creation
             starting_chips: Number(this.config.starting_chips),
             max_players: 9,
-            turn_timeout_ms: this.config.turn_timeout_ms,
             status: "waiting",
           }),
         );
@@ -1605,7 +1614,6 @@ class ActiveTournament {
       bigBlind: blindLevel.big_blind,
       ante: blindLevel.ante,
       startingChips: Number(this.config.starting_chips),
-      turnTimeoutMs: this.config.turn_timeout_ms,
     });
 
     // Re-wire inter-hand hook for hand-for-hand sync
@@ -1724,7 +1732,6 @@ class ActiveTournament {
             bigBlind: blindLevel.big_blind,
             ante: blindLevel.ante,
             startingChips: this.config.starting_chips,
-            turnTimeoutMs: this.config.turn_timeout_ms,
           });
 
           // Add active players back

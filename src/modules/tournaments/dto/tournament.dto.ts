@@ -92,12 +92,6 @@ export class CreateTournamentDto {
 
   @IsOptional()
   @IsNumber()
-  @Min(1000)
-  @Max(60000)
-  turn_timeout_ms?: number;
-
-  @IsOptional()
-  @IsNumber()
   @Min(1)
   @Max(500)
   hands_per_level?: number;
@@ -138,7 +132,6 @@ export class TournamentResponseDto {
   min_players!: number;
   max_players!: number;
   players_per_table!: number;
-  turn_timeout_ms!: number;
   rebuys_allowed!: boolean;
   scheduled_start_at!: Date | null;
   started_at!: Date | null;

@@ -49,9 +49,6 @@ export class Tournament extends BaseEntity {
   @Column({ type: "integer", default: 9 })
   players_per_table: number = 9;
 
-  @Column({ type: "integer", default: 10000 })
-  turn_timeout_ms: number = 10000;
-
   @Column({ type: "integer", default: 50 })
   hands_per_level: number = 50;
 

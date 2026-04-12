@@ -63,9 +63,6 @@ export class GameStateSnapshot extends BaseEntity {
   @Column({ type: "bigint" })
   starting_chips!: number;
 
-  @Column({ type: "integer", default: 10000 })
-  turn_timeout_ms: number = 10000;
-
   @Column({ type: "jsonb", default: [] })
   community_cards: Array<{ rank: string; suit: string }> = [];
 

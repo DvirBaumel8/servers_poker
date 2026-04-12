@@ -22,6 +22,7 @@ import { AnalyticsRepository } from "../../repositories/analytics.repository";
 import { GamesModule } from "../games/games.module";
 import { TournamentsGateway } from "./tournaments.gateway";
 import { TournamentAlertService } from "./tournament-alert.service";
+import { PrizePoolService } from "../../services/prize-pool.service";
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { TournamentAlertService } from "./tournament-alert.service";
     SimulationService,
     BatchTournamentPersistenceService,
     TournamentAlertService,
+    PrizePoolService,
     TournamentRepository,
     BotRepository,
     AnalyticsRepository,

@@ -467,7 +467,6 @@ export default function AdminDashboard() {
 
   // Create form
   const [tableSize, setTableSize] = useState<2 | 3 | 6 | 9>(9)
-  const [speed, setSpeed]         = useState<'Slow' | 'Fast'>('Slow')
   const [buyIn, setBuyIn]         = useState(1000)
   const [tnmtName, setTnmtName]       = useState('')
   const [handsPerLevel, setHandsPerLevel] = useState(50)
@@ -762,7 +761,7 @@ export default function AdminDashboard() {
       await api.post('/tournaments', {
         name, type: 'rolling', buy_in: buyIn, starting_chips: 5000,
         min_players: 2, max_players: maxPlayers, players_per_table: tableSize,
-        turn_timeout_ms: speed === 'Fast' ? 3000 : 10000, rebuys_allowed: false,
+        rebuys_allowed: false,
         hands_per_level: handsPerLevel,
       })
       showToast(`"${name}" created`, true)
@@ -1080,23 +1079,6 @@ export default function AdminDashboard() {
                       }}>{n}</button>
                     ))}
                   </div>
-                </div>
-
-                {/* Speed */}
-                <div>
-                  <label style={{ fontSize: 10, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>Speed</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {(['Slow', 'Fast'] as const).map(s => (
-                      <button key={s} onClick={() => { setSpeed(s); setHandsPerLevel(s === 'Fast' ? 20 : 100) }} style={{
-                        padding: '5px 16px', borderRadius: 6, cursor: 'pointer', fontFamily: C.font, fontSize: 13,
-                        border: `1px solid ${speed === s ? C.accent : C.border}`,
-                        background: speed === s ? 'rgba(0,245,255,0.12)' : 'rgba(0,0,0,0.2)',
-                        color: speed === s ? C.accent : C.muted, fontWeight: speed === s ? 700 : 400,
-                        transition: 'all 0.15s',
-                      }}>{s}</button>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>{speed === 'Fast' ? '3s timeout · 20 hands/level' : '10s timeout · 100 hands/level'}</div>
                 </div>
 
                 {/* Hands per Level */}

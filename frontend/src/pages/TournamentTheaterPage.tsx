@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, type TargetAndTransition } from 'framer-motion'
 import { Sidebar } from '../components/Sidebar'
 import { C, T, monoStyle } from '../styles/tokens'
 import api from '../lib/axios'
@@ -207,8 +207,6 @@ function formatDelta(delta: number): string {
  */
 function computeHandTotalPot(hand: HandLog): number {
   const blinds = synthesizeBlinds(hand)
-  const blindTotal = blinds.reduce((s, b) => s + b.amt, 0)
-
   // Strip explicit blind actions at the start (same logic as buildTimeline)
   let blindCount = 0
   for (let i = 0; i < hand.actions.length; i++) {
@@ -516,24 +514,6 @@ function avatarHue(id: string): number {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CardBack() {
-  return (
-    <div style={{
-      width: 46, height: 66, borderRadius: 5, flexShrink: 0,
-      background: 'linear-gradient(145deg, #9eaab6 0%, #6e7f8d 40%, #4a5a68 100%)',
-      border: '1px solid rgba(255,255,255,0.15)',
-      boxShadow: '0 3px 8px rgba(0,0,0,0.55)',
-      position: 'relative', overflow: 'hidden',
-    }}>
-      {/* crosshatch */}
-      <div style={{
-        position: 'absolute', inset: 3, borderRadius: 3,
-        backgroundImage: `repeating-linear-gradient(45deg,rgba(255,255,255,0.06) 0px,rgba(255,255,255,0.06) 1px,transparent 1px,transparent 6px),
-          repeating-linear-gradient(-45deg,rgba(255,255,255,0.06) 0px,rgba(255,255,255,0.06) 1px,transparent 1px,transparent 6px)`,
-      }} />
-    </div>
-  )
-}
 
 function CardFace({ card }: { card: string }) {
   const { rank, suitSymbol, color } = parseCard(card)
@@ -629,28 +609,28 @@ function usePlayback(log: MasterTournamentLog | null, heroId: string | null) {
 
   // Brain Feed: compute message when it's hero's turn
   useEffect(() => {
-    if (!isHeroTurn || currentEntry?.type !== 'action') {
-      setBrainFeedMessage(null)
-      return
-    }
-    const { metrics, dec, p_id } = currentEntry.action
-    const eqPct = metrics.eq != null && metrics.eq > 0
-      ? `Equity: ${(metrics.eq * 100).toFixed(0)}%`
-      : null
-    const sourceLabel = metrics.source ? `Source: ${metrics.source}` : null
+    let message: string | null = null
+    if (isHeroTurn && currentEntry?.type === 'action') {
+      const { metrics, dec, p_id } = currentEntry.action
+      const eqPct = metrics.eq != null && metrics.eq > 0
+        ? `Equity: ${(metrics.eq * 100).toFixed(0)}%`
+        : null
+      const sourceLabel = metrics.source ? `Source: ${metrics.source}` : null
 
-    // Detect if hero is facing an all-in by checking prior actions in the timeline
-    const facingAllIn = currentTimeline
-      .slice(0, currentActionIdx)
-      .some(e => e.type === 'action' && e.action.dec === 'all_in' && e.action.p_id !== p_id)
+      // Detect if hero is facing an all-in by checking prior actions in the timeline
+      const facingAllIn = currentTimeline
+        .slice(0, currentActionIdx)
+        .some(e => e.type === 'action' && e.action.dec === 'all_in' && e.action.p_id !== p_id)
 
-    const decPhrases: Record<string, string> = {
-      fold: 'Chose to surrender',
-      call: facingAllIn ? 'Evaluating All-in: Pot Odds vs Equity' : 'Calling to see more',
-      raise: 'Aggressing the pot', check: 'Checking to control', all_in: 'Going all-in',
+      const decPhrases: Record<string, string> = {
+        fold: 'Chose to surrender',
+        call: facingAllIn ? 'Evaluating All-in: Pot Odds vs Equity' : 'Calling to see more',
+        raise: 'Aggressing the pot', check: 'Checking to control', all_in: 'Going all-in',
+      }
+      const decPhrase = decPhrases[dec] ?? dec
+      message = [eqPct, sourceLabel, decPhrase].filter(Boolean).join(' · ')
     }
-    const decPhrase = decPhrases[dec] ?? dec
-    setBrainFeedMessage([eqPct, sourceLabel, decPhrase].filter(Boolean).join(' · '))
+    setTimeout(() => setBrainFeedMessage(message), 0)
   }, [currentEntry, isHeroTurn, currentTimeline, currentActionIdx])
 
   const stepForward = useCallback(() => {
@@ -782,7 +762,7 @@ export default function TournamentTheaterPage() {
   // ── Playback hook ──
   const {
     currentHandIdx, currentActionIdx, isPlaying, speed,
-    currentTimeline, currentEntry, isRevealStep, isHeroTurn,
+    currentTimeline, currentEntry, isRevealStep,
     bubbleFor, brainFeedMessage, mergingBets, betsSnapshotRef,
     setSpeed, setIsPlaying, stepForward, stepBack, goToHand, restart,
   } = usePlayback(filteredLog, heroId)
@@ -889,7 +869,7 @@ export default function TournamentTheaterPage() {
       // betPerPlayerPerStreet[street][p_id] = total chips committed on that street
       const betPerPlayer: Record<string, number> = {}        // total this hand
       const streetBets: Record<string, Record<string, number>> = { p: {}, f: {}, t: {}, r: {} }
-      let highBetPerStreet: Record<string, number> = { p: 0, f: 0, t: 0, r: 0 }
+      const highBetPerStreet: Record<string, number> = { p: 0, f: 0, t: 0, r: 0 }
 
       // Seed preflop bets with blind amounts
       const dealEntry = currentTimeline[0]
@@ -1685,8 +1665,8 @@ const SEAT_ORDER: string[] = ['BTN', 'BTN/SB', 'SB', 'BB', 'UTG', 'UTG+1', 'MP',
 function PokerTable({
   hand, heroId, bots, botNameMap, userNameMap, winnerId, isComplete, isHandComplete, handWinnerIds,
   communityCards, potSize, playerStacks, foldedPlayers, lastActionPerPlayer, bubbleFor,
-  isRevealStep, revealStreet, betsThisStreet, mergingBets, activePlayerId, justFoldedId,
-  expectedWinnerId, handPotAmount,
+  isRevealStep, revealStreet, betsThisStreet, mergingBets, activePlayerId,
+  handPotAmount,
 }: PokerTableProps) {
   // Sort players into correct poker seat order using action-level position tags.
   // This ensures the table layout matches the game engine's seating, regardless
@@ -1766,7 +1746,7 @@ function PokerTable({
       }, 1100) // after pot fly animation (~0.4s delay + ~0.7s spring)
       return () => clearTimeout(timer)
     } else {
-      setWinnerStackBonus({})
+      setTimeout(() => setWinnerStackBonus({}), 0)
     }
   }, [isHandComplete, handWinnerIds, handPotAmount])
 
@@ -1785,11 +1765,13 @@ function PokerTable({
     }
     prevBetsRef.current = { ...betsThisStreet }
     if (newAddOns.length > 0) {
-      setBetAddOns(a => [...a, ...newAddOns])
-      // Auto-clear after animation completes
       setTimeout(() => {
-        setBetAddOns(a => a.filter(x => !newAddOns.some(n => n.id === x.id)))
-      }, 500)
+        setBetAddOns(a => [...a, ...newAddOns])
+        // Auto-clear after animation completes
+        setTimeout(() => {
+          setBetAddOns(a => a.filter(x => !newAddOns.some(n => n.id === x.id)))
+        }, 500)
+      }, 0)
     }
   }, [betsThisStreet])
 
@@ -1842,7 +1824,7 @@ function PokerTable({
               // Winner pot collection animation — fires per hand, not just tournament end
               const handWinner = handWinnerIds[0] ?? null
               const winnerSeatIdx = handWinner ? playerIds.indexOf(handWinner) : -1
-              let potAnimProps: Record<string, unknown> = { opacity: 1, x: 0, y: 0, scale: 1 }
+              let potAnimProps: TargetAndTransition = { opacity: 1, x: 0, y: 0, scale: 1 }
               if (isHandComplete && winnerSeatIdx >= 0 && tableDims.w > 0) {
                 const wp = getSeatPixelPos(winnerSeatIdx, tableDims)
                 potAnimProps = {
@@ -2394,7 +2376,7 @@ function AnimatedChipCount({ value }: { value: number }) {
     const from = prevRef.current
     const to = value
     prevRef.current = value
-    if (from === to) { setDisplay(to); return }
+    if (from === to) { return }
 
     const duration = 600
     const start = performance.now()
@@ -2712,8 +2694,9 @@ function TournamentSelector({ onLoad }: {
       }
       const tName = rows.find((r) => r.tournamentId === selectedTournamentId)?.tournamentName ?? selectedTournamentId
       onLoad(log, selectedBotId, res.data.nameMap ?? {}, selectedTournamentId, tName)
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Failed to load tournament log')
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Failed to load tournament log')
     } finally {
       setLoadingLog(false)
     }
@@ -2897,89 +2880,6 @@ function TournamentSelector({ onLoad }: {
   )
 }
 
-// ─── LogDropZone ─────────────────────────────────────────────────────────────
-
-function LogDropZone({ onLoad }: { onLoad: (log: MasterTournamentLog) => void }) {
-  const [dragging, setDragging] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  function parseFile(file: File) {
-    setError(null)
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target?.result as string) as MasterTournamentLog
-        if (!parsed.hands || !parsed.tournament_summary) throw new Error('Not a valid MasterTournamentLog')
-        onLoad(parsed)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Invalid JSON file')
-      }
-    }
-    reader.readAsText(file)
-  }
-
-  return (
-    <div
-      onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault(); setDragging(false)
-        const file = e.dataTransfer.files[0]
-        if (file) parseFile(file)
-      }}
-      style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 20, textAlign: 'center', padding: 48,
-        width: 480, borderRadius: 20,
-        background: dragging ? 'rgba(0,245,255,0.06)' : 'rgba(18,18,27,0.6)',
-        border: `2px dashed ${dragging ? C.accent : 'rgba(255,255,255,0.12)'}`,
-        boxShadow: dragging ? `0 0 40px rgba(0,245,255,0.15)` : 'none',
-        transition: 'all 0.2s', cursor: 'pointer',
-      }}
-      onClick={() => inputRef.current?.click()}
-    >
-      <input
-        ref={inputRef} type="file" accept=".json" style={{ display: 'none' }}
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) parseFile(f); e.target.value = '' }}
-      />
-
-      <div style={{ fontSize: 56 }}>🎬</div>
-
-      <div>
-        <div style={{ fontSize: T.h1, fontWeight: 800, letterSpacing: 0.5 }}>The Theater</div>
-        <div style={{ color: C.muted, fontSize: T.base, marginTop: 6 }}>
-          Tournament Replay System
-        </div>
-      </div>
-
-      <div style={{
-        padding: '16px 24px', borderRadius: 12,
-        background: dragging ? 'rgba(0,245,255,0.1)' : 'rgba(255,255,255,0.04)',
-        border: `1px solid ${dragging ? C.accent : 'rgba(255,255,255,0.08)'}`,
-        transition: 'all 0.2s',
-      }}>
-        <div style={{ fontSize: T.md, fontWeight: 600, color: dragging ? C.accent : C.text }}>
-          {dragging ? 'Drop to load' : 'Drop a tournament log here'}
-        </div>
-        <div style={{ fontSize: T.sm, color: C.muted, marginTop: 4 }}>
-          or click to browse · accepts <code style={{ color: C.accent }}>MasterTournamentLog</code> JSON
-        </div>
-      </div>
-
-      {error && (
-        <div style={{ color: C.danger, fontSize: T.sm, padding: '8px 16px', borderRadius: 8, background: 'rgba(226,75,74,0.1)', border: '1px solid rgba(226,75,74,0.2)' }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ color: C.muted, fontSize: T.xs, lineHeight: 1.8 }}>
-        Generated by the Chaos Tournament runner<br />
-        <code style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>logs/chaos/{'<preset>'}_results.json</code>
-      </div>
-    </div>
-  )
-}
 
 // ─── CSS Animations ───────────────────────────────────────────────────────────
 

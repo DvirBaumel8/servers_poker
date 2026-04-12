@@ -86,11 +86,6 @@ export class CreateTableDto {
   @Min(2)
   @Max(9)
   max_players?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(5000)
-  turn_timeout_ms?: number;
 }
 
 export class TableResponseDto {

@@ -87,7 +87,6 @@ export class MatchmakingService {
         min_players: MATCHMAKING_CONFIG.MIN_PLAYERS,
         max_players: 10000,
         players_per_table: MATCHMAKING_CONFIG.DEFAULT_POD_SIZE,
-        turn_timeout_ms: 10000,
         rebuys_allowed: false,
         scheduled_start_at: this.todayAt(21, 0), // 21:00 UTC execution
       });
