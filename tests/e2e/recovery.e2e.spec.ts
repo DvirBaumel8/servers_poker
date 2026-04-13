@@ -116,7 +116,6 @@ describe("Recovery E2E Tests", () => {
           big_blind: 20,
           starting_chips: 1000,
           max_players: 2,
-          turn_timeout_ms: 5000,
         })
         .expect(201);
 

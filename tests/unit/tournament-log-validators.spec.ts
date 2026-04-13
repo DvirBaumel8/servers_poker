@@ -362,6 +362,232 @@ describe("validateHand", () => {
     expect(MIN_EQUITY).toBeLessThanOrEqual(0.01);
   });
 
+  // ─── initial_stacks_match_hole_cards ──────────────────────────────────────
+
+  it("detects hole_cards count exceeding initial_stacks count", () => {
+    const hand = makeCleanHand({
+      initial_stacks: { "bot-a": 1000, "bot-b": 980 },
+      hole_cards: {
+        "bot-a": ["Ah", "Kd"],
+        "bot-b": ["Qs", "Jh"],
+        "ghost-c": ["2c", "3s"],
+        "ghost-d": ["4h", "5d"],
+      },
+    });
+
+    const errors = validateHand(hand);
+    const err = findByRule(errors, "initial_stacks_match_hole_cards");
+    expect(err).toBeDefined();
+    expect(err!.severity).toBe("error");
+    expect(err!.details!.hole_cards_count).toBe(4);
+    expect(err!.details!.initial_stacks_count).toBe(2);
+  });
+
+  it("detects player with wrong number of hole cards", () => {
+    const hand = makeCleanHand({
+      hole_cards: { "bot-a": ["Ah", "Kd", "2c"] as any, "bot-b": ["Qs", "Jh"] },
+    });
+
+    const errors = validateHand(hand);
+    const err = findByRule(errors, "initial_stacks_match_hole_cards");
+    expect(err).toBeDefined();
+    expect(err!.details!.card_count).toBe(3);
+  });
+
+  it("passes when hole_cards count equals initial_stacks count", () => {
+    const errors = validateHand(makeCleanHand());
+    expect(
+      findByRule(errors, "initial_stacks_match_hole_cards"),
+    ).toBeUndefined();
+  });
+
+  it("passes when hole_cards count is less than initial_stacks count (muck scenario)", () => {
+    const hand = makeCleanHand({
+      initial_stacks: { "bot-a": 1000, "bot-b": 980, "bot-c": 1020 },
+      final_stacks: { "bot-a": 1030, "bot-b": 950, "bot-c": 1020 },
+      hole_cards: { "bot-a": ["Ah", "Kd"], "bot-b": ["Qs", "Jh"] },
+      actions: [
+        {
+          seq: 1,
+          p_id: "bot-a",
+          position: "BTN",
+          st: "p",
+          dec: "raise",
+          amt: 40,
+          metrics: { eq: 0.55, w: null, source: "Personality" },
+        },
+        {
+          seq: 2,
+          p_id: "bot-b",
+          position: "BB",
+          st: "p",
+          dec: "fold",
+          metrics: { eq: 0.45, w: null, source: "Personality" },
+        },
+      ],
+    });
+
+    const errors = validateHand(hand);
+    expect(
+      findByRule(errors, "initial_stacks_match_hole_cards"),
+    ).toBeUndefined();
+  });
+
+  // ─── final_stacks_present ──────────────────────────────────────────────────
+
+  it("detects winners without final_stacks", () => {
+    const hand = makeCleanHand();
+    hand.winners = [{ p_id: "bot-a", amt: 1980 }];
+    delete hand.final_stacks;
+
+    const errors = validateHand(hand);
+    const err = findByRule(errors, "final_stacks_present");
+    expect(err).toBeDefined();
+    expect(err!.severity).toBe("error");
+    expect(err!.details!.winner_count).toBe(1);
+  });
+
+  it("passes when final_stacks is present alongside winners", () => {
+    const hand = makeCleanHand();
+    hand.winners = [{ p_id: "bot-a", amt: 1980 }];
+    const errors = validateHand(hand);
+    expect(findByRule(errors, "final_stacks_present")).toBeUndefined();
+  });
+
+  it("passes when no winners and no final_stacks (in-progress hand)", () => {
+    const hand = makeCleanHand();
+    delete hand.final_stacks;
+    delete hand.winners;
+    const errors = validateHand(hand);
+    expect(findByRule(errors, "final_stacks_present")).toBeUndefined();
+  });
+
+  // ─── amount_validity ───────────────────────────────────────────────────────
+
+  it("detects raise action missing amt", () => {
+    const hand = makeCleanHand({
+      actions: [
+        {
+          seq: 1,
+          p_id: "bot-a",
+          position: "BTN",
+          st: "p",
+          dec: "raise",
+          // amt intentionally absent
+          metrics: { eq: 0.55, w: null, source: "Personality" },
+        },
+      ],
+    });
+
+    const errors = validateHand(hand);
+    const err = findByRule(errors, "amount_validity");
+    expect(err).toBeDefined();
+    expect(err!.severity).toBe("error");
+    expect(err!.details!.dec).toBe("raise");
+  });
+
+  it("detects raise action with amt=0", () => {
+    const hand = makeCleanHand({
+      actions: [
+        {
+          seq: 1,
+          p_id: "bot-a",
+          position: "BTN",
+          st: "p",
+          dec: "raise",
+          amt: 0,
+          metrics: { eq: 0.55, w: null, source: "Personality" },
+        },
+      ],
+    });
+
+    const errors = validateHand(hand);
+    const err = findByRule(errors, "amount_validity");
+    expect(err).toBeDefined();
+    expect(err!.details!.amt).toBe(0);
+  });
+
+  it("detects all_in action missing amt", () => {
+    const hand = makeCleanHand({
+      actions: [
+        {
+          seq: 1,
+          p_id: "bot-a",
+          position: "BTN",
+          st: "p",
+          dec: "all_in",
+          metrics: { eq: 0.55, w: null, source: "Personality" },
+        },
+      ],
+    });
+
+    const errors = validateHand(hand);
+    expect(findByRule(errors, "amount_validity")).toBeDefined();
+  });
+
+  it("detects fold action carrying an amt", () => {
+    const hand = makeCleanHand({
+      actions: [
+        {
+          seq: 1,
+          p_id: "bot-a",
+          position: "BTN",
+          st: "p",
+          dec: "fold",
+          amt: 10 as any,
+          metrics: { eq: 0.1, w: null, source: "Personality" },
+        },
+      ],
+    });
+
+    const errors = validateHand(hand);
+    const err = findByRule(errors, "amount_validity");
+    expect(err).toBeDefined();
+    expect(err!.details!.dec).toBe("fold");
+  });
+
+  it("detects check action carrying an amt", () => {
+    const hand = makeCleanHand({
+      actions: [
+        {
+          seq: 1,
+          p_id: "bot-a",
+          position: "BTN",
+          st: "p",
+          dec: "check",
+          amt: 5 as any,
+          metrics: { eq: 0.5, w: null, source: "Personality" },
+        },
+      ],
+    });
+
+    const errors = validateHand(hand);
+    expect(findByRule(errors, "amount_validity")).toBeDefined();
+  });
+
+  it("passes when raise has a positive amt", () => {
+    const errors = validateHand(makeCleanHand());
+    expect(findByRule(errors, "amount_validity")).toBeUndefined();
+  });
+
+  it("does not flag call actions with no amt", () => {
+    const hand = makeCleanHand({
+      actions: [
+        {
+          seq: 1,
+          p_id: "bot-a",
+          position: "BTN",
+          st: "p",
+          dec: "call",
+          metrics: { eq: 0.45, w: null, source: "Personality" },
+        },
+      ],
+    });
+
+    const errors = validateHand(hand);
+    expect(findByRule(errors, "amount_validity")).toBeUndefined();
+  });
+
   // ─── Combined ──────────────────────────────────────────────────────────────
 
   it("reports multiple violations at once", () => {

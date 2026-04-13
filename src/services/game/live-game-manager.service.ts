@@ -524,9 +524,20 @@ export class GameInstance {
           `[game:${this.gameId.slice(0, 8)}] hand ${this.handNumber} crashed — ${e.message}`,
           e.stack,
         );
-        this.running = false;
+        // stop() clears the heartbeat timer so monitoring can detect the silence.
+        // Without this the timer keeps firing, masking the crash from both the
+        // Redis-based GameMonitorService and the in-process checkGameHeartbeats.
+        this.stop();
         this.status = "error";
         this.emitStateUpdate();
+        if (!this.simulationMode) {
+          this.eventEmitter.emit("game.error", {
+            tableId: this.tableId,
+            gameId: this.gameId,
+            tournamentId: this.tournamentId,
+            error: e.message,
+          });
+        }
         throw e;
       }
 
@@ -1543,6 +1554,23 @@ export class LiveGameManagerService implements OnModuleInit, OnModuleDestroy {
   private checkGameHeartbeats(): void {
     const now = Date.now();
     for (const [tableId, liveGame] of this.liveGames) {
+      // Detect games that crashed into error state. stop() was called in the
+      // startGame() catch block (clears heartbeat timer), so running=false.
+      // Emit game.stuck so the tournament director's recovery path fires.
+      if (!liveGame.game.running && liveGame.game.status === "error") {
+        this.logger.error(
+          `Game in error state on table ${tableId} — emitting game.stuck for recovery`,
+        );
+        this.liveGames.delete(tableId);
+        this.eventEmitter.emit("game.stuck", {
+          tableId,
+          gameId: liveGame.gameDbId,
+          tournamentId: liveGame.tournamentId,
+          silenceMs: 0,
+        });
+        continue;
+      }
+
       if (!liveGame.game.running) continue;
       const silenceMs = now - liveGame.game.lastActivityAt;
       if (silenceMs > this.GAME_HEARTBEAT_TIMEOUT_MS) {

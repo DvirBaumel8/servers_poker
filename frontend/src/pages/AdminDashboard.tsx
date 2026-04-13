@@ -666,12 +666,31 @@ export default function AdminDashboard() {
     socket.on('connect', () => {
       telemetrySocketConnected.current = true
       liveIds.forEach(id => socket.emit('subscribe_tournament', { tournamentId: id }))
+      // Seed telemetry immediately so we don't show "—" while waiting for the next hand
+      Promise.allSettled(
+        liveIds.map(async id => {
+          try {
+            const res = await api.get<TelemetryData>(`/tournaments/admin/${id}/status`)
+            setTelemetryMap(prev => ({ ...prev, [id]: res.data }))
+          } catch { /* ok */ }
+        })
+      )
     })
 
     socket.on('disconnect', () => { telemetrySocketConnected.current = false })
 
     socket.on('tournament_progress', (data: TelemetryData) => {
       setTelemetryMap(prev => ({ ...prev, [data.tournamentId]: data }))
+    })
+
+    // When the tournament finishes the backend emits tournament_state_updated with
+    // status "finished" — trigger an immediate refresh so the card moves to History
+    // without waiting for the 30s polling interval.
+    socket.on('tournament_state_updated', (data: { tournamentId: string; status: string }) => {
+      if (data.status === 'finished' || data.status === 'cancelled' || data.status === 'error') {
+        fetchTournaments()
+        fetchHistory()
+      }
     })
 
     return () => {
@@ -683,7 +702,7 @@ export default function AdminDashboard() {
       telemetrySocketRef.current = null
       telemetrySocketConnected.current = false
     }
-  }, [liveIdsKey, token])
+  }, [liveIdsKey, token, fetchTournaments, fetchHistory])
 
   // ── Polling fallback — used when WebSocket is not connected ───────────────
   useEffect(() => {
@@ -736,7 +755,11 @@ export default function AdminDashboard() {
     try {
       await api.post(`/tournaments/${id}/start`)
       showToast('Tournament started!', true)
-      await fetchTournaments()
+      // Fetch both live and history — tournaments in simulation mode can finish
+      // in under a second, so by the time we query they may already be finished.
+      await Promise.all([fetchTournaments(), fetchHistory()])
+      // Follow-up refresh catches the case where the tournament is still running
+      setTimeout(() => { fetchTournaments(); fetchHistory() }, 1000)
     } catch (e: unknown) {
       showToast(apiMsg(e, 'Start failed'), false)
     } finally { setBusyId(null) }
@@ -1902,10 +1925,10 @@ const TournamentRow = memo(function TournamentRow({ t, busyId, liveState, teleme
                   Lv {(liveState.level ?? 1) + 1} in {Math.max(0, (liveState.handsPerLevel ?? 0) - (liveState.handsThisLevel ?? 0))} hands
                 </span>
               </div>
-              <div style={{ height: 2, background: 'rgba(30,30,63,0.8)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{
                   width: `${Math.min(100, Math.round(((liveState.handsThisLevel ?? 0) / liveState.handsPerLevel) * 100))}%`,
-                  height: '100%', borderRadius: 2, background: 'rgba(168,179,196,0.4)', transition: 'width 0.4s ease',
+                  height: '100%', borderRadius: 2, background: C.accent, transition: 'width 0.4s ease',
                 }} />
               </div>
             </div>

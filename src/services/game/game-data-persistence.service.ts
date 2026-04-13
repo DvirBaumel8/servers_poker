@@ -386,8 +386,16 @@ export class GameDataPersistenceService implements OnModuleInit {
         });
 
         const winnerIds = new Set(event.winners.map((w) => w.playerId));
+        // Sort winners and players by bot_id for consistent HandPlayer lock order.
+        const sortedWinners = [...event.winners].sort((a, b) =>
+          a.playerId < b.playerId ? -1 : 1,
+        );
+        const sortedPlayers = event.players
+          ? [...event.players].sort((a, b) => (a.id < b.id ? -1 : 1))
+          : [];
 
-        for (const winner of event.winners) {
+        // Phase 1: HandPlayer updates (hand_id is unique per hand — no cross-transaction conflict)
+        for (const winner of sortedWinners) {
           await manager.getRepository(HandPlayer).update(
             { hand_id: capturedHandId, bot_id: winner.playerId },
             {
@@ -397,50 +405,61 @@ export class GameDataPersistenceService implements OnModuleInit {
               best_hand: winner.hand || null,
             },
           );
-
-          await manager
-            .getRepository(GamePlayer)
-            .increment(
-              { game_id: event.gameId, bot_id: winner.playerId },
-              "hands_won",
-              1,
-            );
         }
 
-        if (event.players) {
-          for (const player of event.players) {
-            const cardStatus =
-              player.cardStatus ??
-              (player.folded
-                ? "hidden"
-                : event.atShowdown
-                  ? "shown"
-                  : "hidden");
-            const isWinner = winnerIds.has(player.id);
-            await manager.getRepository(HandPlayer).update(
-              { hand_id: capturedHandId, bot_id: player.id },
-              {
-                end_chips: player.chips,
-                folded: player.folded,
-                all_in: player.allIn,
-                saw_showdown: event.atShowdown && !player.folded,
-                amount_bet: player.totalBet ?? 0n,
-                hole_cards: player.holeCards || [],
-                card_status: cardStatus,
-                // Explicitly clear winner fields for non-winners so that stale data from
-                // a previous (buggy or partial) run of this hand cannot survive.
-                ...(isWinner ? {} : { won: false, amount_won: 0n }),
-              },
-            );
+        for (const player of sortedPlayers) {
+          const cardStatus =
+            player.cardStatus ??
+            (player.folded ? "hidden" : event.atShowdown ? "shown" : "hidden");
+          const isWinner = winnerIds.has(player.id);
+          await manager.getRepository(HandPlayer).update(
+            { hand_id: capturedHandId, bot_id: player.id },
+            {
+              end_chips: player.chips,
+              folded: player.folded,
+              all_in: player.allIn,
+              saw_showdown: event.atShowdown && !player.folded,
+              amount_bet: player.totalBet ?? 0n,
+              hole_cards: player.holeCards || [],
+              card_status: cardStatus,
+              // Explicitly clear winner fields for non-winners so that stale data from
+              // a previous (buggy or partial) run of this hand cannot survive.
+              ...(isWinner ? {} : { won: false, amount_won: 0n }),
+            },
+          );
+        }
 
-            await manager
-              .getRepository(GamePlayer)
-              .increment(
-                { game_id: event.gameId, bot_id: player.id },
-                "hands_played",
-                1,
-              );
-          }
+        // Phase 2: GamePlayer updates — single sorted pass, one UPDATE per player.
+        //
+        // Previously there were two separate loops (winners → hands_won, players → hands_played)
+        // which acquired GamePlayer row locks in conflicting interleaved order across concurrent
+        // transactions. Example deadlock with hands H1(winner=P2) and H2(winner=P1):
+        //   T1 holds (G, P2).hands_won lock, waits for (G, P1).hands_played
+        //   T2 holds (G, P1).hands_won lock, waits for (G, P2).hands_played → deadlock
+        //
+        // Fix: acquire every GamePlayer lock exactly ONCE per transaction, in bot_id-sorted order,
+        // and update hands_played (+1 always) and hands_won (+1 if winner) in a single statement.
+        const allPlayerIds = [
+          ...new Set([
+            ...sortedPlayers.map((p) => p.id),
+            ...sortedWinners.map((w) => w.playerId),
+          ]),
+        ].sort();
+
+        for (const playerId of allPlayerIds) {
+          const isWinner = winnerIds.has(playerId);
+          await manager
+            .createQueryBuilder()
+            .update(GamePlayer)
+            .set({
+              hands_played: () => "hands_played + 1",
+              ...(isWinner ? { hands_won: () => "hands_won + 1" } : {}),
+            })
+            .where("game_id = :gameId AND bot_id = :botId", {
+              gameId: event.gameId,
+              botId: playerId,
+            })
+            .execute();
         }
 
         await manager
