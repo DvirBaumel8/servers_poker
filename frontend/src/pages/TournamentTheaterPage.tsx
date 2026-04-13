@@ -1,60 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
 import { motion, AnimatePresence, type TargetAndTransition } from 'framer-motion'
 import { Sidebar } from '../components/Sidebar'
 import { C, T, monoStyle } from '../styles/tokens'
 import api from '../lib/axios'
 
-// ─── Types (mirrored from backend tournament-log.types.ts) ───────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
+// Imported from the shared types file — do not redefine here.
 
-type StreetCode = 'p' | 'f' | 't' | 'r'
-
-interface ActionMetrics {
-  eq: number
-  w: [number, number, number] | null
-  source: string
-  rule_id?: string
-  hand_notation?: string
-}
-
-interface ActionLog {
-  seq: number
-  p_id: string
-  position: string
-  st: StreetCode
-  dec: string
-  amt?: number
-  metrics: ActionMetrics
-}
-
-interface HandLog {
-  hand_id: string
-  hand_number: number
-  dealer_bot_id: string
-  board: string[]
-  initial_stacks: Record<string, number>
-  hole_cards?: Record<string, string[]>
-  actions: ActionLog[]
-}
-
-interface ParticipantInfo {
-  botId?: string
-  botName?: string
-  userName?: string
-  elo: number
-  dna: { name: string; tier?: string }
-}
-
-interface TournamentLogSummary {
-  id: string
-  timestamp: string
-  participants: ParticipantInfo[]
-}
-
-interface MasterTournamentLog {
-  tournament_summary: TournamentLogSummary
-  hands: HandLog[]
-}
+import type {
+  StreetCode,
+  ActionMetrics,
+  ActionLog,
+  HandLog,
+  ParticipantInfo,
+  TournamentLogSummary,
+  MasterTournamentLog,
+} from '../types/hand-history'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,11 +44,6 @@ function getBBAmount(hand: HandLog): number {
 
 function getHandResult(heroId: string, handIdx: number, hands: HandLog[]): HandResult {
   const hand = hands[handIdx]
-  const nextStacks = hands[handIdx + 1]?.initial_stacks
-  if (!nextStacks) return NEUTRAL_RESULT
-
-  const heroStart = hand.initial_stacks[heroId] ?? 0
-  const heroEnd = nextStacks[heroId] ?? 0
 
   // Big pot = total pot exceeds 30 big blinds (use canonical pot calculation)
   const potTotal = computeHandTotalPot(hand)
@@ -97,6 +55,26 @@ function getHandResult(heroId: string, handIdx: number, hands: HandLog[]): HandR
   const lastHeroAction = heroActions.length > 0 ? heroActions[heroActions.length - 1] : null
   const heroFoldedPreflop = lastHeroAction?.dec === 'fold' && lastHeroAction.st === 'p'
 
+  const heroStart = hand.initial_stacks[heroId] ?? 0
+
+  // Primary: final_stacks logged by game engine after pot award
+  if (hand.final_stacks && heroId in hand.final_stacks) {
+    const heroEnd = hand.final_stacks[heroId] ?? 0
+    if (heroEnd > heroStart) return { outcome: 'win', isBigPot }
+    if (heroEnd < heroStart) return { outcome: heroFoldedPreflop ? 'fold' : 'loss', isBigPot }
+    return { outcome: 'neutral', isBigPot }
+  }
+
+  // Secondary: winners array — hero won if they appear in it
+  if (hand.winners && hand.winners.length > 0) {
+    const heroWon = hand.winners.some(w => w.p_id === heroId)
+    return { outcome: heroWon ? 'win' : (heroFoldedPreflop ? 'fold' : 'loss'), isBigPot }
+  }
+
+  // Fallback: compare next hand's initial stacks
+  const nextStacks = hands[handIdx + 1]?.initial_stacks
+  if (!nextStacks) return NEUTRAL_RESULT
+  const heroEnd = nextStacks[heroId] ?? 0
   if (heroEnd > heroStart) return { outcome: 'win', isBigPot }
   if (heroEnd < heroStart) return { outcome: heroFoldedPreflop ? 'fold' : 'loss', isBigPot }
   return { outcome: 'neutral', isBigPot }
@@ -104,25 +82,26 @@ function getHandResult(heroId: string, handIdx: number, hands: HandLog[]): HandR
 
 function getChipDelta(heroId: string, handIdx: number, hands: HandLog[]): number | null {
   const hand = hands[handIdx]
-  const thisStacks = hand.initial_stacks
-  const nextStacks = hands[handIdx + 1]?.initial_stacks
 
-  // If next hand exists and hero is in both, use stack difference (most accurate)
-  if (nextStacks && heroId in thisStacks && heroId in nextStacks) {
-    return (nextStacks[heroId] ?? 0) - (thisStacks[heroId] ?? 0)
+  // Primary: final_stacks (authoritative game engine data — same source as getHandResult)
+  if (hand.final_stacks && heroId in hand.initial_stacks) {
+    return (hand.final_stacks[heroId] ?? 0) - (hand.initial_stacks[heroId] ?? 0)
   }
 
-  // Fallback: compute from pot for last hand or when hero leaves next hand
-  // (eliminated after winning, tournament ends, etc.)
-  if (heroId in thisStacks) {
+  // Secondary: next hand's initial stacks
+  const nextStacks = hands[handIdx + 1]?.initial_stacks
+  if (nextStacks && heroId in hand.initial_stacks && heroId in nextStacks) {
+    return (nextStacks[heroId] ?? 0) - (hand.initial_stacks[heroId] ?? 0)
+  }
+
+  // Fallback: estimate from pot math (last hand or hero absent from next hand)
+  if (heroId in hand.initial_stacks) {
     const winners = getHandWinners(hand, handIdx, hands)
     if (winners.includes(heroId)) {
-      // Hero won — estimate profit as total pot minus hero's contribution
       const totalPot = computeHandTotalPot(hand)
       const heroBet = computePlayerBet(hand, heroId)
       return totalPot - heroBet
     }
-    // Hero lost — lost whatever they bet
     const heroBet = computePlayerBet(hand, heroId)
     return heroBet > 0 ? -heroBet : null
   }
@@ -206,6 +185,11 @@ function formatDelta(delta: number): string {
  * This is the single source of truth used by both hand_summary and isBigPot.
  */
 function computeHandTotalPot(hand: HandLog): number {
+  // Primary: game engine's authoritative pot record
+  if (hand.winners && hand.winners.length > 0) {
+    return hand.winners.reduce((sum, w) => sum + w.amt, 0)
+  }
+
   const blinds = synthesizeBlinds(hand)
   // Strip explicit blind actions at the start (same logic as buildTimeline)
   let blindCount = 0
@@ -290,9 +274,6 @@ function synthesizeBlinds(hand: HandLog): Array<{ p_id: string; amt: number; lab
   const n = playerIds.length
   if (n < 2) return []
 
-  const bbAmt = getBBAmount(hand)
-  const sbAmt = Math.floor(bbAmt / 2)
-
   // Primary: use the position tags from the actions themselves
   const posMap = buildPositionMapFromActions(hand)
 
@@ -328,6 +309,29 @@ function synthesizeBlinds(hand: HandLog): Array<{ p_id: string; amt: number; lab
 
   const sbChips = hand.initial_stacks[sbPlayerId] ?? 0
   const bbChips = hand.initial_stacks[bbPlayerId] ?? 0
+
+  // Best source: derive actual blind amounts from final_stacks for uncontested hands
+  // (SB folds immediately — only voluntary action is the fold itself, so stack delta = exact blind)
+  if (hand.final_stacks && hand.winners && hand.winners.length > 0) {
+    const hasVoluntaryAction = hand.actions.some(a => a.dec !== 'fold')
+    if (!hasVoluntaryAction) {
+      // Uncontested pot: each player's loss = exactly what they posted as blind
+      const actualSbAmt = Math.max(0, sbChips - (hand.final_stacks[sbPlayerId] ?? sbChips))
+      const totalPot = hand.winners.reduce((s, w) => s + w.amt, 0)
+      const actualBbAmt = actualSbAmt > 0 && totalPot > actualSbAmt
+        ? totalPot - actualSbAmt
+        : Math.max(0, bbChips - (hand.final_stacks[bbPlayerId] ?? bbChips))
+      if (actualSbAmt > 0 || actualBbAmt > 0) {
+        return [
+          { p_id: sbPlayerId, amt: actualSbAmt, label: 'SB' },
+          { p_id: bbPlayerId, amt: actualBbAmt, label: 'BB' },
+        ]
+      }
+    }
+  }
+
+  const bbAmt = getBBAmount(hand)
+  const sbAmt = Math.floor(bbAmt / 2)
 
   return [
     { p_id: sbPlayerId, amt: Math.min(sbAmt, sbChips), label: 'SB' },
@@ -381,14 +385,21 @@ function getActionLabel(action: ActionLog): string {
   return dec
 }
 
-function getHandWinners(hand: HandLog, handIdx: number, hands: HandLog[]): string[] {
-  const nextHand = hands[handIdx + 1]
-  if (nextHand) {
-    return Object.keys(hand.initial_stacks).filter(
-      id => (nextHand.initial_stacks[id] ?? 0) > (hand.initial_stacks[id] ?? 0)
-    )
+function getHandWinners(hand: HandLog, _handIdx: number, _hands: HandLog[]): string[] {
+  // Primary source of truth: the winners array logged by the game engine
+  if (hand.winners && hand.winners.length > 0) {
+    return hand.winners.map(w => w.p_id)
   }
-  // Last hand: return sole non-folded player (or first if multiple remain)
+
+  // Secondary: final_stacks logged after pot award — players whose stack grew
+  if (hand.final_stacks) {
+    const gained = Object.keys(hand.initial_stacks).filter(
+      id => (hand.final_stacks![id] ?? 0) > (hand.initial_stacks[id] ?? 0)
+    )
+    if (gained.length > 0) return gained
+  }
+
+  // Last resort: sole non-folded player (uncontested pots with no metadata)
   const foldedIds = new Set(hand.actions.filter(a => a.dec === 'fold').map(a => a.p_id))
   const remaining = Object.keys(hand.initial_stacks).filter(id => !foldedIds.has(id))
   return remaining.length > 0 ? [remaining[0]] : []
@@ -675,9 +686,11 @@ function usePlayback(log: MasterTournamentLog | null, heroId: string | null) {
 
   const stepBack = useCallback(() => {
     setIsPlaying(false)
-    if (currentActionIdx > 0) {
+    if (currentActionIdx >= 0) {
+      // Within a hand: step back one action (0 → -1 returns to deal state)
       setCurrentActionIdx(i => i - 1)
     } else if (currentHandIdx > 0) {
+      // At deal state: go to end of previous hand
       const prevHand = log?.hands[currentHandIdx - 1]
       setCurrentHandIdx(h => h - 1)
       setCurrentActionIdx(prevHand ? buildTimeline(prevHand, currentHandIdx - 1, log?.hands ?? []).length - 1 : -1)
@@ -727,6 +740,8 @@ export default function TournamentTheaterPage() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const stateLog = (location.state as { log?: MasterTournamentLog } | null)?.log ?? null
+  const { user } = useAuthStore()
+  const currentUserId = user?.id ?? null
 
   // ── Log state — seeded from navigation state or file upload ──
   const [log, setLog] = useState<MasterTournamentLog | null>(stateLog)
@@ -738,7 +753,7 @@ export default function TournamentTheaterPage() {
   const [tournamentName, setTournamentName] = useState<string>(decodeURIComponent(searchParams.get('n') ?? ''))
 
   // ── Name map from DB (resolves old logs that lack botName/userName in participants) ──
-  const [nameMap, setNameMap] = useState<Record<string, { botName: string; userName: string; finishPosition: number | null }>>({})
+  const [nameMap, setNameMap] = useState<Record<string, { botName: string; userName: string; userId: string; finishPosition: number | null }>>({})
 
   // ── Summary overlay (delayed trigger on replay completion) ──
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false)
@@ -772,14 +787,14 @@ export default function TournamentTheaterPage() {
     const tId = searchParams.get('t')
     const hId = searchParams.get('h')
     if (tId && hId && !log) {
-      api.get<{ log_data: MasterTournamentLog; nameMap: Record<string, { botName: string; userName: string }> }>(
+      api.get<{ log_data: MasterTournamentLog; nameMap: Record<string, { botName: string; userName: string; userId: string; finishPosition: number | null }> }>(
         `/tournaments/${tId}/log`
       ).then(res => {
         const { log_data, nameMap: nm } = res.data
         if (log_data?.hands) {
           setLog(log_data)
           setHeroId(hId)
-          setNameMap(nm ? Object.fromEntries(Object.entries(nm).map(([k, v]) => [k, { ...v, finishPosition: null }])) : {})
+          setNameMap(nm ? Object.fromEntries(Object.entries(nm).map(([k, v]) => [k, { ...v, finishPosition: v.finishPosition ?? null }])) : {})
         }
       }).catch(() => {
         setSearchParams({})
@@ -792,7 +807,7 @@ export default function TournamentTheaterPage() {
   const carouselRef = useRef<HTMLDivElement>(null)
 
   // ── Derive bot list from log ──
-  const bots = useMemo<Array<{ id: string; name: string; userName: string; elo: number; tier: string }>>(() => {
+  const bots = useMemo<Array<{ id: string; name: string; userName: string; ownerId: string | null; elo: number; tier: string }>>(() => {
     if (!log) return []
     const ids = Object.keys(log.hands[0]?.initial_stacks ?? {})
     const parts = log.tournament_summary.participants
@@ -810,6 +825,7 @@ export default function TournamentTheaterPage() {
         id,
         name: p?.botName ?? nm?.botName ?? p?.dna?.name ?? id.slice(0, 8),
         userName: p?.userName ?? nm?.userName ?? p?.dna?.name ?? id.slice(0, 8),
+        ownerId: nm?.userId ?? null,
         elo: p?.elo ?? 0,
         tier: p?.dna?.tier ?? '?',
       }
@@ -828,11 +844,26 @@ export default function TournamentTheaterPage() {
     return m
   }, [bots])
 
+  const ownerIdMap = useMemo(() => {
+    const m: Record<string, string | null> = {}
+    bots.forEach(b => { m[b.id] = b.ownerId })
+    return m
+  }, [bots])
+
   // ── Winner (bot with finishPosition=1 from nameMap) ──
   const winnerId = useMemo(() => {
     const entry = Object.entries(nameMap).find(([, v]) => v.finishPosition === 1)
     return entry?.[0] ?? null
   }, [nameMap])
+
+  // ── Pre-compute hand results for the carousel once per log/hero change ──
+  // getHandResult() calls computeHandTotalPot() and getBBAmount() on every
+  // invocation. Without this memo, the carousel re-runs it for every visible
+  // card on every render — O(n) heavy work per keystroke/scroll.
+  const handResults = useMemo(() => {
+    if (!filteredLog || !heroId) return [] as HandResult[]
+    return filteredLog.hands.map((_, idx) => getHandResult(heroId, idx, filteredLog.hands))
+  }, [filteredLog, heroId])
 
   // ── Current hand (derived from currentHandIdx) ──
   const currentHand = log?.hands[currentHandIdx] ?? null
@@ -1003,7 +1034,7 @@ export default function TournamentTheaterPage() {
             <TournamentSelector onLoad={(parsed, heroId, nm, tId, tName) => {
               setLog(parsed)
               setHeroId(heroId)
-              setNameMap(nm ? Object.fromEntries(Object.entries(nm).map(([k, v]) => [k, { ...v, finishPosition: null }])) : {})
+              setNameMap(nm ? Object.fromEntries(Object.entries(nm).map(([k, v]) => [k, { ...v, finishPosition: v.finishPosition ?? null }])) : {})
               setTournamentName(tName)
               setSearchParams({ t: tId, h: heroId, n: encodeURIComponent(tName) })
             }} />
@@ -1124,6 +1155,8 @@ export default function TournamentTheaterPage() {
               bots={bots}
               botNameMap={botNameMap}
               userNameMap={userNameMap}
+              ownerIdMap={ownerIdMap}
+              currentUserId={currentUserId}
               winnerId={winnerId}
               isComplete={isComplete}
               isHandComplete={currentEntry?.type === 'hand_summary'}
@@ -1227,8 +1260,15 @@ export default function TournamentTheaterPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {/* Prev hand */}
                 <ControlButton
-                  onClick={() => goToHand(Math.max(0, currentHandIdx - 1))}
-                  disabled={currentHandIdx === 0}
+                  onClick={() => {
+                    if (currentHandIdx > 0) {
+                      goToHand(currentHandIdx - 1)
+                    } else {
+                      // On first hand: jump to start of this hand (deal state)
+                      goToHand(0)
+                    }
+                  }}
+                  disabled={currentHandIdx === 0 && currentActionIdx === -1}
                   title="Previous Hand"
                 >⏮</ControlButton>
 
@@ -1328,7 +1368,7 @@ export default function TournamentTheaterPage() {
                 }}
               >
                 {filteredLog!.hands.map((hand, idx) => {
-                  const result = heroId ? getHandResult(heroId, idx, filteredLog!.hands) : NEUTRAL_RESULT
+                  const result = handResults[idx] ?? NEUTRAL_RESULT
                   const isActive = idx === currentHandIdx
                   return (
                     <StoryHandCard
@@ -1639,6 +1679,8 @@ interface PokerTableProps {
   bots: Array<{ id: string; name: string }>
   botNameMap: Record<string, string>
   userNameMap: Record<string, string>
+  ownerIdMap: Record<string, string | null>
+  currentUserId: string | null
   winnerId: string | null
   isComplete: boolean
   isHandComplete: boolean
@@ -1663,11 +1705,18 @@ interface PokerTableProps {
 const SEAT_ORDER: string[] = ['BTN', 'BTN/SB', 'SB', 'BB', 'UTG', 'UTG+1', 'MP', 'MP+1', 'HJ', 'CO']
 
 function PokerTable({
-  hand, heroId, bots, botNameMap, userNameMap, winnerId, isComplete, isHandComplete, handWinnerIds,
+  hand, heroId, bots, botNameMap, userNameMap, ownerIdMap, currentUserId, winnerId, isComplete, isHandComplete, handWinnerIds,
   communityCards, potSize, playerStacks, foldedPlayers, lastActionPerPlayer, bubbleFor,
   isRevealStep, revealStreet, betsThisStreet, mergingBets, activePlayerId,
   handPotAmount,
 }: PokerTableProps) {
+  const getDisplayName = (playerId: string): string => {
+    const ownerId = ownerIdMap[playerId]
+    if (ownerId && ownerId === currentUserId) {
+      return botNameMap[playerId] ?? `Bot-${playerId.slice(0, 6)}`
+    }
+    return userNameMap[playerId] ?? botNameMap[playerId] ?? `Bot-${playerId.slice(0, 6)}`
+  }
   // Sort players into correct poker seat order using action-level position tags.
   // This ensures the table layout matches the game engine's seating, regardless
   // of how Object.keys(initial_stacks) are ordered after JSON serialisation.
@@ -2029,9 +2078,7 @@ function PokerTable({
       <AnimatePresence>
         {isHandComplete && handWinnerIds.length > 0 && (() => {
           const hwId = handWinnerIds[0]
-          const hwName = hwId === heroId
-            ? (botNameMap[hwId] ?? 'Unknown')
-            : (userNameMap[hwId] ?? botNameMap[hwId] ?? 'Unknown')
+          const hwName = getDisplayName(hwId) || 'Unknown'
           const hwSeatIdx = playerIds.indexOf(hwId)
           const hwSeatPos = hwSeatIdx >= 0 ? SEAT_POSITIONS[hwSeatIdx] : null
           const toastPos = clampToastPosition(
@@ -2083,13 +2130,23 @@ function PokerTable({
         const isActive  = playerId === activePlayerId
         const isFolded  = foldedPlayers.has(playerId)
         const baseChips = playerStacks[playerId] ?? hand?.initial_stacks[playerId] ?? 0
-        const chips     = baseChips + (winnerStackBonus[playerId] ?? 0)
+        const chips = (() => {
+          if (isHandComplete && hand?.final_stacks) {
+            const isWinner = handWinnerIds.includes(playerId)
+            if (isWinner) {
+              // Animate the pot flying to the winner: start from (final - pot), grow to final
+              return (hand.final_stacks[playerId] ?? 0) - handPotAmount + (winnerStackBonus[playerId] ?? 0)
+            }
+            // Losers: show authoritative final stack (0 for busted players) immediately
+            return hand.final_stacks[playerId] ?? 0
+          }
+          return baseChips + (winnerStackBonus[playerId] ?? 0)
+        })()
         const lastAction = lastActionPerPlayer[playerId]
         const isDealer  = playerId === dealerBotId
         const posLabel = positionMap[playerId] ?? null
-        const displayName = isHero
-          ? (botNameMap[playerId] ?? `Bot-${playerId.slice(0, 6)}`)
-          : (userNameMap[playerId] ?? botNameMap[playerId] ?? `Bot-${playerId.slice(0, 6)}`)
+        const displayName = getDisplayName(playerId)
+        const isOwned = !isHero && ownerIdMap[playerId] === currentUserId
         const showBubble  = bubbleFor === playerId && lastAction != null
 
         return (
@@ -2165,6 +2222,16 @@ function PokerTable({
                   padding: '1px 4px', borderRadius: 3, letterSpacing: 0.5, whiteSpace: 'nowrap',
                   pointerEvents: 'none',
                 }}>YOU</div>
+              )}
+
+              {/* OWNED badge — non-hero bot belonging to the current user */}
+              {isOwned && (
+                <div style={{
+                  position: 'absolute', bottom: -7, left: '50%', transform: 'translateX(-50%)',
+                  background: 'rgba(0,180,200,0.8)', color: '#fff', fontSize: 7, fontWeight: 900,
+                  padding: '1px 4px', borderRadius: 3, letterSpacing: 0.5, whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                }}>OWNED</div>
               )}
 
               {/* Hero: always show face-up hole cards (with deal fly-in animation) */}
@@ -2612,7 +2679,7 @@ function dedupe<T>(arr: T[], keyFn: (item: T) => string): T[] {
 }
 
 function TournamentSelector({ onLoad }: {
-  onLoad: (log: MasterTournamentLog, heroId: string, nameMap: Record<string, { botName: string; userName: string }>, tournamentId: string, tournamentName: string) => void
+  onLoad: (log: MasterTournamentLog, heroId: string, nameMap: Record<string, { botName: string; userName: string; userId: string; finishPosition: number | null }>, tournamentId: string, tournamentName: string) => void
 }) {
   const [rows, setRows] = useState<ParticipationRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -2684,7 +2751,7 @@ function TournamentSelector({ onLoad }: {
     setLoadingLog(true)
     setError(null)
     try {
-      const res = await api.get<{ log_data: MasterTournamentLog; nameMap: Record<string, { botName: string; userName: string }> }>(
+      const res = await api.get<{ log_data: MasterTournamentLog; nameMap: Record<string, { botName: string; userName: string; userId: string; finishPosition: number | null }> }>(
         `/tournaments/${selectedTournamentId}/log`
       )
       const log = res.data.log_data

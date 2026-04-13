@@ -20,13 +20,23 @@ export const MIN_EQUITY = 0.0001;
 
 /**
  * Validate a completed hand log. Returns an empty array if the hand is clean.
+ *
+ * Runs all structural and integrity checks in a single pass. Errors are
+ * collected rather than thrown so the caller can log all violations at once
+ * before deciding whether to persist or discard the hand.
+ *
+ * @param hand - The completed hand log to validate
+ * @returns Array of validation errors; empty means the hand is clean
  */
 export function validateHand(hand: HandLog): HandValidationError[] {
   const errors: HandValidationError[] = [];
   errors.push(...checkActionPlayerMembership(hand));
   errors.push(...checkHoleCardPlayerMembership(hand));
+  errors.push(...checkInitialStacksMatchHoleCards(hand));
   errors.push(...checkActionSequenceMonotonicity(hand));
   errors.push(...checkChipConservation(hand));
+  errors.push(...checkFinalStacksPresent(hand));
+  errors.push(...checkAmountValidity(hand));
   errors.push(...checkNoDuplicateCards(hand));
   errors.push(...checkEquityBounds(hand));
   return errors;
@@ -177,6 +187,128 @@ function checkNoDuplicateCards(hand: HandLog): HandValidationError[] {
     ];
   }
   return [];
+}
+
+/**
+ * Bidirectional count check: hole_cards count must not exceed initial_stacks count.
+ *
+ * @remarks
+ * `checkHoleCardPlayerMembership` already catches ghost players (hole_cards
+ * player not in initial_stacks). This validator adds a fast-fail count check
+ * and validates that each player in hole_cards has exactly 2 cards — catching
+ * partial card deals or logging errors before the per-player membership loop
+ * runs. The hand_6.json corruption had 8 players in hole_cards vs 4 in
+ * initial_stacks; this rule fires first and surfaces the count mismatch
+ * explicitly.
+ *
+ * @param hand - Hand log to inspect
+ * @returns Errors if hole_cards count exceeds initial_stacks or a player has ≠2 cards
+ */
+function checkInitialStacksMatchHoleCards(
+  hand: HandLog,
+): HandValidationError[] {
+  if (!hand.hole_cards || Object.keys(hand.initial_stacks).length === 0)
+    return [];
+
+  const errors: HandValidationError[] = [];
+  const stackCount = Object.keys(hand.initial_stacks).length;
+  const holeCount = Object.keys(hand.hole_cards).length;
+
+  if (holeCount > stackCount) {
+    errors.push({
+      rule: "initial_stacks_match_hole_cards",
+      severity: "error",
+      message: `hole_cards has ${holeCount} players but initial_stacks only has ${stackCount} — cross-table data bleed likely`,
+      details: {
+        hole_cards_count: holeCount,
+        initial_stacks_count: stackCount,
+      },
+    });
+  }
+
+  for (const [pid, cards] of Object.entries(hand.hole_cards)) {
+    if (cards.length !== 2) {
+      errors.push({
+        rule: "initial_stacks_match_hole_cards",
+        severity: "error",
+        message: `Player "${pid}" has ${cards.length} hole cards — expected exactly 2`,
+        details: { p_id: pid, card_count: cards.length },
+      });
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * If a hand has declared winners, final_stacks must also be present.
+ *
+ * @remarks
+ * A hand with winners but no final_stacks means the pot was awarded but the
+ * chip state was never recorded. This makes chip conservation verification
+ * impossible and creates a gap in the audit trail. The chip_conservation
+ * validator silently skips when final_stacks is absent, so this rule makes
+ * the gap explicit rather than quietly bypassing the conservation check.
+ *
+ * @param hand - Hand log to inspect
+ * @returns Error if winners exist but final_stacks is missing
+ */
+function checkFinalStacksPresent(hand: HandLog): HandValidationError[] {
+  if (hand.winners && hand.winners.length > 0 && !hand.final_stacks) {
+    return [
+      {
+        rule: "final_stacks_present",
+        severity: "error",
+        message: `Hand has ${hand.winners.length} winner(s) but final_stacks is absent — chip conservation cannot be verified`,
+        details: { winner_count: hand.winners.length },
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * Validate that action amounts are structurally correct.
+ *
+ * @remarks
+ * - raise/all_in must carry a positive `amt` (zero or missing means the logger
+ *   failed to record the bet size).
+ * - fold/check must NOT carry `amt` (would indicate a logging error where
+ *   passive actions were mis-tagged as bets).
+ * - call is intentionally not validated: the call amount is typically absent
+ *   because the logger omits it (amount is inferred from the pot level).
+ *
+ * @param hand - Hand log to inspect
+ * @returns Errors for any action with an invalid amount
+ */
+function checkAmountValidity(hand: HandLog): HandValidationError[] {
+  const errors: HandValidationError[] = [];
+
+  for (const action of hand.actions) {
+    if (action.dec === "raise" || action.dec === "all_in") {
+      if (action.amt == null || action.amt <= 0) {
+        errors.push({
+          rule: "amount_validity",
+          severity: "error",
+          message: `Action dec="${action.dec}" seq=${action.seq} p_id="${action.p_id}" must have a positive amt (got ${action.amt ?? "absent"})`,
+          details: { seq: action.seq, dec: action.dec, amt: action.amt },
+        });
+      }
+    }
+    if (
+      (action.dec === "fold" || action.dec === "check") &&
+      action.amt != null
+    ) {
+      errors.push({
+        rule: "amount_validity",
+        severity: "error",
+        message: `Action dec="${action.dec}" seq=${action.seq} p_id="${action.p_id}" must not have amt (got ${action.amt})`,
+        details: { seq: action.seq, dec: action.dec, amt: action.amt },
+      });
+    }
+  }
+
+  return errors;
 }
 
 /**

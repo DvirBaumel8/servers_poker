@@ -9,8 +9,6 @@ types.setTypeParser(20, (val: string) => val);
 export const getDatabaseConfig = (
   configService: ConfigService,
 ): TypeOrmModuleOptions => {
-  const isProduction = configService.get<string>("NODE_ENV") === "production";
-
   return {
     type: "postgres",
     host: configService.get<string>("DB_HOST", "localhost"),
@@ -22,7 +20,7 @@ export const getDatabaseConfig = (
     migrations: [__dirname + "/../migrations/*-*{.ts,.js}"],
     migrationsRun: false,
     synchronize: false,
-    logging: !isProduction,
+    logging: false,
     ssl:
       configService.get<string>("DB_SSL") === "true"
         ? { rejectUnauthorized: false }

@@ -628,7 +628,12 @@ export class TournamentsService {
     log_data: any;
     nameMap: Record<
       string,
-      { botName: string; userName: string; finishPosition: number | null }
+      {
+        botName: string;
+        userName: string;
+        userId: string;
+        finishPosition: number | null;
+      }
     >;
   }> {
     const accessRows: Array<{ id: string }> = await this.dataSource.query(
@@ -659,7 +664,7 @@ export class TournamentsService {
       this.tournamentRepository.findById(tournamentId),
       this.dataSource.query(
         `
-        SELECT te.bot_id, b.name AS bot_name, u.name AS user_name, te.finish_position
+        SELECT te.bot_id, b.name AS bot_name, u.name AS user_name, u.id AS user_id, te.finish_position
         FROM tournament_entries te
         JOIN bots b ON b.id = te.bot_id
         JOIN users u ON u.id = b.user_id
@@ -671,6 +676,7 @@ export class TournamentsService {
           bot_id: string;
           bot_name: string;
           user_name: string;
+          user_id: string;
           finish_position: number | null;
         }>
       >,
@@ -678,12 +684,18 @@ export class TournamentsService {
 
     const nameMap: Record<
       string,
-      { botName: string; userName: string; finishPosition: number | null }
+      {
+        botName: string;
+        userName: string;
+        userId: string;
+        finishPosition: number | null;
+      }
     > = {};
     for (const r of participantRows) {
       nameMap[r.bot_id] = {
         botName: r.bot_name,
         userName: r.user_name,
+        userId: r.user_id,
         finishPosition: r.finish_position ?? null,
       };
     }

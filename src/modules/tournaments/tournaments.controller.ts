@@ -228,7 +228,22 @@ export class TournamentsController {
   @Roles("admin")
   @Get(":id/seeding-map")
   async getSeedingMap(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tournamentsService.getSeedingMap(id);
+    const data = await this.tournamentsService.getSeedingMap(id);
+    // Overlay live in-memory bust state so the seeding map stays accurate even
+    // when DB writes haven't committed yet (e.g. a player who was blinded-out
+    // while disconnected — the ghost-entry fix above ensures bustSeat() runs,
+    // but there's still a brief window where the DB row lags behind).
+    const liveBustedIds = this.tournamentDirector.getBustedBotIds(id);
+    if (liveBustedIds && liveBustedIds.size > 0) {
+      for (const table of data.tables) {
+        for (const seat of table.seats) {
+          if (liveBustedIds.has(seat.botId)) {
+            seat.busted = true;
+          }
+        }
+      }
+    }
+    return data;
   }
 
   @Public()

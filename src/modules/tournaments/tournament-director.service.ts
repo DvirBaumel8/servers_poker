@@ -479,6 +479,14 @@ export class TournamentDirectorService
     return director.getProgressData();
   }
 
+  /** Returns the set of bot IDs that have been busted in-memory for a live
+   *  tournament. Used by the seeding-map endpoint to patch stale DB rows. */
+  getBustedBotIds(tournamentId: string): Set<string> | null {
+    const director = this.activeDirectors.get(tournamentId);
+    if (!director) return null;
+    return director.getBustedBotIds();
+  }
+
   async stopTournament(tournamentId: string): Promise<void> {
     const director = this.activeDirectors.get(tournamentId);
     if (director) {
@@ -592,6 +600,7 @@ class ActiveTournament {
   private bustedBots = new Set<string>();
   private running = false;
   private handLock = false;
+  private balancingInProgress = false;
   private totalEntrants: number;
   private eventHandlerRefs: Array<{
     event: string;
@@ -1385,11 +1394,41 @@ class ActiveTournament {
       }
     };
 
+    // game.error is emitted by GameInstance when the game loop crashes (e.g.
+    // chip conservation violation). The heartbeat is cleared by stop() at that
+    // point, so both the Redis-based monitor and checkGameHeartbeats will stop
+    // seeing a fresh signal — but we also handle it eagerly here so recovery
+    // starts immediately without waiting for the next monitor scan.
+    const onGameError = async (event: {
+      tableId: string;
+      gameId: string;
+      error: string;
+    }) => {
+      if (!this.running || !this.ownsGame(event.gameId)) return;
+      this.logger.error(
+        `[Tournament ${this.tournamentId}] Game error on table ${event.tableId}: ${event.error} — triggering recovery`,
+      );
+      this.logTournamentDiagnostics("gameError");
+      try {
+        await this.checkAndRecoverErroredGames();
+        await this.checkTableBalancing();
+        if (this.activeBots.size <= 1) {
+          await this.finishTournament();
+        }
+      } catch (e: any) {
+        this.logger.error(
+          `[Tournament ${this.tournamentId}] recovery after game.error failed: ${e.message}`,
+          e.stack,
+        );
+      }
+    };
+
     this.eventEmitter.on("game.handStarted", onHandStarted);
     this.eventEmitter.on("game.handComplete", onHandComplete);
     this.eventEmitter.on("game.finished", onGameFinished);
     this.eventEmitter.on("game.stuck", onGameStuck);
     this.eventEmitter.on("game.monitor.stuck", onMonitorStuck);
+    this.eventEmitter.on("game.error", onGameError);
 
     this.eventHandlerRefs.push(
       { event: "game.handStarted", handler: onHandStarted },
@@ -1397,6 +1436,7 @@ class ActiveTournament {
       { event: "game.finished", handler: onGameFinished },
       { event: "game.stuck", handler: onGameStuck },
       { event: "game.monitor.stuck", handler: onMonitorStuck },
+      { event: "game.error", handler: onGameError },
     );
   }
 
@@ -1417,6 +1457,48 @@ class ActiveTournament {
       try {
         if (this.activeBots.size <= 1) {
           await this.finishTournament();
+          return;
+        }
+        // Recover any game that crashed into "error" state. The game.error event
+        // handler covers the immediate case; this is the backstop for cases
+        // where that event was missed or recovery itself failed.
+        const hasErrorGame = Array.from(this.tables.values()).some(
+          (t) => t.game.status === "error",
+        );
+        if (hasErrorGame) {
+          this.logger.warn(
+            `[SafetyNet] Error-state game detected — triggering recovery`,
+          );
+          this.logTournamentDiagnostics("safetyNet:errorGame");
+          await this.checkAndRecoverErroredGames().catch((e: any) =>
+            this.logger.warn(`[SafetyNet] recovery error: ${e.message}`),
+          );
+          await this.checkTableBalancing().catch((e: any) =>
+            this.logger.warn(`[SafetyNet] balancing error: ${e.message}`),
+          );
+          if (this.activeBots.size <= 1) {
+            await this.finishTournament();
+            return;
+          }
+        }
+
+        // Consolidate any under-staffed tables that may have been missed by the
+        // normal event-driven flow (e.g. a 1-player table stuck in "waiting" state).
+        if (this.tables.size > 1) {
+          const hasUnderStaffed = Array.from(this.tables.values()).some(
+            (t) =>
+              t.game.players.filter((p) => !p.disconnected && p.chips > 0n)
+                .length < 2,
+          );
+          if (hasUnderStaffed) {
+            this.logger.warn(
+              `[SafetyNet] Under-staffed table detected — triggering consolidation`,
+            );
+            this.logTournamentDiagnostics("safetyNet:underStaffed");
+            await this.checkTableBalancing().catch((e: any) =>
+              this.logger.warn(`[SafetyNet] balancing error: ${e.message}`),
+            );
+          }
         }
       } catch (e: any) {
         this.logger.error(
@@ -1458,6 +1540,15 @@ class ActiveTournament {
     // Detect busted players with same-hand tie-breaking
     await this.checkForBustedPlayers();
 
+    // Fast-path: finish immediately once the winner is decided. Checking here
+    // (right after bust detection) prevents later async operations — level
+    // advance, chip sync, table balancing — from throwing and silently skipping
+    // the finishTournament() call at the bottom of this method.
+    if (this.activeBots.size <= 1) {
+      await this.finishTournament();
+      return;
+    }
+
     // Sync chip counts to database
     await this.syncChipsToDatabase();
 
@@ -1470,7 +1561,7 @@ class ActiveTournament {
     // Toggle hand-for-hand mode based on bubble state
     this.checkHandForHandTransition();
 
-    // Check tournament completion
+    // Redundant safety check (covers any activeBots shrinkage from balancing)
     if (this.activeBots.size <= 1) {
       await this.finishTournament();
       return;
@@ -1488,6 +1579,7 @@ class ActiveTournament {
     gameId: string;
     players?: any[];
   }): Promise<void> {
+    this.logTournamentDiagnostics("gameFinished");
     await this.checkFinishedGames();
 
     if (this.activeBots.size <= 1) {
@@ -1547,10 +1639,29 @@ class ActiveTournament {
           tournamentId: this.tournamentId,
         },
       });
+
+      // Capture player states BEFORE stopping the game so we can resolve positions.
+      const liveState = tableEntry.game.getPublicState();
+      const playersForResolution = liveState.players.map((p) => ({
+        id: p.id,
+        chips: String(p.chips),
+      }));
+
       tableEntry.game.stop();
       this.liveGameManager.removeGameSync(event.tableId);
       this.tables.delete(event.tableId);
       this.tableHandNumbers.delete(event.tableId);
+
+      // Bust all remaining active players at this table by chip count so the
+      // tournament can complete rather than hanging indefinitely.
+      await this.resolveDisconnectedTablePlayers(
+        event.tableId,
+        playersForResolution,
+      );
+
+      if (this.activeBots.size <= 1) {
+        await this.finishTournament();
+      }
       return;
     }
 
@@ -1597,6 +1708,52 @@ class ActiveTournament {
     const activePlayers = hotState.players.filter(
       (p) => !p.disconnected && Number(p.chips) > 0,
     );
+
+    // A game needs at least 2 playable players to run a hand.
+    const canRespawn = activePlayers.length >= 2;
+    // One player remains at this table but others are alive at different tables.
+    // Creating a 1-player game would leave it stuck in "waiting" state forever
+    // (addPlayerImmediate auto-start requires ≥2 players). Instead, trigger
+    // checkTableBalancing which will call breakTable → move the player to another
+    // table → restart that game with 2+ players.
+    const soloSurvivor = activePlayers.length === 1 && this.activeBots.size > 1;
+
+    if (!canRespawn && !soloSurvivor) {
+      this.logger.warn(
+        `Table ${event.tableId}: only ${activePlayers.length} playable player(s) during recovery ` +
+          `(${this.activeBots.size} active overall) — resolving by chip count instead of respawning.`,
+      );
+      await this.resolveDisconnectedTablePlayers(
+        event.tableId,
+        hotState.players.map((p) => ({ id: p.id, chips: p.chips })),
+      );
+      tableEntry.game.stop();
+      this.liveGameManager.removeGameSync(event.tableId);
+      this.tables.delete(event.tableId);
+      this.tableHandNumbers.delete(event.tableId);
+      if (this.activeBots.size <= 1) {
+        await this.finishTournament();
+      }
+      return;
+    }
+
+    if (soloSurvivor) {
+      // The stopped game's player state is still readable via tableEntry.game.players.
+      // checkTableBalancing → _checkTableBalancingInner will find this table's
+      // size = 1 < 2 and call breakTable, which moves the player and restarts
+      // the target game. finalizePersistedGame/removeGameSync double-calls are safe.
+      this.logger.warn(
+        `Table ${event.tableId}: 1 active player during recovery, ${this.activeBots.size} total ` +
+          `— consolidating via table balancing instead of respawning.`,
+      );
+      this.logTournamentDiagnostics("monitorStuck:soloSurvivor");
+      await this.checkTableBalancing();
+      if (this.activeBots.size <= 1) {
+        await this.finishTournament();
+      }
+      return;
+    }
+
     const blindLevel = getBlindLevel(this.currentLevel);
     const newGameDbId = crypto.randomUUID();
 
@@ -1775,11 +1932,12 @@ class ActiveTournament {
     for (const [_tableId, tableEntry] of this.tables) {
       const state = tableEntry.game.getPublicState();
       for (const player of state.players) {
-        if (
-          player.chips === 0n &&
-          !player.disconnected &&
-          !this.bustedBots.has(player.id)
-        ) {
+        // A player with 0 chips is eliminated regardless of their connection
+        // status. The previous `!player.disconnected` guard created a blind spot:
+        // a player who received 3 strikes (disconnected) and was simultaneously
+        // blinded out to 0 chips was never removed from activeBots, leaving the
+        // tournament permanently stuck with a ghost entry.
+        if (player.chips === 0n && !this.bustedBots.has(player.id)) {
           const bot = this.activeBots.get(player.id);
           if (bot) {
             bustedThisRound.push({
@@ -1937,12 +2095,133 @@ class ActiveTournament {
           isTied: false,
         });
       }
+
+      // Warn about non-disconnected players stranded on a finished game — these
+      // are picked up by checkTableBalancing (called from handleGameFinished).
+      const strandedActive = state.players.filter(
+        (p) =>
+          !p.disconnected &&
+          p.chips > 0n &&
+          this.activeBots.has(p.id) &&
+          !this.bustedBots.has(p.id),
+      );
+      if (strandedActive.length > 0) {
+        this.logger.warn(
+          `Table finished with ${strandedActive.length} non-disconnected active player(s) — ` +
+            `consolidation expected via checkTableBalancing. ` +
+            `Players: ${strandedActive.map((p) => p.id).join(", ")}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Emit a single structured log line summarising the full tournament state.
+   * Called at every stuck/recovery/finish decision point to aid diagnosis.
+   */
+  private logTournamentDiagnostics(label: string): void {
+    const tableDetails = Array.from(this.tables.entries()).map(([id, t]) => {
+      const playable = t.game.players.filter(
+        (p) => !p.disconnected && p.chips > 0n,
+      ).length;
+      return `${id.slice(-6)}(${playable}p,${t.game.status})`;
+    });
+    this.logger.log(
+      `[DIAG:${label}] activeBots=${this.activeBots.size} ` +
+        `tables=${this.tables.size}[${tableDetails.join(",")}] ` +
+        `level=${this.currentLevel} hands=${this.roundCounter} ` +
+        `running=${this.running}`,
+    );
+  }
+
+  /**
+   * Resolve remaining active players at a terminated table by chip count.
+   *
+   * Called when a table is torn down but some bots still appear in `activeBots`
+   * (e.g. all players disconnected, or the recovery loop hit its limit).
+   * The chip leader is kept alive; everyone else is busted in ascending chip
+   * order (fewest chips = worst finish position).
+   */
+  private async resolveDisconnectedTablePlayers(
+    tableId: string,
+    players: Array<{ id: string; chips: string }>,
+  ): Promise<void> {
+    // Only consider bots still tracked as active for this tournament.
+    const active = players.filter((p) => this.activeBots.has(p.id));
+    if (active.length === 0) return;
+
+    // Sort ascending: lowest chips busts first (gets the highest position number).
+    active.sort((a, b) => Number(a.chips) - Number(b.chips));
+
+    // The last entry (most chips) is the survivor — bust everyone before it.
+    const toBust = active.slice(0, -1);
+    const survivor = active[active.length - 1];
+
+    for (const player of toBust) {
+      const bot = this.activeBots.get(player.id);
+      if (!bot) continue;
+
+      const chipsAtStart =
+        this.chipSnapshot.get(player.id) ?? Number(player.chips);
+      const position = this.totalEntrants - this.bustOrder.length;
+
+      this.bustedBots.add(player.id);
+      this.bustOrder.push({
+        botId: player.id,
+        bustLevel: this.currentLevel,
+        bustHandNumber: this.roundCounter,
+        chipsAtHandStart: chipsAtStart,
+        finishPosition: position,
+        isTied: false,
+      });
+      this.activeBots.delete(player.id);
+      this.chipSnapshot.delete(player.id);
+
+      this.logger.log(
+        `[Recovery] ${bot.userName} busted in position ${position} ` +
+          `(all disconnected at table ${tableId})`,
+      );
+
+      await this.tournamentRepository.bustEntry(
+        this.tournamentId,
+        player.id,
+        this.currentLevel,
+        position,
+        this.roundCounter,
+        chipsAtStart,
+      );
+      await this.tournamentRepository.bustSeat(this.tournamentId, player.id);
+
+      this.eventEmitter.emit("tournament.playerBusted", {
+        tournamentId: this.tournamentId,
+        botId: player.id,
+        position,
+        isTied: false,
+      });
+    }
+
+    if (survivor) {
+      this.logger.log(
+        `[Recovery] Bot ${survivor.id} survives table ${tableId} as chip leader ` +
+          `(${survivor.chips} chips, ${this.activeBots.size} players still active)`,
+      );
     }
   }
 
   private async checkTableBalancing(): Promise<void> {
     if (this.tables.size <= 1) return;
+    // Guard against concurrent balancing calls (multiple tables finishing hands
+    // simultaneously can both enter here and try to move the same player).
+    if (this.balancingInProgress) return;
+    this.balancingInProgress = true;
+    try {
+      await this._checkTableBalancingInner();
+    } finally {
+      this.balancingInProgress = false;
+    }
+  }
 
+  private async _checkTableBalancingInner(): Promise<void> {
     const tableSizes = Array.from(this.tables.entries()).map(([id, entry]) => ({
       id,
       size: entry.game.players.filter((p) => !p.disconnected && p.chips > 0n)
@@ -2310,6 +2589,34 @@ class ActiveTournament {
       });
     }
 
+    // If a target game was previously "finished" (e.g. it had only 1 player and
+    // immediately emitted game.finished), but now has ≥2 playable players after
+    // receiving a transferred player, restart it. The game loop exits via break
+    // when < 2 players remain but does NOT set running=false, so stop() is
+    // needed to clear the stale heartbeat timer before we call startGame() again.
+    for (const targetEntry of remainingTables) {
+      const playableAfterMove = targetEntry.game.players.filter(
+        (p) => !p.disconnected && p.chips > 0n,
+      ).length;
+      if (targetEntry.game.status === "finished" && playableAfterMove >= 2) {
+        this.logger.log(
+          `Table ${targetEntry.tableNumber}: restarting finished game — ` +
+            `${playableAfterMove} playable players after receiving transfer`,
+        );
+        targetEntry.game.stop(); // clears stale heartbeat timer
+        setImmediate(() => {
+          targetEntry.game
+            .startGame()
+            .catch((e: Error) =>
+              this.logger.error(
+                `Failed to restart game on table ${targetEntry.tableNumber}: ${e.message}`,
+                e.stack,
+              ),
+            );
+        });
+      }
+    }
+
     this.eventEmitter.emit("tournament.tableBreak", {
       tournamentId: this.tournamentId,
       tableId,
@@ -2367,6 +2674,7 @@ class ActiveTournament {
 
   private async finishTournament(): Promise<void> {
     if (!this.running) return; // guard against double-finish from safety-net + event
+    this.logTournamentDiagnostics("finishTournament");
     this.running = false;
     this.barrier.release(); // unblock any tables waiting at barrier before stopping them
     this.removeEventHandlers();
@@ -2406,13 +2714,9 @@ class ActiveTournament {
         );
       }
 
-      await this.tournamentRepository.updateStatus(
-        this.tournamentId,
-        "finished",
-      );
-
-      // Persist log immediately after marking finished — before any further awaits
-      // that could throw and leave log_data as null.
+      // Persist log BEFORE marking finished so that when the status-change event
+      // reaches the frontend (which immediately fetches the log), log_data is
+      // already present. A failed save is non-fatal — we still mark finished.
       const serializedLog = this.tournamentLogger.serialize();
       await this.tournamentRepository
         .saveLogData(this.tournamentId, serializedLog)
@@ -2422,6 +2726,11 @@ class ActiveTournament {
         .catch((e) =>
           this.logger.warn(`Failed to save tournament log to DB: ${e.message}`),
         );
+
+      await this.tournamentRepository.updateStatus(
+        this.tournamentId,
+        "finished",
+      );
 
       for (const [tableId, tableEntry] of this.tables) {
         await this.finalizePersistedGame(
@@ -2545,6 +2854,10 @@ class ActiveTournament {
       hps: Math.round(this.rollingHps),
       topStacks,
     };
+  }
+
+  getBustedBotIds(): Set<string> {
+    return new Set(this.bustedBots);
   }
 
   /**

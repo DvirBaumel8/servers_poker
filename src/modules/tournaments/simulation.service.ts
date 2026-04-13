@@ -167,6 +167,18 @@ export class SimulationService implements OnModuleInit, OnModuleDestroy {
   }
 
   getPoolMetrics(): PoolMetrics {
+    if (!this.pool) {
+      return {
+        poolSize: 0,
+        activeWorkers: 0,
+        idleWorkers: 0,
+        queuedTasks: 0,
+        totalTasksCompleted: 0,
+        totalTasksFailed: 0,
+        recentAvgWaitMs: 0,
+        recentAvgTaskMs: 0,
+      };
+    }
     return this.pool.getMetrics();
   }
 }
