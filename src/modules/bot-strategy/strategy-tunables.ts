@@ -251,9 +251,34 @@ export const STRATEGY_TUNABLES = {
   tournamentStage: {
     /** Minimum aggression multiplier at the earliest stage (blindRatio=1).
      *  Effective aggression = base × lerp(minAggressionDampener, 1.0, stage). */
-    minAggressionDampener: 0.6,
+    minAggressionDampener: 0.45,
     /** Minimum bluff frequency multiplier at the earliest stage. */
-    minBluffDampener: 0.5,
+    minBluffDampener: 0.35,
+  },
+
+  /**
+   * Deep-stack survival guard — prevents bots from playing recklessly when they
+   * have a large stack relative to the blinds. Implements three protections:
+   * 1. Aggression ceiling: caps effective aggression at TAG level when deep-stacked.
+   * 2. Risk dampening: halves effective riskTolerance when the call risks >40% of stack.
+   * 3. Preflop shove guard (in strategy-engine): hard-blocks preflop all-in with
+   *    non-premium hands (below QQ+/AKs) when stack > deepStackBBThreshold.
+   */
+  deepStackGuard: {
+    /** BB count above which "deep stack" mode is active (aggression ceiling + shove guard). */
+    deepStackBBThreshold: 60,
+    /** Maximum effective aggression when deep-stacked. 60 ≈ TAG aggression ceiling.
+     *  A Maniac (95) gets capped to 60 when their stack is > deepStackBBThreshold. */
+    deepStackAggressionCeiling: 60,
+    /** Potential loss as a fraction of total stack that triggers risk dampening.
+     *  0.4 = if the call amount exceeds 40% of the bot's stack, guard fires. */
+    largeLossThreshold: 0.4,
+    /** Multiplier applied to riskTolerance when the large-loss guard fires.
+     *  0.5 = effective risk tolerance is halved, making bots fold/call less aggressively. */
+    riskToleranceDampeningFactor: 0.5,
+    /** Equity above which the risk dampening guard is skipped (near-nuts hand).
+     *  0.9 = 90%+ win probability → bot may still commit stack freely. */
+    nutHandEquityThreshold: 0.9,
   },
 
   analysis: {

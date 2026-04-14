@@ -924,8 +924,18 @@ export default function TournamentTheaterPage() {
           addedChips = Math.min(addedChips, remaining)
         } else if (act.dec === 'check') {
           addedChips = 0
+        } else if (act.dec === 'all_in') {
+          // All-in: use logged amt when present; otherwise commit the entire remaining stack
+          if (act.amt != null && act.amt > 0) {
+            addedChips = Math.max(0, act.amt - playerStreetBet)
+          } else {
+            // amt missing from log — derive from initial stack minus total committed so far
+            const totalCommitted = betPerPlayer[act.p_id] ?? 0
+            const initialStack   = currentHand.initial_stacks[act.p_id] ?? 0
+            addedChips = Math.max(0, initialStack - totalCommitted)
+          }
         } else if (act.amt != null && act.amt > 0) {
-          // raise / all_in — amt is the TOTAL bet on this street, not the increment
+          // raise — amt is TOTAL bet on this street, not the increment
           addedChips = Math.max(0, act.amt - playerStreetBet)
         }
 
@@ -1969,7 +1979,11 @@ function PokerTable({
               initial={{ opacity: 0.4, scale: 0.5, x: slideInX, y: slideInY }}
               animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
               exit={{ opacity: 0, scale: 0.3, x: exitX, y: exitY }}
-              transition={{ type: 'spring', stiffness: 150, damping: 20 }}
+              transition={{
+                type: 'spring',
+                stiffness: lastActionPerPlayer[pid]?.dec === 'all_in' ? 280 : 150,
+                damping:   lastActionPerPlayer[pid]?.dec === 'all_in' ? 18  : 20,
+              }}
               style={{
                 position: 'absolute',
                 left: `${betLeft}%`, top: `${betTop}%`,
@@ -1978,15 +1992,32 @@ function PokerTable({
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
               }}
             >
-              <div style={{
-                width: 18, height: 18, borderRadius: '50%',
-                background: amt > 500 ? '#212121' : amt > 50 ? '#e53935' : '#00bcd4',
-                border: '2px solid rgba(255,255,255,0.35)',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
-              }} />
-              <div style={{ fontSize: 9, color: '#ffd700', fontWeight: 700, letterSpacing: 0.5 }}>
-                {amt.toLocaleString()}
-              </div>
+              {(() => {
+                const isAllIn = lastActionPerPlayer[pid]?.dec === 'all_in'
+                return (
+                  <>
+                    <div style={{
+                      width: isAllIn ? 22 : 18,
+                      height: isAllIn ? 22 : 18,
+                      borderRadius: '50%',
+                      background: isAllIn ? '#ffd700' : amt > 500 ? '#212121' : amt > 50 ? '#e53935' : '#00bcd4',
+                      border: isAllIn ? '2px solid #fff' : '2px solid rgba(255,255,255,0.35)',
+                      boxShadow: isAllIn
+                        ? '0 0 10px 3px rgba(255,215,0,0.7), 0 2px 6px rgba(0,0,0,0.5)'
+                        : '0 2px 6px rgba(0,0,0,0.5)',
+                    }} />
+                    <div style={{
+                      fontSize: isAllIn ? 10 : 9,
+                      color: '#ffd700',
+                      fontWeight: 700,
+                      letterSpacing: 0.5,
+                      textShadow: isAllIn ? '0 0 6px rgba(255,215,0,0.8)' : 'none',
+                    }}>
+                      {amt.toLocaleString()}
+                    </div>
+                  </>
+                )
+              })()}
             </motion.div>
           )
         })}

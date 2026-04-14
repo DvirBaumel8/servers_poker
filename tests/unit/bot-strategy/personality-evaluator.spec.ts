@@ -607,3 +607,239 @@ describe("tournament stage aggression dampener", () => {
     expect(earlyResult.weights!.raise).toBeLessThan(baseResult.weights!.raise);
   });
 });
+
+// ─── Deep-Stack Aggression Ceiling ────────────────────────────────────────────
+
+describe("deep-stack aggression ceiling (>60BB)", () => {
+  const MANIAC_DEEP = {
+    tightness: 15,
+    aggression: 95,
+    bluffFrequency: 70,
+    riskTolerance: 90,
+  };
+
+  it("Maniac with 100BB has lower raise weight than Maniac with 20BB (same hand)", () => {
+    // Deep-stacked: ceiling caps effective aggression at 60
+    const deepCtx = makeCtx({
+      equity: 0.55,
+      myStackBB: 100,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+    // Short-stacked: no ceiling applied
+    const shortCtx = makeCtx({
+      equity: 0.55,
+      myStackBB: 20,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+
+    const deepResult = evaluatePersonality(MANIAC_DEEP, deepCtx, 42);
+    const shortResult = evaluatePersonality(MANIAC_DEEP, shortCtx, 42);
+
+    // Short-stack Maniac should be more aggressive (higher raise weight)
+    expect(shortResult.weights!.raise).toBeGreaterThan(
+      deepResult.weights!.raise,
+    );
+  });
+
+  it("Maniac with 100BB is capped — raise weight equals Maniac with aggression=60 at 100BB", () => {
+    const TAG_PERSONALITY = {
+      tightness: 15,
+      aggression: 60, // exactly at the ceiling
+      bluffFrequency: 60,
+      riskTolerance: 90,
+    };
+
+    const deepManiacCtx = makeCtx({
+      equity: 0.55,
+      myStackBB: 100,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+
+    const maniacResult = evaluatePersonality(MANIAC_DEEP, deepManiacCtx, 42);
+    const tagResult = evaluatePersonality(TAG_PERSONALITY, deepManiacCtx, 42);
+
+    // After ceiling, Maniac's weights should match a 60-aggression personality
+    expect(maniacResult.weights!.raise).toBeCloseTo(
+      tagResult.weights!.raise,
+      4,
+    );
+  });
+
+  it("ceiling does NOT apply below 60BB threshold", () => {
+    const ctx50BB = makeCtx({
+      equity: 0.55,
+      myStackBB: 50,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+    const ctx80BB = makeCtx({
+      equity: 0.55,
+      myStackBB: 80,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+
+    const result50 = evaluatePersonality(MANIAC_DEEP, ctx50BB, 42);
+    const result80 = evaluatePersonality(MANIAC_DEEP, ctx80BB, 42);
+
+    // 50BB → no ceiling, 80BB → ceiling applied → 50BB should be more aggressive
+    expect(result50.weights!.raise).toBeGreaterThan(result80.weights!.raise);
+  });
+
+  it("non-maniac personality (aggression=50) is not affected by the ceiling", () => {
+    // Ceiling only applies when effectiveAggression > 60; balanced bots are unaffected
+    const balanced = {
+      tightness: 50,
+      aggression: 50,
+      bluffFrequency: 20,
+      riskTolerance: 50,
+    };
+
+    const deepCtx = makeCtx({
+      equity: 0.55,
+      myStackBB: 100,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+    const shortCtx = makeCtx({
+      equity: 0.55,
+      myStackBB: 20,
+      canCheck: false,
+      toCall: 20,
+      facingBet: true,
+      potOdds: 0.15,
+    });
+
+    const deepResult = evaluatePersonality(balanced, deepCtx, 42);
+    const shortResult = evaluatePersonality(balanced, shortCtx, 42);
+
+    // No ceiling effect — raise weights should be identical
+    expect(deepResult.weights!.raise).toBeCloseTo(
+      shortResult.weights!.raise,
+      4,
+    );
+  });
+});
+
+// ─── Risk/Reward Normalization ─────────────────────────────────────────────────
+
+describe("risk/reward normalization — large call fraction dampens risk tolerance", () => {
+  const HIGH_RISK = {
+    tightness: 20,
+    aggression: 60,
+    bluffFrequency: 20,
+    riskTolerance: 90, // very aggressive
+  };
+
+  it("calling 50% of stack with marginal equity (0.5) reduces raise weight vs small call", () => {
+    const bb = 100;
+    // Large call: 50BB call out of 100BB stack = 50% of stack
+    const largeCallCtx = makeCtx({
+      equity: 0.5,
+      myStackBB: 100,
+      bigBlind: bb,
+      toCall: 50 * bb, // 50BB call
+      canCheck: false,
+      facingBet: true,
+      facingRaise: true,
+      potOdds: 0.5,
+    });
+    // Small call: 5BB call out of 100BB stack = 5% of stack
+    const smallCallCtx = makeCtx({
+      equity: 0.5,
+      myStackBB: 100,
+      bigBlind: bb,
+      toCall: 5 * bb, // 5BB call
+      canCheck: false,
+      facingBet: true,
+      facingRaise: true,
+      potOdds: 0.05,
+    });
+
+    const largeResult = evaluatePersonality(HIGH_RISK, largeCallCtx, 42);
+    const smallResult = evaluatePersonality(HIGH_RISK, smallCallCtx, 42);
+
+    // Large call → risk dampened → more fold weight, less raise weight
+    expect(largeResult.weights!.fold).toBeGreaterThan(
+      smallResult.weights!.fold,
+    );
+  });
+
+  it("near-nuts hand (equity >= 0.9) bypasses risk dampening", () => {
+    const bb = 100;
+    // Same large call scenario but with near-nuts equity
+    const nutsCtx = makeCtx({
+      equity: 0.93,
+      myStackBB: 100,
+      bigBlind: bb,
+      toCall: 50 * bb,
+      canCheck: false,
+      facingBet: true,
+      facingRaise: true,
+      potOdds: 0.5,
+    });
+    const marginalCtx = makeCtx({
+      equity: 0.5,
+      myStackBB: 100,
+      bigBlind: bb,
+      toCall: 50 * bb,
+      canCheck: false,
+      facingBet: true,
+      facingRaise: true,
+      potOdds: 0.5,
+    });
+
+    const nutsResult = evaluatePersonality(HIGH_RISK, nutsCtx, 42);
+    const marginalResult = evaluatePersonality(HIGH_RISK, marginalCtx, 42);
+
+    // Near-nuts → full risk tolerance → lower fold weight vs marginal
+    expect(nutsResult.weights!.fold).toBeLessThan(marginalResult.weights!.fold);
+  });
+
+  it("small call (<40% of stack) does NOT trigger dampening", () => {
+    const bb = 100;
+    // 20% of stack — below the 40% threshold
+    const ctxSmall = makeCtx({
+      equity: 0.5,
+      myStackBB: 100,
+      bigBlind: bb,
+      toCall: 20 * bb,
+      canCheck: false,
+      facingBet: true,
+      potOdds: 0.2,
+    });
+    // 50% of stack — above the 40% threshold
+    const ctxLarge = makeCtx({
+      equity: 0.5,
+      myStackBB: 100,
+      bigBlind: bb,
+      toCall: 50 * bb,
+      canCheck: false,
+      facingBet: true,
+      potOdds: 0.5,
+    });
+
+    const smallResult = evaluatePersonality(HIGH_RISK, ctxSmall, 42);
+    const largeResult = evaluatePersonality(HIGH_RISK, ctxLarge, 42);
+
+    // Large call has dampening → more fold weight
+    expect(largeResult.weights!.fold).toBeGreaterThan(
+      smallResult.weights!.fold,
+    );
+  });
+});

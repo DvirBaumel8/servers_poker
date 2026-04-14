@@ -41,6 +41,17 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
+  // Trust proxy: when nginx is in front, use X-Forwarded-* headers for real client IP
+  // Required for rate-limiting, analytics, and security checks to work correctly
+  const trustProxy = configService.get<string | number>("trustProxy");
+  if (trustProxy !== undefined) {
+    const trustValue =
+      typeof trustProxy === "string"
+        ? Number(trustProxy) || trustProxy
+        : trustProxy;
+    app.getHttpAdapter().getInstance().set("trust proxy", trustValue);
+  }
+
   // Security: Enforce JWT_SECRET in all non-development environments
   const jwtSecret = configService.get<string>("jwtSecret");
   if (

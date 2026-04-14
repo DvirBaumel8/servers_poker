@@ -1,0 +1,87 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+    branches: [main]
+
+# Prevent concurrent deploys racing against each other
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # Do NOT cancel in-progress deploys — let them finish
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: Deploy to Oracle ARM
+    runs-on: ubuntu-latest
+    # Only deploy when CI passes (if triggered via workflow_run)
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+
+    permissions:
+      contents: read
+      packages: read   # Read GHCR packages to verify image exists
+
+    environment:
+      name: production
+      url: https://yourdomain.com
+
+    steps:
+      # ── 1. Verify the Docker image was pushed by ci.yml ─────────────
+      - name: Verify Docker image exists in GHCR
+        run: |
+          echo "${{ secrets.GHCR_TOKEN }}" | \
+            docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker manifest inspect \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      # ── 2. SSH into Oracle + pull + restart ─────────────────────────
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          # Fail the step if any command in the script exits non-zero
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            DEPLOY_DIR=/opt/botroyale
+
+            echo "==> Logging into GHCR"
+            echo "${{ secrets.GHCR_TOKEN }}" | \
+              docker login ghcr.io \
+                -u ${{ github.actor }} \
+                --password-stdin
+
+            echo "==> Pulling latest image"
+            cd "$DEPLOY_DIR"
+            docker compose -f docker-compose.prod.yml pull backend migrate
+
+            echo "==> Running DB migrations"
+            docker compose -f docker-compose.prod.yml \
+              --profile migrate \
+              run --rm migrate
+
+            echo "==> Restarting services (zero downtime: nginx+redis stay up)"
+            docker compose -f docker-compose.prod.yml \
+              up -d --remove-orphans --no-deps backend
+
+            echo "==> Waiting for backend health check"
+            timeout 60 bash -c \
+              'until docker inspect --format="{{.State.Health.Status}}" poker-backend | grep -q "healthy"; do sleep 3; done'
+
+            echo "==> Pruning old images (keep last 3)"
+            docker image prune -f --filter "until=72h"
+
+            echo "==> Deploy complete"
