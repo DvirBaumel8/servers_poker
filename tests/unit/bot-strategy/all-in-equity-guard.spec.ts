@@ -8,9 +8,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   evaluateStrategy,
-  evaluateHydrated,
-  getOrHydrateStrategy,
-  buildGameContext,
   clearEvalCache,
   clearHydrationCache,
   type BotPayload,
@@ -20,7 +17,6 @@ import type {
   GameContext,
 } from "../../../src/domain/bot-strategy/strategy.types";
 import { evaluatePersonality } from "../../../src/modules/bot-strategy/evaluators/personality.evaluator";
-import { STRATEGY_TUNABLES } from "../../../src/modules/bot-strategy/strategy-tunables";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

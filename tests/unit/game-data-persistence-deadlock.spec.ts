@@ -20,17 +20,6 @@ import { GameDataPersistenceService } from "../../src/services/game/game-data-pe
 
 // ── Minimal mocks ─────────────────────────────────────────────────────────────
 
-function makeQbMock() {
-  const qb: any = {
-    update: vi.fn().mockReturnThis(),
-    set: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    execute: vi.fn().mockResolvedValue({}),
-    increment: vi.fn().mockReturnThis(),
-  };
-  return qb;
-}
-
 interface GamePlayerCall {
   botId: string;
   incrementsHandsWon: boolean;
