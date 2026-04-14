@@ -3,7 +3,6 @@ import {
   parseHandLog,
   safeParseHandLog,
   safeParseTournamentLog,
-  HandLogSchema,
 } from "../../src/services/game/hand-log.schema";
 
 // ─── Minimal valid hand fixture ───────────────────────────────────────────────
