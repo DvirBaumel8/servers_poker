@@ -411,6 +411,38 @@ function applyAllInEquityGuard(
   };
 }
 
+/**
+ * Deep-stack preflop guard — hard-blocks preflop all-in actions with non-premium
+ * hands when the bot has a deep stack (>60BB). QQ+/AKs (holeCardRank === "premium")
+ * are exempt and may shove freely. Fires AFTER applyAllInEquityGuard.
+ *
+ * Rationale: high-aggression bots were shoving AJ/AQ on hand 1 against 100BB stacks,
+ * busting out of tournaments immediately. This guard enforces "value tournament life"
+ * by downgrading preflop shoves to calls (or checks if no bet to face).
+ */
+function applyDeepStackPreflopGuard(
+  result: StrategyEvaluation,
+  ctx: GameContext,
+): StrategyEvaluation {
+  if (ctx.street !== "preflop") return result;
+  if (ctx.myStackBB <= STRATEGY_TUNABLES.deepStackGuard.deepStackBBThreshold)
+    return result;
+  if (result.action.type !== "all_in") return result;
+  if (ctx.holeCardRank === "premium") return result; // QQ+, AKs — allow shove
+
+  // Downgrade: facing a bet → call (not all-in); no bet → check
+  const overrideAction =
+    ctx.toCall === 0
+      ? ({ type: "check" } as const)
+      : ({ type: "call" } as const);
+
+  return {
+    ...result,
+    action: overrideAction,
+    explanation: `Deep stack preflop guard: shove blocked (${ctx.myStackBB.toFixed(0)}BB > ${STRATEGY_TUNABLES.deepStackGuard.deepStackBBThreshold}BB, hand: ${ctx.holeCardRank}) — was: ${result.explanation}`,
+  };
+}
+
 function evaluateHydratedUncached(
   hydrated: HydratedStrategy,
   payload: BotPayload,
@@ -440,19 +472,25 @@ function evaluateHydratedUncached(
     const ruleResult = evaluatePreSortedRules(streetRulesFirst, builtContext);
     if (ruleResult.matched && ruleResult.action) {
       const action = resolveAction(ruleResult.action, builtContext);
-      return applyAllInEquityGuard(
-        {
-          action,
-          source:
-            builtContext.myPosition &&
-            hydrated.positions[builtContext.myPosition]
-              ? "Position Override"
-              : "Hard Rule",
-          explanation: `Rule matched: ${ruleResult.ruleLabel || ruleResult.ruleId}`,
-          ruleId: ruleResult.ruleId,
-          metrics: { equity: builtContext.equity, strategyWeights: undefined },
-        },
-        payload,
+      return applyDeepStackPreflopGuard(
+        applyAllInEquityGuard(
+          {
+            action,
+            source:
+              builtContext.myPosition &&
+              hydrated.positions[builtContext.myPosition]
+                ? "Position Override"
+                : "Hard Rule",
+            explanation: `Rule matched: ${ruleResult.ruleLabel || ruleResult.ruleId}`,
+            ruleId: ruleResult.ruleId,
+            metrics: {
+              equity: builtContext.equity,
+              strategyWeights: undefined,
+            },
+          },
+          payload,
+          builtContext,
+        ),
         builtContext,
       );
     }
@@ -472,17 +510,22 @@ function evaluateHydratedUncached(
       const actionDef = rangeActionToActionDef(resolvedAction);
       if (actionDef) {
         const action = resolveActionMinimal(actionDef, payload);
-        return applyAllInEquityGuard(
-          {
-            action,
-            source: "Range Chart",
-            explanation: `Range chart: ${rangeResult.handNotation} → ${resolvedAction}`,
-            handNotation: rangeResult.handNotation,
-            // Equity is not computed on the lazy preflop path — use floor, never 0
-            metrics: { equity: 0.0001, strategyWeights: undefined },
-          },
-          payload,
-          builtContext,
+        // Build context for the deep-stack guard (lazy — only if range chart fires).
+        const rangeGuardCtx = builtContext ?? buildGameContext(payload);
+        return applyDeepStackPreflopGuard(
+          applyAllInEquityGuard(
+            {
+              action,
+              source: "Range Chart",
+              explanation: `Range chart: ${rangeResult.handNotation} → ${resolvedAction}`,
+              handNotation: rangeResult.handNotation,
+              // Equity is not computed on the lazy preflop path — use floor, never 0
+              metrics: { equity: 0.0001, strategyWeights: undefined },
+            },
+            payload,
+            builtContext,
+          ),
+          rangeGuardCtx,
         );
       }
     }
@@ -500,20 +543,23 @@ function evaluateHydratedUncached(
     labMode,
   );
 
-  return applyAllInEquityGuard(
-    {
-      action: resolveAction(personalityResult.action, context),
-      source:
-        context.myPosition && hydrated.positions[context.myPosition]
-          ? "Position Override"
-          : "Personality",
-      explanation: personalityResult.explanation,
-      metrics: {
-        equity: context.equity,
-        strategyWeights: personalityResult.weights,
+  return applyDeepStackPreflopGuard(
+    applyAllInEquityGuard(
+      {
+        action: resolveAction(personalityResult.action, context),
+        source:
+          context.myPosition && hydrated.positions[context.myPosition]
+            ? "Position Override"
+            : "Personality",
+        explanation: personalityResult.explanation,
+        metrics: {
+          equity: context.equity,
+          strategyWeights: personalityResult.weights,
+        },
       },
-    },
-    payload,
+      payload,
+      context,
+    ),
     context,
   );
 }

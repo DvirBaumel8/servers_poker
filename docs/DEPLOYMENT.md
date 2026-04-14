@@ -361,3 +361,550 @@ server {
     }
 }
 ```
+
+---
+
+## Production Deployment — Oracle Cloud ARM Free Tier
+
+This section covers deploying BotRoyale to production using 100% free-tier services: Oracle Cloud ARM instance (4 OCPUs / 24 GB), Supabase/Neon for managed PostgreSQL, Vercel for the React frontend, and Cloudflare for TLS termination.
+
+### Architecture Overview
+
+```
+User Browser
+    │
+    ▼ HTTPS (Cloudflare terminates TLS)
+Cloudflare Edge (free tier)
+    │
+    ▼ HTTP on port 80
+Oracle ARM Instance (Ubuntu 22.04, free tier)
+    └── Docker Compose (docker-compose.prod.yml)
+        ├── nginx:1.27-alpine  (reverse proxy, port 80)
+        ├── backend:latest     (ghcr.io image, internal :3000)
+        └── redis:7-alpine     (in-process caching, internal :6379)
+
+External Services:
+    ├── Supabase / Neon (managed PostgreSQL, TLS required)
+    └── Vercel (React SPA frontend, separate deployment)
+```
+
+### Step 1: Provision Oracle ARM Instance
+
+1. Sign up at [cloud.oracle.com](https://cloud.oracle.com) (free tier — requires credit card for verification, not charged).
+2. Create a Compute Instance:
+   - **Shape:** VM.Standard.A1.Flex (ARM)
+   - **OCPUs:** 4, **Memory:** 24 GB
+   - **Image:** Canonical Ubuntu 22.04 Minimal
+   - **Boot Volume:** 50 GB (free tier allows up to 200 GB total)
+3. Under "Add SSH keys": upload your public key or generate a new one and download the private key.
+4. Note the **Public IP address** (e.g., `123.456.789.0`).
+
+#### Oracle Security List (Firewall Rules)
+
+In the Oracle Console → Networking → Virtual Cloud Network → Security Lists, add these **Ingress Rules:**
+
+| Protocol | Port | Source CIDR | Notes |
+|---|---|---|---|
+| TCP | 22 | YOUR_IP/32 | SSH — restrict to your IP for security |
+| TCP | 80 | 0.0.0.0/0 | HTTP (Cloudflare proxies traffic here) |
+
+Do NOT open ports 3000, 443, or 5432 publicly. nginx is the only public-facing service.
+
+#### Oracle iptables Gotcha
+
+Oracle Ubuntu instances have a **second firewall layer** (iptables) active by default, in addition to the VCN Security List. You must explicitly allow port 80 in both places:
+
+```bash
+ssh ubuntu@YOUR_ORACLE_IP
+
+# Add iptables rule for HTTP
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+
+# Persist the rule across reboots
+sudo netfilter-persistent save
+# (install if needed: sudo apt install iptables-persistent)
+
+# Verify
+sudo iptables -L INPUT | grep 80
+```
+
+Without this, even if the Security List allows port 80, connections will be dropped by iptables.
+
+### Step 2: Install Docker on the Oracle Instance
+
+```bash
+ssh ubuntu@YOUR_ORACLE_IP
+
+# Update system
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get install -y ca-certificates curl gnupg lsb-release
+
+# Add Docker's GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Add Docker repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Add ubuntu user to docker group (avoid sudo for docker commands)
+sudo usermod -aG docker ubuntu
+newgrp docker
+
+# Verify installation
+docker --version
+docker compose version
+```
+
+### Step 3: Set Up Deploy Directory and Configuration
+
+```bash
+# On the Oracle server, create the deployment directory
+ssh ubuntu@YOUR_ORACLE_IP
+mkdir -p /opt/botroyale/nginx
+cd /opt/botroyale
+```
+
+Copy the production files from your repo to the server:
+
+```bash
+# From your local machine (or CI/CD)
+scp docker-compose.prod.yml ubuntu@YOUR_ORACLE_IP:/opt/botroyale/
+scp nginx/nginx.conf ubuntu@YOUR_ORACLE_IP:/opt/botroyale/nginx/
+```
+
+Create the production environment file on the server (never copy from your local machine):
+
+```bash
+ssh ubuntu@YOUR_ORACLE_IP
+nano /opt/botroyale/.env.production
+```
+
+Copy the contents from `.env.production.example` in the repo, filling in real values:
+
+```bash
+NODE_ENV=production
+PORT=3000
+TRUST_PROXY=1
+
+# Database (Supabase or Neon)
+DB_HOST=db.xxxxxxxxxxxx.supabase.co
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=YOUR_STRONG_PASSWORD
+DB_NAME=postgres
+DB_SSL=true
+DB_POOL_SIZE=10
+
+# JWT Secret (generate: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
+JWT_SECRET=YOUR_64_CHAR_HEX_STRING
+
+# CORS
+CORS_ORIGINS=https://your-app.vercel.app,https://yourdomain.com
+
+# Redis (internal docker network)
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# Rate limiting
+RATE_LIMIT_MAX=300
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_SKIP_LOCALHOST=false
+
+# Other settings
+ENABLE_WORKER_THREADS=true
+MAX_CONCURRENT_GAMES=100
+GITHUB_REPOSITORY=your-github-org/servers_poker
+```
+
+Verify the file is secure (only readable by the ubuntu user):
+
+```bash
+chmod 600 /opt/botroyale/.env.production
+```
+
+### Step 4: GitHub Actions SSH Key Setup
+
+Generate a dedicated SSH keypair for GitHub Actions (on your local machine, NOT on Oracle):
+
+```bash
+ssh-keygen -t ed25519 -C "github-deploy@botroyale" -f ~/.ssh/botroyale_deploy
+# When prompted for passphrase, leave blank — GitHub Actions needs unattended access
+```
+
+Add the **public** key to the Oracle server's authorized_keys:
+
+```bash
+ssh ubuntu@YOUR_ORACLE_IP
+echo "$(cat ~/.ssh/botroyale_deploy.pub)" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+### Step 5: Configure GitHub Secrets
+
+Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+
+Add these secrets:
+
+| Secret Name | Value |
+|---|---|
+| `ORACLE_HOST` | Your Oracle public IP (e.g., `123.456.789.0`) |
+| `ORACLE_USER` | `ubuntu` (default Oracle Ubuntu user) |
+| `ORACLE_SSH_KEY` | Full content of `~/.ssh/botroyale_deploy` (private key) — paste everything including `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----END OPENSSH PRIVATE KEY-----` |
+| `GHCR_TOKEN` | GitHub Personal Access Token with `read:packages` scope (see below) |
+
+#### Creating the GHCR PAT
+
+1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+2. Click **Generate new token (classic)**
+3. Scopes: check **only `read:packages`**
+4. Set expiration to **90 days** (rotate frequently)
+5. Copy the token and add it as the `GHCR_TOKEN` secret
+6. Add a calendar reminder to rotate the token every 90 days
+
+The built-in `GITHUB_TOKEN` already handles pushing Docker images to GHCR (ci.yml). The `GHCR_TOKEN` PAT is separate because the Oracle server pulls images outside of GitHub Actions' token scope.
+
+### Step 6: Set Up Managed PostgreSQL
+
+Choose either **Supabase** (simpler) or **Neon** (slightly more powerful).
+
+#### Supabase
+
+1. Sign up at [supabase.com](https://supabase.com) → **New project**
+2. Choose a region close to you (e.g., Frankfurt or Amsterdam for EU, us-east for US)
+3. From **Project Settings** → **Database**:
+   - **Host:** `db.xxxxxxxxxxxx.supabase.co`
+   - **Port:** `5432`
+   - **User:** `postgres`
+   - **Password:** (set during project creation)
+4. Optional: In **Database** → **Connection Pooling**, enable Supavisor (pooler) if you need more than the default 10 pooled connections
+
+#### Neon
+
+1. Sign up at [neon.tech](https://neon.tech) → **New project**
+2. Copy the connection string from the dashboard
+3. Extract `PGHOST`, `PGUSER`, `PGPASSWORD`, etc. from the connection string
+
+**Important:** Set `DB_SSL=true` in `.env.production` for both services. The app's `database.config.ts` already handles this correctly.
+
+### Step 7: Cloudflare DNS + Proxy Setup
+
+Cloudflare provides free TLS termination. This is much simpler than setting up Let's Encrypt with certbot.
+
+1. Sign up at [cloudflare.com](https://cloudflare.com) and add your domain (free plan)
+2. Update your domain registrar's nameservers to Cloudflare's (provided after adding domain)
+3. In **Cloudflare DNS**:
+   - Create an `A` record:
+     - **Type:** A
+     - **Name:** `api` (or whatever subdomain — e.g., `api.yourdomain.com`)
+     - **Content:** Your Oracle public IP (e.g., `123.456.789.0`)
+     - **Proxy:** **Proxied** (orange cloud icon) — this enables Cloudflare's magic
+4. In **Cloudflare SSL/TLS** → **Overview**:
+   - **Mode:** Set to **Full** (not Flexible, not Full Strict)
+     - Flexible: Cloudflare → origin is HTTP (no certs needed, but less secure)
+     - Full: Cloudflare requires origin to respond on HTTPS with any cert (doesn't have to be valid)
+     - Full Strict: Cloudflare requires origin to respond on HTTPS with a **valid** cert
+     - We use **Full** because nginx only listens on HTTP 80
+5. In **SSL/TLS** → **Edge Certificates** → **Always Use HTTPS:** Turn **On**
+6. In **SSL/TLS** → **Minimum TLS Version:** Set to **TLS 1.2**
+
+**Result:** `https://api.yourdomain.com` → Cloudflare edge (terminates TLS) → `http://YOUR_ORACLE_IP:80` → nginx → backend:3000
+
+### Step 8: Vercel Frontend Setup
+
+Vercel hosts the React SPA and automatically deploys from your GitHub repo.
+
+1. Sign up at [vercel.com](https://vercel.com)
+2. **Import Project** → Select your GitHub repo
+3. **Framework Preset:** Vite
+4. **Root Directory:** `frontend`
+5. **Build Command:** `npm run build`
+6. **Output Directory:** `dist`
+7. **Environment Variables** (set for **Production** scope only):
+   - **Name:** `VITE_API_URL`
+   - **Value:** `https://api.yourdomain.com`
+8. Click **Deploy** and wait for the build to complete
+9. Vercel assigns you a URL like `https://your-app.vercel.app`
+
+**Update CORS:** After Vercel deployment, update `CORS_ORIGINS` in `.env.production` on the Oracle server to include the Vercel URL:
+
+```bash
+ssh ubuntu@YOUR_ORACLE_IP
+nano /opt/botroyale/.env.production
+# Edit CORS_ORIGINS=https://your-app.vercel.app,https://yourdomain.com
+```
+
+### Step 9: Initial Deployment
+
+Log into the Oracle server and start the stack:
+
+```bash
+ssh ubuntu@YOUR_ORACLE_IP
+cd /opt/botroyale
+
+# Log in to GitHub Container Registry
+echo YOUR_GHCR_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+
+# Pull the latest images
+docker compose -f docker-compose.prod.yml pull
+
+# Run database migrations
+docker compose -f docker-compose.prod.yml --profile migrate run --rm migrate
+
+# Start all services
+docker compose -f docker-compose.prod.yml up -d
+
+# Verify services are running
+docker compose -f docker-compose.prod.yml ps
+
+# Check logs
+docker compose -f docker-compose.prod.yml logs -f --tail 50
+```
+
+Verify the health check:
+
+```bash
+curl http://localhost/api/v1/health
+# Expected: {"status":"ok"}
+```
+
+### Step 10: Continuous Deployment
+
+When you push to `main`, GitHub Actions:
+1. Runs tests and linting (ci.yml)
+2. Builds multi-platform Docker image (amd64 + arm64)
+3. Pushes to GHCR with `latest` tag
+4. Triggers deploy.yml, which:
+   - SSHes into Oracle
+   - Pulls the new image
+   - Runs migrations
+   - Restarts backend (nginx and redis stay up for zero downtime)
+   - Verifies health check
+
+No manual intervention needed — fully automated.
+
+### Ongoing Operations
+
+#### View Logs
+
+```bash
+# All services
+docker compose -f docker-compose.prod.yml logs -f
+
+# Backend only
+docker logs poker-backend -f --tail 100
+
+# nginx access/error logs
+docker logs poker-nginx -f
+```
+
+#### Restart Services
+
+```bash
+cd /opt/botroyale
+
+# Restart backend only (zero downtime)
+docker compose -f docker-compose.prod.yml up -d --no-deps backend
+
+# Restart all services
+docker compose -f docker-compose.prod.yml restart
+
+# Stop all
+docker compose -f docker-compose.prod.yml down
+
+# Start all
+docker compose -f docker-compose.prod.yml up -d
+```
+
+#### Update Environment Variables
+
+```bash
+# Edit the .env.production file
+nano /opt/botroyale/.env.production
+
+# Apply changes (restart backend to pick up new vars)
+docker compose -f docker-compose.prod.yml up -d --no-deps backend
+
+# Verify
+docker logs poker-backend --tail 20
+```
+
+#### Rollback to Previous Image
+
+If a deployment breaks, rollback quickly:
+
+```bash
+cd /opt/botroyale
+
+# View available images
+docker images | grep servers_poker
+
+# Roll back to a specific SHA (from GHCR tags)
+ROLLBACK_SHA=abc1234
+
+docker compose -f docker-compose.prod.yml pull
+docker run --rm \
+  -e GITHUB_REPOSITORY="your-org/servers_poker" \
+  ghcr.io/your-org/servers_poker:${ROLLBACK_SHA} echo "Image ready"
+
+# Restart backend with the old image (tag must exist in GHCR)
+# edit docker-compose.prod.yml temporarily:
+# image: ghcr.io/your-org/servers_poker:abc1234
+
+nano /opt/botroyale/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d --no-deps backend
+```
+
+#### Emergency Migration Revert
+
+If a migration causes data corruption:
+
+```bash
+# 1. Restore database from Supabase/Neon point-in-time recovery first
+# 2. Then in the running container, revert the migration:
+docker compose -f docker-compose.prod.yml exec backend \
+  npm run migration:revert
+
+# Or manually verify the current schema:
+docker compose -f docker-compose.prod.yml exec backend \
+  npm run migration:show
+```
+
+### Monitoring & Maintenance
+
+#### Health Checks
+
+The deploy.yml waits for the backend health check to pass before considering the deploy successful:
+
+```bash
+curl https://api.yourdomain.com/api/v1/health
+# Expected: {"status":"ok"}
+```
+
+#### Database Connection Health
+
+The Postgres connection is validated on each API request. If connections are failing:
+
+```bash
+docker logs poker-backend | grep -i "connection\|pool\|error"
+```
+
+#### Disk Space
+
+Monitor disk usage on the Oracle instance:
+
+```bash
+df -h
+# Free tier allows 50 GB boot volume
+
+# Clean up old Docker images
+docker image prune -f --filter "until=72h"
+
+# Check Docker disk usage
+docker system df
+```
+
+#### Swap Space
+
+Oracle free tier doesn't include swap by default. NestJS + Redis should fit in 24 GB, but create swap for safety:
+
+```bash
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Persist across reboots
+echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
+```
+
+### Security Checklist
+
+Before going live:
+
+- [ ] `JWT_SECRET` is 64+ hex characters (generated via `crypto.randomBytes(64).toString('hex')`)
+- [ ] `DB_PASSWORD` is strong and **unique to this project**
+- [ ] `DB_SSL=true` in `.env.production`
+- [ ] `CORS_ORIGINS` contains ONLY your Vercel and custom domain URLs (no wildcard)
+- [ ] `RATE_LIMIT_SKIP_LOCALHOST=false` in production
+- [ ] Oracle Security List: only SSH (port 22, restricted to your IP) and HTTP (port 80) open
+- [ ] Oracle iptables rules applied and persisted
+- [ ] GitHub SSH key (`ORACLE_SSH_KEY`) is the deploy-only keypair, NOT your personal key
+- [ ] `GHCR_TOKEN` PAT has `read:packages` scope only, with rotation reminder set
+- [ ] Cloudflare SSL/TLS mode set to **Full** (not Flexible or Full Strict)
+- [ ] `.env.production` is NOT committed to git (add to `.gitignore`)
+- [ ] Run `git status` and verify no `.env.production` is staged
+
+### Oracle Cloud ARM Gotchas
+
+1. **Double Firewall:** Security List + iptables. You must open port 80 in **both**.
+2. **ARM Architecture:** The CI workflow must build multi-platform images (`platforms: linux/amd64,linux/arm64`). This is already set up in `.github/workflows/ci.yml`, but verify it's present.
+3. **Cloudflare SSL Mode:** Must be **Full**, not Flexible or Full Strict. Flexible causes redirect loops; Full Strict requires a valid cert on origin (which we don't have).
+4. **Socket.IO Paths:** The namespaces `/game` and `/tournament` are Socket.IO namespaces. All Socket.IO traffic uses the `/socket.io/` HTTP path for WebSocket upgrade. The nginx config proxies `/socket.io/`, which covers all namespaces.
+5. **TRUST_PROXY Configuration:** The env var `TRUST_PROXY=1` alone doesn't work — the code in `src/main.ts` must call `app.getHttpAdapter().getInstance().set('trust proxy', ...)` for Express to trust the X-Forwarded-* headers from nginx. Without this, rate-limiting sees the nginx container IP for all requests.
+6. **Free Tier Instance Reclaim:** Oracle reclaims idle free-tier instances. The `restart: unless-stopped` policy keeps services running, but if the instance hasn't been accessed in 7 days, Oracle may shut it down. Set a cron job to periodically check health or ping the instance.
+7. **No Sudo for Docker:** Add the ubuntu user to the docker group so deploy scripts don't need `sudo docker`. This is done in the Docker install step.
+
+### Troubleshooting
+
+#### Images Pull Slowly or Timeout
+
+The ARM image is multi-arch (amd64 + arm64). When pulling on the Oracle instance, Docker correctly selects the arm64 variant. If pulls are slow:
+
+```bash
+# Use a different registry mirror
+docker pull --registry-mirror=https://mirror.gcr.io ghcr.io/your-org/servers_poker:latest
+
+# Or check Docker daemon disk space
+docker system df
+docker image prune -f  # Remove dangling images
+```
+
+#### Rate Limiting Not Working
+
+Rate limiting sees all requests from the same IP (the nginx container) — means `TRUST_PROXY` wasn't configured. Check:
+
+```bash
+docker logs poker-backend | grep -i "trust proxy\|socket set"
+```
+
+If missing, the config in `src/main.ts` may not have been applied. Redeploy.
+
+#### WebSocket Disconnections
+
+If clients drop after a few minutes:
+
+```bash
+# Check nginx logs for dropped connections
+docker logs poker-nginx -f
+
+# Check redis connectivity
+docker exec poker-redis redis-cli ping
+# Expected: PONG
+```
+
+#### Database Connection Failures
+
+```bash
+# Verify the .env.production has correct DB credentials
+docker compose -f docker-compose.prod.yml exec backend \
+  node -e "console.log(process.env.DB_HOST, process.env.DB_USER)"
+
+# Check if Supabase/Neon is accessible from Oracle
+docker compose -f docker-compose.prod.yml exec backend \
+  nc -zv $DB_HOST $DB_PORT
+```
+
+---
+
+## Summary
+
+Production deployment on Oracle free tier is fully automated via GitHub Actions. The pipeline builds multi-platform Docker images, pushes to GHCR, and deploys via SSH with health checks and zero-downtime restarts. Cloudflare provides free TLS termination, Supabase/Neon provides managed PostgreSQL, and Vercel hosts the React frontend. Total cost: $0/month (assuming under free-tier limits).
+

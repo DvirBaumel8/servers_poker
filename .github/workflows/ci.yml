@@ -175,6 +175,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: docker/setup-qemu-action@v4
+
       - uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
@@ -204,3 +206,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           target: production
+          platforms: linux/amd64,linux/arm64

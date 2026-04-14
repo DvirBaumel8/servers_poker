@@ -10,7 +10,7 @@ export function initSentry() {
     integrations: [
       Sentry.browserTracingIntegration(),
     ],
-    tracesSampleRate: 1.0,
+    tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,  // 10% in production, 100% in dev
     beforeSend(event) {
       if (event.request?.data) {
         scrubObject(event.request.data as Record<string, unknown>)

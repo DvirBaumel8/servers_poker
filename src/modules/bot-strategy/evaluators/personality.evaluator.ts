@@ -136,9 +136,34 @@ function computeActionWeights(
     effectiveBluff = p.bluffFrequency * bluffMult;
   }
 
+  // Deep-stack aggression ceiling: when stacks are very deep (>60BB), cap effective
+  // aggression and bluff frequency at TAG level so Maniacs don't shove on hand 1.
+  // Applies on top of any tournament-stage dampening already applied above.
+  if (ctx.myStackBB > STRATEGY_TUNABLES.deepStackGuard.deepStackBBThreshold) {
+    const ceil = STRATEGY_TUNABLES.deepStackGuard.deepStackAggressionCeiling;
+    effectiveAggression = Math.min(effectiveAggression, ceil);
+    effectiveBluff = Math.min(effectiveBluff, ceil);
+  }
+
   const sigAgg = sigmoid(effectiveAggression);
   const sigTight = sigmoid(p.tightness);
-  const sigRisk = sigmoid(p.riskTolerance);
+
+  // Risk/reward normalization: when the call would risk >40% of the bot's stack and
+  // equity is not near-nuts (<90%), halve the effective risk tolerance. Prevents
+  // high-risk-tolerance bots from calling off large fractions of their stack in
+  // marginal spots regardless of their DNA aggression level.
+  let effectiveRiskTolerance = p.riskTolerance;
+  if (ctx.toCall > 0 && ctx.myStackBB > 0) {
+    const toCallFraction = ctx.toCall / (ctx.myStackBB * ctx.bigBlind);
+    if (
+      toCallFraction > STRATEGY_TUNABLES.deepStackGuard.largeLossThreshold &&
+      ctx.equity < STRATEGY_TUNABLES.deepStackGuard.nutHandEquityThreshold
+    ) {
+      effectiveRiskTolerance *=
+        STRATEGY_TUNABLES.deepStackGuard.riskToleranceDampeningFactor;
+    }
+  }
+  const sigRisk = sigmoid(effectiveRiskTolerance);
 
   // Board-plays hands cannot win outright — using the (high) split-pot equity as
   // handQuality would incorrectly pass the aggression gate (>= 0.4) and cause the
