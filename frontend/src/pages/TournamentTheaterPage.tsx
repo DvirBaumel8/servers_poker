@@ -10,12 +10,8 @@ import api from '../lib/axios'
 // Imported from the shared types file — do not redefine here.
 
 import type {
-  StreetCode,
-  ActionMetrics,
   ActionLog,
   HandLog,
-  ParticipantInfo,
-  TournamentLogSummary,
   MasterTournamentLog,
 } from '../types/hand-history'
 
@@ -1010,7 +1006,7 @@ export default function TournamentTheaterPage() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [log, currentHandIdx, goToHand])
+  }, [log, currentHandIdx, goToHand, filteredLog])
 
   // ─── Replay completion overlay (must be above early returns — Rules of Hooks) ──
   const isComplete = !!(filteredLog) &&
