@@ -110,20 +110,6 @@ function alwaysAllInPreflopStrategy(): BotStrategy {
   };
 }
 
-/** Maniac personality — max aggression, goes all-in frequently. */
-function maniacStrategy(): BotStrategy {
-  return {
-    version: 1,
-    tier: "quick",
-    personality: {
-      aggression: 95,
-      bluffFrequency: 70,
-      riskTolerance: 90,
-      tightness: 15,
-    },
-  };
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("Deep-Stack Preflop Guard", () => {
