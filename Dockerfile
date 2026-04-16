@@ -6,9 +6,6 @@
 
 FROM node:22-alpine AS base
 
-# Install security updates
-RUN apk update && apk upgrade --no-cache
-
 # ---- Dependencies ----
 FROM base AS deps
 
