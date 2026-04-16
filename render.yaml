@@ -10,9 +10,6 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/v1/health
-    # Run DB migrations then start the app. Ensures schema is up to date on
-    # every deploy without a separate migration job.
-    startCommand: node dist/src/migrations/run.js && node dist/src/main.js
     envVars:
       - key: NODE_ENV
         value: production

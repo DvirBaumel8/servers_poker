@@ -78,5 +78,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
-# Run the NestJS server
-CMD ["node", "dist/src/main.js"]
+# Run DB migrations then start the NestJS server
+CMD ["sh", "-c", "node dist/src/migrations/run.js && node dist/src/main.js"]
