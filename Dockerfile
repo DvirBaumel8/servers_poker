@@ -14,8 +14,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including dev for build)
-RUN npm ci
+# Install all dependencies — npm cache persists across builds via BuildKit cache mount
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # ---- Builder ----
 FROM base AS builder
@@ -27,10 +28,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build TypeScript
-RUN npm run build
+RUN --mount=type=cache,target=/root/.npm \
+    npm run build
 
 # Prune devDependencies in place — no install scripts run, just package removal
-RUN npm prune --omit=dev
+RUN --mount=type=cache,target=/root/.npm \
+    npm prune --omit=dev
 
 # ---- Production ----
 FROM base AS production

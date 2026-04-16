@@ -9,6 +9,7 @@ services:
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
+    dockerBuildCache: true
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
