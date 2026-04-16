@@ -48,15 +48,6 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Copy public assets if they exist
-COPY --chown=poker:nodejs public ./public 2>/dev/null || true
-
-# Copy bot templates (for reference/documentation)
-COPY --chown=poker:nodejs bots ./bots 2>/dev/null || true
-
-# Copy docs for API reference
-COPY --chown=poker:nodejs docs ./docs 2>/dev/null || true
-
 # Create logs directory
 RUN mkdir -p /app/logs && \
     chown -R poker:nodejs /app/logs
