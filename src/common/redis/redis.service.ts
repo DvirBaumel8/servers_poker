@@ -31,6 +31,10 @@ export class RedisService implements OnModuleDestroy {
       password: this.config.password || undefined,
       db: this.config.db,
       keyPrefix: this.config.keyPrefix,
+      // Enable TLS for managed Redis providers that require encrypted connections
+      // (e.g. Upstash). Set REDIS_TLS=true to activate.
+      tls:
+        this.configService.get<string>("REDIS_TLS") === "true" ? {} : undefined,
       retryStrategy: (times) => {
         if (times > 10) {
           this.logger.error("Redis connection failed after 10 retries");

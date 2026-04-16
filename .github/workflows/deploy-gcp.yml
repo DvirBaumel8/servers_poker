@@ -1,0 +1,88 @@
+name: Deploy to GCP (e2-micro)
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+    branches: [main]
+
+# Prevent concurrent deploys from racing
+concurrency:
+  group: deploy-gcp
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: Deploy to GCP e2-micro
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+
+    permissions:
+      contents: read
+      packages: read
+
+    environment:
+      name: production
+      url: https://yourdomain.com
+
+    steps:
+      # ── 1. Verify image exists in GHCR ───────────────────────────────────
+      - name: Verify Docker image exists in GHCR
+        run: |
+          echo "${{ secrets.GHCR_TOKEN }}" | \
+            docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker manifest inspect \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      # ── 2. SSH into GCP instance, pull, migrate, restart ─────────────────
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_HOST }}
+          username: ${{ secrets.GCP_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            DEPLOY_DIR=/opt/botroyale
+
+            echo "==> Logging into GHCR"
+            echo "${{ secrets.GHCR_TOKEN }}" | \
+              docker login ghcr.io \
+                -u ${{ github.actor }} \
+                --password-stdin
+
+            echo "==> Pulling latest image"
+            cd "$DEPLOY_DIR"
+            docker compose -f docker-compose.gcp.yml pull backend migrate
+
+            echo "==> Running DB migrations"
+            docker compose -f docker-compose.gcp.yml \
+              --profile migrate \
+              run --rm migrate
+
+            echo "==> Restarting backend (nginx + redis stay up)"
+            docker compose -f docker-compose.gcp.yml \
+              up -d --remove-orphans --no-deps backend
+
+            echo "==> Waiting for backend health check (90s timeout)"
+            timeout 90 bash -c \
+              'until docker inspect --format="{{.State.Health.Status}}" poker-backend | grep -q "healthy"; do sleep 5; done'
+
+            echo "==> Pruning images older than 72h"
+            docker image prune -f --filter "until=72h"
+
+            echo "==> Checking memory pressure"
+            free -h
+
+            echo "==> Deploy complete"
