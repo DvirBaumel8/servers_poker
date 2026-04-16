@@ -64,6 +64,9 @@ RUN mkdir -p /app/logs && \
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3000
+# Default empty — override via render.yaml or docker run -e NODE_OPTIONS=...
+# Example for memory-constrained deployments: --max-old-space-size=400
+ENV NODE_OPTIONS=""
 
 # Switch to non-root user
 USER poker

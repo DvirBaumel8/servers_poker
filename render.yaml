@@ -1,0 +1,97 @@
+# render.yaml — Render Blueprint Spec
+# Defines both the backend (Web Service) and frontend (Static Site) for BotRoyale.
+# Reference: https://render.com/docs/blueprint-spec
+
+services:
+  # ─── Backend: NestJS Web Service ───────────────────────────────────────────
+  - type: web
+    name: botroyale-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health
+    # Run DB migrations then start the app. Ensures schema is up to date on
+    # every deploy without a separate migration job.
+    startCommand: node dist/src/migrations/run.js && node dist/src/main.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render routes external traffic to port 10000 by default.
+      # NestJS reads PORT at startup via configService.get("port").
+      - key: PORT
+        value: "10000"
+      # Required so Express rate-limiting reads the real client IP from
+      # X-Forwarded-For (Render sits behind a proxy layer).
+      - key: TRUST_PROXY
+        value: "1"
+
+      # ── Database (Supabase) ─────────────────────────────────────────────────
+      # Set these manually in the Render dashboard — do NOT commit secrets.
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      # Conservative pool size for Render free tier (512 MB RAM).
+      - key: DB_POOL_SIZE
+        value: "5"
+
+      # ── Redis (Upstash) ─────────────────────────────────────────────────────
+      # Copy values from your Upstash dashboard → "ioredis" connection string.
+      # Upstash uses TLS on port 6380.
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        value: "6380"
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: REDIS_TLS
+        value: "true"
+
+      # ── Auth & Security ─────────────────────────────────────────────────────
+      # generateValue: Render auto-generates a secure random secret on first deploy.
+      - key: JWT_SECRET
+        generateValue: true
+      # Comma-separated list of allowed frontend origins.
+      # Example: https://botroyale-frontend.onrender.com
+      - key: CORS_ORIGINS
+        sync: false
+
+      # ── Memory budget for 512 MB free tier ─────────────────────────────────
+      # Caps V8 heap at 400 MB, leaving ~112 MB for OS + native libs.
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=400"
+      # Single worker thread on the free tier (1 vCPU).
+      - key: WORKER_POOL_SIZE
+        value: "1"
+
+  # ─── Frontend: React Static Site ───────────────────────────────────────────
+  - type: web
+    name: botroyale-frontend
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      # Set this to the deployed backend URL after the first deploy.
+      # Example: https://botroyale-backend.onrender.com
+      - key: VITE_API_URL
+        sync: false
+    headers:
+      # Disable aggressive caching for the HTML shell so deploys are picked up
+      # immediately. Static assets (JS/CSS) are content-hashed by Vite so they
+      # can be cached indefinitely by the browser.
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache, no-store, must-revalidate
+    routes:
+      # Redirect all paths to index.html — required for client-side React Router.
+      - type: rewrite
+        source: /*
+        destination: /index.html
