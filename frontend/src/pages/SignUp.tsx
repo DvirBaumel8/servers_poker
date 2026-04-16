@@ -224,6 +224,8 @@ export default function SignUp() {
       const res = await api.post('/auth/register', { name, email, password })
       if (res.data.verificationCode) {
         await handleVerify(res.data.verificationCode)
+      } else if (res.data.requiresVerification === false) {
+        setStep(3)
       } else {
         setStep(2)
       }

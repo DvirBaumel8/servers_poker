@@ -66,6 +66,7 @@ export class AuthService {
       );
     }
 
+    const skipVerification = this.shouldSkipEmailVerification();
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
     const verificationCode = this.emailService.generateVerificationCode();
     const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -103,9 +104,9 @@ export class AuthService {
             name: dto.name,
             password_hash: passwordHash,
             role: "user",
-            email_verified: false,
-            verification_code: verificationCode,
-            verification_code_expires_at: verificationExpires,
+            email_verified: skipVerification,
+            verification_code: skipVerification ? undefined : verificationCode,
+            verification_code_expires_at: skipVerification ? undefined : verificationExpires,
           },
           manager,
         );
@@ -118,6 +119,15 @@ export class AuthService {
         [PG_ERROR_CODES.UNIQUE_VIOLATION]:
           "Email already registered. Please verify your email or resend the verification code.",
       });
+    }
+
+    if (skipVerification) {
+      this.logger.log(`Email verification skipped for ${user.email} (SKIP_EMAIL_VERIFICATION=true)`);
+      return {
+        message: "Registration successful",
+        email: user.email,
+        requiresVerification: false,
+      };
     }
 
     await this.emailService.sendVerificationCode(user.email, verificationCode);
@@ -603,5 +613,9 @@ export class AuthService {
 
   private shouldExposeVerificationCode(): boolean {
     return this.configService.get<string>("nodeEnv") !== "production";
+  }
+
+  private shouldSkipEmailVerification(): boolean {
+    return this.configService.get<string>("SKIP_EMAIL_VERIFICATION") === "true";
   }
 }
