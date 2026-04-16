@@ -20,6 +20,16 @@ COPY package*.json ./
 # Install all dependencies (including dev for build)
 RUN npm ci
 
+# ---- Production dependencies ----
+FROM base AS prod-deps
+
+WORKDIR /app
+
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --omit=dev && npm cache clean --force
+
 # ---- Builder ----
 FROM base AS builder
 
@@ -41,12 +51,10 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S poker -u 1001 -G nodejs
 
-# Copy package files and install production dependencies only
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
-# Copy built application
+# Copy production node_modules and built application
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY package*.json ./
 
 # Create logs directory
 RUN mkdir -p /app/logs && \
