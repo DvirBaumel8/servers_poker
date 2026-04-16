@@ -17,16 +17,6 @@ COPY package*.json ./
 # Install all dependencies (including dev for build)
 RUN npm ci
 
-# ---- Production dependencies ----
-FROM base AS prod-deps
-
-WORKDIR /app
-
-COPY package*.json ./
-
-# Install production dependencies only
-RUN npm ci --omit=dev && npm cache clean --force
-
 # ---- Builder ----
 FROM base AS builder
 
@@ -39,6 +29,9 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+# Prune devDependencies in place — no install scripts run, just package removal
+RUN npm prune --omit=dev
+
 # ---- Production ----
 FROM base AS production
 
@@ -48,8 +41,8 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S poker -u 1001 -G nodejs
 
-# Copy production node_modules and built application
-COPY --from=prod-deps /app/node_modules ./node_modules
+# Copy pruned node_modules and built application
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY package*.json ./
 
