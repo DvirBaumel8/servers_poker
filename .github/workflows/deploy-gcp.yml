@@ -44,7 +44,7 @@ jobs:
 
       # ── 2. SSH into GCP instance, pull, migrate, restart ─────────────────
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.GCP_HOST }}
           username: ${{ secrets.GCP_USER }}
